@@ -1,0 +1,39 @@
+log:
+  dir: "logs"
+  file: "lexllama.log"
+  #log level: debug, info, warn, error, crit
+  level: "debug"
+  backup_count: -1
+
+db:
+  type: "sqllite"
+  database: "server.db"
+  host: "./"
+  pool_size: 10
+
+user:
+  secret_key: "981f1dd2a44e27d68759d0252a486568ed43480b4e616a26e3af3709c3a7ce73"
+  algorithm: "HS256"
+
+model:
+  type: transformers
+  # name: Mistral-7B-Instruct-v0.2
+  # name: CodeLlama-7b-hf 
+  # name: LLaMA-2-7B-32K
+  name: Meta-Llama-3-8B-Instruct
+  # name: Qwen2-57B-A14B-Instruct 
+  # name: DeepSeek-Coder-V2-Instruct-GGUF
+  # name: Qwen1.5-7B-Chat 
+
+  # path: /root/chenxl/models/Mistral-7B-Instruct-v0.2
+  # path: /models/Mistral-7B-Instruct-v0.2
+  # path: /models/CodeLlama-7b-hf 
+  # path: /models/LLaMA-2-7B-32K
+  path: /models/Meta-Llama-3-8B-Instruct
+  # path: /models/Qwen2-57B-A14B-Instruct
+  # path: /models/DeepSeek-Coder-V2-Instruct-GGUF
+  # path: /models/Qwen1.5-7B-Chat
+  device: cuda:0
+
+web:
+  open_cross_domain: True
