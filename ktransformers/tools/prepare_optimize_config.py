@@ -1,0 +1,86 @@
+import json
+from typing import Mapping
+from numpy import rec
+import torch
+from torch import nn
+from transformers import AutoConfig, AutoModelForCausalLM
+from models.modeling_deepseek import DeepseekV2ForCausalLM, DeepseekV2MoE
+from models.modeling_qwen2_moe import Qwen2MoeForCausalLM, Qwen2MoeSparseMoeBlock
+from operators.custom_gguf import translate_name_to_gguf
+from operators.quant import GPTQ_MARLIN_MIN_THREAD_N
+custom_models={
+    "DeepseekV2ForCausalLM":DeepseekV2ForCausalLM,
+    "Qwen2MoeForCausalLM":Qwen2MoeForCausalLM
+    }
+
+def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
+    module_name = prefix[:-1]
+    translated_name = translate_name_to_gguf(prefix)[:-1]
+    recursive = True
+    if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.quant",
+            "file_name": "quant",
+            "class_name": "QuantizedLinearMarlin",
+            "device_idx": "cuda:0"}
+        recursive = False
+    if isinstance(module, DeepseekV2MoE):
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.experts",
+            "file_name": "experts",
+            "class_name": "DeepseekV2MoEInjected",
+            "device_idx": "cuda:0"}
+    if isinstance(module, Qwen2MoeSparseMoeBlock):
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.experts",
+            "file_name": "experts",
+            "class_name": "Qwen2MoeSparseMoeBlockInjected",
+            "device_idx": "cuda:0"}
+    if isinstance(module, nn.ModuleList) and "expert" in module_name:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.experts",
+            "file_name": "experts",
+            "class_name": "MLPExperts",
+            "device_idx": "cuda:0"}
+        recursive = False
+    if "YarnRotaryEmbedding" in module.__class__.__name__:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.RoPE",
+            "file_name": "RoPE",
+            "class_name": "YarnRotaryEmbedding",
+            "device_idx": "cuda:0"}
+        recursive = False
+    elif "RotaryEmbedding" in module.__class__.__name__:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.RoPE",
+            "file_name": "RoPE",
+            "class_name": "RotaryEmbedding",
+            "device_idx": "cuda:0"}
+        recursive = False
+    if module_name not in out_data:
+        out_data[module_name]="default"
+        
+    if recursive:
+        for name, child in module._modules.items():
+            if child is not None:
+                child_prefix = prefix + name + "."
+                gen_optimize_config(child, out_data, child_prefix)
+
+if __name__ == "__main__":
+    model_name=input("please input the path of your model in safetensors format(don't need the big *.safetensors files)")
+    output_path=input("please input the output path of your optimize config json file:")
+    torch.set_grad_enabled(False)
+    config=AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    torch.set_default_dtype(config.torch_dtype)
+    config._attn_implementation="flash_attention_2"
+    with torch.device("meta"):
+        if config.architectures[0] in custom_models:
+            print("using custom modeling_xxx.py.")
+            model=custom_models[config.architectures[0]](config)
+        else:
+            model=AutoModelForCausalLM.from_config(config, trust_remote_code=True, attn_implementation="flash_attention_2")
+    out_data={}
+    gen_optimize_config(model, out_data)
+    with open(output_path,"w") as f:
+        json.dump(out_data, f)
+    print("finish generate optimize config json file.")

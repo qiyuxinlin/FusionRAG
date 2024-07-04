@@ -1,0 +1,9 @@
+*.nsys-rep
+.vs/
+*pycache*
+*build/
+operators/custom_marlin/dist/
+operators/custom_marlin/qlib.egg-info/
+__pychache__
+ktransformers/third_party/*
+.vscode
