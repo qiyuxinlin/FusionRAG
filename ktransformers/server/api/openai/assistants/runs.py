@@ -80,7 +80,7 @@ async def submit_tool_outputs_to_run(thread_id: str, run_id: str, submit: RunSub
 
 @router.post("/{thread_id}/runs/{run_id}/cancel",tags=['openai'], response_model=RunObject)
 async def cancel_run(thread_id: str, run_id: str):
-    ctx:ackendInterface= await get_thread_context_manager().get_context_by_thread_id(thread_id)
+    ctx:TC= await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         if ctx.run is None:
             logger.warn(f'Run {ctx.run.id} is expected to be in_progress, but no context is found')
@@ -89,7 +89,7 @@ async def cancel_run(thread_id: str, run_id: str):
         if ctx.run.id == run_id:
             logger.info(f'Cancelling thread: {thread_id} and run: {run_id}')
             ctx.run.stream_response_with_event(RunObject.Status.cancelling)
-            return run
+            return ctx.run
         else:
             run = runs_manager.db_get_run(run_id)
             logger.info(f'Run {run_id} not in this thread context')
