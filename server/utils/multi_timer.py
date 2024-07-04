@@ -17,9 +17,10 @@ def format_time(seconds):
     return "0 seconds"  # Handle case for 0 seconds
 
 
-class MultiTimer:
+class Profiler:
     def __init__(self):
         self.timers = {}
+        self.counters = {}
 
     def create_timer(self, name):
         self.timers[name] = {
@@ -42,13 +43,6 @@ class MultiTimer:
         if not self.timers[name]["running"]:
             raise ValueError(f"Timer '{name}' is not running.")
         self.timers[name]["elapsed_time"] += time.time() - self.timers[name]["start_time"]
-        self.timers[name]["running"] = False
-
-    def reset_timer(self, name):
-        if name not in self.timers:
-            raise ValueError(f"Timer '{name}' does not exist.")
-        self.timers[name]["start_time"] = None
-        self.timers[name]["elapsed_time"] = 0
         self.timers[name]["running"] = False
 
     def get_timer_sec(self, name):
@@ -74,5 +68,14 @@ class MultiTimer:
         self.start_timer(name)
 
 
+    # Counter
+    def inc(self,key:str,delta:int=1):
+        self.counters[key] = self.counters.get(key,0) + delta
+
+    def set_counter(self,key:str,to=0):
+        self.counters[key] = to
+
+    def get_counter(self,key:str):
+        return self.counters.get(key,0)
 
     

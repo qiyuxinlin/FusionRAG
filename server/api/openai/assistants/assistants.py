@@ -32,6 +32,16 @@ async def list_assistants(
 ):
     return [d.as_api_response() for d in assistant_manager.db_list_assistants(limit, order)]
 
+# list assistant with status
+@router.get("/status",tags=['openai-ext'])
+async def list_assistants_with_status(
+    limit: Optional[int] = 20,
+    order: Order = Order.DESC,
+    after: Optional[str] = None,
+    before: Optional[str] = None,
+):
+    return assistant_manager.db_list_assistants(limit, order)
+
 
 @router.get("/{assistant_id}",tags=['openai'])
 async def retrieve_assistant(
@@ -60,15 +70,7 @@ async def get_related_thread(assistant_id: ObjectID):
     return ass.get_related_threads_ids()
 
 
-# list assistant with status
-@router.get("/status",tags=['openai-ext'])
-async def list_assistants_with_status(
-    limit: Optional[int] = 20,
-    order: Order = Order.DESC,
-    after: Optional[str] = None,
-    before: Optional[str] = None,
-):
-    return assistant_manager.db_list_assistants(limit, order)
+
 
 def create_default_assistant():
     logger.info('Creating default assistant')

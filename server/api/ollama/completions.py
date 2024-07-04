@@ -9,7 +9,7 @@ from typing import List, Optional
 from fastapi.requests import Request
 from pydantic import BaseModel
 from server.config.config import Config
-from server.backend.context_manager import get_interface,TransformersInterface
+from server.backend.context_manager import get_interface,BackendInterface
 from server.schemas.assistants.streaming import chat_stream_response, check_link_response, stream_response 
 from server.schemas.base import ObjectID
 
@@ -47,7 +47,7 @@ class OllamaGenerationResponse(BaseModel):
 async def generate(request:Request,input:OllamaGenerateCompletionRequest):
     id = str(uuid4())
 
-    interface:TransformersInterface = get_interface()
+    interface:BackendInterface = get_interface()
     print(f'COMPLETION INPUT:----\n{input.prompt}\n----')
     input_ids = interface.tokenize_prompt(input.prompt)
          

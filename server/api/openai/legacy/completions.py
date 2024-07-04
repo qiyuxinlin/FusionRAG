@@ -4,7 +4,7 @@ from uuid import uuid4
 from fastapi import APIRouter
 from fastapi.requests import Request
 from server.config.config import Config
-from server.backend.context_manager import get_interface,TransformersInterface
+from server.backend.context_manager import get_interface,BackendInterface
 from server.schemas.assistants.streaming import chat_stream_response, check_link_response, stream_response 
 from server.schemas.base import ObjectID
 from server.schemas.legacy.completions import CompletionCreate,CompletionObject
@@ -15,7 +15,7 @@ router = APIRouter()
 async def create_completion(request:Request,create:CompletionCreate):
     id = str(uuid4())
 
-    interface:TransformersInterface = get_interface()
+    interface:BackendInterface = get_interface()
     print(f'COMPLETION INPUT:----\n{create.prompt}\n----')
     input_ids = interface.tokenize_prompt(create.prompt)
          

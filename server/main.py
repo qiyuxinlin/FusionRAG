@@ -1,7 +1,7 @@
 import sys,os
 
 import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = '5'
+os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +14,7 @@ import argparse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from server.config.config import Config
-# from server.backend.transformers import globalInterface,TransformersInterface
+from server.backend.context_manager import globalInterface,BackendInterface
 from server.backend.args import default_args
 
 from fastapi import FastAPI
@@ -84,7 +84,7 @@ def main():
     # 初始化消息
     args = parser.parse_args()
     app = create_app()
-    # globalInterface.interface = TransformersInterface(default_args)
+    globalInterface.interface = BackendInterface(default_args)
     run_api(app=app,
             host=args.host,
             port=args.port,

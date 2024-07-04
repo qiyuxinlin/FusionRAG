@@ -3,7 +3,7 @@ from uuid import uuid4
 from fastapi import APIRouter
 from fastapi.requests import Request
 from fastapi.responses import StreamingResponse
-from server.backend.context_manager import get_interface,TransformersInterface
+from server.backend.context_manager import get_interface ,BackendInterface
 from server.schemas.assistants.streaming import chat_stream_response 
 from server.schemas.base import ObjectID
 from server.schemas.endpoints.chat import ChatCompletionCreate,ChatCompletionChunk,ChatCompletionObject
@@ -16,7 +16,7 @@ router = APIRouter()
 async def chat_completion(request:Request,create:ChatCompletionCreate):
     id = str(uuid4())
 
-    interface:TransformersInterface = get_interface()
+    interface:BackendInterface = get_interface()
     input_ids = interface.format_and_tokenize_input_ids(id,messages=create.get_tokenizer_messages())
 
     if create.stream:

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from server.crud.assistants.runs import RunsDatabaseManager
-from server.backend.context_manager import get_thread_context_manager, TransformersInferenceContext
+from server.backend.context_manager import get_thread_context_manager,TC
 from server.schemas.assistants.runs import *
 from server.schemas.assistants.streaming import *
 from server.schemas.base import Order
@@ -24,14 +24,14 @@ async def create_run(request: Request, thread_id: str, run_create: RunCreate):
             run = runs_manager.db_create_run(thread_id, run_create)
             yield run.stream_response_with_event(event=RunObject.Status.created)
 
-            ctx:  TransformersInferenceContext = await get_thread_context_manager().get_context_by_run_object(run)
+            ctx:  TC = await get_thread_context_manager().get_context_by_run_object(run)
            
             async for event in ctx.work():
                 yield event
         return api_stream_response(request, inner())
     else:
         run = runs_manager.db_create_run(thread_id, run_create)
-        ctx:  TransformersInferenceContext = await get_thread_context_manager().get_context_by_run_object(run)
+        ctx:  TC = await get_thread_context_manager().get_context_by_run_object(run)
         async for event in ctx.work():
             pass
         return run
@@ -80,7 +80,7 @@ async def submit_tool_outputs_to_run(thread_id: str, run_id: str, submit: RunSub
 
 @router.post("/{thread_id}/runs/{run_id}/cancel",tags=['openai'], response_model=RunObject)
 async def cancel_run(thread_id: str, run_id: str):
-    ctx:TransformersInferenceContext = await get_thread_context_manager().get_context_by_thread_id(thread_id)
+    ctx:ackendInterface= await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         if ctx.run is None:
             logger.warn(f'Run {ctx.run.id} is expected to be in_progress, but no context is found')

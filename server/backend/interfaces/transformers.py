@@ -2,32 +2,119 @@ from typing import Any, List, Optional, Set
 from transformers import LlamaTokenizer,AutoTokenizer, AutoConfig, LlamaForCausalLM,GenerationConfig, StaticCache, AutoModelForCausalLM,BitsAndBytesConfig
 
 from server.schemas.base import ObjectID
-from server.utils.multi_timer import MultiTimer
-# from ..transformersInject.modeling_qwen2 import Qwen2ForCausalLM
+from server.utils.multi_timer import Profiler
 import torch
 import sys, os
-sys.path.append(
-    os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "KTransformers",
-    )
-)
-from KTransformers.model.modeling_deepseek import DeepseekV2ForCausalLM
-from KTransformers.model.modeling_qwen2_moe import Qwen2MoeForCausalLM
-from KTransformers.gguf_injected_loader import optimize_model_using_optimization_dict
-from .text_streamer import TextStreamer
+from ..base import ThreadContext,BackendInterfaceBase
 from server.config.log import logger
+from ..args import ConfigArgs,default_args
 
-from .args import ConfigArgs,default_args
-import json
-custom_models={
-    "DeepseekV2ForCausalLM":DeepseekV2ForCausalLM,
-    "Qwen2MoeForCausalLM":Qwen2MoeForCausalLM
-    }
 
-class TransformersInterface:
-    args: ConfigArgs
-    use_static_cache : bool = False
+
+# This TextStreamer is a modified version from https://github.com/huggingface/transformers/blob/main/src/transformers/generation/streamers.py
+class TextStreamer:
+
+    def __init__(self, tokenizer: "AutoTokenizer", skip_prompt: bool = False, **decode_kwargs):
+        self.tokenizer = tokenizer
+        self.skip_prompt = skip_prompt
+        self.decode_kwargs = decode_kwargs
+
+        # variables used in the streaming process
+        self.token_cache = []
+        self.print_len = 0
+        self.next_tokens_are_prompt = True
+
+    def reset(self):
+        self.token_cache = []
+        self.print_len = 0
+
+    def put(self, value)->Optional[str]:
+        """
+        Receives tokens, decodes them, and prints them to stdout as soon as they form entire words.
+        """        
+        if not isinstance(value,int):
+            raise ValueError("TextStreamer only supports batch size 1, and int type input")
+
+
+        if self.skip_prompt and self.next_tokens_are_prompt:
+            self.next_tokens_are_prompt = False
+            return None
+
+        # Add the new token to the cache and decodes the entire thing.
+        self.token_cache.append(value)
+        text = self.tokenizer.decode(self.token_cache, skip_special_tokens=True,**self.decode_kwargs)
+
+        # After the symbol for a new line, we flush the cache.
+        if text.endswith("\n"):
+            printable_text = text[self.print_len :]
+            self.reset()
+        # If the last token is a CJK character, we print the characters.
+        elif len(text) > 0 and self._is_chinese_char(ord(text[-1])):
+            printable_text = text[self.print_len :]
+            self.print_len += len(printable_text)
+        # Otherwise, prints until the last space char (simple heuristic to avoid printing incomplete words,
+        # which may change with the subsequent token -- there are probably smarter ways to do this!)
+        else:
+            printable_text = text[self.print_len : text.rfind(" ") + 1]
+            self.print_len += len(printable_text)
+        return printable_text
+
+    def end(self)->Optional[str]:
+        """Flushes any remaining cache and prints a newline to stdout."""
+        # Flush the cache, if it exists
+        if len(self.token_cache) > 0:
+            text = self.tokenizer.decode(self.token_cache, skip_special_tokens=True, **self.decode_kwargs)
+            printable_text = text[self.print_len :]
+            self.reset()
+        else:
+            printable_text = ""
+
+        self.next_tokens_are_prompt = True
+        return printable_text
+   
+    def _is_chinese_char(self, cp):
+        """Checks whether CP is the codepoint of a CJK character."""
+        # This defines a "chinese character" as anything in the CJK Unicode block:
+        #   https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
+        #
+        # Note that the CJK Unicode block is NOT all Japanese and Korean characters,
+        # despite its name. The modern Korean Hangul alphabet is a different block,
+        # as is Japanese Hiragana and Katakana. Those alphabets are used to write
+        # space-separated words, so they are not treated specially and handled
+        # like the all of the other languages.
+        if (
+            (cp >= 0x4E00 and cp <= 0x9FFF)
+            or (cp >= 0x3400 and cp <= 0x4DBF)  #
+            or (cp >= 0x20000 and cp <= 0x2A6DF)  #
+            or (cp >= 0x2A700 and cp <= 0x2B73F)  #
+            or (cp >= 0x2B740 and cp <= 0x2B81F)  #
+            or (cp >= 0x2B820 and cp <= 0x2CEAF)  #
+            or (cp >= 0xF900 and cp <= 0xFAFF)
+            or (cp >= 0x2F800 and cp <= 0x2FA1F)  #
+        ):  #
+            return True
+
+        return False
+
+
+class TransformersThreadContext(ThreadContext):  
+
+    def get_interface(self):
+        return get_interface()
+
+    def get_local_messages(self):
+        local_messages = []
+        for m in self.messages:
+            local_messages.append(
+                {'role':m.role.value,
+                 'content':m.get_text_content()}
+            )
+        
+        return local_messages
+
+
+class TransformersInterface(BackendInterfaceBase):
+    use_static_cache : bool = True
 
 
     model: Any
@@ -40,38 +127,24 @@ class TransformersInterface:
     streamer: TextStreamer
 
     # thread_related
-    thread_id: Optional[str] = None
+    last_request_id: Optional[str] = None
     ever_generated_ids: Set[int] = set()
 
-    # profile
-    timer:MultiTimer = MultiTimer()
     
     
     def __init__(self, args:ConfigArgs = default_args):
         self.args = args
-        torch.set_default_dtype(torch.bfloat16)
-        torch.set_grad_enabled(False)
-        with open(args.optimize_config_path, 'r', encoding='utf-8') as file:
-            optimize_config = json.load(file)
-        self.tokenizer = AutoTokenizer.from_pretrained(args.model_dir,device = args.device)
-        config=AutoConfig.from_pretrained(args.model_dir, trust_remote_code=True)
-        # config._attn_implementation="flash_attention_2"
-        config.skip_init_experts = True
-        with torch.device("meta"):
-            self.model=custom_models[config.architectures[0]](config)
-        optimize_model_using_optimization_dict(self.model, optimize_config, args.gguf_path)
-    
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+        self.model = LlamaForCausalLM.from_pretrained(args.model_dir, device_map=args.device,use_safetensors=True)
         logger.info(f'{args.model_name} loaded from {args.model_dir} to {args.device}')
+        
         self.cache = StaticCache(config=self.model.config, max_batch_size=args.batch_size, max_cache_len=args.cache_lens, device=args.device, dtype=self.model.dtype)
         logger.info(f'StaticCache (length={args.cache_lens}) created at {args.device}, batch size:{args.batch_size}')
-        self.model.generation_config = GenerationConfig.from_pretrained(args.model_dir)
-        if self.model.generation_config.pad_token_id is None:
-            self.model.generation_config.pad_token_id = self.model.generation_config.eos_token_id
+        
         self.streamer = TextStreamer(self.tokenizer)
 
-
-
-
+       
 
     @property
     def current_ids(self):
@@ -103,7 +176,7 @@ class TransformersInterface:
 
         input_ids = self.tokenizer.apply_chat_template(new_messages,return_tensors='pt',add_generation_prompt=True).to(self.args.device)
         
-        if (self.thread_id is not None) and self.thread_id == thread_id:
+        if (self.last_request_id is not None) and self.last_request_id == thread_id:
             x = self.generated_ids[:,:self.seq_length]
             y = input_ids[:,:self.seq_length]
             # We can only hope that the input_ids are the same
@@ -165,6 +238,7 @@ class TransformersInterface:
     @torch.no_grad
     def prefill(self,input_ids:torch.Tensor,is_new:bool):
         input_ids_length = input_ids.shape[-1]
+        self.profiler.set_counter('prefill',input_ids_length)
         logger.debug(f'input_ids: {input_ids.shape}')
 
         
@@ -191,7 +265,6 @@ class TransformersInterface:
         cache_position = torch.arange(former_seq_length,self.seq_length, device=self.args.device)
         self.generated_ids[:,cache_position] = input_ids.to(self.args.device).to(torch.int)
 
-        self.timer.create_and_start_timer('prefill')
 
         if self.use_static_cache:
             logits = self.model(
@@ -202,9 +275,6 @@ class TransformersInterface:
                 input_ids=input_ids,return_dict=False
             )[0]
 
-        t = self.timer.get_timer_sec('prefill')
-        ave =  input_ids.shape[-1]/t
-        logger.info(f'prefill time: {t:.5f}s, input id len:{input_ids.shape[-1]} ,average: {ave:.5f} token/s')
 
 
         next_token = self.logits_to_token(logits[0,-1,:])
@@ -212,9 +282,11 @@ class TransformersInterface:
 
     @torch.no_grad
     def generate(self):
+        self.profiler.set_counter('decode',0)
         for _ in range(1, self.args.max_new_tokens):
             with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_mem_efficient=False, enable_math=True):
                 next_token = self.decode_one_tokens()
+                self.profiler.inc('decode')
                 if next_token == self.tokenizer.eos_token_id:
                     assert self.args.batch_size == 1
                     break
@@ -224,35 +296,36 @@ class TransformersInterface:
     def check_is_new(self,thread_id:str):
         if not self.use_static_cache:
             return True
-
-
-        if self.thread_id is None:
-            self.thread_id = thread_id
+        if self.last_request_id is None:
+            self.last_request_id = thread_id
             return True
         else:
-            if self.thread_id==thread_id:
+            if self.last_request_id==thread_id:
                 return False
             else:
-                self.thread_id = thread_id
+                self.last_request_id = thread_id
                 return True
 
-    async def work(self,thread_id:str,input_ids:torch.Tensor):
+    async def work(self,local_messages,thread_id:str):
+        self.profiler.create_and_start_timer('tokenize')
+        input_ids = self.format_and_tokenize_input_ids(thread_id,local_messages)
+        self.profiler.pause_timer('tokenize')
+
+        self.profiler.create_and_start_timer('prefill')
         for t in self.prefill(input_ids,self.check_is_new(thread_id)):
             if t is not None:
                 print(t,end='')
                 yield t
+        self.profiler.pause_timer('prefill')
 
-        self.timer.create_and_start_timer('decode')
-        token_count = 0
+        self.profiler.create_and_start_timer('decode')
         for t in self.generate():
-            token_count+=1
             if t is not None:
                 print(t,end='')
                 yield t
         print('')
-        t = self.timer.get_timer_sec('decode')
-        ave = token_count/t
-        logger.info(f'decode time: {t:.5f}s, token count:{token_count} ,average: {ave:.5f} token/s, seq_length to {self.seq_length}')
+        self.profiler.pause_timer('decode')
+        self.report_last_time_performance()
 
 class globalInterface:
     interface:TransformersInterface   
