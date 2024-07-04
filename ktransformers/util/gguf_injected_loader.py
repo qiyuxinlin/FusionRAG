@@ -4,7 +4,7 @@ from torch import nn
 from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from operators.base_operator import BaseInjectedModule
-from operators.custom_gguf import GGUFLoader
+from util.custom_gguf import GGUFLoader
 from utils import _set_module, _set_param, load_weights
 import itertools
 

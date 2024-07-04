@@ -1,7 +1,7 @@
 {
     "lm_head": {
         "key": "lm_head",
-        "module_name": "operators.quant",
+        "module_name": "operators.linear",
         "file_name": "quant",
         "class_name": "QuantizedLinearMarlin",
         "device_idx": 0
@@ -10,7 +10,7 @@
     "model.layers.0.input_layernorm": "default",
     "model.layers.0.mlp.down_proj": {
         "key": "model.layers.0.mlp.down_proj",
-        "module_name": "operators.quant",
+        "module_name": "operators.linear",
         "file_name": "quant",
         "class_name": "QuantizedLinearMarlin",
         "device_idx": 0

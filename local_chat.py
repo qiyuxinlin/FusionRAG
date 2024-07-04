@@ -28,7 +28,7 @@ import fire
 import sys, os
 sys.path.append(os.path.dirname(__file__) + '/ktransformers')
 from tools.prepare_optimize_config import gen_optimize_config
-from gguf_injected_loader import optimize_model_using_optimization_dict
+from util.gguf_injected_loader import optimize_model_using_optimization_dict
 from models.modeling_deepseek import DeepseekV2ForCausalLM
 from models.modeling_qwen2_moe import Qwen2MoeForCausalLM
 

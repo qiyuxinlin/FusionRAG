@@ -26,7 +26,7 @@ sys.path.append(os.path.dirname(__file__) + "/../third_party/pcinfer/build")
 import pcinfer
 from pcinfer.moe import MOEConfig, MOE
 import ctypes
-from operators.custom_gguf import GGUFLoader
+from util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
 
 # from gguf.constants import GGMLQuantizationType

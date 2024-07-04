@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer, StaticCache, logging, AutoConfig
 from model.modeling_deepseek import DeepseekV2ForCausalLM
 from model.modeling_qwen2_moe import Qwen2MoeForCausalLM
-from gguf_injected_loader import optimize_model_using_optimization_dict
+from util.gguf_injected_loader import optimize_model_using_optimization_dict
 import torch
 import torch.nn as nn
 import time

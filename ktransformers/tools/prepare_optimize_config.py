@@ -6,8 +6,8 @@ from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM
 from models.modeling_deepseek import DeepseekV2ForCausalLM, DeepseekV2MoE
 from models.modeling_qwen2_moe import Qwen2MoeForCausalLM, Qwen2MoeSparseMoeBlock
-from operators.custom_gguf import translate_name_to_gguf
-from operators.quant import GPTQ_MARLIN_MIN_THREAD_N
+from util.custom_gguf import translate_name_to_gguf
+from operators.linear import GPTQ_MARLIN_MIN_THREAD_N
 custom_models={
     "DeepseekV2ForCausalLM":DeepseekV2ForCausalLM,
     "Qwen2MoeForCausalLM":Qwen2MoeForCausalLM
@@ -19,7 +19,7 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
     recursive = True
     if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.quant",
+            "module_name": "operators.linear",
             "file_name": "quant",
             "class_name": "QuantizedLinearMarlin",
             "device_idx": "cuda:0"}

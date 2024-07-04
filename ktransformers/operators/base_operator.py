@@ -1,6 +1,6 @@
 from typing import Any
 from torch import nn, Tensor
-from operators.custom_gguf import GGUFLoader
+from util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
 import utils
 class BaseInjectedModule(nn.Module):

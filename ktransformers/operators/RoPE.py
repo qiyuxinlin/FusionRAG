@@ -1,7 +1,7 @@
 from torch import nn
 from models.modeling_deepseek import DeepseekV2YarnRotaryEmbedding, DeepseekV2RotaryEmbedding
 from operators.base_operator import BaseInjectedModule
-from operators.custom_gguf import GGUFLoader
+from util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
 # Copied from transformers.models.mixtral.modeling_mixtral.MixtralRotaryEmbedding with Mixtral->Qwen2Moe
 class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):

@@ -17,9 +17,9 @@ import torch
 from torch import nn
 from torch import linalg
 import qlib
-from operators.custom_gguf import GGUFLoader
-from operators.custom_marlin.quantize.utils.marlin_perms import marlin_perm
-from operators.custom_marlin.quantize.utils.marlin_utils import (
+from util.custom_gguf import GGUFLoader
+from ktransformers_ext.custom_marlin.quantize.utils.marlin_perms import marlin_perm
+from ktransformers_ext.custom_marlin.quantize.utils.marlin_utils import (
     MarlinWorkspace,
     compute_max_diff,
     is_marlin_supported,
@@ -27,7 +27,7 @@ from operators.custom_marlin.quantize.utils.marlin_utils import (
     marlin_quantize,
     marlin_weights,
 )
-from operators.custom_marlin.quantize.utils.quant_utils import (
+from ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
     gptq_pack,
     quantize_weights,
     sort_weights,
@@ -221,3 +221,4 @@ class QuantizedLinearMarlin(QuantizedLinear):
         self.g_idx = None
         self.sort_indices = None
         self.workspace = None
+

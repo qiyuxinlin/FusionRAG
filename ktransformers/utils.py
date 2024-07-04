@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 import itertools
-from operators.custom_gguf import translate_name_to_gguf
-from operators.custom_gguf import GGUFLoader
+from util.custom_gguf import translate_name_to_gguf
+from util.custom_gguf import GGUFLoader
 from operators import base_operator
 
 def _set_module(model, submodule_key, module):
