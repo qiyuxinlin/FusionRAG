@@ -1,0 +1,498 @@
+import torch
+import os, sys
+
+sys.path.append(os.path.dirname(__file__) + "/../../ktransformers_ext/llamafile/build")
+import cpuinfer_ext
+
+class CPUInferKVCache:
+    def __init__(
+        self,
+        layer_num: int = 32,
+        kv_head_num: int = 8,
+        q_head_num: int = 32,
+        head_dim: int = 128,
+        block_len: int = 256,
+        anchor_num: int = 4,
+        anchor_type: cpuinfer_ext.kvcache.AnchorType = cpuinfer_ext.kvcache.AnchorType.FIXED,
+    ):
+
+        self.config = cpuinfer_ext.kvcache.KVCacheConfig(
+            layer_num,
+            kv_head_num,
+            q_head_num,
+            head_dim,
+            block_len,
+            anchor_num,
+            anchor_type,
+        )
+        self.kvcache = cpuinfer_ext.kvcache.KVCache(self.config)
+
+    def load_kvcache(self, tensor_file_path: str):
+        if not os.path.exists(tensor_file_path):
+            raise FileNotFoundError(f"The file {tensor_file_path} does not exist.")
+        return self.kvcache.load_kvcache, (tensor_file_path,)
+
+    def dump_kvcache(
+        self, block_table: torch.Tensor, cache_total_len: int, tensor_file_path: str
+    ):
+        assert (
+            block_table.dim() == 1
+            and block_table.dtype == torch.int
+            and block_table.is_contiguous()
+            and block_table.device == torch.device("cpu")
+        ), "block_table dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            block_table.dim(),
+            block_table.size(),
+            block_table.dtype,
+            block_table.is_contiguous(),
+            block_table.device,
+        )
+
+        assert (
+            cache_total_len > 0
+            and cache_total_len <= self.config.block_len * block_table.size(0)
+        ), "cache_total_len: {}".format(cache_total_len)
+
+        if not os.path.exists(os.path.dirname(tensor_file_path)):
+            os.makedirs(os.path.dirname(tensor_file_path))
+
+        return self.kvcache.dump_kvcache, (
+            block_table.data_ptr(),
+            cache_total_len,
+            tensor_file_path,
+        )
+
+    # q_in: (bsz, q_len, q_head_num, head_dim)
+    # output: (bsz, q_len, q_head_num, head_dim)
+    # attn_lse: (bsz, q_len, q_head_num)
+    # block_table: (bsz, max_block_num)
+
+    def update_cache_total_len(self, cache_total_len: int):
+        assert cache_total_len > 0, "cache_total_len: {}".format(cache_total_len)
+        self.kvcache.update_cache_total_len(cache_total_len)
+
+    def attn(
+        self,
+        q_in: torch.Tensor,
+        output: torch.Tensor,
+        attn_lse: torch.Tensor,
+        layer_idx: int,
+        block_table: torch.Tensor | None = None,
+        cache_seqlens: torch.Tensor | None = None,
+        pick_block_num: int | None = None,
+        init_block_num: int | None = None,
+        local_block_num: int | None = None,
+    ):
+
+        assert (
+            q_in.dim() == 4
+            and q_in.size(2) == self.config.q_head_num
+            and q_in.size(3) == self.config.head_dim
+            and q_in.dtype == torch.float16
+            and q_in.is_contiguous()
+            and q_in.device == torch.device("cpu")
+        ), "q_in dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            q_in.dim(), q_in.size(), q_in.dtype, q_in.is_contiguous(), q_in.device
+        )
+
+        batch_size = q_in.size(0)
+        q_len = q_in.size(1)
+
+        assert (block_table is None) or (
+            block_table.dim() == 2
+            and block_table.size(0) == batch_size
+            and block_table.dtype == torch.int
+            and block_table.is_contiguous()
+            and block_table.device == torch.device("cpu")
+        ), "block_table dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            block_table.dim(),
+            block_table.size(),
+            block_table.dtype,
+            block_table.is_contiguous(),
+            block_table.device,
+        )
+
+        max_block_num = block_table.size(1) if block_table is not None else 0
+
+        assert (
+            output.dim() == 4
+            and output.size(0) == batch_size
+            and output.size(2) == self.config.q_head_num
+            and output.size(1) == q_len
+            and output.size(3) == self.config.head_dim
+            and output.dtype == torch.float16
+            and output.is_contiguous()
+            and output.device == torch.device("cpu")
+        ), "output dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            output.dim(),
+            output.size(),
+            output.dtype,
+            output.is_contiguous(),
+            output.device,
+        )
+
+        assert (
+            attn_lse.dim() == 3
+            and attn_lse.size(0) == batch_size
+            and attn_lse.size(1) == q_len
+            and attn_lse.size(2) == self.config.q_head_num
+            and attn_lse.dtype == torch.float32
+            and attn_lse.is_contiguous()
+            and attn_lse.device == torch.device("cpu")
+        ), "attn_lse dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            attn_lse.dim(),
+            attn_lse.size(),
+            attn_lse.dtype,
+            attn_lse.is_contiguous(),
+            attn_lse.device,
+        )
+
+        assert (
+            layer_idx >= 0 and layer_idx < self.config.layer_num
+        ), "layer_idx: {}".format(layer_idx)
+
+        assert (cache_seqlens is None) or (
+            cache_seqlens.dim() == 1
+            and cache_seqlens.size(0) == batch_size
+            and cache_seqlens.dtype == torch.int
+            and cache_seqlens.is_contiguous()
+            and cache_seqlens.device == torch.device("cpu")
+        ), "cache_seqlens dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            cache_seqlens.dim(),
+            cache_seqlens.size(),
+            cache_seqlens.dtype,
+            cache_seqlens.is_contiguous(),
+            cache_seqlens.device,
+        )
+
+        return self.kvcache.attn, (
+            q_in.data_ptr(),
+            output.data_ptr(),
+            attn_lse.data_ptr(),
+            layer_idx,
+            q_len,
+            batch_size,
+            max_block_num,
+            block_table.data_ptr() if block_table is not None else 0,
+            cache_seqlens.data_ptr() if cache_seqlens is not None else 0,
+            pick_block_num,
+            init_block_num,
+            local_block_num,
+        )
+
+    # k_in: (block_len, kv_head_num, head_dim)
+    # v_in: (block_len, kv_head_num, head_dim)
+    def update_one_block_fp16(
+        self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int, block_idx: int
+    ):
+        assert (
+            k_in.dim() == 3
+            and k_in.size(1) == self.config.block_len
+            and k_in.size(0) == self.config.kv_head_num
+            and k_in.size(2) == self.config.head_dim
+            and k_in.dtype == torch.float16
+            and k_in.is_contiguous()
+            and k_in.device == torch.device("cpu")
+        ), "k_in dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            k_in.dim(), k_in.size(), k_in.dtype, k_in.is_contiguous(), k_in.device
+        )
+        assert (
+            v_in.dim() == 3
+            and v_in.size(1) == self.config.block_len
+            and v_in.size(0) == self.config.kv_head_num
+            and v_in.size(2) == self.config.head_dim
+            and v_in.dtype == torch.float16
+            and v_in.is_contiguous()
+            and v_in.device == torch.device("cpu")
+        ), "v_in dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            v_in.dim(), v_in.size(), v_in.dtype, v_in.is_contiguous(), v_in.device
+        )
+        assert (
+            layer_id >= 0 and layer_id < self.config.layer_num
+        ), "layer_id: {}".format(layer_id)
+        assert block_idx >= 0, "block_idx: {}".format(block_idx)
+        return self.kvcache.update_one_block_fp16, (k_in.data_ptr(), v_in.data_ptr(), layer_id, block_idx,)
+        
+
+    def get_one_block_fp16(
+        self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int, block_idx: int
+    ):
+        assert (
+            k_in.dim() == 3
+            and k_in.size(1) == self.config.block_len
+            and k_in.size(0) == self.config.kv_head_num
+            and k_in.size(2) == self.config.head_dim
+            and k_in.dtype == torch.float16
+            and k_in.is_contiguous()
+            and k_in.device == torch.device("cpu")
+        ), "k_in dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            k_in.dim(), k_in.size(), k_in.dtype, k_in.is_contiguous(), k_in.device
+        )
+        assert (
+            v_in.dim() == 3
+            and v_in.size(1) == self.config.block_len
+            and v_in.size(0) == self.config.kv_head_num
+            and v_in.size(2) == self.config.head_dim
+            and v_in.dtype == torch.float16
+            and v_in.is_contiguous()
+            and v_in.device == torch.device("cpu")
+        ), "v_in dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            v_in.dim(), v_in.size(), v_in.dtype, v_in.is_contiguous(), v_in.device
+        )
+        assert (
+            layer_id >= 0 and layer_id < self.config.layer_num
+        ), "layer_id: {}".format(layer_id)
+        assert block_idx >= 0, "block_idx: {}".format(block_idx)
+        return self.kvcache.get_one_block_fp16, (
+            k_in.data_ptr(),
+            v_in.data_ptr(),
+            layer_id,
+            block_idx,
+        )
+
+    def update_importance_one_block(
+        self, importance: torch.Tensor, layer_id: int, block_idx: int
+    ):
+        assert (
+            importance.dim() == 1
+            and importance.size(0) == self.config.block_len
+            and importance.dtype == torch.float16
+            and importance.is_contiguous()
+            and importance.device == torch.device("cpu")
+        ), "importance dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            importance.dim(),
+            importance.size(),
+            importance.dtype,
+            importance.is_contiguous(),
+            importance.device,
+        )
+        assert (
+            layer_id >= 0 and layer_id < self.config.layer_num
+        ), "layer_id: {}".format(layer_id)
+        assert block_idx >= 0, "block_idx: {}".format(block_idx)
+        return self.kvcache.update_importance_one_block, (
+            importance.data_ptr(),
+            layer_id,
+            block_idx,
+        )
+
+    def get_importance_one_block(
+        self, importance: torch.Tensor, layer_id: int, block_idx: int
+    ):
+        assert (
+            importance.dim() == 1
+            and importance.size(0) == self.config.block_len
+            and importance.dtype == torch.float16
+            and importance.is_contiguous()
+            and importance.device == torch.device("cpu")
+        ), "importance dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            importance.dim(),
+            importance.size(),
+            importance.dtype,
+            importance.is_contiguous(),
+            importance.device,
+        )
+        assert (
+            layer_id >= 0 and layer_id < self.config.layer_num
+        ), "layer_id: {}".format(layer_id)
+        assert block_idx >= 0, "block_idx: {}".format(block_idx)
+        return self.kvcache.get_importance_one_block, (
+            importance.data_ptr(),
+            layer_id,
+            block_idx,
+        )
+
+    def get_anchor_one_block(self, anchor: torch.Tensor, layer_id: int, block_idx: int):
+        assert (
+            anchor.dim() == 3
+            and anchor.size(0) == self.config.kv_head_num
+            and anchor.size(1) == self.config.anchor_num
+            and anchor.size(2) == self.config.head_dim
+            and anchor.dtype == torch.float16
+            and anchor.is_contiguous()
+            and anchor.device == torch.device("cpu")
+        ), "anchor dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            anchor.dim(),
+            anchor.size(),
+            anchor.dtype,
+            anchor.is_contiguous(),
+            anchor.device,
+        )
+        assert (
+            layer_id >= 0 and layer_id < self.config.layer_num
+        ), "layer_id: {}".format(layer_id)
+        assert block_idx >= 0, "block_idx: {}".format(block_idx)
+        return self.kvcache.get_anchor_one_block, (
+            anchor.data_ptr(),
+            layer_id,
+            block_idx,
+        )
+
+    def update_anchor_one_block(
+        self, anchor: torch.Tensor, layer_id: int, block_idx: int
+    ):
+        assert (
+            anchor.dim() == 3
+            and anchor.size(0) == self.config.kv_head_num
+            and anchor.size(1) == self.config.anchor_num
+            and anchor.size(2) == self.config.head_dim
+            and anchor.dtype == torch.float16
+            and anchor.is_contiguous()
+            and anchor.device == torch.device("cpu")
+        ), "anchor dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            anchor.dim(),
+            anchor.size(),
+            anchor.dtype,
+            anchor.is_contiguous(),
+            anchor.device,
+        )
+        assert (
+            layer_id >= 0 and layer_id < self.config.layer_num
+        ), "layer_id: {}".format(layer_id)
+        assert block_idx >= 0, "block_idx: {}".format(block_idx)
+        return self.kvcache.update_anchor_one_block, (
+            anchor.data_ptr(),
+            layer_id,
+            block_idx,
+        )
+
+    def calc_anchor_all_layers(
+        self,
+        block_table: torch.Tensor,
+        cache_seqlens: torch.Tensor,
+    ):
+        assert (
+            block_table.dim() == 2
+            and block_table.size(0) == cache_seqlens.size(0)
+            and block_table.dtype == torch.int
+            and block_table.is_contiguous()
+            and block_table.device == torch.device("cpu")
+        ), "block_table dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            block_table.dim(),
+            block_table.size(),
+            block_table.dtype,
+            block_table.is_contiguous(),
+            block_table.device,
+        )
+        assert (
+            cache_seqlens.dim() == 1
+            and cache_seqlens.dtype == torch.int
+            and cache_seqlens.is_contiguous()
+            and cache_seqlens.device == torch.device("cpu")
+        ), "cache_seqlens dim: {}, size: {}, dtype: {}, contiguous: {}, device: {}".format(
+            cache_seqlens.dim(),
+            cache_seqlens.size(),
+            cache_seqlens.dtype,
+            cache_seqlens.is_contiguous(),
+            cache_seqlens.device,
+        )
+        batch_size = block_table.size(0)
+        max_block_num = block_table.size(1)
+        return self.kvcache.calc_anchor_all_layers, (
+            block_table.data_ptr(),
+            cache_seqlens.data_ptr(),
+            batch_size,
+            max_block_num,
+        )
+
+    # /*
+    # int get_cache_total_len() { return cache_total_len_; }
+    # */
+    # static void bind_get_cache_total_len(TaskQueue &task_queue,
+    #                                      KVCache *kv_cache, py::args args,
+    #                                      py::kwargs kwargs) {
+    #     auto cache_total_len = kv_cache->get_cache_total_len();
+    #     return cache_total_len;
+    # }
+
+    # /*
+    # void get_all_kv_one_layer(int layer_id, ggml_fp16_t *k_in,
+    #                           ggml_fp16_t *v_in, Backend *backend);
+    # */
+    # static void bind_get_all_kv_one_layer(TaskQueue &task_queue,
+    #                                       KVCache *kv_cache, py::args args,
+    #                                       py::kwargs kwargs) {
+    #     auto layer_id = args[0].cast<int>();
+    #     auto k_in = args[1].cast<intptr_t>();
+    #     auto v_in = args[2].cast<intptr_t>();
+    #     auto backend = args[3].cast<Backend *>();
+
+    #     task_queue.enqueue([=]() {
+    #         kv_cache->get_all_kv_one_layer(layer_id, (ggml_fp16_t *)k_in,
+    #                                        (ggml_fp16_t *)v_in, backend);
+    #     });
+    # }
+
+    def get_all_kv_one_layer(self, 
+                             k_in: torch.Tensor,
+                             v_in: torch.Tensor,
+                             layer_id: int):
+        return self.kvcache.get_all_kv_one_layer, (
+            k_in.data_ptr(),
+            v_in.data_ptr(),
+            layer_id,
+        )
+    def get_cache_total_len(self):
+        return self.kvcache.get_cache_total_len()
+
+    def update_q4(
+        self,
+        k_in: torch.Tensor,
+        k_scales: torch.Tensor,
+        v_in: torch.Tensor,
+        v_scales: torch.Tensor,
+        layer_id: int,
+        seq_offset: int | None = None,
+        seq_len: int | None = None,
+        block_table: torch.Tensor | None = None,
+    ):
+        raise NotImplementedError
+
+    def update_fp16(
+        self,
+        k_in: torch.Tensor,
+        v_in: torch.Tensor,
+        layer_id: int,
+        seq_offset: int | None = None,
+        seq_len: int | None = None,
+        block_table: torch.Tensor | None = None,
+    ):
+        raise NotImplementedError
+
+    def get_q4(
+        self,
+        k_in: torch.Tensor,
+        k_scales: torch.Tensor,
+        v_in: torch.Tensor,
+        v_scales: torch.Tensor,
+        layer_id: int,
+        seq_offset: int | None = None,
+        seq_len: int | None = None,
+        block_table: torch.Tensor | None = None,
+    ):
+        raise NotImplementedError
+
+    def get_fp16(
+        self,
+        k_in: torch.Tensor,
+        v_in: torch.Tensor,
+        layer_id: int,
+        seq_offset: int | None = None,
+        seq_len: int | None = None,
+        block_table: torch.Tensor | None = None,
+    ):
+        raise NotImplementedError
+
+    def update_importance(
+        self,
+        importance: torch.Tensor,
+        block_table: torch.Tensor,
+    ):
+        raise NotImplementedError
+
+    def get_importance(
+        self,
+        importance: torch.Tensor,
+        block_table: torch.Tensor,
+    ):
+        raise NotImplementedError
