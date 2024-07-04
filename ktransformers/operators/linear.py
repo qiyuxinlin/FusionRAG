@@ -35,6 +35,7 @@ from ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
 from operators.base_operator import BaseInjectedModule
 from transformers.configuration_utils import PretrainedConfig
 from utils import _set_param
+from abc import ABC, abstractmethod
 
 GPTQ_MARLIN_TILE = 16
 GPTQ_MARLIN_MIN_THREAD_N = 64
@@ -46,13 +47,67 @@ GPTQ_MARLIN_SUPPORTED_GROUP_SIZES = [-1, 32, 64, 128]
 GPTQ_MARLIN_SUPPORTED_SYM = [True]
 
 
-def relative_l2_error(standard: torch.Tensor, x: torch.Tensor) -> float:
-    sl2 = linalg.vector_norm(standard).item()
-    el2 = linalg.vector_norm(standard - x).item()
-    return el2 / sl2
+class QuantizedLinearBase(BaseInjectedModule, ABC):
+    def __init__(
+        self,
+        key: str,
+        gguf_loader: GGUFLoader,
+        config: PretrainedConfig,
+        orig_module: nn.Module,
+        device: str = "cuda",
+        **kwargs,
+    ):
+        super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
+        self.has_bias = False
+        self.dtype = torch.get_default_dtype()
+        self.in_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][0]
+        self.out_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][1]
+
+    @abstractmethod
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        pass
+
+    def load_weight(self, override_key: str | None = None):
+        if override_key is not None:
+            keys = override_key
+        else:
+            keys = [self.key]
+
+        for key in keys:
+            if key + ".weight" in self.gguf_loader.tensor_file_map:
+                if key + ".bias" in self.gguf_loader.tensor_file_map:
+                    tensors = self.load_multi(key, ["weight", "bias"])
+                    tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
+                    bias = torch.tensor(tensors["bias"], dtype=torch.float32)
+                    # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
+                    self.has_bias = True
+                    # print(torch.isinf(tensor).any(), torch.isinf(bias).any())
+                    return nn.Parameter(tensor), nn.Parameter(bias)
+                else:
+                    tensors = self.load_multi(key, ["weight"])
+                    tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
+                    # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
+                    self.has_bias = False
+                    return nn.Parameter(tensor)
+            else:
+                raise FileNotFoundError(f"Weight file not found for key {key}")
+
+    def load_multi(self, key: str, keys: list[str]):
+        tensors = {}
+        for k in keys:
+            tensors[k] = self.gguf_loader.load_gguf_tensor(key + "." + k)
+        return tensors
+
+    @abstractmethod
+    def load(self):
+        pass
+
+    @abstractmethod
+    def unload(self):
+        pass
 
 
-class QuantizedLinear(BaseInjectedModule):
+class QuantizedLinearTorch(QuantizedLinearBase):
     def __init__(
         self,
         key: str,
@@ -92,54 +147,11 @@ class QuantizedLinear(BaseInjectedModule):
             raise ValueError("Invalid weight type")
         self.linear = self.linear.to(self.device)
 
-    def load_weight(self, override_key: str | None = None):
-        if override_key is not None:
-            keys = override_key
-        else:
-            keys = [self.key]
-
-        for key in keys:
-            if key + ".weight" in self.gguf_loader.tensor_file_map:
-                if key + ".bias" in self.gguf_loader.tensor_file_map:
-                    tensors = self.load_multi(key, ["weight", "bias"])
-                    tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
-                    bias = torch.tensor(tensors["bias"], dtype=torch.float32)
-                    # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
-                    self.in_features = self.gguf_loader.tensor_info[key + ".weight"][
-                        "shape"
-                    ][0]
-                    self.out_features = self.gguf_loader.tensor_info[key + ".weight"][
-                        "shape"
-                    ][1]
-                    self.has_bias = True
-                    # print(torch.isinf(tensor).any(), torch.isinf(bias).any())
-                    return nn.Parameter(tensor), nn.Parameter(bias)
-                else:
-                    tensors = self.load_multi(key, ["weight"])
-                    tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
-                    # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
-                    self.in_features = self.gguf_loader.tensor_info[key + ".weight"][
-                        "shape"
-                    ][0]
-                    self.out_features = self.gguf_loader.tensor_info[key + ".weight"][
-                        "shape"
-                    ][1]
-                    self.has_bias = False
-                    return nn.Parameter(tensor)
-            else:
-                raise FileNotFoundError(f"Weight file not found for key {key}")
-
-    def load_multi(self, key: str, keys: list[str]):
-        tensors = {}
-        for k in keys:
-            tensors[k] = self.gguf_loader.load_gguf_tensor(key + "." + k)
-        return tensors
-
     def unload(self):
         self.linear = None
 
 
-class QuantizedLinearMarlin(QuantizedLinear):
+class QuantizedLinearMarlin(QuantizedLinearBase):
     def __init__(
         self,
         key: str,
@@ -158,9 +170,8 @@ class QuantizedLinearMarlin(QuantizedLinear):
         self.group_size = group_size
         self.act_order = act_order
         self.is_k_full = is_k_full
-        size_n = self.out_features
         self.workspace = MarlinWorkspace(
-            size_n, GPTQ_MARLIN_MIN_THREAD_N, GPTQ_MARLIN_MAX_PARALLEL
+            self.out_features, GPTQ_MARLIN_MIN_THREAD_N, GPTQ_MARLIN_MAX_PARALLEL
         )
 
     def load(self):
@@ -189,6 +200,7 @@ class QuantizedLinearMarlin(QuantizedLinear):
         self.n = weight.shape[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Only support input x as BF16 and FP16
         x = x.to(self.device)
         orig_shape = list(x.shape)
         orig_dtype = x.dtype
@@ -222,3 +234,32 @@ class QuantizedLinearMarlin(QuantizedLinear):
         self.sort_indices = None
         self.workspace = None
 
+
+LINIEAR_TYPE = {
+    "QuantizedLinearTorch": QuantizedLinearTorch,
+    "QuantizedLinearMarlin": QuantizedLinearMarlin,
+}
+
+
+class KTransformerLinear(QuantizedLinearBase):
+    def __init__(
+        self,
+        key: str,
+        gguf_loader: GGUFLoader,
+        config: PretrainedConfig,
+        orig_module: nn.Module,
+        device: str = "cuda",
+        **kwargs,
+    ):
+        super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
+        # build all the linear operators
+        
+
+    def forward(self, x, forward_type):
+        pass
+
+    def load():
+        pass
+
+    def unload():
+        pass
