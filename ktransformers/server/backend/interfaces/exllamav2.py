@@ -1,24 +1,24 @@
 import sys, os
 from typing import AsyncIterator, Dict, Tuple
 
-from ktransformers.server.backend.args import ConfigArgs, default_args
+import torch
+
+from ..args import ConfigArgs, default_args
 
 from ..base import BackendInterfaceBase, ThreadContext
 from server.schemas.assistants.runs import RunObject
 
 
-
-
 from ..args import *
 
-class ExllamaInferenceContext(ThreadContext):
+class ExllamaThreadContext(ThreadContext):
     def __init__(self, run: RunObject, args: ConfigArgs = default_args) -> None:
         super().__init__(run,args)
         
     def get_interface(self):
         return 
 
-    async def get_local_messages(self):
+    def get_local_messages(self):
         raise NotImplementedError
 
 

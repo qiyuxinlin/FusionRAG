@@ -6,7 +6,7 @@ from server.crud.assistants.messages import MessageDatabaseManager
 from server.schemas.assistants.messages import *
 from server.schemas.base import DeleteResponse, Order
 
-from server.backend.context_manager import get_thread_context_manager,TC
+from server.backend.context_manager import get_thread_context_manager,TContext
 
 router = APIRouter()
 message_manager = MessageDatabaseManager()
@@ -15,7 +15,7 @@ message_manager = MessageDatabaseManager()
 @router.post("/{thread_id}/messages", tags=['openai'],response_model=MessageObject)
 async def create_message(thread_id: str, msg: MessageCreate):
     message = message_manager.db_create_message(thread_id, msg, MessageObject.Status.in_progress)
-    ctx: Optional[TC] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
+    ctx: Optional[TContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         ctx.put_user_message(message)
     return message
@@ -45,7 +45,7 @@ async def modify_message(thread_id: ObjectID, message_id: ObjectID, msg: Message
 
 @router.delete("/{thread_id}/messages/{message_id}",tags=['openai'], response_model=DeleteResponse)
 async def delete_message(thread_id: ObjectID, message_id: ObjectID):
-    ctx: Optional[TC] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
+    ctx: Optional[TContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         ctx.delete_user_message(message_id)
     message_manager.db_delete_message_by_id(thread_id, message_id)

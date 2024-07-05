@@ -17,6 +17,7 @@ user:
 
 model:
   type: transformers
+  # type: exllamav2 
   # name: Mistral-7B-Instruct-v0.2
   # name: CodeLlama-7b-hf 
   # name: LLaMA-2-7B-32K
