@@ -21,7 +21,7 @@ model:
   # name: Mistral-7B-Instruct-v0.2
   # name: CodeLlama-7b-hf 
   # name: LLaMA-2-7B-32K
-  name: Meta-Llama-3-8B-Instruct
+  name: Qwen2-0.5B
   # name: Qwen2-57B-A14B-Instruct 
   # name: DeepSeek-Coder-V2-Instruct-GGUF
   # name: Qwen1.5-7B-Chat 
@@ -30,7 +30,8 @@ model:
   # path: /models/Mistral-7B-Instruct-v0.2
   # path: /models/CodeLlama-7b-hf 
   # path: /models/LLaMA-2-7B-32K
-  path: /models/Meta-Llama-3-8B-Instruct
+  path: /mnt/data/Qwen2-0.5B
+  # path: /models/Meta-Llama-3-8B-Instruct
   # path: /models/Qwen2-57B-A14B-Instruct
   # path: /models/DeepSeek-Coder-V2-Instruct-GGUF
   # path: /models/Qwen1.5-7B-Chat
