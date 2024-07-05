@@ -98,6 +98,13 @@ class ThreadContext:
         self.interface = interface
         self.update_by_run(run,args)
 
+    def get_local_messages(self):
+        '''
+        Get local messages, as the input to interface.work
+        This function is intended to message preprocess e.g. apply chat template
+        '''
+        raise NotImplementedError
+
     def update_by_run(self,run:RunObject,args:ConfigArgs = default_args):
         self.run = run 
         self.args = args
@@ -110,14 +117,6 @@ class ThreadContext:
 
     def delete_user_message(self,message_id: ObjectID):
         self.messages = [m for m in self.messages if m.id != message_id]
-
-    def get_local_messages(self):
-        '''
-        Get local messages, as the input to interface.work
-        This function is intended to message preprocess e.g. apply chat template
-        '''
-        raise NotImplementedError
-
 
     async def work(self)->AsyncIterator:
         logger.debug('start working')

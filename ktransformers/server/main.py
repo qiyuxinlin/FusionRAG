@@ -5,18 +5,12 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn.logging
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(project_dir)
-from configs import VERSION
 import argparse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from server.config.config import Config
 from server.backend.context_manager import globalInterface,BackendInterface
 from server.backend.args import default_args
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-
 from server.api import router, post_db_creation_operations
 from server.utils.sql_utils import Base, SQLUtil
 from server.config.log import logger

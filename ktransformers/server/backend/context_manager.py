@@ -5,7 +5,7 @@ from server.backend.base import ThreadContext
 from server.schemas.assistants.runs import RunObject
 from server.schemas.base import ObjectID
 from server.config.log import logger
-from config.config import Config
+from server.config.config import Config
 
 conf = Config()
 

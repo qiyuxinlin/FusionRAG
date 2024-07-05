@@ -5,3 +5,5 @@ build
 *.cache
 server.db
 logs
+dist
+node_modules
