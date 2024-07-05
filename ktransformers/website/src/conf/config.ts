@@ -1,4 +1,4 @@
 
-const baseURL = 'http://119.255.238.12:15670/v1'
-// const baseURL = '/api'
+import { config } from '../../public/config.js';
+const baseURL = config.apiUrl;
 export default baseURL;

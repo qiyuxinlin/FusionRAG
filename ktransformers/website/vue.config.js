@@ -8,7 +8,7 @@ module.exports = {
         https: false,  // 是否https
         proxy: {
             '/api': {
-              target: 'http://119.255.238.12:15670/v1', // 你的后端服务器地址
+              target: 'http://localhost:9016/v1', // 你的后端服务器地址
               changeOrigin: true, // 是否允许跨域
               pathRewrite: {
                 '/api': '' // 将 '/api' 前缀替换为空，如果你的后端不需要这个前缀
