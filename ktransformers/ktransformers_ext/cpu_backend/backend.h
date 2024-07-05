@@ -26,9 +26,7 @@ class Backend {
     Backend(int);
     ~Backend();
     int get_thread_num();
-    void do_parallel_job(int, std::function<void(int)>);
     void do_work_stealing_job(int, std::function<void(int)>);
-    static thread_local int thread_local_id;
 
    private:
     int thread_num_;
