@@ -1,14 +1,16 @@
-
+import {config} from './public/config.js'
 module.exports = {
       // 配置 webpack-dev-server 行为。
       devServer: {
         open: false, // 编译后默认打开浏览器
         host: '0.0.0.0',  // 域名
-        port: 8082,  // 端口
+        port: config.port,  // 端口
+        // port: 8082,  // 端口
         https: false,  // 是否https
         proxy: {
             '/api': {
-              target: 'http://localhost:9016/v1', // 你的后端服务器地址
+              target: config.apiUrl, // 你的后端服务器地址
+              // target: 'http://localhost:9016/v1', // 你的后端服务器地址
               changeOrigin: true, // 是否允许跨域
               pathRewrite: {
                 '/api': '' // 将 '/api' 前缀替换为空，如果你的后端不需要这个前缀
