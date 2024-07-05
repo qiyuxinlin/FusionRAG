@@ -1,14 +1,10 @@
-import sys,os
-
+import sys
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
-
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn.logging
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(project_dir)
-sys.path.append(os.path.join(os.getcwd(),'inference'))
 from configs import VERSION
 import argparse
 import uvicorn
@@ -35,6 +31,7 @@ def mount_app_routes(mount_app: FastAPI):
 
 
 def create_app():
+    cfg = Config()
     app = FastAPI()
     if Config().web_cross_domain:
         app.add_middleware(
@@ -45,14 +42,12 @@ def create_app():
             allow_headers=["*"],
         )
     mount_app_routes(app)
-    mount_index_routes(app)
+    if(cfg.mount_web):
+        mount_index_routes(app)
     return app
 
 def mount_index_routes(app: FastAPI):
-    # app.mount("/web", StaticFiles(directory=(project_dir + "/website/dist")), name="static")
-    pass
-
-
+    app.mount("/web", StaticFiles(directory=(project_dir + "/website/dist")), name="static")
 
 def run_api(app, host, port, **kwargs):
     if kwargs.get("ssl_keyfile") and kwargs.get("ssl_certfile"):
@@ -73,16 +68,24 @@ def main():
     parser.add_argument("--port", type=int, default=9016)
     parser.add_argument("--ssl_keyfile", type=str)
     parser.add_argument("--ssl_certfile", type=str)
-    # parser.add_argument("--model_name", type=str, default=cfg.model_name)
-    # parser.add_argument("--model_path", type=str, default=cfg.model_path)
-    # parser.add_argument("--device", type=str, default=cfg.model_device)
-    # parser.add_argument("--gguf_path", type=str, required=False)
-    # parser.add_argument("--optimize_config_path", type=str, required=False)
-    # 初始化消息
-
+    parser.add_argument("--web", type=bool, default=False)
+    parser.add_argument("--model_name", type=str, default=cfg.model_name)
+    parser.add_argument("--model_path", type=str, default=cfg.model_path)
+    parser.add_argument("--device", type=str, default=cfg.model_device)
+    parser.add_argument("--gguf_path", type=str, required=False)
+    parser.add_argument("--optimize_config_path", type=str, required=False)
 
     # 初始化消息
     args = parser.parse_args()
+    cfg.model_name = args.model_name
+    cfg.model_path = args.model_path
+    cfg.model_device = args.device
+    cfg.mount_web = args.web
+
+    default_args.model_dir = args.model_path
+    default_args.device = args.device
+    default_args.gguf_path = args.gguf_path
+    default_args.optimize_config_path = args.optimize_config_path
     app = create_app()
     globalInterface.interface = BackendInterface(default_args)
     run_api(app=app,

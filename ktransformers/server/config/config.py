@@ -5,8 +5,8 @@ Description  :
 Author       : unicornchan
 Date         : 2024-06-11 16:35:42
 Version      : 1.0.0
-LastEditors  : unicornchan 
-LastEditTime : 2024-06-24 00:21:41
+LastEditors  : chenxl 
+LastEditTime : 2024-07-05 07:56:59
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -67,9 +67,9 @@ class Config(metaclass=Singleton):
         cfg = Config.load()
         self.base_path = os.path.dirname(
             os.path.dirname(os.path.dirname(__file__)))
-
+        print(self.base_path)
         # log configs
-        self.log_dir = Config.to_path(cfg["log"]["dir"])
+        self.log_dir = os.path.join(self.base_path, Config.to_path(cfg["log"]["dir"]))
         self.log_file = cfg["log"]["file"]
         self.log_level = cfg["log"]["level"]
         self.backup_count = cfg["log"]["backup_count"]
@@ -77,7 +77,7 @@ class Config(metaclass=Singleton):
         # db configs
         self.db_configs: dict = cfg.get("db", {})
         self.db_type = self.db_configs.get("type", "")
-        self.db_host = self.db_configs.get("host", "")
+        self.db_host = os.path.join(self.base_path, self.db_configs.get("host", ""))
         self.db_port = self.db_configs.get("port", "")
         self.db_name = self.db_configs.get("database", "")
         self.db_pool_size = self.db_configs.get("pool_size")
@@ -98,3 +98,4 @@ class Config(metaclass=Singleton):
         # web config
         self.web: dict = cfg.get("web", {})
         self.web_cross_domain: bool = self.web.get("open_cross_domain", True)
+        self.mount_web: bool = self.web.get("mount", False)
