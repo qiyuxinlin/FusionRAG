@@ -49,13 +49,12 @@ async def generate(request:Request,input:OllamaGenerateCompletionRequest):
 
     interface:BackendInterface = get_interface()
     print(f'COMPLETION INPUT:----\n{input.prompt}\n----')
-    input_ids = interface.tokenize_prompt(input.prompt)
          
     config= Config()
 
     if input.stream:
         async def inner():
-            async for token in interface.work(id,input_ids): 
+            async for token in interface.work(input.prompt,id): 
                 d = OllamaGenerationStreamResponse(model=config.model_name,created_at=str(datetime.now(),response=token,done=False))   
                 yield d.model_dump_json() 
                 # d = {'model':config.model_name,'created_at':"", 'response':token,'done':False}
