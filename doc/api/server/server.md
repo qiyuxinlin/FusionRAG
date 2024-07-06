@@ -2,7 +2,7 @@
 ## 总览
 <img src="server-arch.png" height="600" alt="Server架构">
 
-如上图所示 Server 对外提供兼容 [OpenAI Assistant](https://platform.openai.com/docs/api-reference/assistants/createAssistant) 和 [Ollama](https://github.com/ollama/ollama/blob/main/docs/api.md) 的 RESTful API，对内对接ktransformers, [transformers](https://huggingface.co/docs/transformers/index) 和 [exllamav2](https://github.com/turboderp/exllamav2)等推理框架。提供ChatCompletion和OpenAI Assistant API两套接口。内部实现采用 Python [FastAPI](https://fastapi.tiangolo.com/)和 pydantic 构建异步的 RESTful API，使用 sqlalchemy 对接 sqlite 数据库。
+如上图所示， Server 对外提供兼容 [OpenAI Assistant](https://platform.openai.com/docs/api-reference/assistants/createAssistant) 和 [Ollama](https://github.com/ollama/ollama/blob/main/docs/api.md) 的 RESTful API，对内对接ktransformers, [transformers](https://huggingface.co/docs/transformers/index) 和 [exllamav2](https://github.com/turboderp/exllamav2)等推理框架。提供ChatCompletion和OpenAI Assistant API两套接口。内部实现采用 Python [FastAPI](https://fastapi.tiangolo.com/)和 pydantic 构建异步的 RESTful API，使用 sqlalchemy 对接 sqlite 数据库。
 
 Server 的项目目录结构如下：
 
