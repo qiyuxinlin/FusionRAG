@@ -2,7 +2,7 @@ from typing import Any
 from torch import nn, Tensor
 from util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
-import utils
+import util.utils as utils
 class BaseInjectedModule(nn.Module):
     
     def __init__(self,
@@ -48,6 +48,5 @@ class BaseInjectedModule(nn.Module):
         return self.orig_module.forward(*args, **kwargs)
     
     def load(self):
-        #print("load in base")
         utils.load_weight_default(self, self.gguf_loader, self.key)
         utils.load_weights(self, self.gguf_loader, self.key+".", True, False)

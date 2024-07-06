@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer, StaticCache, logging, AutoConfig
 from model.modeling_deepseek import DeepseekV2ForCausalLM
 from model.modeling_qwen2_moe import Qwen2MoeForCausalLM
-from util.gguf_injected_loader import optimize_model_using_optimization_dict
+from optimize.optimize import optimize_via_injection
 import torch
 import torch.nn as nn
 import time
@@ -27,7 +27,7 @@ config.skip_init_experts = True
 torch.set_default_dtype(config.torch_dtype)
 with torch.device("meta"):
     model = Qwen2MoeForCausalLM(config)
-optimize_model_using_optimization_dict(model, optimize_config, "/mnt/default/data/Qwen2-57B-A14B-Instruct-GGUF/q8_0/qwen2-57b-a14b-instruct-q8_0-00001-of-00002.gguf")
+optimize_via_injection(model, optimize_config, "/mnt/default/data/Qwen2-57B-A14B-Instruct-GGUF/q8_0/qwen2-57b-a14b-instruct-q8_0-00001-of-00002.gguf")
 inputs = tokenizer.apply_chat_template(prompts, tokenize=True, add_generation_prompt=True)
 print(tokenizer.apply_chat_template(prompts, tokenize=False, add_generation_prompt=True))
 

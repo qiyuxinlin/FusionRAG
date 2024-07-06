@@ -27,7 +27,7 @@ import time
 import fire
 
 from tools.prepare_optimize_config import gen_optimize_config
-from util.gguf_injected_loader import optimize_model_using_optimization_dict
+from optimize.optimize import optimize_via_injection
 from models.modeling_deepseek import DeepseekV2ForCausalLM
 from models.modeling_qwen2_moe import Qwen2MoeForCausalLM
 
@@ -98,7 +98,7 @@ def main(
         gguf_path = input(
             "please input the path of your gguf file(gguf file in the dir containing input gguf file must all belong to current model):"
         )
-    optimize_model_using_optimization_dict(model, optimize_config, gguf_path, config)
+    optimize_via_injection(model, optimize_config, gguf_path, config)
 
     model.generation_config = GenerationConfig.from_pretrained(model_name)
     if model.generation_config.pad_token_id is None:

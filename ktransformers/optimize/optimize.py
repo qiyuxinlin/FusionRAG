@@ -3,9 +3,9 @@ import torch
 from torch import nn
 from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
-from operators.base_operator import BaseInjectedModule
+# from operators import BaseInjectedModule
 from util.custom_gguf import GGUFLoader
-from utils import _set_module, _set_param, load_weights
+from util.utils import _set_module, _set_param, load_weights
 import itertools
 
 def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader:GGUFLoader, prefix=''):
@@ -15,24 +15,8 @@ def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader
             if child_prefix in local_optimization_dict:
                 inject_module_meta=local_optimization_dict[child_prefix]
                 if isinstance(inject_module_meta, Mapping):
-                    module_cls=getattr(__import__(inject_module_meta["module_name"], fromlist=[inject_module_meta["file_name"]]), inject_module_meta["class_name"])
-                    print(f"injecting {child_prefix} as", inject_module_meta["module_name"], ".", inject_module_meta["class_name"])
-                    del inject_module_meta["file_name"]
-                    del inject_module_meta["class_name"]
-                    del inject_module_meta["module_name"]
-                    """
-                    class_name_inject = inject_module_meta["class_name"]
-                    if class_name_inject == "MLPExperts":
-                        module_cls = MLPExperts
-                    elif class_name_inject == "QuantizedLinearMarlin":
-                        module_cls = QuantizedLinearMarlin
-                    else:
-                        raise Exception(f"can only inject MLPExperts or QuantizedLinearMarlin, but try to inject {class_name_inject}")
-                    print(f"injecting {child_prefix} as", inject_module_meta["module_name"])
-                    del inject_module_meta["file_name"]
-                    del inject_module_meta["class_name"]
-                    del inject_module_meta["module_name"]
-                    """
+                    module_cls=getattr(__import__(inject_module_meta["module_name"], fromlist=[""]), inject_module_meta["class_name"])
+                    print(f"Injecting {child_prefix} as", inject_module_meta["module_name"], ".", inject_module_meta["class_name"])
                     inject_module=module_cls(gguf_loader=gguf_loader, config=model_config, orig_module=child, **inject_module_meta)
                     _set_module(module, name, inject_module)
                 elif isinstance(inject_module_meta, str):
@@ -54,7 +38,7 @@ def del_meta(module:nn.Module):
     for name, child in module._modules.items():
         del_meta(child)
 
-def optimize_model_using_optimization_dict(module:nn.Module, optimization_dict: Mapping[str, Any], gguf_path: str, model_config: PretrainedConfig) -> None:
+def optimize_via_injection(module:nn.Module, optimization_dict: Mapping[str, Any], gguf_path: str, model_config: PretrainedConfig) -> None:
     
     if not isinstance(optimization_dict, Mapping):
         raise TypeError(f"Expected optimization_dict to be dict-like, got {type(optimization_dict)}.")

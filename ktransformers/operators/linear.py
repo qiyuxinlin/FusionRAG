@@ -34,7 +34,7 @@ from ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
 )
 from operators.base_operator import BaseInjectedModule
 from transformers.configuration_utils import PretrainedConfig
-from utils import _set_param
+from util.utils import _set_param
 from abc import ABC, abstractmethod
 
 GPTQ_MARLIN_TILE = 16
@@ -99,7 +99,7 @@ class QuantizedLinearBase(BaseInjectedModule, ABC):
         return tensors
 
     @abstractmethod
-    def load(self):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str|None = "cuda"):
         pass
 
     @abstractmethod
@@ -128,9 +128,8 @@ class QuantizedLinearTorch(QuantizedLinearBase):
         x = x.to(dtype)
         return x
 
-    def load(self):
-        if w is None:
-            w = self.load_weight()
+    def load(self, w: dict | nn.Parameter | tuple | None = None):
+        if w is None: w = self.load_weight()
 
         if isinstance(w, nn.Parameter):
             self.linear = nn.Linear(
@@ -174,17 +173,16 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
             self.out_features, GPTQ_MARLIN_MIN_THREAD_N, GPTQ_MARLIN_MAX_PARALLEL
         )
 
-    def load(self):
-        print("loading QuantizedLinearMarlin", self.key)
-        w = self.load_weight()
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str|None = "cuda"):
+        if w is None: w = self.load_weight()
 
         if isinstance(w, nn.Parameter):
             # pad weight
-            weight = w.T.half()
+            weight = w.T
         elif isinstance(w, tuple):
             w = list(w)
-            weight = w[0].T.half()
-            _set_param(self, "bias", w[1].to(self.device))
+            weight = w[0].T
+            _set_param(self, "bias", w[1].to(device))
         else:
             raise ValueError("Invalid weight type")
 
@@ -192,10 +190,10 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         w_ref, marlin_q_w, marlin_s, g_idx, sort_indices, _ = marlin_quantize(
             weight, self.num_bits, self.group_size, self.act_order
         )
-        _set_param(self, "marlin_q_w", marlin_q_w.to(self.device))
-        _set_param(self, "marlin_s", marlin_s.to(self.device))
-        _set_param(self, "g_idx", g_idx.to(self.device))
-        _set_param(self, "sort_indices", sort_indices.to(self.device))
+        _set_param(self, "marlin_q_w", marlin_q_w.to(device))
+        _set_param(self, "marlin_s", marlin_s.to(device))
+        _set_param(self, "g_idx", g_idx.to(device))
+        _set_param(self, "sort_indices", sort_indices.to(device))
         self.k = weight.shape[0]
         self.n = weight.shape[1]
 
@@ -233,7 +231,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         self.g_idx = None
         self.sort_indices = None
         self.workspace = None
-
+    
 
 LINIEAR_TYPE = {
     "QuantizedLinearTorch": QuantizedLinearTorch,
@@ -249,17 +247,46 @@ class KTransformerLinear(QuantizedLinearBase):
         config: PretrainedConfig,
         orig_module: nn.Module,
         device: str = "cuda",
+        gpu_linear_type: str| None = "QuantizedLinearMarlin",
+        cpu_linear_type: str| None = None,
         **kwargs,
     ):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
         # build all the linear operators
-        
+        if cpu_linear_type is not None:
+            self.cpu_linear = LINIEAR_TYPE[cpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
+        else:
+            self.cpu_linear = None
+        if gpu_linear_type is not None:
+            self.gpu_linear = LINIEAR_TYPE[gpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
+        else:
+            self.gpu_linear = None
+        self.gpu_linear_type = gpu_linear_type
+        self.cpu_linear_type = cpu_linear_type
 
-    def forward(self, x, forward_type):
-        pass
+    def forward(self, x):
+        if self.device == "cpu":
+            assert self.cpu_linear is not None, "cpu linear is not initialized"
+            return self.cpu_linear(x)
+        else:
+            assert self.gpu_linear is not None, "gpu linear is not initialized"
+            return self.gpu_linear(x)
 
-    def load():
-        pass
+    def load(self, w: dict | nn.Parameter | tuple | None = None):
+        if w is None: self.w = self.load_weight()
 
-    def unload():
-        pass
+    def unload(self):
+        if self.cpu_linear is not None:
+            self.cpu_linear.unload()
+        if self.gpu_linear is not None:
+            self.gpu_linear.unload()
+        self.w = None
+
+    def to(self, device: str):
+        self.device = device
+        if device == "cpu":
+            self.cpu_linear.load(self.w, device=device)
+            self.gpu_linear.unload()
+        else:
+            self.gpu_linear.load(self.w, device=device)
+            self.cpu_linear.unload()
