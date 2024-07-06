@@ -41,7 +41,14 @@ def create_app():
     return app
 
 def mount_index_routes(app: FastAPI):
-    app.mount("/web", StaticFiles(directory=(project_dir + "/website/dist")), name="static")
+    web_dir = os.path.join(project_dir, "website/dist")
+    if os.path.exists(web_dir):
+        app.mount("/web", StaticFiles(directory=(web_dir)), name="static")
+    else:
+        err_str = f"No website resources in {web_dir}, please complile the website by npm first"
+        logger.error(err_str)
+        print(err_str)
+        exit(1)
 
 def run_api(app, host, port, **kwargs):
     if kwargs.get("ssl_keyfile") and kwargs.get("ssl_certfile"):
