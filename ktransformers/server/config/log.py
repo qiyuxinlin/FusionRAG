@@ -5,8 +5,8 @@ Description  :
 Author       : unicornchan
 Date         : 2024-06-12 02:48:39
 Version      : 1.0.0
-LastEditors  : unicornchan 
-LastEditTime : 2024-06-12 08:34:51
+LastEditors  : chenxl 
+LastEditTime : 2024-07-05 07:49:55
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -50,6 +50,8 @@ class DailyRotatingFileHandler(BaseRotatingHandler):
         self.utc = utc
         self.suffix = "%Y-%m-%d"
         self.base_log_path = Path(filename)
+        if not os.path.exists(self.base_log_path.parent):
+            os.makedirs(self.base_log_path.parent)
         self.base_filename = self.base_log_path.name
         self.current_filename = self._compute_fn()
         self.current_log_path = self.base_log_path.with_name(
@@ -157,7 +159,6 @@ class Logger(object):
 
     def __init__(self, level: str = 'info'):
         fmt = '%(asctime)s %(levelname)s %(pathname)s[%(lineno)d] %(funcName)s: %(message)s'
-        sfmt = '%(asctime)s %(levelname)s %(pathname)s[%(lineno)d]: %(message)s'
         cfg: Config = Config()
         filename: str = os.path.join(cfg.log_dir, cfg.log_file)
         backup_count: int = cfg.backup_count

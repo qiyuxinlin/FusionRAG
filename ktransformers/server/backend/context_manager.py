@@ -5,9 +5,23 @@ from server.backend.base import ThreadContext
 from server.schemas.assistants.runs import RunObject
 from server.schemas.base import ObjectID
 from server.config.log import logger
+from server.config.config import Config
 
-from .interfaces.transformers import TransformersThreadContext as TC, TransformersInterface as BackendInterface,globalInterface,get_interface
+conf = Config()
 
+logger.warn(f'Backend Type {conf.backend_type}')
+
+if conf.backend_type=='transformers':
+    from .interfaces.transformers import TransformersThreadContext as TContext, TransformersInterface as BackendInterface
+elif conf.backend_type == 'exllamav2':
+    from .interfaces.exllamav2 import ExllamaThreadContext as TContext, ExllamaInterface as BackendInterface
+else:
+    raise NotImplementedError(f'{conf.backend_type} not implemented')
+
+class globalInterface:
+    interface:BackendInterface   
+def get_interface()->BackendInterface:
+    return globalInterface.interface
 
 class ThreadContextManager:
     lock: Lock
@@ -25,7 +39,7 @@ class ThreadContextManager:
             logger.debug(f"keys {self.threads_context.keys()}")
             if run.thread_id not in self.threads_context:
                 logger.debug(f"new inference context {run.thread_id}")
-                new_context = TC(run)
+                new_context = TContext(run,get_interface())
                 self.threads_context[run.thread_id] = new_context
                 # self.threads_context[run.thread_id] = ExllamaInferenceContext(run)
             re = self.threads_context[run.thread_id]

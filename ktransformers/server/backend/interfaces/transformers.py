@@ -98,10 +98,6 @@ class TextStreamer:
 
 
 class TransformersThreadContext(ThreadContext):  
-
-    def get_interface(self):
-        return get_interface()
-
     def get_local_messages(self):
         local_messages = []
         for m in self.messages:
@@ -327,7 +323,3 @@ class TransformersInterface(BackendInterfaceBase):
         self.profiler.pause_timer('decode')
         self.report_last_time_performance()
 
-class globalInterface:
-    interface:TransformersInterface   
-def get_interface()->TransformersInterface:
-    return globalInterface.interface

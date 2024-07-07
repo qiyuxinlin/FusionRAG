@@ -3,9 +3,13 @@ import json
 import torch
 from transformers import LlamaTokenizer,AutoTokenizer, AutoConfig, LlamaForCausalLM,GenerationConfig, StaticCache, AutoModelForCausalLM,BitsAndBytesConfig
 
-from server.backend.text_streamer import TextStreamer
-from .transformers import TransformersInterface,ConfigArgs,default_args
+from .transformers import TransformersInterface,ConfigArgs, TransformersThreadContext,default_args,TextStreamer
 from server.config.log import logger
+
+
+
+class KTransformersThreadContext(TransformersThreadContext):
+    pass
 
 
 class KTransformersInterface(TransformersInterface):
@@ -30,4 +34,5 @@ class KTransformersInterface(TransformersInterface):
         if self.model.generation_config.pad_token_id is None:
             self.model.generation_config.pad_token_id = self.model.generation_config.eos_token_id
         self.streamer = TextStreamer(self.tokenizer)
-        
+    
+
