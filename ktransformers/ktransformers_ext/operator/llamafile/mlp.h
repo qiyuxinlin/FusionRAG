@@ -7,7 +7,7 @@
 #include <mutex>
 #include <vector>
 
-#include "../backend.h"
+#include "../../cpu_backend/backend.h"
 #include "llama.cpp/ggml-impl.h"
 #include "llama.cpp/ggml-quants.h"
 #include "llama.cpp/ggml.h"

@@ -1,7 +1,5 @@
 #include "backend.h"
 
-thread_local int Backend::thread_local_id = -1;
-
 Backend::Backend(int thread_num) {
     thread_num_ = thread_num;
     thread_state_.resize(thread_num);
@@ -30,22 +28,6 @@ int Backend::get_thread_num() {
     return thread_num_;
 }
 
-void Backend::do_parallel_job(int task_num, std::function<void(int)> func) {
-    std::vector<std::thread> threads;
-    for (int i = 0; i < thread_num_; i++) {
-        threads.push_back(std::thread([&](int thread_id) {
-            for (int j = thread_id; j < task_num; j += thread_num_) {
-                printf("thread_id = %d, task_id = %d\n", thread_id, j);
-                func(j);
-            }
-        },
-                                      i));
-    }
-    for (int i = 0; i < thread_num_; i++) {
-        threads[i].join();
-    }
-}
-
 void Backend::do_work_stealing_job(int task_num, std::function<void(int)> func) {
     func_ = func;
     int base = task_num / thread_num_;
@@ -53,9 +35,6 @@ void Backend::do_work_stealing_job(int task_num, std::function<void(int)> func) 
     thread_state_[0].curr->store(0, std::memory_order_relaxed);
     thread_state_[0].end = base + (0 < remain);
     thread_state_[0].status->store(ThreadStatus::WORKING);
-
-    // 为主线程设置 thread_local_id
-    thread_local_id = 0;
 
     for (int i = 1; i < thread_num_; i++) {
         thread_state_[i].curr->store(thread_state_[i - 1].end, std::memory_order_relaxed);
@@ -96,7 +75,6 @@ void Backend::process_tasks(int thread_id) {
 
 void Backend::worker_thread(int thread_id) {
     auto start = std::chrono::steady_clock::now();
-    thread_local_id = thread_id;  // 设置线程本地变量
     while (true) {
         ThreadStatus status = thread_state_[thread_id].status->load(std::memory_order_relaxed);
         if (status == ThreadStatus::WORKING) {

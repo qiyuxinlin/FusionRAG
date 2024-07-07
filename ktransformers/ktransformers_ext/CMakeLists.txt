@@ -149,15 +149,16 @@ endif()
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${ARCH_FLAGS}>")
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:${ARCH_FLAGS}>")
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/pybind11 ${CMAKE_CURRENT_BINARY_DIR}/third_party/pybind11)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/llama.cpp ${CMAKE_CURRENT_BINARY_DIR}/third_party/llama.cpp)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/pybind11 ${CMAKE_CURRENT_BINARY_DIR}/third_party/pybind11)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/llama.cpp ${CMAKE_CURRENT_BINARY_DIR}/third_party/llama.cpp)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
 
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_DIR1)
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/operator SOURCE_DIR2)
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/llamafile SOURCE_DIR3)
-set(ALL_SOURCES ${SOURCE_DIR1} ${SOURCE_DIR2} ${SOURCE_DIR3})
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/cpu_backend SOURCE_DIR2)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/operator/llamafile SOURCE_DIR3)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/llamafile SOURCE_DIR4)
+set(ALL_SOURCES ${SOURCE_DIR1} ${SOURCE_DIR2} ${SOURCE_DIR3} ${SOURCE_DIR4})
 message(STATUS "ALL_SOURCES: ${ALL_SOURCES}")
 
 pybind11_add_module(${PROJECT_NAME} MODULE ${ALL_SOURCES})

@@ -1,6 +1,6 @@
 import os, sys
 import time
-sys.path.append(os.path.dirname(__file__) + '/../../ktransformers_ext/llamafile/build')
+sys.path.append(os.path.dirname(__file__) + '/../build')
 import cpuinfer_ext
 import torch
 
