@@ -128,6 +128,8 @@ class MLPExperts(MLPExpertsBase):
         self.moe = MOE(moe_config)
         self.pc_infer = pc_infer
 
+        # return True
+
     def forward(self, input_tensor, expert_ids, weights):
         input_tensor = input_tensor.contiguous()
         expert_ids = expert_ids.contiguous()
