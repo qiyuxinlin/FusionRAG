@@ -6,14 +6,14 @@ import torch
 
 with torch.inference_mode(mode=True):
     hidden_size = 5120
-    intermediate_size = 1536
-    stride = 64
+    intermediate_size = 3072
+    stride = 32
     gate_type = 1 # ggml_type::GGML_TYPE_F16
     up_type = 1 # ggml_type::GGML_TYPE_F16
     down_type = 1 # ggml_type::GGML_TYPE_F16
     hidden_type = 1 # ggml_type::GGML_TYPE_F16
     layer_num = 10
-    CPUInfer = cpuinfer_ext.CPUInfer(32)
+    CPUInfer = cpuinfer_ext.CPUInfer(48)
     validation_iter = 100
     warm_up_iter = 1000
     test_iter = 10000
