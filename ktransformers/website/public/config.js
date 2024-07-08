@@ -1,4 +1,4 @@
-export const config = {
-    apiUrl: 'http://localhost:9016/v1', // API
-    port: '8080', 
-};
+window.configWeb = {
+    apiUrl: 'http://119.255.238.12:15670/v1',
+    port: 8080,
+  };

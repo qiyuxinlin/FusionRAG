@@ -1,6 +1,6 @@
 import apiClient from './api-client';
 import { IRun } from '../utils/types';
-import baseURL from '@/conf/config';
+import {baseURL} from '@/conf/config';
 interface IRunData {
     assistant_id: string;
     model?: string;
