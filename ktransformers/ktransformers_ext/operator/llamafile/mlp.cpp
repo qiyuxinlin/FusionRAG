@@ -23,7 +23,7 @@ void MLP::warm_up(Backend* backend) {
     for (int i = 0; i < config_.hidden_size; i++) {
         input_fp32[i] = 0;
     }
-    ggml_internal_get_type_traits(config_.hidden_type).from_float(input_fp32.data(), input.data(), config_.hidden_size);
+    from_float(input_fp32.data(), input.data(), config_.hidden_size, config_.hidden_type);
     forward(input.data(), output.data(), backend);
 }
 
@@ -37,19 +37,19 @@ void MLP::forward(const void* input, void* output, Backend* backend) {
     if (config_.hidden_type == ggml_internal_get_type_traits(config_.gate_type).vec_dot_type && config_.hidden_type == ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
         gate_input_ptr = up_input_ptr = input;
     } else {
-        ggml_internal_get_type_traits(config_.hidden_type).to_float(input, input_fp32_.data(), config_.hidden_size);
+        to_float(input, input_fp32_.data(), config_.hidden_size, config_.hidden_type);
         if (ggml_internal_get_type_traits(config_.gate_type).vec_dot_type == ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
-            ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type).from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size);
+            from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
             gate_input_ptr = up_input_ptr = gate_input_.data();
         } else {
             if (config_.hidden_type != ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) {
-                ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type).from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size);
+                from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
                 gate_input_ptr = gate_input_.data();
             } else {
                 gate_input_ptr = input;
             }
             if (config_.hidden_type != ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
-                ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.up_type).vec_dot_type).from_float(input_fp32_.data(), up_input_.data(), config_.hidden_size);
+                from_float(input_fp32_.data(), up_input_.data(), config_.hidden_size, ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
                 up_input_ptr = up_input_.data();
             } else {
                 up_input_ptr = input;
@@ -65,11 +65,11 @@ void MLP::forward(const void* input, void* output, Backend* backend) {
     for (int i = 0; i < config_.intermediate_size; i++) {
         intermediate_fp32_[i] = act_fn(gate_output_[i]) * up_output_[i];
     }
-    ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.down_type).vec_dot_type).from_float(intermediate_fp32_.data(), down_input_.data(), config_.intermediate_size);
+    from_float(intermediate_fp32_.data(), down_input_.data(), config_.intermediate_size, ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
     nth = config_.hidden_size / config_.stride;
     backend->do_work_stealing_job(nth, [&](int task_id) {
         int ith = task_id % nth;
         llamafile_sgemm(config_.hidden_size, 1, config_.intermediate_size / ggml_blck_size(config_.down_type), down_proj_, config_.intermediate_size / ggml_blck_size(config_.down_type), down_input_.data(), config_.intermediate_size / ggml_blck_size(config_.down_type), down_output_.data(), config_.hidden_size, ith, nth, GGML_TASK_TYPE_COMPUTE, config_.down_type, ggml_internal_get_type_traits(config_.down_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
     });
-    ggml_internal_get_type_traits(config_.hidden_type).from_float(down_output_.data(), output, config_.hidden_size);
+    from_float(down_output_.data(), output, config_.hidden_size, config_.hidden_type);
 }

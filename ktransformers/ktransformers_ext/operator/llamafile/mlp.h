@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../../cpu_backend/backend.h"
+#include "conversion.h"
 #include "llama.cpp/ggml-impl.h"
 #include "llama.cpp/ggml-quants.h"
 #include "llama.cpp/ggml.h"

@@ -16,7 +16,7 @@ void Linear::warm_up(Backend* backend) {
     for (int i = 0; i < config_.input_size; i++) {
         input_fp32[i] = 0;
     }
-    ggml_internal_get_type_traits(config_.hidden_type).from_float(input_fp32.data(), input.data(), config_.input_size);
+    from_float(input_fp32.data(), input.data(), config_.input_size, config_.hidden_type);
     forward(input.data(), output.data(), backend);
 }
 
@@ -25,8 +25,8 @@ void Linear::forward(const void* input, void* output, Backend* backend) {
     if (config_.hidden_type == ggml_internal_get_type_traits(config_.proj_type).vec_dot_type) {
         proj_input_ptr = input;
     } else {
-        ggml_internal_get_type_traits(config_.hidden_type).to_float(input, input_fp32_.data(), config_.input_size);
-        ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.proj_type).vec_dot_type).from_float(input_fp32_.data(), proj_input_.data(), config_.input_size);
+        to_float(input, input_fp32_.data(), config_.input_size, config_.hidden_type);
+        from_float(input_fp32_.data(), proj_input_.data(), config_.input_size, ggml_internal_get_type_traits(config_.proj_type).vec_dot_type);
         proj_input_ptr = proj_input_.data();
     }
     int nth = config_.output_size / config_.stride;
@@ -34,5 +34,5 @@ void Linear::forward(const void* input, void* output, Backend* backend) {
         int ith = task_id % nth;
         llamafile_sgemm(config_.output_size, 1, config_.input_size / ggml_blck_size(config_.proj_type), proj_, config_.input_size / ggml_blck_size(config_.proj_type), proj_input_ptr, config_.input_size / ggml_blck_size(config_.proj_type), proj_output_.data(), config_.output_size, ith, nth, GGML_TASK_TYPE_COMPUTE, config_.proj_type, ggml_internal_get_type_traits(config_.proj_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
     });
-    ggml_internal_get_type_traits(config_.hidden_type).from_float(proj_output_.data(), output, config_.output_size);
+    from_float(proj_output_.data(), output, config_.output_size, config_.hidden_type);
 }
