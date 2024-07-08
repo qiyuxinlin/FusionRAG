@@ -31,17 +31,17 @@ We conducted our evaluations on an Intel (R) Xeon (R) Gold 6454S processor. To e
 | Framework | Data type | Linear time per iteration (µs) | Linear bandwidth (GB/s) | MLP time per iteration (µs) | MLP bandwidth (GB/s) | MoE time per iteration (µs) | MoE bandwidth (GB/s) |
 |-----------|-----------|-------------------------------|-------------------------|-----------------------------|-----------------------|-----------------------------|-----------------------|
 | Torch     | fp32      | 1474.89                       | 211.88                  | 900.34                      | 195.24                | 2985.58                     | 176.63                |
-|           | fp16      | 1244.81                       | 125.52                  | 787.61                      | 111.59                | 3177.17                     | 82.99                 |
-|           | bf16      | 1052.27                       | 148.49                  | 687.56                      | 127.83                | 2693.89                     | 97.88                 |
-|           | qint8     | 439.31                        | 177.84                  | 492.12                      | 89.3                  | 2054.65                     | 64.16                 |
+| Torch     | fp16      | 1244.81                       | 125.52                  | 787.61                      | 111.59                | 3177.17                     | 82.99                 |
+| Torch     | bf16      | 1052.27                       | 148.49                  | 687.56                      | 127.83                | 2693.89                     | 97.88                 |
+| Torch     | qint8     | 439.31                        | 177.84                  | 492.12                      | 89.3                  | 2054.65                     | 64.16                 |
 | CPUInfer  | fp32      | 1550.09                       | 201.6                   | 879.74                      | 199.81                | 2644.29                     | 199.43                |
-|           | fp16      | 802.16                        | 194.79                  | 479.55                      | 183.28                | 1560.48                     | 168.97                |
-|           | bf16      | 817.48                        | 191.14                  | 486.19                      | 180.77                | 1588.45                     | 165.99                |
-|           | q8_0      | 459                           | 180.85                  | 305.99                      | 152.59                | 1063.13                     | 131.76                |
-|           | q6_k      | 404.85                        | 158.3                   | 296.43                      | 121.61                | 1023.21                     | 105.69                |
-|           | q5_k_m    | 353.11                        | 152.11                  | 281.03                      | 114.43                | 969.92                      | 99.47                 |
-|           | q4_k_m    | 303.04                        | 145.01                  | 257.16                      | 110.81                | 914.3                       | 93.5                  |
-|           | q3_k_m    | 253.24                        | 132.56                  | 231.83                      | 97.74                 | 792.31                      | 85.8                  |
-|           | q2_k      | 212.51                        | 120.63                  | 205.43                      | 70.19                 | 645.13                      | 67.05                 |
+| CPUInfer  | fp16      | 802.16                        | 194.79                  | 479.55                      | 183.28                | 1560.48                     | 168.97                |
+| CPUInfer  | bf16      | 817.48                        | 191.14                  | 486.19                      | 180.77                | 1588.45                     | 165.99                |
+| CPUInfer  | q8_0      | 459                           | 180.85                  | 305.99                      | 152.59                | 1063.13                     | 131.76                |
+| CPUInfer  | q6_k      | 404.85                        | 158.3                   | 296.43                      | 121.61                | 1023.21                     | 105.69                |
+| CPUInfer  | q5_k_m    | 353.11                        | 152.11                  | 281.03                      | 114.43                | 969.92                      | 99.47                 |
+| CPUInfer  | q4_k_m    | 303.04                        | 145.01                  | 257.16                      | 110.81                | 914.3                       | 93.5                  |
+| CPUInfer  | q3_k_m    | 253.24                        | 132.56                  | 231.83                      | 97.74                 | 792.31                      | 85.8                  |
+| CPUInfer  | q2_k      | 212.51                        | 120.63                  | 205.43                      | 70.19                 | 645.13                      | 67.05                 |
 
 Our comparison against Torch across various data types shows that CPUInfer achieves significantly faster inference speeds. Specifically, in half-precision floating-point operations, CPUInfer is 1.29 to 2.04 times faster than Torch. Moreover, across different quantization formats, CPUInfer outperforms Torch by up to 2.07 to 3.18 times. These results underscore CPUInfer's superior performance and versatility, making it an optimal choice for high-performance computing tasks that require support for diverse quantization levels and hardware environments.
