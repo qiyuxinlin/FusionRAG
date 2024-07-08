@@ -233,7 +233,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         self.workspace = None
     
 
-LINIEAR_TYPE = {
+LINIEAR_MAP = {
     "QuantizedLinearTorch": QuantizedLinearTorch,
     "QuantizedLinearMarlin": QuantizedLinearMarlin,
 }
@@ -254,11 +254,11 @@ class KTransformerLinear(QuantizedLinearBase):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
         # build all the linear operators
         if cpu_linear_type is not None:
-            self.cpu_linear = LINIEAR_TYPE[cpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
+            self.cpu_linear = LINIEAR_MAP[cpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
         else:
             self.cpu_linear = None
         if gpu_linear_type is not None:
-            self.gpu_linear = LINIEAR_TYPE[gpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
+            self.gpu_linear = LINIEAR_MAP[gpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
         else:
             self.gpu_linear = None
         self.gpu_linear_type = gpu_linear_type
@@ -274,6 +274,7 @@ class KTransformerLinear(QuantizedLinearBase):
 
     def load(self, w: dict | nn.Parameter | tuple | None = None):
         if w is None: self.w = self.load_weight()
+        else: self.w = w
 
     def unload(self):
         if self.cpu_linear is not None:

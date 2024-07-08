@@ -143,7 +143,7 @@ class GGUFLoader:
     tensor_info: dict
     gguf_path: str
     tensor_file_map: dict # {tensor_name: tensor_file_path}
-
+    gguf_file_meta: dict
     def __init__(self, gguf_path: str):
         # Check dir exist
         if not os.path.exists(gguf_path):
@@ -153,6 +153,7 @@ class GGUFLoader:
         self.gguf_path = gguf_path
         self.tensor_file_map = {}
         self.file_data_map = {}
+        self.gguf_file_meta = {}
         
         # Walk through all the .gguf files in the directory
         for root, dirs, files in os.walk(gguf_path):
@@ -244,6 +245,7 @@ class GGUFLoader:
         for name in tensor_info:
             self.tensor_file_map[name] = f.name
         self.tensor_info.update(tensor_info)
+        self.gguf_file_meta.update(info)
     
     def get_mmap_tensor(self, name):
         t = self.tensor_info[name]

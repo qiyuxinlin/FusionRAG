@@ -50,7 +50,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
-from operators import BaseInjectedModule
+from operators.base_operator import BaseInjectedModule
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func

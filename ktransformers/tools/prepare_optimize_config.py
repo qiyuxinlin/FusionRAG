@@ -47,7 +47,8 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
         out_data[module_name]={"key": translated_name,
             "module_name": "operators.experts",
             "file_name": "experts",
-            "class_name": "MLPExperts",
+            # "class_name": "MLPExperts",
+            "class_name": "MLPExpertsMarlin",
             "device_idx": "cuda:0"}
         recursive = False
     if "YarnRotaryEmbedding" in module.__class__.__name__:
