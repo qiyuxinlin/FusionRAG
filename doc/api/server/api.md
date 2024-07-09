@@ -12,13 +12,13 @@
 - [Generate a chat completion](#generate-a-chat-completion)
 
 ## OpenAI Assistant
-OpenAI Assistant API 可以让用户在自己的应用中方便地利用 LLM。一个 Assistant 可以利用预先设定好的一系列资源例如 instruction，文件，调用 LLM，返回给用户一个回复。除了以上资源，我们在未来还将让 Assistant能够利用其他人以 KVCache 的形式分享的对话历史。
+OpenAI Assistant API 可以让用户在自己的应用中方便地利用 LLM。一个 Assistant 可以利用预先设定好的一系列资源例如 instruction，文件，调用 LLM，返回给用户一个回复。除了以上资源，我们还计划让 Assistant 能够利用其他人以 `KVCache` 形式分享的对话历史。
 
 一个典型的使用 Assistant 的方式如下：
 - 创建一个 Assistant：设置 instruction，文件等资源。
 - 创建一个 Thread，作为对话的载体。
 - 创建一个 Message，作为用户的输入。
-- 创建一个 Run，或者 LLM 返回的结果。
+- 创建一个 Run，获得 LLM 返回的结果。
 
 我们已经支持OpenAI Assistant API 中  `Assistants`， `Threads`， `Messages`， 和  `Runs`部分。
 [OpenAI Assistant](https://platform.openai.com/docs/api-reference/assistants/createAssistant). 
