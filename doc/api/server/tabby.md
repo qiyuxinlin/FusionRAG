@@ -16,10 +16,10 @@ model_name = "DeepSeek-Coder-V2-Instruct"
 prompt_template = "<｜fim▁begin｜>{prefix}<｜fim▁hole｜>{suffix}<｜fim▁end｜>" # Prompt Template
 ```
 4. 启动 Tabby 服务：`./tabby serve`。
-<img src="/Users/ervinxie/Projects/ktransformers-dev/doc/api/server/run-tabby.png" alt="image-20240709112329577" style="zoom:50%;" />
+<img src="run-tabby.png" alt="image-20240709112329577" style="zoom:50%;" />
 
 ​	启动之后，期望会在 ktransformers 的命令行界面看到对`/api/tags`接口的访问。
-<img src="/Users/ervinxie/Projects/ktransformers-dev/doc/api/server/visit-api-tags.png" alt="image-20240709111648215" style="zoom:67%;" />
+<img src="visit-api-tags.png" alt="image-20240709111648215" style="zoom:67%;" />
 
 6. 注册 Tabby 账户，获取 Token，参照[这里](https://tabby.tabbyml.com/docs/quick-start/register-account/)
 
