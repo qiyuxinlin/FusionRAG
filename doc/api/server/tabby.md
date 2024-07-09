@@ -26,7 +26,7 @@ prompt_template = "<｜fim▁begin｜>{prefix}<｜fim▁hole｜>{suffix}<｜fim�
 ​	启动之后，期望会在 ktransformers 的命令行界面看到对 `/api/tags` 接口的访问(在 Tabby 新版本 v0.13.0 中变为对 `/api/show/` 接口的访问)。
 <img src="visit-api-tags.png" alt="image-20240709111648215" style="zoom:67%;" />
 
-6. 注册 Tabby 账户，获取 Token：在启动 Tabby 服务后，在浏览器中打开相应的链接(如上图的 http://0.0.0.0:8080)，并参照[教程](https://tabby.tabbyml.com/docs/quick-start/register-account/)创建用户并获取 Token。
+6. 注册 Tabby 账户，获取 Token：在启动 Tabby 服务后，在浏览器中打开相应的链接(如上图的 0.0.0.0:8080)，并参照[教程](https://tabby.tabbyml.com/docs/quick-start/register-account/) 创建用户并获取 Token。
 
 7. 启动 VScode 安装 Tabby 拓展插件，并在相关提示下，使用上一步获得的 Token 连接 Tabby Server，参照[这里](https://tabby.tabbyml.com/docs/extensions/installation/vscode/)。
 
