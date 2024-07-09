@@ -132,6 +132,7 @@ class TransformersInterface(BackendInterfaceBase):
         self.args = args
         
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+        print(args.device)
         self.model = LlamaForCausalLM.from_pretrained(args.model_dir, device_map=args.device,use_safetensors=True)
         logger.info(f'{args.model_name} loaded from {args.model_dir} to {args.device}')
         
@@ -302,9 +303,15 @@ class TransformersInterface(BackendInterfaceBase):
                 self.last_request_id = thread_id
                 return True
 
-    async def work(self,local_messages,thread_id:str):
+    async def inference(self,local_messages,thread_id:str):
         self.profiler.create_and_start_timer('tokenize')
-        input_ids = self.format_and_tokenize_input_ids(thread_id,local_messages)
+        if isinstance(local_messages,List):
+            input_ids = self.format_and_tokenize_input_ids(thread_id,local_messages)
+        elif isinstance(local_messages,str):
+            input_ids = self.tokenize_prompt(local_messages)
+        else:
+            raise ValueError('local_messages should be List or str')
+
         self.profiler.pause_timer('tokenize')
 
         self.profiler.create_and_start_timer('prefill')

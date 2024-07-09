@@ -91,7 +91,7 @@ class ConfigArgs(BaseModel):
     # for transformers
     batch_size :int = Field(1,description="Batch Size")
     cache_lens:int = Field(4096, description="Cache lens for transformers static cache")
-    device:str = Field('cuda:0',description="device")
+    device:str = Field('cuda:2',description="device")
 
 cfg = Config()
 default_args = ConfigArgs(model_name=cfg.model_name,model_dir=cfg.model_path)
