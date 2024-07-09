@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn.logging
@@ -14,9 +15,6 @@ from server.backend.args import default_args
 from server.api import router, post_db_creation_operations
 from server.utils.sql_utils import Base, SQLUtil
 from server.config.log import logger
-
-project_dir = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(project_dir)
 
 
 def mount_app_routes(mount_app: FastAPI):
@@ -43,9 +41,21 @@ def create_app():
         mount_index_routes(app)
     return app
 
+def update_web_port(config_file: str):
+    ip_port_pattern = r"(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):([0-9]{1,5})"
+    with open(config_file, "r", encoding="utf-8") as f_cfg:
+        web_config = f_cfg.read()
+    print(web_config)
+    ip_port = "localhost://" + str(Config().server_port)
+    new_web_config = re.sub(ip_port_pattern, ip_port, web_config)
+    with open(config_file, "w", encoding="utf-8") as f_cfg:
+        f_cfg.write(new_web_config)
+
 
 def mount_index_routes(app: FastAPI):
     web_dir = os.path.join(project_dir, "website/dist")
+    web_config_file = os.path.join(web_dir, "config.js")
+    update_web_port(web_config_file)
     if os.path.exists(web_dir):
         app.mount("/web", StaticFiles(directory=web_dir), name="static")
     else:
@@ -88,6 +98,8 @@ def main():
     cfg.model_path = args.model_path
     cfg.model_device = args.device
     cfg.mount_web = args.web
+    cfg.server_ip = args.host
+    cfg.server_port = args.port
 
     default_args.model_dir = args.model_path
     default_args.device = args.device
