@@ -1,5 +1,5 @@
 # 后端服务（Server）
-Server 将 ktransformers 的快速异构推理能力通过 API 暴露给外界调用。
+Server 将 ktransformers 的快速异构推理能力通过 API 提供给外界调用。
 
 <img src="server-arch.png" height="600" alt="Server架构">
 
