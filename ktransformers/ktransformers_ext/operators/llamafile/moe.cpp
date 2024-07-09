@@ -38,7 +38,7 @@ void MOE::warm_up(Backend* backend) {
     for (int i = 0; i < config_.hidden_size; i++) {
         input_fp32[i] = 0;
     }
-    ggml_internal_get_type_traits(config_.hidden_type).from_float(input_fp32.data(), input.data(), config_.hidden_size);
+    from_float(input_fp32.data(), input.data(), config_.hidden_size, config_.hidden_type);
     forward(k, expert_ids.data(), weights.data(), input.data(), output.data(), backend);
 }
 
@@ -52,19 +52,19 @@ void MOE::forward(int k, const uint64_t* expert_ids, const float* weights, const
     if (config_.hidden_type == ggml_internal_get_type_traits(config_.gate_type).vec_dot_type && config_.hidden_type == ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
         gate_input_ptr = up_input_ptr = input;
     } else {
-        ggml_internal_get_type_traits(config_.hidden_type).to_float(input, input_fp32_.data(), config_.hidden_size);
+        to_float(input, input_fp32_.data(), config_.hidden_size, config_.hidden_type);
         if (ggml_internal_get_type_traits(config_.gate_type).vec_dot_type == ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
-            ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type).from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size);
+            from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
             gate_input_ptr = up_input_ptr = gate_input_.data();
         } else {
             if (config_.hidden_type != ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) {
-                ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type).from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size);
+                from_float(input_fp32_.data(), gate_input_.data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
                 gate_input_ptr = gate_input_.data();
             } else {
                 gate_input_ptr = input;
             }
             if (config_.hidden_type != ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
-                ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.up_type).vec_dot_type).from_float(input_fp32_.data(), up_input_.data(), config_.hidden_size);
+                from_float(input_fp32_.data(), up_input_.data(), config_.hidden_size, ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
                 up_input_ptr = up_input_.data();
             } else {
                 up_input_ptr = input;
@@ -85,7 +85,7 @@ void MOE::forward(int k, const uint64_t* expert_ids, const float* weights, const
         }
     }
     for (int i = 0; i < k; i++) {
-        ggml_internal_get_type_traits(ggml_internal_get_type_traits(config_.down_type).vec_dot_type).from_float(intermediate_fp32_[i].data(), down_input_[i].data(), config_.intermediate_size);
+        from_float(intermediate_fp32_[i].data(), down_input_[i].data(), config_.intermediate_size, ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
     }
     nth = config_.hidden_size / config_.stride;
     backend->do_work_stealing_job(nth * k, [&](int task_id) {
@@ -100,5 +100,5 @@ void MOE::forward(int k, const uint64_t* expert_ids, const float* weights, const
             output_fp32_[i] += down_output_[j][i] * weights[j];
         }
     }
-    ggml_internal_get_type_traits(config_.hidden_type).from_float(output_fp32_.data(), output, config_.hidden_size);
+    from_float(output_fp32_.data(), output, config_.hidden_size, config_.hidden_type);
 }

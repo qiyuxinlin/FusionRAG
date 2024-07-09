@@ -5,13 +5,13 @@ import cpuinfer_ext
 import torch
 
 with torch.inference_mode(mode=True):
-    input_size = 5120
-    output_size = 1536
-    stride = 64
+    input_size = 16384
+    output_size = 5120
+    stride = 32
     proj_type = 1 # ggml_type::GGML_TYPE_F16
     hidden_type = 1 # ggml_type::GGML_TYPE_F16
-    layer_num = 100
-    CPUInfer = cpuinfer_ext.CPUInfer(32)
+    layer_num = 10
+    CPUInfer = cpuinfer_ext.CPUInfer(48)
     validation_iter = 100
     warm_up_iter = 1000
     test_iter = 10000
