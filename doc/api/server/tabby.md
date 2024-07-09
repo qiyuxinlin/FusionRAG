@@ -1,4 +1,4 @@
-# 如何使用 Tabby 和 ktransformers 在本地做代码补全？
+# 如何使用 Tabby 和 ktransformers 在本地利用 236B 的大模型做代码补全？
 
 [Tabby](https://tabby.tabbyml.com/docs/welcome/) 是一个开源的代码助手，用户可以手动配置后端使用的框架及模型，并在多个 IDE/编辑器 上使用，例如 VSCode 和 InteliJ。因为 Tabby 在框架侧可以对接到 Ollama，并且 ktransformers server 提供和 Ollama 一致的 API 接口，所以我们可以将 Tabby 对接到 ktransformers server。并在代码补全的场景中体验到 ktransformers 快速的异构推理。
 
