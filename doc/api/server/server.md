@@ -1,12 +1,15 @@
-# Server
+# 后端服务（Server）
+Server 将 ktransformers 的快速异构推理能力通过 API 的形式暴露给外界调用。
+
 <img src="server-arch.png" height="600" alt="Server架构">
 
 ## API
 
 Server 通过 RESTful API 对外提供模型推理服务，提供 Chat Completion 和 Assistant 两种调用方式。
 
-- ChatCompletion 接口要求用户一次提供所有的历史对话，然后把模型推理的结果返回。对于 Chat Completion，Serve 提供和  [Ollama](https://github.com/ollama/ollama/blob/main/docs/api.md)  和 [OpenAI](https://platform.openai.com/docs/api-reference/chat/create)  一致的 API 接口。因此当前应用可以无缝切换到我们的 Server。例如： [如何使用 Tabby 和 ktransformers 在本地做代码补全？]()。
-- 而对于 Assistant 方式，首先需要创建一个包含初始命令、相关文件和相关对话（Related Threads）的助理（Assistant），然后应用将 Server 将用户的消息（Message）存储在对话（Thread）中，之后创建一次运行（Run）来调用模型获取回复。Server 提供和  [OpenAI Assistant API](https://platform.openai.com/docs/api-reference/assistants/createAssistant) 一致的 API 接口，并计划支持 OpenAI SDK。
+- ChatCompletion 接口要求用户一次提供所有的历史对话，然后把模型推理的结果返回。对于 Chat Completion，Serve 提供和  [Ollama](https://github.com/ollama/ollama/blob/main/docs/api.md)  和 [OpenAI](https://platform.openai.com/docs/api-reference/chat/create)  一致的 API 接口。因此当前应用可以无缝切换到我们的 Server。例如： [如何使用 Tabby 和 ktransformers 在本地做代码补全？](tabby.md)。
+- 而对于 Assistant 方式，首先需要创建一个包含初始命令、相关文件和相关对话（Related Threads）的助理（Assistant），然后应用将 Server 将用户的消息（Message）存储在对话（Thread）中，之后创建一次运行（Run）来调用模型获取回复。Server 提供和  [OpenAI Assistant API](https://platform.openai.com/docs/api-reference/assistants/createAssistant) 一致的 API 接口。
+
 
 ## 对接推理框架
 
