@@ -1,8 +1,9 @@
 from typing import List, Optional
-from pydantic import BaseModel
 from enum import Enum
 
-from ..base import ObjectID,Object
+from pydantic import BaseModel
+
+from ..base import Object
 
 class CompletionCreate(BaseModel):
     model: str
@@ -45,4 +46,3 @@ class CompletionObject(Object):
 
     def to_stream_reply(self):
         return f"data:{self.model_dump_json()}\n\n"
-        

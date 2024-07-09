@@ -5,6 +5,10 @@ log:
   level: "debug"
   backup_count: -1
 
+server:
+  ip: 0.0.0.0
+  port: 9016
+
 db:
   type: "sqllite"
   database: "server.db"
@@ -21,7 +25,7 @@ model:
   # name: Mistral-7B-Instruct-v0.2
   # name: CodeLlama-7b-hf 
   # name: LLaMA-2-7B-32K
-  name: Qwen1.5-7B
+  name: Mistral-7B-Instruct-v0.2
   # name: Qwen2-57B-A14B-Instruct 
   # name: DeepSeek-Coder-V2-Instruct-GGUF
   # name: Qwen1.5-7B-Chat 
@@ -30,7 +34,7 @@ model:
   # path: /models/Mistral-7B-Instruct-v0.2
   # path: /models/CodeLlama-7b-hf 
   # path: /models/LLaMA-2-7B-32K
-  path: /mnt/data/model/Qwen1.5-7B
+  path: /mnt/data/model/Mistral-7B-Instruct-v0.2
   # path: /models/Qwen2-57B-A14B-Instruct
   # path: /models/DeepSeek-Coder-V2-Instruct-GGUF
   # path: /models/Qwen1.5-7B-Chat

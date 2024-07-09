@@ -6,7 +6,7 @@ Author       : unicornchan
 Date         : 2024-06-11 16:35:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-05 07:56:59
+LastEditTime : 2024-07-09 07:02:09
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -67,12 +67,16 @@ class Config(metaclass=Singleton):
         cfg = Config.load()
         self.base_path = os.path.dirname(
             os.path.dirname(os.path.dirname(__file__)))
-        print(self.base_path)
         # log configs
         self.log_dir = os.path.join(self.base_path, Config.to_path(cfg["log"]["dir"]))
         self.log_file = cfg["log"]["file"]
         self.log_level = cfg["log"]["level"]
         self.backup_count = cfg["log"]["backup_count"]
+
+        # server configs
+        self.server: dict = cfg.get("server",{})
+        self.server_ip = self.server.get("ip", "0.0.0.0")
+        self.server_port = self.server.get("port", 9016)
 
         # db configs
         self.db_configs: dict = cfg.get("db", {})

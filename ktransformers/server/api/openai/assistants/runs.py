@@ -1,13 +1,11 @@
-import time
 from typing import List, Optional
 
 from fastapi import APIRouter, Request
-from fastapi.responses import StreamingResponse
 
 from server.crud.assistants.runs import RunsDatabaseManager
 from server.backend.context_manager import get_thread_context_manager,TContext
-from server.schemas.assistants.runs import *
-from server.schemas.assistants.streaming import *
+from server.schemas.assistants.runs import RunCreate,RunObject,RunThreadCreate,RunModify,RunSubmit
+from server.schemas.assistants.streaming import api_stream_response
 from server.schemas.base import Order
 from server.config.log import logger
 from server.exceptions import internal_server_error
@@ -98,6 +96,3 @@ async def cancel_run(thread_id: str, run_id: str):
         run = runs_manager.db_get_run(run_id)
         logger.info(f'Run {run_id} not in context manager')
         return run 
-
-
-

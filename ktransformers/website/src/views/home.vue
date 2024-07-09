@@ -310,7 +310,7 @@ export default defineComponent({
   },
   data() {
     return {
-      projectName: "Lexllama",
+      projectName: "KTransformers",
       projectVersion: "v0.01",
       activeThreadIndex: -1,
       chatInit: true,
@@ -446,7 +446,7 @@ export default defineComponent({
       }
 
       .text {
-        font-size: 32px;
+        font-size: 28px;
         font-weight: bold;
         margin-left: 10px;
         color: #edf2ea;

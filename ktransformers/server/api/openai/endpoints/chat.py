@@ -2,10 +2,8 @@ from time import time
 from uuid import uuid4
 from fastapi import APIRouter
 from fastapi.requests import Request
-from fastapi.responses import StreamingResponse
 from server.backend.context_manager import get_interface ,BackendInterface
-from server.schemas.assistants.streaming import chat_stream_response 
-from server.schemas.base import ObjectID
+from server.schemas.assistants.streaming import chat_stream_response
 from server.schemas.endpoints.chat import ChatCompletionCreate,ChatCompletionChunk,ChatCompletionObject
 
 

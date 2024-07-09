@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn.logging
@@ -36,19 +37,32 @@ def create_app():
             allow_headers=["*"],
         )
     mount_app_routes(app)
-    if(cfg.mount_web):
+    if cfg.mount_web:
         mount_index_routes(app)
     return app
 
+def update_web_port(config_file: str):
+    ip_port_pattern = r"(localhost|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)):[0-9]{1,5}"
+    with open(config_file, "r", encoding="utf-8") as f_cfg:
+        web_config = f_cfg.read()
+    ip_port = "localhost:" + str(Config().server_port)
+    new_web_config = re.sub(ip_port_pattern, ip_port, web_config)
+    with open(config_file, "w", encoding="utf-8") as f_cfg:
+        f_cfg.write(new_web_config)
+
+
 def mount_index_routes(app: FastAPI):
     web_dir = os.path.join(project_dir, "website/dist")
+    web_config_file = os.path.join(web_dir, "config.js")
+    update_web_port(web_config_file)
     if os.path.exists(web_dir):
-        app.mount("/web", StaticFiles(directory=(web_dir)), name="static")
+        app.mount("/web", StaticFiles(directory=web_dir), name="static")
     else:
         err_str = f"No website resources in {web_dir}, please complile the website by npm first"
         logger.error(err_str)
         print(err_str)
         exit(1)
+
 
 def run_api(app, host, port, **kwargs):
     if kwargs.get("ssl_keyfile") and kwargs.get("ssl_certfile"):
@@ -58,13 +72,14 @@ def run_api(app, host, port, **kwargs):
                     ssl_keyfile=kwargs.get("ssl_keyfile"),
                     ssl_certfile=kwargs.get("ssl_certfile"),
                     )
-    else:    
-        uvicorn.run(app, host=host, port=port,log_level='debug')
+    else:
+        uvicorn.run(app, host=host, port=port, log_level='debug')
+
 
 def main():
     cfg = Config()
-    parser = argparse.ArgumentParser(prog='Approaching.AI',
-                                     description='Lexllama: Efficient Long Context Inference')
+    parser = argparse.ArgumentParser(prog='kvcache.ai',
+                                     description='Ktransformers')
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9016)
     parser.add_argument("--ssl_keyfile", type=str)
@@ -82,6 +97,8 @@ def main():
     cfg.model_path = args.model_path
     cfg.model_device = args.device
     cfg.mount_web = args.web
+    cfg.server_ip = args.host
+    cfg.server_port = args.port
 
     default_args.model_dir = args.model_path
     default_args.device = args.device
@@ -94,6 +111,7 @@ def main():
             port=args.port,
             ssl_keyfile=args.ssl_keyfile,
             ssl_certfile=args.ssl_certfile,)
-    
+
+
 if __name__ == "__main__":
     main()

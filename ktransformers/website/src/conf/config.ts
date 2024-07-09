@@ -1,4 +1,11 @@
+declare global {
+    interface Window {
+      configWeb: {
+        apiUrl: string;
+        port: string;
+       };
+     }
+  }
 
-import { config } from '../../public/config.js';
-const baseURL = config.apiUrl;
-export default baseURL;
+export const baseURL = window.configWeb.apiUrl;
+export const basePort = window.configWeb.port;

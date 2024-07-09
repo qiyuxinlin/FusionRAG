@@ -1,14 +1,11 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, ForwardRef
+from typing import Dict, List, Optional, Union, ForwardRef
 
 from pydantic import BaseModel, Field, model_validator
 
 from ..base import TODO, Metadata, MetadataField, ObjectWithCreatedTime
 from .threads import ThreadCreate
 from .tool import Tool, ToolResource
-
-
-
 
 
 class ToolCall(BaseModel):
@@ -81,6 +78,7 @@ class RunBase(BaseModel):
     tools: Optional[List[Tool]] = Field([])
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']
@@ -134,6 +132,7 @@ class RunCreate(BaseModel):
     tools: List[Tool] = Field(default=[])
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']
@@ -158,6 +157,7 @@ class RunThreadCreate(BaseModel):
     tool_resources: List[ToolResource]
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']
@@ -176,6 +176,7 @@ class RunThreadCreate(BaseModel):
 class RunModify(BaseModel):
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']

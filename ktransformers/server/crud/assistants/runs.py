@@ -1,10 +1,9 @@
 from time import time
 from uuid import uuid4
 
-from server.models.assistants.runs import *
-from server.schemas.assistants.runs import *
+from server.models.assistants.runs import Run
+from server.schemas.assistants.runs import RunCreate,RunObject
 from server.schemas.base import ObjectID
-from server.config.log import logger
 from server.utils.sql_utils import SQLUtil
 
 
