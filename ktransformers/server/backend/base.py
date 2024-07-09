@@ -36,7 +36,7 @@ class BackendInterfaceBase:
         raise NotImplementedError
 
     
-    async def work(self,local_messages,request_unique_id:Optional[str])->AsyncIterator[str]:
+    async def inference(self,local_messages,request_unique_id:Optional[str])->AsyncIterator[str]:
         '''
         work can be called directly, or by ThreadContext
 
@@ -142,7 +142,7 @@ class ThreadContext:
         yield reply_message.stream_response_with_event(MessageObject.Status.in_progress)
         yield self.run.stream_response_with_event(RunObject.Status.in_progress)
 
-        async for token in self.interface.work(local_messages,self.thread.id):     
+        async for token in self.interface.inference(local_messages,self.thread.id):     
             if self.run.status == RunObject.Status.cancelling:
                 logger.warn(f'Run {self.run.id} cancelling')
                 break

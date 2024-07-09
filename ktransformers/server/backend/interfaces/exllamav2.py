@@ -32,7 +32,7 @@ class ExllamaInterface(BackendInterfaceBase):
     def tokenize_prompt(self, prompt: str) -> torch.Tensor:
         raise NotImplementedError
     
-    async def work(self,local_messages,request_unique_id:Optional[str])->AsyncIterator:
+    async def inference(self,local_messages,request_unique_id:Optional[str])->AsyncIterator:
         raise NotImplementedError
     
 

@@ -7,3 +7,5 @@ server.db
 logs
 dist
 node_modules
+.vscode
+.DS_Store
