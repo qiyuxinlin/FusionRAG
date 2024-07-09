@@ -1,17 +1,17 @@
 import asyncio
-from enum import Enum
-from typing import AsyncIterable, List, Optional, Union
+from typing import AsyncIterable, List, Union
 
 from fastapi import Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from server.schemas.assistants.runs import RunStreamResponse
 from server.schemas.endpoints.chat import ChatCompletionChunk
-
-from ..base import TODO, Object, ObjectID
-from .messages import ContentType, ImageFileObject, ImageUrlObject, MessageObject, Text, TextObject
 from server.config.log import logger
+
+from ..base import Object
+from .messages import ContentType, ImageFileObject, ImageUrlObject, MessageObject, Text, TextObject
+
 
 class TextObjectWithIndex(TextObject):
     index: int
@@ -25,7 +25,8 @@ class ImageUrlObjectWithIndex(ImageUrlObject):
     index: int
 
 
-ContentWithIndex = Union[TextObjectWithIndex, ImageFileObjectWithIndex, ImageUrlObjectWithIndex]
+ContentWithIndex = Union[TextObjectWithIndex,
+                         ImageFileObjectWithIndex, ImageUrlObjectWithIndex]
 
 
 class MessageDeltaImpl(BaseModel):
@@ -45,19 +46,19 @@ def text_delta(index: int, text: str):
 
 
 def append_message_delta(self: MessageObject, text: str):
-   
-    if len(self.content) == 0:
-        self.content.append(TextObject(type=ContentType.text, text=Text(value=''),delta_index=0))
 
-    text_object: TextObject= self.content[0]
+    if len(self.content) == 0:
+        self.content.append(TextObject(type=ContentType.text,
+                            text=Text(value=''), delta_index=0))
+
+    text_object: TextObject = self.content[0]
     if text_object.filter_append(text):
         return MessageDelta(id=self.id, object="thread.message.delta", delta=text_delta(text_object.delta_index, text))
     else:
         return None
 
+
 MessageObject.append_message_delta = append_message_delta
-
-
 
 
 class RunStepDeltaImpl(BaseModel):
@@ -66,6 +67,7 @@ class RunStepDeltaImpl(BaseModel):
 
 class RunStepDelta(Object):
     delta: RunStepDeltaImpl
+
     def to_stream_reply(self):
         return f"event: thread.run.step.delta\ndata: {self.model_dump_json()}\n\n"
 
@@ -73,60 +75,68 @@ class RunStepDelta(Object):
 class Done():
     def to_stream_reply(self):
         return f"event: done\ndata: [DONE]\n\n"
-    
 
-async def check_client_link(request:Request,async_events:AsyncIterable):
+
+async def check_client_link(request: Request, async_events: AsyncIterable):
     async for event in async_events:
         if await request.is_disconnected():
             break
         yield event
 
-async def add_done(async_events:AsyncIterable):
+
+async def add_done(async_events: AsyncIterable):
     async for event in async_events:
-        yield event 
+        yield event
     yield Done()
 
-async def to_stream_reply(async_events:AsyncIterable):
+
+async def to_stream_reply(async_events: AsyncIterable):
     async for event in async_events:
-        if isinstance(event,str):
+        if isinstance(event, str):
             yield event
         else:
             yield event.to_stream_reply()
 
-async def filter_api_event(async_events:AsyncIterable):
+
+async def filter_api_event(async_events: AsyncIterable):
     async for event in async_events:
-        if isinstance(event,MessageDelta) or isinstance(event,RunStepDelta) or isinstance(event,RunStreamResponse) or isinstance(event,Done):
+        if isinstance(event, MessageDelta) or isinstance(event, RunStepDelta) or isinstance(event, RunStreamResponse) or isinstance(event, Done):
             yield event
 
-async def filter_chat_chunk(async_events:AsyncIterable):
+
+async def filter_chat_chunk(async_events: AsyncIterable):
     async for event in async_events:
-        if isinstance(event,ChatCompletionChunk):
+        if isinstance(event, ChatCompletionChunk):
             yield event
 
-async def filter_by_types(async_events:AsyncIterable,types:List):
+
+async def filter_by_types(async_events: AsyncIterable, types: List):
     async for event in async_events:
         for type in types:
-            if isinstance(event,type):
+            if isinstance(event, type):
                 yield event
                 continue
 
 
+def api_stream_response(request: Request, async_events: AsyncIterable):
+    return StreamingResponse(check_client_link(request, to_stream_reply(add_done(filter_api_event(async_events)))), media_type="text/event-stream")
 
-def api_stream_response(request:Request,async_events:AsyncIterable):
-    return StreamingResponse(check_client_link(request,to_stream_reply(add_done(filter_api_event(async_events)))), media_type="text/event-stream")
 
-def chat_stream_response(request:Request,async_events:AsyncIterable):
-    return StreamingResponse(check_client_link(request,to_stream_reply( add_done(filter_chat_chunk( async_events)))), media_type="text/event-stream")
+def chat_stream_response(request: Request, async_events: AsyncIterable):
+    return StreamingResponse(check_client_link(request, to_stream_reply(add_done(filter_chat_chunk(async_events)))), media_type="text/event-stream")
 
-def stream_response(request:Request,async_events:AsyncIterable):
-    return StreamingResponse(check_client_link(request,to_stream_reply( add_done( async_events))), media_type="text/event-stream")
 
-def check_link_response(request:Request,async_events:AsyncIterable):
+def stream_response(request: Request, async_events: AsyncIterable):
+    return StreamingResponse(check_client_link(request, to_stream_reply(add_done(async_events))), media_type="text/event-stream")
+
+
+def check_link_response(request: Request, async_events: AsyncIterable):
     return StreamingResponse(check_client_link(request, async_events), media_type="text/event-stream")
 
 
-def wrap_async_generator_into_queue(async_events:AsyncIterable)->asyncio.Queue:
+def wrap_async_generator_into_queue(async_events: AsyncIterable) -> asyncio.Queue:
     queue = asyncio.Queue()
+
     async def inner():
         # logger.debug('run inner')
         async for event in async_events:
@@ -138,19 +148,20 @@ def wrap_async_generator_into_queue(async_events:AsyncIterable)->asyncio.Queue:
     asyncio.create_task(inner())
     return queue
 
-async def unwrap_async_queue(queue:asyncio.Queue)->AsyncIterable:
+
+async def unwrap_async_queue(queue: asyncio.Queue) -> AsyncIterable:
     while True:
         events = [await queue.get()]
-        events.extend( [queue.get_nowait() for _ in range( queue.qsize())])
-        
+        events.extend([queue.get_nowait() for _ in range(queue.qsize())])
+
         logger.debug(f'getting {len(events)} events')
         for event in events:
-            if event is None:   
+            if event is None:
                 break
             yield event
-            
 
-async def unwrap_async_queue_slow(queue:asyncio.Queue)->AsyncIterable:
+
+async def unwrap_async_queue_slow(queue: asyncio.Queue) -> AsyncIterable:
     while True:
         event = await queue.get()
         # logger.debug(f'unwrap_async_queue {event}')

@@ -1,20 +1,14 @@
-
 from enum import Enum
-from typing import Any, ForwardRef, List, Optional, Union,Callable
+from typing import ForwardRef, List, Optional, Union,Callable
 
 import torch
-from pydantic import BaseModel, PrivateAttr, ValidationError, model_serializer, model_validator
+from pydantic import BaseModel, PrivateAttr, model_validator
 
-from server.exceptions import *
-
-
-
-from ..base import Metadata, MetadataField, ObjectID, ObjectWithCreatedTime
-from .tool import *
+from server.exceptions import not_implemented
 from server.config.log import logger
 
-
-
+from ..base import Metadata, MetadataField, ObjectWithCreatedTime
+from .tool import Field,CodeInterpreter,FileSearch
 
 
 class IncompleteDetails(BaseModel):
@@ -67,12 +61,7 @@ class TextObject(ContentObject):
     def filter_append(self,text:str):     
         self.text.value+=text
         self.delta_index+=1
-        return True
-
-     
-
-            
-
+        return True  
 
 
 
@@ -98,6 +87,7 @@ class MessageCore(BaseModel):
     attachments: Optional[List[Attachment]]
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']
@@ -177,13 +167,13 @@ class MessageStreamResponse(BaseModel):
         return f"event: thread.message.{self.event.value}\ndata: {self.message.model_dump_json()}\n\n"
 
 
-
 class MessageCreate(BaseModel):
     role: Role = Field(default=Role.user)
     content: Union[str | List[Content]]
     attachments: Optional[List[Attachment]] = None
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']
@@ -209,6 +199,7 @@ class MessageCreate(BaseModel):
 class MessageModify(BaseModel):
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']

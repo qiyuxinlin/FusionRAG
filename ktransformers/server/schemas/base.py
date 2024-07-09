@@ -44,4 +44,3 @@ class DeleteResponse(Object):
 class OperationResponse(BaseModel):
     operation: str
     status: str
-

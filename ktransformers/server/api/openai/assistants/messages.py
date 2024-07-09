@@ -2,19 +2,20 @@ from typing import List, Optional
 
 from fastapi import APIRouter
 
+from server.exceptions import not_implemented
+from server.schemas.assistants.messages import MessageCreate, MessageObject, MessageModify
 from server.crud.assistants.messages import MessageDatabaseManager
-from server.schemas.assistants.messages import *
-from server.schemas.base import DeleteResponse, Order
-
-from server.backend.context_manager import get_thread_context_manager,TContext
+from server.schemas.base import DeleteResponse, ObjectID, Order
+from server.backend.context_manager import get_thread_context_manager, TContext
 
 router = APIRouter()
 message_manager = MessageDatabaseManager()
 
 
-@router.post("/{thread_id}/messages", tags=['openai'],response_model=MessageObject)
+@router.post("/{thread_id}/messages", tags=['openai'], response_model=MessageObject)
 async def create_message(thread_id: str, msg: MessageCreate):
-    message = message_manager.db_create_message(thread_id, msg, MessageObject.Status.in_progress)
+    message = message_manager.db_create_message(
+        thread_id, msg, MessageObject.Status.in_progress)
     ctx: Optional[TContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         ctx.put_user_message(message)
@@ -38,12 +39,13 @@ async def retrieve_message(thread_id: ObjectID, message_id: ObjectID):
     return message_manager.db_get_message_by_id(thread_id, message_id)
 
 
-@router.post("/{thread_id}/messages/{message_id}",tags=['openai'], response_model=MessageObject)
+@router.post("/{thread_id}/messages/{message_id}", tags=['openai'], response_model=MessageObject)
 async def modify_message(thread_id: ObjectID, message_id: ObjectID, msg: MessageModify):
-    raise not_implemented('modify message not implemented')
+    #raise not_implemented('modify message not implemented')
+    raise not_implemented('modify message')
 
 
-@router.delete("/{thread_id}/messages/{message_id}",tags=['openai'], response_model=DeleteResponse)
+@router.delete("/{thread_id}/messages/{message_id}", tags=['openai'], response_model=DeleteResponse)
 async def delete_message(thread_id: ObjectID, message_id: ObjectID):
     ctx: Optional[TContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:

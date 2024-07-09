@@ -1,18 +1,17 @@
 from time import time
+from typing import Optional,List
 from uuid import uuid4
 
-from server.models.assistants.messages import *
-from server.models.assistants.threads import *
+from server.models.assistants.messages import Message
+from server.models.assistants.threads import Thread
 from server.schemas.assistants.assistants import AssistantObject
-from server.schemas.assistants.messages import *
-from server.schemas.assistants.threads import *
-from server.schemas.base import Order
+from server.schemas.assistants.threads import ThreadCreate,ThreadObject
+from server.schemas.base import ObjectID, Order
 from server.schemas.conversation import ThreadPreview
 from server.utils.sql_utils import SQLUtil
 from server.crud.assistants.messages import MessageDatabaseManager
-from .assistants import AssistantDatabaseManager
 from server.config.log import logger
-
+from .assistants import AssistantDatabaseManager
 
 class ThreadsDatabaseManager:
     def __init__(self) -> None:
@@ -45,8 +44,8 @@ class ThreadsDatabaseManager:
             thread_obj = ThreadObject.model_validate(db_thread.__dict__)
 
             if 'assistant_id' in thread.meta_data:
-                assistant = self.assistant_maanager.db_get_assistant_by_id(
-                    thread.meta_data['assistant_id'], db)
+#                assistant = self.assistant_maanager.db_get_assistant_by_id(thread.meta_data['assistant_id'], db)
+                assistant = self.assistant_maanager.db_get_assistant_by_id(thread.meta_data['assistant_id'])
                 logger.info(
                     f'Append this related thread to assistant {assistant.id}')
                 assistant.append_related_threads([thread_obj.id])

@@ -1,13 +1,14 @@
 from typing import Optional
+
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
 
 from server.crud.assistants.assistants import AssistantDatabaseManager
 from server.crud.assistants.runs import RunsDatabaseManager
-from server.backend.context_manager import *
-from server.schemas.assistants.assistants import *
+# from server.backend.context_manager import *
+from server.schemas.assistants.assistants import AssistantCreate, AssistantModify, ObjectID, AssistantBuildStatus, AssistantObject
 from server.schemas.base import DeleteResponse, Order
-from server.schemas.assistants.streaming import *
+# from server.schemas.assistants.streaming import *
 from server.config.log import logger
 
 
@@ -16,14 +17,14 @@ assistant_manager = AssistantDatabaseManager()
 runs_manager = RunsDatabaseManager()
 
 
-@router.post("/",tags=['openai'])
+@router.post("/", tags=['openai'])
 async def create_assistant(
     ass: AssistantCreate,
 ):
     return assistant_manager.db_create_assistant(ass).as_api_response()
 
 
-@router.get("/",tags=['openai'])
+@router.get("/", tags=['openai'])
 async def list_assistants(
     limit: Optional[int] = 20,
     order: Order = Order.DESC,
@@ -33,7 +34,9 @@ async def list_assistants(
     return [d.as_api_response() for d in assistant_manager.db_list_assistants(limit, order)]
 
 # list assistant with status
-@router.get("/status",tags=['openai-ext'])
+
+
+@router.get("/status", tags=['openai-ext'])
 async def list_assistants_with_status(
     limit: Optional[int] = 20,
     order: Order = Order.DESC,
@@ -43,14 +46,14 @@ async def list_assistants_with_status(
     return assistant_manager.db_list_assistants(limit, order)
 
 
-@router.get("/{assistant_id}",tags=['openai'])
+@router.get("/{assistant_id}", tags=['openai'])
 async def retrieve_assistant(
     assistant_id: str,
 ):
     return assistant_manager.db_get_assistant_by_id(assistant_id).as_api_response()
 
 
-@router.post("/{assistant_id}",tags=['openai'])
+@router.post("/{assistant_id}", tags=['openai'])
 async def modify_assistant(
     assistant_id: str,
     ass: AssistantModify,
@@ -58,18 +61,16 @@ async def modify_assistant(
     return assistant_manager.db_update_assistant_by_id(assistant_id, ass).as_api_response()
 
 
-@router.delete("/{assistant_id}", tags=['openai'],response_model=DeleteResponse)
+@router.delete("/{assistant_id}", tags=['openai'], response_model=DeleteResponse)
 async def delete_assistant(assistant_id: str):
     assistant_manager.db_delete_assistant_by_id(assistant_id)
     return DeleteResponse(id=assistant_id, object="assistant.deleted")
 
 
-@router.get("/{assistant_id}/related_thread",tags=['openai'])
+@router.get("/{assistant_id}/related_thread", tags=['openai'])
 async def get_related_thread(assistant_id: ObjectID):
     ass = assistant_manager.db_get_assistant_by_id(assistant_id)
     return ass.get_related_threads_ids()
-
-
 
 
 def create_default_assistant():
@@ -84,11 +85,9 @@ def create_default_assistant():
         default_assistant.sync_db()
 
 
-
-
-
 # unit test
 client = TestClient(router)
+
 
 def test_create_assistant():
     ass_create = AssistantCreate(model="awesome model", instructions="hello")

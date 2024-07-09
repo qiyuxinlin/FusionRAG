@@ -15,6 +15,9 @@ from server.api import router, post_db_creation_operations
 from server.utils.sql_utils import Base, SQLUtil
 from server.config.log import logger
 
+project_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(project_dir)
+
 
 def mount_app_routes(mount_app: FastAPI):
     sql_util = SQLUtil()
@@ -36,19 +39,21 @@ def create_app():
             allow_headers=["*"],
         )
     mount_app_routes(app)
-    if(cfg.mount_web):
+    if cfg.mount_web:
         mount_index_routes(app)
     return app
+
 
 def mount_index_routes(app: FastAPI):
     web_dir = os.path.join(project_dir, "website/dist")
     if os.path.exists(web_dir):
-        app.mount("/web", StaticFiles(directory=(web_dir)), name="static")
+        app.mount("/web", StaticFiles(directory=web_dir), name="static")
     else:
         err_str = f"No website resources in {web_dir}, please complile the website by npm first"
         logger.error(err_str)
         print(err_str)
         exit(1)
+
 
 def run_api(app, host, port, **kwargs):
     if kwargs.get("ssl_keyfile") and kwargs.get("ssl_certfile"):
@@ -58,8 +63,9 @@ def run_api(app, host, port, **kwargs):
                     ssl_keyfile=kwargs.get("ssl_keyfile"),
                     ssl_certfile=kwargs.get("ssl_certfile"),
                     )
-    else:    
-        uvicorn.run(app, host=host, port=port,log_level='debug')
+    else:
+        uvicorn.run(app, host=host, port=port, log_level='debug')
+
 
 def main():
     cfg = Config()
@@ -94,6 +100,7 @@ def main():
             port=args.port,
             ssl_keyfile=args.ssl_keyfile,
             ssl_certfile=args.ssl_certfile,)
-    
+
+
 if __name__ == "__main__":
     main()

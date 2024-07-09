@@ -1,7 +1,8 @@
+from typing import List,Optional
 from fastapi import APIRouter
 
-from server.crud.assistants.threads import *
-from server.schemas.assistants.threads import *
+from server.crud.assistants.threads import ThreadsDatabaseManager,Order,ObjectID
+from server.schemas.assistants.threads import ThreadObject,ThreadCreate,ThreadModify
 from server.schemas.base import DeleteResponse
 from server.schemas.conversation import ThreadPreview
 
