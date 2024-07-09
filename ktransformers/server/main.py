@@ -45,7 +45,6 @@ def update_web_port(config_file: str):
     ip_port_pattern = r"(localhost|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)):[0-9]{1,5}"
     with open(config_file, "r", encoding="utf-8") as f_cfg:
         web_config = f_cfg.read()
-    print(web_config)
     ip_port = "localhost:" + str(Config().server_port)
     new_web_config = re.sub(ip_port_pattern, ip_port, web_config)
     with open(config_file, "w", encoding="utf-8") as f_cfg:
@@ -79,8 +78,8 @@ def run_api(app, host, port, **kwargs):
 
 def main():
     cfg = Config()
-    parser = argparse.ArgumentParser(prog='Approaching.AI',
-                                     description='Lexllama: Efficient Long Context Inference')
+    parser = argparse.ArgumentParser(prog='kvcache.ai',
+                                     description='Ktransformers')
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9016)
     parser.add_argument("--ssl_keyfile", type=str)
