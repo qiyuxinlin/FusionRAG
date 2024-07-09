@@ -1,8 +1,8 @@
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import List
 from typing_extensions import Self 
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from server.schemas.base import Metadata, MetadataField, ObjectWithCreatedTime
 from server.schemas.assistants.tool import ToolResource
@@ -12,6 +12,7 @@ from server.schemas.assistants.messages import MessageCore
 class ThreadBase(BaseModel):
     meta_data: Metadata = MetadataField
     @model_validator(mode='before')
+    @classmethod
     def convert_meta_data(cls,values):
         if 'meta_data' in values:
             values['metadata'] = values['meta_data']
@@ -46,4 +47,3 @@ class ThreadModify(ThreadBase):
 
 
 # other than OpenAI API
-

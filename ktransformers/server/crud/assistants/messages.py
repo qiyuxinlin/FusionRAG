@@ -3,11 +3,9 @@ from typing import Optional
 from uuid import uuid4
 
 from server.models.assistants.messages import Message
-from server.models.assistants.threads import Thread
-from server.schemas.assistants.messages import MessageCore, MessageCreate,  MessageObject, ObjectID
-from server.schemas.base import Order
+from server.schemas.assistants.messages import MessageCore, MessageCreate,  MessageObject
+from server.schemas.base import Order,ObjectID
 from server.utils.sql_utils import SQLUtil
-from server.config.log import logger
 
 class MessageDatabaseManager:
     def __init__(self) -> None:

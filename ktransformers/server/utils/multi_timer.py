@@ -77,5 +77,3 @@ class Profiler:
 
     def get_counter(self,key:str):
         return self.counters.get(key,0)
-
-    
