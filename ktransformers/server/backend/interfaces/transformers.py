@@ -132,6 +132,7 @@ class TransformersInterface(BackendInterfaceBase):
         self.args = args
         
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+        print(args.device)
         self.model = LlamaForCausalLM.from_pretrained(args.model_dir, device_map=args.device,use_safetensors=True)
         logger.info(f'{args.model_name} loaded from {args.model_dir} to {args.device}')
         
