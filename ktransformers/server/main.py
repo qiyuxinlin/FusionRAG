@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from server.config.config import Config
 from server.backend.context_manager import globalInterface,BackendInterface
 from server.backend.args import default_args
+from fastapi.openapi.utils import get_openapi
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,6 +66,22 @@ def run_api(app, host, port, **kwargs):
     else:    
         uvicorn.run(app, host=host, port=port,log_level='debug')
 
+def custom_openapi(app):
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="ktransformers server",
+        version="1.0.0",
+        summary="This is a server that provides a RESTful API for ktransformers.",
+        description="We provided chat completion and openai assistant interfaces.",
+        routes=app.routes,
+    )
+    openapi_schema["info"]["x-logo"] = {
+        "url": "https://kvcache.ai/media/icon_1.png"
+    }
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
 def main():
     cfg = Config()
     parser = argparse.ArgumentParser(prog='Approaching.AI',
@@ -84,6 +101,7 @@ def main():
     # 初始化消息
     args = parser.parse_args()
     app = create_app()
+    custom_openapi(app)
     globalInterface.interface = BackendInterface(default_args)
     run_api(app=app,
             host=args.host,

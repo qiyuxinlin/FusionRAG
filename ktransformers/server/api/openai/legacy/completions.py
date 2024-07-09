@@ -22,7 +22,7 @@ async def create_completion(request:Request,create:CompletionCreate):
 
     if create.stream:
         async def inner():
-            async for token in interface.work(create.prompt,id):     
+            async for token in interface.inference(create.prompt,id):     
                 d = {'choices':[{'delta':{'content':token}}]}
                 yield f"data:{json.dumps(d)}\n\n"
             d = {'choices':[{'delta':{'content':''},'finish_reason':''}]}
@@ -30,7 +30,7 @@ async def create_completion(request:Request,create:CompletionCreate):
         return stream_response(request,inner())
     else:
         comp = CompletionObject(id=id,object='text_completion',created=int(time()))
-        async for token in interface.work(create.prompt,id):     
+        async for token in interface.inference(create.prompt,id):     
             comp.append_token(token)
         return comp
     

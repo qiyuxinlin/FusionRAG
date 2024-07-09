@@ -15,9 +15,9 @@ from asyncio import Lock, Queue
 
 
 class AssistantBase(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    instructions: Optional[str] = None
+    name: Optional[str] = Field(None,description='The name of the assistant.') 
+    description: Optional[str] = Field(None,description='The description of the assistant.')
+    instructions: Optional[str] = Field(None,description='Instructions which is added in front of the input of LLM') 
     tools: List[Tool] = Field([], max_length=128)
 
     @field_validator('tools', mode='before')
