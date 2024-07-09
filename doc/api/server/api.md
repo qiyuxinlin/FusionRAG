@@ -1,15 +1,10 @@
 # API
 
-我们使用 Fast API 框架开发 API
 
+- [OpenAI ChatCompletion](#openai-chatcompletion)
+- [Ollama ChatCompletion](#ollama-chatcompletion)
 - [OpenAI Assistant](#openai-assistant)
-- [OpenAI Chat Completion](#openai-chat-completion)
-- [Ollama](#ollama)
 
-## 关键接口
-
-- [Generate a completion](#generate-a-completion)
-- [Generate a chat completion](#generate-a-chat-completion)
 
 ## OpenAI ChatCompletion
 ```bash
@@ -52,7 +47,7 @@ curl -X 'POST' \
 }'
 ```
 
-```json
+```bash
 data:{"id":"c30445e8-1061-4149-a101-39b8222e79e1","object":"chat.completion.chunk","created":1720511671,"model":"not implmented","system_fingerprint":"not implmented","usage":null,"choices":[{"index":0,"delta":{"content":"Why ","role":"assistant","name":null},"logprobs":null,"finish_reason":null}]}
 
 data:{"id":"c30445e8-1061-4149-a101-39b8222e79e1","object":"chat.completion.chunk","created":1720511671,"model":"not implmented","system_fingerprint":"not implmented","usage":null,"choices":[{"index":0,"delta":{"content":"","role":"assistant","name":null},"logprobs":null,"finish_reason":null}]}
@@ -107,7 +102,7 @@ curl -X 'POST' \
 }'
 ```
 
-```json
+```bash
 {"model":"Meta-Llama-3-8B-Instruct","created_at":"2024-07-09 08:13:11.686513","response":"I'll ","done":false}
 {"model":"Meta-Llama-3-8B-Instruct","created_at":"2024-07-09 08:13:11.729214","response":"give ","done":false}
 
