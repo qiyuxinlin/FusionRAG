@@ -20,17 +20,17 @@ from torch import Tensor, nn
 import torch.nn.functional as F
 import torch
 import sys, os
-from operators.base_operator import BaseInjectedModule
+from ktransformers.operators.base_operator import BaseInjectedModule
 
 sys.path.append(os.path.dirname(__file__) + "/../ktransformers_ext/build")
 import cpuinfer_ext
 from cpuinfer_ext.moe import MOEConfig, MOE
 import ctypes
-from util.custom_gguf import GGUFLoader
+from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
-from operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTransformerLinear
+from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTransformerLinear
 
 
 # from gguf.constants import GGMLQuantizationType
@@ -403,8 +403,8 @@ class KTransformersMLPExpert():#BaseInjectedModule, MLPExpertsBase):
     #     else:
     #         raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")
 
-from models.modeling_deepseek import DeepseekV2MoE
-from models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock
+from ktransformers.models.modeling_deepseek import DeepseekV2MoE
+from ktransformers.models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock
 
 
 class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock):

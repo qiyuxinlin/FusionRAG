@@ -19,7 +19,7 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     recursive = True
     # if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
     #     out_data[module_name]={"key": translated_name,
-    #         "module_name": "krtansformers.operators.linear",
+    #         "module_name": "ktransformers.operators.linear",
     #         "class_name": "KTransformerLinear",
     #         "gpu_linear_type": "QuantizedLinearMarlin",
     #         "cpu_linear_type": "QuantizedLinearTorch",
@@ -27,7 +27,7 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     #     recursive = False
     if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.linear",
+            "module_name": "ktransformers.operators.linear",
             "class_name": "QuantizedLinearMarlin",
             "device_idx": device}
         recursive = False
@@ -36,7 +36,7 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
         recursive = False
     if isinstance(module, DeepseekV2MoE):
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.experts",
+            "module_name": "ktransformers.operators.experts",
             "class_name": "DeepseekV2MoEInjected",
             "device_idx": device}
     # if isinstance(module, DeepseekV2Model):
@@ -46,17 +46,17 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     #         "device_idx": device}
     if isinstance(module, Qwen2MoeModel):
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.layer_wise_prefill_qwen_moe",
+            "module_name": "ktransformers.operators.layer_wise_prefill_qwen_moe",
             "class_name": "Qwen2MoeModelPerLayerPrefill",
             "device_idx": device}
     if isinstance(module, Qwen2MoeSparseMoeBlock):
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.experts",
+            "module_name": "ktransformers.operators.experts",
             "class_name": "Qwen2MoeSparseMoeBlockInjected",
             "device_idx": device}
     if isinstance(module, nn.ModuleList) and "expert" in module_name:
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.experts",
+            "module_name": "ktransformers.operators.experts",
             "file_name": "experts",
             "class_name": "MLPExperts",
             # "class_name": "MLPExpertsMarlin",
@@ -74,13 +74,13 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     #     recursive = False
     if "YarnRotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.RoPE",
+            "module_name": "ktransformers.operators.RoPE",
             "class_name": "YarnRotaryEmbedding",
             "device_idx": device}
         recursive = False
     elif "RotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
-            "module_name": "krtansformers.operators.RoPE",
+            "module_name": "ktransformers.operators.RoPE",
             "class_name": "RotaryEmbedding",
             "device_idx": device}
         recursive = False
