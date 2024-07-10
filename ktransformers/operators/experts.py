@@ -30,7 +30,7 @@ from util.custom_gguf import GGUFLoader
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
-from operators.linear import QuantizedLinearMarlin
+from operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTransformerLinear
 
 
 # from gguf.constants import GGMLQuantizationType
@@ -40,8 +40,17 @@ from multiprocessing import cpu_count
 pc_infer = pcinfer.PCInfer(cpu_count() - 4)
 
 class MLPExpertsBase(BaseInjectedModule, ABC):
+# class MLPExpertsBase(ABC):
     def __init__(self, key: str, gguf_loader: GGUFLoader, config: PretrainedConfig, orig_module: nn.Module, device: str = "cuda", **kwargs):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
+        # object.__setattr__(self, "key", key)
+        # object.__setattr__(self, "gguf_loader", gguf_loader)
+        # object.__setattr__(self, "config", config)
+        # object.__setattr__(self, "device", device)
+        self.key = key
+        self.gguf_loader = gguf_loader
+        self.config = config
+        self.device = device
     
     @abstractmethod
     def forward(self, input_tensor, expert_ids, weights):
@@ -85,11 +94,13 @@ class MLPExperts(MLPExpertsBase):
         key: str,
         gguf_loader: GGUFLoader,
         config: PretrainedConfig,
-        orig_module: nn.Module,
+        # n_routed_experts: int,
+        orig_module: nn.Module = None,
         device: str = "cuda",
         **kwargs
     ):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
+        # self.n_routed_experts = n_routed_experts
 
     def load(self, w: dict | nn.Parameter | tuple | None = None):
         print("loading MLPExperts", self.key)
@@ -110,6 +121,7 @@ class MLPExperts(MLPExpertsBase):
             ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
         )
         # print(self.gate_qtype, self.up_qtype, self.down_qtype)
+        # n_routed_experts = self.n_routed_experts
         n_routed_experts = len(self.orig_module)
         moe_config = MOEConfig(
             n_routed_experts,
@@ -128,18 +140,12 @@ class MLPExperts(MLPExpertsBase):
         self.moe = MOE(moe_config)
         self.pc_infer = pc_infer
 
-        # return True
+        return True
 
     def forward(self, input_tensor, expert_ids, weights):
         input_tensor = input_tensor.contiguous()
         expert_ids = expert_ids.contiguous()
         weights = weights.contiguous().to(torch.float32)
-        # torch.set_printoptions(profile="full")
-        # print(input_tensor.dtype, expert_ids.dtype, weights.dtype)
-        # print(torch.isinf(input_tensor).any()) # prints the whole tensor
-        # print(torch.isinf(expert_ids).any()) # prints the whole tensor
-        # print(torch.isinf(weights).any()) # prints the whole tensor
-        # torch.set_printoptions(profile="default") # reset
         output = torch.empty_like(input_tensor).contiguous()
         self.pc_infer.submit(
             self.moe.forward,
@@ -150,59 +156,48 @@ class MLPExperts(MLPExpertsBase):
             output.data_ptr(),
         )
         self.pc_infer.sync()
-        # print("MLPExperts output",torch.isinf(output).any())
         return output
 
 class MLPExpertsMarlin(MLPExpertsBase):
     expert_num: int
-    expert_used_count: int
     loaded_experts_idx: list[int]
     def __init__(
         self,
         key: str,
         gguf_loader: GGUFLoader,
         config: PretrainedConfig,
-        orig_module: nn.Module,
+        n_routed_experts: int,
+        orig_module: nn.Module = None,
         device: str = "cuda",
         **kwargs
     ):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
-        self.expert_num = self.gguf_loader.gguf_file_meta["qwen2moe.expert_count"]
-        self.expert_used_count = self.gguf_loader.gguf_file_meta["qwen2moe.expert_used_count"]
+        self.expert_num = n_routed_experts
         self.loaded_experts_idx = []
         self.act_fn = ACT2FN[config.hidden_act]
+        self.device = device
         # create empty marlin experts according to the number of experts per token
         # up
-        self.up_projs = nn.ModuleList(
-            [QuantizedLinearMarlin(key+ "." + "ffn_up_exps", gguf_loader, config, orig_module[i].up_proj, device) for i in range(self.expert_num)]
-        )
+        self.up_projs = [QuantizedLinearMarlin(key+ "." + "ffn_up_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
         # gate
-        self.gate_projs = nn.ModuleList(
-            [QuantizedLinearMarlin(key+ "." + "ffn_gate_exps", gguf_loader, config, orig_module[i].gate_proj, device) for i in range(self.expert_num)]
-        )
+        self.gate_projs = [QuantizedLinearMarlin(key+ "." + "ffn_gate_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
         # down
-        self.down_projs = nn.ModuleList(
-            [QuantizedLinearMarlin(key+ "." + "ffn_down_exps", gguf_loader, config, orig_module[i].down_proj, device) for i in range(self.expert_num)]
-        )
+        self.down_projs = [QuantizedLinearMarlin(key+ "." + "ffn_down_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None):
-        
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None):
+        if device is not None: self.device = device
         if w is None: w = self.load_weights()[self.key]
 
         if isinstance(w, dict):
             self.gate = w["gate"]
             self.up = w["up"]
             self.down = w["down"]
-            # self.gate_type = w["gate_type"]
-            # self.up_type = w["up_type"]
-            # self.down_type = w["down_type"]
-
             for i in range(self.expert_num):
                 self.up_projs[i].load(nn.Parameter(torch.from_numpy(self.up[i,...])))
                 self.gate_projs[i].load(nn.Parameter(torch.from_numpy(self.gate[i,...])))
                 self.down_projs[i].load(nn.Parameter(torch.from_numpy(self.down[i,...])))
                 self.loaded_experts_idx.append(i)
-        return True # return True if load all submodule by this function
+        return 
 
     def unload(self):
         for i in self.loaded_experts_idx:
@@ -237,94 +232,176 @@ class MLPExpertsMarlin(MLPExpertsBase):
             res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
         return res
 
-    # def dequant_expert(self, expert_id):
-    #     res = {}
-    #     # slice the expert
-    #     up_el_per_expert = self.up.shape[0] // self.expert_num
-    #     gate_el_per_expert = self.gate.shape[0] // self.expert_num
-    #     down_el_per_expert = self.down.shape[0] // self.expert_num
-    #     up_start = up_el_per_expert * expert_id
-    #     gate_start = gate_el_per_expert * expert_id
-    #     down_start = down_el_per_expert * expert_id
-    #     up_end = up_start + up_el_per_expert
-    #     gate_end = gate_start + gate_el_per_expert
-    #     down_end = down_start + down_el_per_expert
-    #     res["up"] = self.up[up_start:up_end]
-    #     res["gate"] = self.gate[gate_start:gate_end]
-    #     res["down"] = self.down[down_start:down_end]
-    #     # Dequant no. of experts
-    #     res["up"] = self.gguf_loader.dequantize_mmp_tensor(name=self.key+".ffn_up_exps.weight" ,data=res["up"])
-    #     res["gate"] = self.gguf_loader.dequantize_mmp_tensor(name=self.key+".ffn_gate_exps.weight" ,data=res["gate"])
-    #     res["down"] = self.gguf_loader.dequantize_mmp_tensor(name=self.key+".ffn_down_exps.weight",data=res["down"])
-    #     return res
-
-    # def to(self, device):
-    #     self.device = device
-    #     if device == "cpu":
-    #         self.unload()
-    #     else:
-    #         self.load()
-
-    def forward(self, input_tensor, expert_ids, weights):
+    def forward(self, input_tensor:torch.Tensor, expert_ids, weights):
         # forward
-        output = torch.zeros(input_tensor).contiguous()
-        for i, expert_id in enumerate(expert_ids):
-            pass 
-            
-            # output += self.down_projs(self.act_fn(self.gate_projs(input_tensor)) * self.up_projs(input_tensor)) * weights[i]
-        return output
+        device = input_tensor.device
+        input_tensor = input_tensor.to("cuda")
+        outs = torch.zeros_like(input_tensor)
+        for expert_idx in range(expert_ids.size(0)):
+            down_proj = self.down_projs[expert_idx]
+            gate_proj = self.gate_projs[expert_idx]
+            up_proj = self.up_projs[expert_idx]
 
-EXPERTS_MAP={
-    "MLPExperts": MLPExperts,
-    "MLPExpertsMarlin": MLPExpertsMarlin
-}
-class KTransformersMLPExpert(BaseInjectedModule):
-    def __init__(self,
-                 key: str,
-                 gguf_loader: GGUFLoader,
-                 config: PretrainedConfig,
-                 orig_module: nn.Module,
-                 device: str = "cuda",
-                 gpu_mlp_type: str | None = None,
-                 cpu_mlp_type: str | None = None,
-                 **kwargs):
+            outs += down_proj(self.act_fn(gate_proj(input_tensor)) * up_proj(input_tensor)) * weights[expert_idx]
+        outs = outs.to(device)
+        return outs
+
+class MLPExpertsTorch(MLPExpertsBase):
+    expert_num: int
+    loaded_experts_idx: list[int]
+    def __init__(
+        self,
+        key: str,
+        gguf_loader: GGUFLoader,
+        config: PretrainedConfig,
+        n_routed_experts: int,
+        orig_module: nn.Module = None,
+        device: str = "cuda",
+        **kwargs
+    ):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
-        if gpu_mlp_type is not None:
-            self.cpu_experts = EXPERTS_MAP[cpu_mlp_type](key, gguf_loader, config, orig_module, "cpu", **kwargs)
-        else:
-            self.cpu_experts = None
-        if gpu_mlp_type is not None:
-            self.gpu_experts = EXPERTS_MAP[gpu_mlp_type](key, gguf_loader, config, orig_module, device, **kwargs)
-        else:
-            self.gpu_experts = None
-        self.gpu_mlp_type = gpu_mlp_type
-        self.cpu_mlp_type = cpu_mlp_type
-
-    def load(self,
-             w: dict | nn.Parameter | tuple | None = None,):
-        pass
-
-    def forward(self, input_tensor, expert_ids, weights):
-        if self.device == "cpu":
-            assert self.cpu_experts is not None, "cpu_experts is None"
-            return self.cpu_experts(input_tensor, expert_ids, weights)
-        else:
-            assert self.gpu_experts is not None, "gpu_experts is None"
-            return self.gpu_experts(input_tensor, expert_ids, weights)
-        
-    def to(self, device):
+        self.expert_num = n_routed_experts
+        self.loaded_experts_idx = []
+        self.act_fn = ACT2FN[config.hidden_act]
         self.device = device
-        if device == "cpu":
-            self.cpu_experts.load()
-            if self.gpu_experts is not None:
-                self.gpu_experts.unload()
-        elif "cuda" in device:
-            self.gpu_experts.load()
-            if self.cpu_experts is not None:
-                self.cpu_experts.unload()
-        else:
-            raise Exception("Function \'to\' is reloaded, only support cpu and cuda devices.")
+        # create empty marlin experts according to the number of experts per token
+        # up
+        self.up_projs = [QuantizedLinearTorch(key+ "." + "ffn_up_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
+        # gate
+        self.gate_projs = [QuantizedLinearTorch(key+ "." + "ffn_gate_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
+        # down
+        self.down_projs = [QuantizedLinearTorch(key+ "." + "ffn_down_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
 
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None):
+        if device is not None: self.device = device
+        if w is None: w = self.load_weights()[self.key]
+
+        if isinstance(w, dict):
+            self.gate = w["gate"]
+            self.up = w["up"]
+            self.down = w["down"]
+            for i in range(self.expert_num):
+                self.up_projs[i].load(nn.Parameter(torch.from_numpy(self.up[i,...])))
+                self.gate_projs[i].load(nn.Parameter(torch.from_numpy(self.gate[i,...])))
+                self.down_projs[i].load(nn.Parameter(torch.from_numpy(self.down[i,...])))
+                self.loaded_experts_idx.append(i)
+        return 
+
+    def unload(self):
+        for i in self.loaded_experts_idx:
+            self.up_projs[i].unload()
+            self.gate_projs[i].unload()
+            self.down_projs[i].unload()
+        self.loaded_experts_idx = []
+
+    def load_weights(self, override_key: str | None = None):
+        res = {}
+        if override_key is not None:
+            keys = override_key
+        else:
+            keys = [self.key]
+
+        gate = None
+        up = None
+        down = None
+        gate_type = None
+        up_type = None
+        down_type = None
+
+        for key in keys:
+            if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
+                gate = self.gguf_loader.load_gguf_tensor(key + ".ffn_gate_exps.weight")
+                up = self.gguf_loader.load_gguf_tensor(key + ".ffn_up_exps.weight")
+                down = self.gguf_loader.load_gguf_tensor(key + ".ffn_down_exps.weight")
+                gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
+                up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
+                down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
+                # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])    
+            res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
+        return res
+
+    def forward(self, input_tensor:torch.Tensor, expert_ids, weights):
+        # forward
+        device = input_tensor.device
+        input_tensor = input_tensor.to("cuda")
+        outs = torch.zeros_like(input_tensor)
+        for expert_idx in range(expert_ids.size(0)):
+            down_proj = self.down_projs[expert_idx]
+            gate_proj = self.gate_projs[expert_idx]
+            up_proj = self.up_projs[expert_idx]
+            outs += down_proj.forward(self.act_fn(gate_proj.forward(input_tensor)) * up_proj.forward(input_tensor)) * weights[expert_idx]
+        outs = outs.to(device)
+        return outs
+
+GPU_EXPERTS_MAP={
+    "MLPExpertsMarlin": MLPExpertsMarlin,
+    "MLPExpertsTorch": MLPExpertsTorch
+}
+
+CPU_EXPERTS_MAP={
+    "MLPExperts": MLPExperts,
+    "MLPExpertsTorch": MLPExpertsTorch
+}
+
+class KTransformersMLPExpert():#BaseInjectedModule, MLPExpertsBase):
+    pass
+    # def __init__(self,
+    #              key: str,
+    #              gguf_loader: GGUFLoader,
+    #              config: PretrainedConfig,
+    #              orig_module: nn.Module,
+    #              device: str = "cpu",
+    #              prefill_device:str="cpu",
+    #              gpu_mlp_type: str | None = None,
+    #              cpu_mlp_type: str | None = None,
+    #              **kwargs):
+    #     BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+    #     MLPExpertsBase.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+    #     if cpu_mlp_type is not None:
+    #         self.cpu_experts = CPU_EXPERTS_MAP[cpu_mlp_type](key, gguf_loader, config, len(orig_module), device="cpu", **kwargs)
+    #     else:
+    #         self.cpu_experts = None
+    #     if gpu_mlp_type is not None:
+    #         self.gpu_experts = GPU_EXPERTS_MAP[gpu_mlp_type](key, gguf_loader, config, len(orig_module), device=device, **kwargs)
+    #     else:
+    #         self.gpu_experts = None
+    #     self.gpu_mlp_type = gpu_mlp_type
+    #     self.cpu_mlp_type = cpu_mlp_type
+    #     self.current_device = prefill_device
+
+    # def load(self):
+    #     # load to device
+    #     if self.device.lower() == "cpu":
+    #         print(f'loading {self.key} to {self.device} from class {self.cpu_mlp_type}')
+    #         self.cpu_experts.load()
+    #     else:
+    #         print(f'loading {self.key} to {self.device} from class {self.gpu_mlp_type}')
+    #         self.gpu_experts.load()
+
+    # def forward(self, input_tensor, expert_ids, weights):
+    #     if self.device == "cpu":
+    #         assert self.cpu_experts is not None, "cpu_experts is None"
+    #         return self.cpu_experts.forward(input_tensor, expert_ids, weights)
+    #     else:
+    #         assert self.gpu_experts is not None, "gpu_experts is None"
+    #         return self.gpu_experts.forward(input_tensor, expert_ids, weights)
+        
+    # def load_to(self, target):
+    #     if isinstance(target, str) and target == "cpu":
+    #         self.cpu_experts.load()
+    #         if self.gpu_experts is not None:
+    #             self.gpu_experts.unload()
+    #         self.device = target
+    #     elif isinstance(target, str) and "cuda" in target:
+    #         self.gpu_experts.load()
+    #         if self.cpu_experts is not None:
+    #             self.cpu_experts.unload()
+    #         self.device = target
+    #     elif isinstance(target, str) and target == "restore":
+    #         assert self.device != "restore", "device is already restored"
+    #         self.load_to(self.device)
+    #     else:
+    #         raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")
 
 from models.modeling_deepseek import DeepseekV2MoE
 from models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock
@@ -357,7 +434,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
             F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
         )
 
-        if isinstance(self.experts, MLPExperts):
+        if isinstance(self.experts, MLPExpertsBase):
             y = (
                 self.moe_on_pcinfer(
                     hidden_states_cpu, selected_experts_cpu, routing_weights_cpu

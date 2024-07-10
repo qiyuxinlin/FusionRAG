@@ -48,16 +48,23 @@ GPTQ_MARLIN_SUPPORTED_SYM = [True]
 
 
 class QuantizedLinearBase(BaseInjectedModule, ABC):
+# class QuantizedLinearBase(ABC):
     def __init__(
         self,
         key: str,
         gguf_loader: GGUFLoader,
         config: PretrainedConfig,
-        orig_module: nn.Module,
+        orig_module: nn.Module = None,
         device: str = "cuda",
         **kwargs,
     ):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
+        # super().__init__()
+        # self.key = key
+        # self.gguf_loader = gguf_loader
+        # self.device = device
+        # self.config = config
+
         self.has_bias = False
         self.dtype = torch.get_default_dtype()
         self.in_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][0]
@@ -113,7 +120,7 @@ class QuantizedLinearTorch(QuantizedLinearBase):
         key: str,
         gguf_loader: GGUFLoader,
         config: PretrainedConfig,
-        orig_module: nn.Module,
+        orig_module: nn.Module = None,
         device: str = "cuda",
         **kwargs,
     ):
@@ -123,9 +130,11 @@ class QuantizedLinearTorch(QuantizedLinearBase):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         dtype = x.dtype
+        out_device = x.device
+        x = x.to(device=self.device)
         x = x.to(dtype=self.dtype)
         x = self.linear(x)
-        x = x.to(dtype)
+        x = x.to(dtype).to(out_device)
         return x
 
     def load(self, w: dict | nn.Parameter | tuple | None = None):
@@ -148,6 +157,7 @@ class QuantizedLinearTorch(QuantizedLinearBase):
 
     def unload(self):
         self.linear = None
+        self.bias = None
 
 
 class QuantizedLinearMarlin(QuantizedLinearBase):
@@ -156,7 +166,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         key: str,
         gguf_loader: GGUFLoader,
         config: PretrainedConfig,
-        orig_module: nn.Module,
+        orig_module: nn.Module = None,
         device: str = "cuda",
         num_bits: int = 4,  # 4-bit/8-bit is supported
         group_size: int = 64,  # -1, 32, 64, 128
@@ -233,61 +243,84 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         self.workspace = None
     
 
-LINIEAR_MAP = {
+CPU_LINEAR_MAP = {
     "QuantizedLinearTorch": QuantizedLinearTorch,
+}
+GPU_LINEAR_MAP = {
     "QuantizedLinearMarlin": QuantizedLinearMarlin,
+    "QuantizedLinearTorch": QuantizedLinearTorch,
 }
 
 
-class KTransformerLinear(QuantizedLinearBase):
-    def __init__(
-        self,
-        key: str,
-        gguf_loader: GGUFLoader,
-        config: PretrainedConfig,
-        orig_module: nn.Module,
-        device: str = "cuda",
-        gpu_linear_type: str| None = "QuantizedLinearMarlin",
-        cpu_linear_type: str| None = None,
-        **kwargs,
-    ):
-        super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
-        # build all the linear operators
-        if cpu_linear_type is not None:
-            self.cpu_linear = LINIEAR_MAP[cpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
-        else:
-            self.cpu_linear = None
-        if gpu_linear_type is not None:
-            self.gpu_linear = LINIEAR_MAP[gpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
-        else:
-            self.gpu_linear = None
-        self.gpu_linear_type = gpu_linear_type
-        self.cpu_linear_type = cpu_linear_type
+class KTransformerLinear():#BaseInjectedModule, QuantizedLinearBase):
+    pass
+    # def __init__(
+    #     self,
+    #     key: str,
+    #     gguf_loader: GGUFLoader,
+    #     config: PretrainedConfig,
+    #     orig_module: nn.Module,
+    #     device: str = "cuda",
+    #     prefill_device:str = "cuda",
+    #     gpu_linear_type: str| None = "QuantizedLinearMarlin",
+    #     cpu_linear_type: str| None = "QuantizedLinearTorch",
+    #     **kwargs,
+    # ):
+    #     BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+    #     QuantizedLinearBase.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+    #     # build all the linear operators
+    #     if cpu_linear_type is not None:
+    #         assert cpu_linear_type in CPU_LINEAR_MAP, f"cpu_linear_type {cpu_linear_type} not supported"
+    #         self.cpu_linear = CPU_LINEAR_MAP[cpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
+    #     else:
+    #         self.cpu_linear = None
+    #     if gpu_linear_type is not None:
+    #         assert gpu_linear_type in GPU_LINEAR_MAP, f"gpu_linear_type {gpu_linear_type} not supported"
+    #         self.gpu_linear = GPU_LINEAR_MAP[gpu_linear_type](key, gguf_loader, config, orig_module, device, **kwargs)
+    #     else:
+    #         self.gpu_linear = None
+    #     self.gpu_linear_type = gpu_linear_type
+    #     self.cpu_linear_type = cpu_linear_type
+    #     self.current_device = device
 
-    def forward(self, x):
-        if self.device == "cpu":
-            assert self.cpu_linear is not None, "cpu linear is not initialized"
-            return self.cpu_linear(x)
-        else:
-            assert self.gpu_linear is not None, "gpu linear is not initialized"
-            return self.gpu_linear(x)
+    # def forward(self, x):
+    #     if self.device == "cpu":
+    #         assert self.cpu_linear is not None, "cpu linear is not initialized"
+    #         return self.cpu_linear.forward(x)
+    #     else:
+    #         assert self.gpu_linear is not None, "gpu linear is not initialized"
+    #         return self.gpu_linear.forward(x)
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None):
-        if w is None: self.w = self.load_weight()
-        else: self.w = w
+    # def load(self, w: dict | nn.Parameter | tuple | None = None):
+    #     if w is None: self.w = self.load_weight()
+    #     else: self.w = w
 
-    def unload(self):
-        if self.cpu_linear is not None:
-            self.cpu_linear.unload()
-        if self.gpu_linear is not None:
-            self.gpu_linear.unload()
-        self.w = None
+    #     # load to device
+    #     if self.device == "cpu":
+    #         print(f'loading {self.key} to {self.device} from class {self.cpu_linear_type}')
+    #         self.cpu_linear.load(self.w, device=self.device)
+    #     else:
+    #         print(f'loading {self.key} to {self.device} from class {self.gpu_linear_type}')
+    #         self.gpu_linear.load(self.w, device=self.device)
 
-    def to(self, device: str):
-        self.device = device
-        if device == "cpu":
-            self.cpu_linear.load(self.w, device=device)
-            self.gpu_linear.unload()
-        else:
-            self.gpu_linear.load(self.w, device=device)
-            self.cpu_linear.unload()
+    # def unload(self):
+    #     if self.cpu_linear is not None:
+    #         self.cpu_linear.unload()
+    #     if self.gpu_linear is not None:
+    #         self.gpu_linear.unload()
+    #     self.w = None
+
+    # def load_to(self, target):
+    #     if isinstance(target, str) and target == "cpu":
+    #         self.cpu_linear.load()
+    #         self.gpu_linear.unload()
+    #         self.device = target
+    #     elif isinstance(target, str) and "cuda" in target:
+    #         self.gpu_linear.load()
+    #         self.cpu_linear.unload()
+    #         self.device = target
+    #     elif isinstance(target, str) and target == "restore":
+    #         assert self.device != "restore", "device is already restored"
+    #         self.load_to(self.device)
+    #     else:
+    #         raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")

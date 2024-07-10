@@ -642,5 +642,6 @@ def translate_name_to_gguf(name):
     name = name.replace(".mlp.experts.ffn_down_exps", ".ffn_down_exps")
     name = name.replace(".mlp.experts.ffn_gate_exps", ".ffn_gate_exps")
     name = name.replace(".mlp.experts.ffn_up_exps", ".ffn_up_exps")
+    # name = name.replace("")
 
     return name

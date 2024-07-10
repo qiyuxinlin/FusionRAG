@@ -24,8 +24,6 @@ def _set_param(module: nn.Module, name: str, weights: torch.Tensor):
     param=nn.parameter.Parameter(weights, requires_grad=False)
     if isinstance(module, nn.Linear) and len(weights.shape)==1:
         param.unsqueeze_(0)
-    #print(torch.allclose(getattr(module, name), param, atol=1e-5))
-    #print(torch.abs(getattr(module, name)-param).max(), getattr(module, name).max())
     setattr(module, name, param)
 
 def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str = ""):
@@ -46,14 +44,13 @@ def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
             raise Exception(f"can't fand {translated_key} in GGUF file!")
         
 def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix='', return_when_injected:bool = False, only_load_injected:bool = False):
-    #print("recursively loading weights", prefix, return_when_injected)
+    # print(f"recursively loading weights {prefix},{return_when_injected=}, {only_load_injected=}")
     for name, child in module._modules.items():
         if child is not None:
             if isinstance(child, base_operator.BaseInjectedModule) and return_when_injected:
                 pass
             elif isinstance(child, base_operator.BaseInjectedModule):
-                load_res = child.load()
-                return_when_injected = True if load_res or return_when_injected else False
+                child.load()
                 load_weights(child, gguf_loader, prefix+name+"." if not isinstance(module, base_operator.BaseInjectedModule) else prefix, return_when_injected, True)
             else:
                 if not isinstance(module, base_operator.BaseInjectedModule) and not only_load_injected:
