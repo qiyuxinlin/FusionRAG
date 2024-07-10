@@ -8,9 +8,9 @@
 
 #include "cpu_backend/cpuinfer.h"
 #include "llamafile/flags.h"
-#include "operator/llamafile/linear.h"
-#include "operator/llamafile/mlp.h"
-#include "operator/llamafile/moe.h"
+#include "operators/llamafile/linear.h"
+#include "operators/llamafile/mlp.h"
+#include "operators/llamafile/moe.h"
 
 namespace py = pybind11;
 using namespace pybind11::literals;

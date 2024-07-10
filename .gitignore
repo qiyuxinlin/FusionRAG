@@ -14,3 +14,4 @@ node_modules
 operators/custom_marlin/dist/
 operators/custom_marlin/qlib.egg-info/
 ktransformers/third_party/*
+.DS_Store

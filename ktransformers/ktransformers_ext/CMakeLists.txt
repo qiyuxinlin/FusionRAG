@@ -156,7 +156,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
 
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_DIR1)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/cpu_backend SOURCE_DIR2)
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/operator/llamafile SOURCE_DIR3)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/operators/llamafile SOURCE_DIR3)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/llamafile SOURCE_DIR4)
 set(ALL_SOURCES ${SOURCE_DIR1} ${SOURCE_DIR2} ${SOURCE_DIR3} ${SOURCE_DIR4})
 message(STATUS "ALL_SOURCES: ${ALL_SOURCES}")

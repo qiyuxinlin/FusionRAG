@@ -1,4 +1,7 @@
-import datetime
+from datetime import datetime
+from http.client import NOT_IMPLEMENTED
+import json
+from time import time
 from uuid import uuid4
 from typing import List, Optional
 
@@ -60,18 +63,16 @@ async def generate(request: Request, input: OllamaGenerateCompletionRequest):
 
     if input.stream:
         async def inner():
-            async for token in interface.work(input.prompt, id):
-                d = OllamaGenerationStreamResponse(model=config.model_name, created_at=str(
-                    datetime.now(), response=token, done=False))
-                yield d.model_dump_json()
+            async for token in interface.inference(input.prompt,id): 
+                d = OllamaGenerationStreamResponse(model=config.model_name,created_at=str(datetime.now()),response=token,done=False)
+                yield d.model_dump_json()+'\n' 
                 # d = {'model':config.model_name,'created_at':"", 'response':token,'done':False}
                 # yield f"{json.dumps(d)}\n"
             # d = {'model':config.model_name,'created_at':"", 'response':'','done':True}
             # yield f"{json.dumps(d)}\n"
-            d = OllamaGenerationStreamResponse(model=config.model_name, created_at=str(
-                datetime.now(), response='', done=True))
-            yield d.model_dump_json()
-        return check_link_response(request, inner())
+            d = OllamaGenerationStreamResponse(model=config.model_name,created_at=str(datetime.now()),response='',done=True)   
+            yield d.model_dump_json()+'\n'
+        return check_link_response(request,inner())
     else:
         raise NotImplementedError
 
@@ -104,7 +105,7 @@ class OllamaModel(BaseModel):
 
 
 # mock ollama
-@router.get("/api/tags", tags=['ollama'])
+@router.get("/tags",tags=['ollama'])
 async def tags():
     config = Config()
     # TODO: fill this correctly, although it does not effect Tabby
