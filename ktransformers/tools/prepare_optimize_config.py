@@ -4,22 +4,22 @@ from numpy import rec
 import torch
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM
-from models.modeling_deepseek import DeepseekV2ForCausalLM, DeepseekV2MoE, DeepseekV2Model
-from models.modeling_qwen2_moe import Qwen2MoeForCausalLM, Qwen2MoeSparseMoeBlock, Qwen2MoeModel
-from util.custom_gguf import translate_name_to_gguf
-from operators.linear import GPTQ_MARLIN_MIN_THREAD_N
+from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM, DeepseekV2MoE, DeepseekV2Model, DeepseekV2Attention
+from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM, Qwen2MoeSparseMoeBlock, Qwen2MoeModel
+from ktransformers.util.custom_gguf import translate_name_to_gguf
+from ktransformers.operators.linear import GPTQ_MARLIN_MIN_THREAD_N
 custom_models={
     "DeepseekV2ForCausalLM":DeepseekV2ForCausalLM,
     "Qwen2MoeForCausalLM":Qwen2MoeForCausalLM
     }
 
-def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
+def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='cuda:0'):
     module_name = prefix[:-1]
     translated_name = translate_name_to_gguf(prefix)[:-1]
     recursive = True
     # if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
     #     out_data[module_name]={"key": translated_name,
-    #         "module_name": "operators.linear",
+    #         "module_name": "krtansformers.operators.linear",
     #         "class_name": "KTransformerLinear",
     #         "gpu_linear_type": "QuantizedLinearMarlin",
     #         "cpu_linear_type": "QuantizedLinearTorch",
@@ -27,38 +27,41 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
     #     recursive = False
     if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.linear",
+            "module_name": "krtansformers.operators.linear",
             "class_name": "QuantizedLinearMarlin",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
+        recursive = False
+    if isinstance(module, DeepseekV2Attention):
+        out_data[module_name]="default"
         recursive = False
     if isinstance(module, DeepseekV2MoE):
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.experts",
+            "module_name": "krtansformers.operators.experts",
             "class_name": "DeepseekV2MoEInjected",
-            "device_idx": "cuda:0"}
-    if isinstance(module, DeepseekV2Model):
-        out_data[module_name]={"key": translated_name,
-            "module_name": "operators.layer_wise_prefill_deepseek",
-            "class_name": "DeepseekV2ModelPerLayerPrefill",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
+    # if isinstance(module, DeepseekV2Model):
+    #     out_data[module_name]={"key": translated_name,
+    #         "module_name": "operators.layer_wise_prefill_deepseek",
+    #         "class_name": "DeepseekV2ModelPerLayerPrefill",
+    #         "device_idx": device}
     if isinstance(module, Qwen2MoeModel):
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.layer_wise_prefill_qwen_moe",
+            "module_name": "krtansformers.operators.layer_wise_prefill_qwen_moe",
             "class_name": "Qwen2MoeModelPerLayerPrefill",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
     if isinstance(module, Qwen2MoeSparseMoeBlock):
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.experts",
+            "module_name": "krtansformers.operators.experts",
             "class_name": "Qwen2MoeSparseMoeBlockInjected",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
     if isinstance(module, nn.ModuleList) and "expert" in module_name:
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.experts",
+            "module_name": "krtansformers.operators.experts",
             "file_name": "experts",
             "class_name": "MLPExperts",
             # "class_name": "MLPExpertsMarlin",
             # "class_name": "MLPExpertsTorch",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
         recursive = False
     # if isinstance(module, nn.ModuleList) and "expert" in module_name:
     #     out_data[module_name]={"key": translated_name,
@@ -67,19 +70,19 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
     #         "class_name": "KTransformersMLPExpert",
     #         "gpu_mlp_type": "MLPExpertsTorch",
     #         "cpu_mlp_type": "MLPExperts",
-    #         "device_idx": "cuda:0"}
+    #         "device_idx": device}
     #     recursive = False
     if "YarnRotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.RoPE",
+            "module_name": "krtansformers.operators.RoPE",
             "class_name": "YarnRotaryEmbedding",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
         recursive = False
     elif "RotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
-            "module_name": "operators.RoPE",
+            "module_name": "krtansformers.operators.RoPE",
             "class_name": "RotaryEmbedding",
-            "device_idx": "cuda:0"}
+            "device_idx": device}
         recursive = False
     if module_name not in out_data:
         out_data[module_name]="default"

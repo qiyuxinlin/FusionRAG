@@ -3,7 +3,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from server.schemas.base import Object
+from ktransformers.server.schemas.base import Object
 
 class Role(Enum):
     system = 'system'

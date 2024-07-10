@@ -4,8 +4,8 @@ from typing import ForwardRef, List, Optional, Union,Callable
 import torch
 from pydantic import BaseModel, PrivateAttr, model_validator
 
-from server.exceptions import not_implemented
-from server.config.log import logger
+from ktransformers.server.exceptions import not_implemented
+from ktransformers.server.config.log import logger
 
 from ..base import Metadata, MetadataField, ObjectWithCreatedTime
 from .tool import Field,CodeInterpreter,FileSearch

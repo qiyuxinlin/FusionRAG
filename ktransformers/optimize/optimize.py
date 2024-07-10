@@ -4,9 +4,10 @@ from torch import nn
 from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 # from operators import BaseInjectedModule
-from util.custom_gguf import GGUFLoader
-from util.utils import _set_module, _set_param, load_weights
+from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.util.utils import _set_module, _set_param, load_weights
 import itertools
+from ktransformers import operators
 
 def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader:GGUFLoader, prefix=''):
     for name, child in module._modules.items():

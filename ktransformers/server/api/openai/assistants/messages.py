@@ -2,11 +2,11 @@ from typing import List, Optional
 
 from fastapi import APIRouter
 
-from server.exceptions import not_implemented
-from server.schemas.assistants.messages import MessageCreate, MessageObject, MessageModify
-from server.crud.assistants.messages import MessageDatabaseManager
-from server.schemas.base import DeleteResponse, ObjectID, Order
-from server.backend.context_manager import get_thread_context_manager, TContext
+from ktransformers.server.exceptions import not_implemented
+from ktransformers.server.schemas.assistants.messages import MessageCreate, MessageObject, MessageModify
+from ktransformers.server.crud.assistants.messages import MessageDatabaseManager
+from ktransformers.server.schemas.base import DeleteResponse, ObjectID, Order
+from ktransformers.server.backend.context_manager import get_thread_context_manager, TContext
 
 router = APIRouter()
 message_manager = MessageDatabaseManager()

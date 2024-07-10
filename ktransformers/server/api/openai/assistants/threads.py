@@ -1,10 +1,10 @@
 from typing import List,Optional
 from fastapi import APIRouter
 
-from server.crud.assistants.threads import ThreadsDatabaseManager,Order,ObjectID
-from server.schemas.assistants.threads import ThreadObject,ThreadCreate,ThreadModify
-from server.schemas.base import DeleteResponse
-from server.schemas.conversation import ThreadPreview
+from ktransformers.server.crud.assistants.threads import ThreadsDatabaseManager,Order,ObjectID
+from ktransformers.server.schemas.assistants.threads import ThreadObject,ThreadCreate,ThreadModify
+from ktransformers.server.schemas.base import DeleteResponse
+from ktransformers.server.schemas.conversation import ThreadPreview
 
 router = APIRouter(prefix='/threads')
 threads_manager = ThreadsDatabaseManager()

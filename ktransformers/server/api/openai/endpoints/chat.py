@@ -3,9 +3,9 @@ from time import time
 from uuid import uuid4
 from fastapi import APIRouter
 from fastapi.requests import Request
-from server.backend.context_manager import get_interface ,BackendInterface
-from server.schemas.assistants.streaming import chat_stream_response
-from server.schemas.endpoints.chat import ChatCompletionCreate,ChatCompletionChunk,ChatCompletionObject
+from ktransformers.server.backend.context_manager import get_interface ,BackendInterface
+from ktransformers.server.schemas.assistants.streaming import chat_stream_response
+from ktransformers.server.schemas.endpoints.chat import ChatCompletionCreate,ChatCompletionChunk,ChatCompletionObject
 
 
 router = APIRouter()

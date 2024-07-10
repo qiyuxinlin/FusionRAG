@@ -31,10 +31,10 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 
-from server.config.config import Config
-from server.config.singleton import Singleton
-from server.config.log import logger
-from server.exceptions import db_exception
+from ktransformers.server.config.config import Config
+from ktransformers.server.config.singleton import Singleton
+from ktransformers.server.config.log import logger
+from ktransformers.server.exceptions import db_exception
 
 
 Base = declarative_base()

@@ -17,9 +17,9 @@ import torch
 from torch import nn
 from torch import linalg
 import qlib
-from util.custom_gguf import GGUFLoader
-from ktransformers_ext.custom_marlin.quantize.utils.marlin_perms import marlin_perm
-from ktransformers_ext.custom_marlin.quantize.utils.marlin_utils import (
+from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_perms import marlin_perm
+from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_utils import (
     MarlinWorkspace,
     compute_max_diff,
     is_marlin_supported,
@@ -27,14 +27,14 @@ from ktransformers_ext.custom_marlin.quantize.utils.marlin_utils import (
     marlin_quantize,
     marlin_weights,
 )
-from ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
+from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
     gptq_pack,
     quantize_weights,
     sort_weights,
 )
-from operators.base_operator import BaseInjectedModule
+from ktransformers.operators.base_operator import BaseInjectedModule
 from transformers.configuration_utils import PretrainedConfig
-from util.utils import _set_param
+from ktransformers.util.utils import _set_param
 from abc import ABC, abstractmethod
 
 GPTQ_MARLIN_TILE = 16

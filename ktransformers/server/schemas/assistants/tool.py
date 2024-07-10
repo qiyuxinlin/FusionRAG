@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from server.schemas.base import ObjectID
+from ktransformers.server.schemas.base import ObjectID
 
 
 class ToolType(str, Enum):

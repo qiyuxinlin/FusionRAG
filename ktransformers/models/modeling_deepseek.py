@@ -878,6 +878,7 @@ class DeepseekV2Attention(nn.Module):
         past_key_value: Optional[Cache] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         if "padding_mask" in kwargs:
@@ -913,11 +914,13 @@ class DeepseekV2Attention(nn.Module):
         q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids)
 
         if past_key_value is not None:
-            cache_kwargs = {"sin": sin, "cos": cos}  # Specific to RoPE models
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
             compressed_kv = compressed_kv.unsqueeze(1)
             k_pe, compressed_kv = past_key_value.update(k_pe, compressed_kv, self.layer_idx, cache_kwargs)
             compressed_kv = compressed_kv.squeeze(1)
-        
+            if (cache_position is not None):  
+                compressed_kv = compressed_kv[:,: cache_position[-1] + 1,:]
+                k_pe = k_pe[:,:,: cache_position[-1] + 1,:]
         q_absorb, out_absorb = self.get_absorbed()
 
         q_nope = torch.matmul(q_nope, q_absorb)
@@ -996,6 +999,7 @@ class DeepseekV2DecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Tuple[
         torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
@@ -1030,6 +1034,7 @@ class DeepseekV2DecoderLayer(nn.Module):
             past_key_value=past_key_value,
             output_attentions=output_attentions,
             use_cache=use_cache,
+            cache_position=cache_position,
             **kwargs,
         )
         hidden_states = residual + hidden_states
@@ -1080,6 +1085,7 @@ class DeepseekV2PreTrainedModel(PreTrainedModel):
     _skip_keys_device_placement = "past_key_values"
     _supports_flash_attn_2 = True
     _supports_cache_class = True
+    _supports_static_cache = True
 
     def _init_weights(self, module):
         std = self.config.initializer_range
@@ -1214,6 +1220,7 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = (
             output_attentions
@@ -1257,15 +1264,14 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
                 past_key_values = DynamicCache.from_legacy_cache(past_key_values)
             past_key_values_length = past_key_values.get_usable_length(seq_length)
 
-        if position_ids is None:
-            device = input_ids.device if input_ids is not None else inputs_embeds.device
-            position_ids = torch.arange(
-                past_key_values_length,
-                seq_length + past_key_values_length,
-                dtype=torch.long,
-                device=device,
+        if cache_position is None:
+            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+            cache_position = torch.arange(
+                past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
             )
-            position_ids = position_ids.unsqueeze(0)
+
+        if position_ids is None:
+            position_ids = cache_position.unsqueeze(0)
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
@@ -1307,6 +1313,7 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
                     past_key_values,
                     output_attentions,
                     use_cache,
+                    cache_position,
                 )
             else:
                 layer_outputs = decoder_layer(
@@ -1316,6 +1323,7 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
                     past_key_value=past_key_values,
                     output_attentions=output_attentions,
                     use_cache=use_cache,
+                    cache_position=cache_position,
                 )
 
             hidden_states = layer_outputs[0]
@@ -1399,6 +1407,7 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1450,6 +1459,7 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            cache_position=cache_position,
         )
 
         hidden_states = outputs[0]
@@ -1487,25 +1497,31 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel):
         past_key_values=None,
         attention_mask=None,
         inputs_embeds=None,
+        cache_position=None,
+        use_cache=True,
         **kwargs,
     ):
+        past_length = 0
+        # Omit tokens covered by past_key_values
         if past_key_values is not None:
             if isinstance(past_key_values, Cache):
-                cache_length = past_key_values.get_seq_length()
-                past_length = past_key_values.seen_tokens
-                max_cache_length = past_key_values.get_max_length()
+                past_length = cache_position[0] if cache_position is not None else past_key_values.get_seq_length()
+                max_cache_length = (
+                    torch.tensor(past_key_values.get_max_length(), device=input_ids.device)
+                    if past_key_values.get_max_length() is not None
+                    else None
+                )
+                cache_length = past_length if max_cache_length is None else torch.min(max_cache_length, past_length)
+            # TODO joao: remove this `else` after `generate` prioritizes `Cache` objects
             else:
                 cache_length = past_length = past_key_values[0][0].shape[2]
                 max_cache_length = None
 
             # Keep only the unprocessed tokens:
             # 1 - If the length of the attention_mask exceeds the length of input_ids, then we are in a setting where
-            # some of the inputs are exclusivelly passed as part of the cache (e.g. when passing input_embeds as
+            # some of the inputs are exclusively passed as part of the cache (e.g. when passing input_embeds as
             # input)
-            if (
-                attention_mask is not None
-                and attention_mask.shape[1] > input_ids.shape[1]
-            ):
+            if attention_mask is not None and attention_mask.shape[1] > input_ids.shape[1]:
                 input_ids = input_ids[:, -(attention_mask.shape[1] - past_length) :]
             # 2 - If the past_length is smaller than input_ids', then input_ids holds all input tokens. We can discard
             # input_ids based on the past_length.
@@ -1530,17 +1546,24 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel):
                 position_ids = position_ids[:, -input_ids.shape[1] :]
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
-        if inputs_embeds is not None and past_key_values is None:
+        if inputs_embeds is not None and past_length == 0:
             model_inputs = {"inputs_embeds": inputs_embeds}
         else:
             model_inputs = {"input_ids": input_ids}
+
+        input_length = position_ids.shape[-1] if position_ids is not None else input_ids.shape[-1]
+        if cache_position is None:
+            cache_position = torch.arange(past_length, past_length + input_length, device=input_ids.device)
+        elif use_cache:
+            cache_position = cache_position[-input_length:]
 
         model_inputs.update(
             {
                 "position_ids": position_ids,
                 "past_key_values": past_key_values,
-                "use_cache": kwargs.get("use_cache"),
+                "use_cache": use_cache,
                 "attention_mask": attention_mask,
+                "cache_position": cache_position,
             }
         )
         return model_inputs

@@ -27,7 +27,7 @@ software or the use or other dealings in the Software.
 import os
 import yaml
 
-from server.config.singleton import Singleton
+from ktransformers.server.config.singleton import Singleton
 
 
 class Config(metaclass=Singleton):
@@ -98,6 +98,7 @@ class Config(metaclass=Singleton):
         self.model_path: str = self.model.get("path", "")
         self.model_name: str = self.model.get("name", "")
         self.model_device: str = self.model.get("device", "cuda:0")
+        self.gguf_path: str = self.model.get("gguf_path", "")
         
         # web config
         self.web: dict = cfg.get("web", {})

@@ -35,7 +35,7 @@ from logging.handlers import BaseRotatingHandler
 import time
 import colorlog
 
-from server.config.config import Config
+from ktransformers.server.config.config import Config
 
 
 class DailyRotatingFileHandler(BaseRotatingHandler):

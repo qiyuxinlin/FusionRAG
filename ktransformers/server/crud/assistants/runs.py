@@ -1,10 +1,10 @@
 from time import time
 from uuid import uuid4
 
-from server.models.assistants.runs import Run
-from server.schemas.assistants.runs import RunCreate,RunObject
-from server.schemas.base import ObjectID
-from server.utils.sql_utils import SQLUtil
+from ktransformers.server.models.assistants.runs import Run
+from ktransformers.server.schemas.assistants.runs import RunCreate,RunObject
+from ktransformers.server.schemas.base import ObjectID
+from ktransformers.server.utils.sql_utils import SQLUtil
 
 
 class RunsDatabaseManager:

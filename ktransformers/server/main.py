@@ -1,26 +1,29 @@
-import sys
+# import sys
+# print(sys.path)
+
 import os
 import re
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn.logging
-project_dir = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(project_dir)
+# project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+# sys.path.append(project_dir)
+# print(sys.path)
 import argparse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-from server.config.config import Config
-from server.backend.context_manager import globalInterface,BackendInterface
-from server.backend.args import default_args
+from ktransformers.server.config.config import Config
+from ktransformers.server.backend.context_manager import globalInterface,BackendInterface
+from ktransformers.server.backend.args import default_args
 from fastapi.openapi.utils import get_openapi
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 
-from server.api import router, post_db_creation_operations
-from server.utils.sql_utils import Base, SQLUtil
-from server.config.log import logger
+from ktransformers.server.api import router, post_db_creation_operations
+from ktransformers.server.utils.sql_utils import Base, SQLUtil
+from ktransformers.server.config.log import logger
 
 
 def mount_app_routes(mount_app: FastAPI):
@@ -58,6 +61,7 @@ def update_web_port(config_file: str):
 
 
 def mount_index_routes(app: FastAPI):
+    project_dir = os.path.dirname(os.path.dirname(__file__))
     web_dir = os.path.join(project_dir, "website/dist")
     web_config_file = os.path.join(web_dir, "config.js")
     update_web_port(web_config_file)
@@ -103,14 +107,14 @@ def main():
     parser = argparse.ArgumentParser(prog='kvcache.ai',
                                      description='Ktransformers')
     parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=9016)
+    parser.add_argument("--port", type=int, default=cfg.server_port)
     parser.add_argument("--ssl_keyfile", type=str)
     parser.add_argument("--ssl_certfile", type=str)
     parser.add_argument("--web", type=bool, default=False)
     parser.add_argument("--model_name", type=str, default=cfg.model_name)
     parser.add_argument("--model_path", type=str, default=cfg.model_path)
     parser.add_argument("--device", type=str, default=cfg.model_device)
-    parser.add_argument("--gguf_path", type=str, required=False)
+    parser.add_argument("--gguf_path", type=str, default=cfg.gguf_path)
     parser.add_argument("--optimize_config_path", type=str, required=False)
 
     # 初始化消息
@@ -126,6 +130,7 @@ def main():
     default_args.device = args.device
     default_args.gguf_path = args.gguf_path
     default_args.optimize_config_path = args.optimize_config_path
+    
     app = create_app()
     custom_openapi(app)
     globalInterface.interface = BackendInterface(default_args)

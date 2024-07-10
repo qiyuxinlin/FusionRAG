@@ -6,7 +6,7 @@ import torch
 from ..args import ConfigArgs, default_args
 
 from ..base import BackendInterfaceBase, ThreadContext
-from server.schemas.assistants.runs import RunObject
+from ktransformers.server.schemas.assistants.runs import RunObject
 
 
 from ..args import *

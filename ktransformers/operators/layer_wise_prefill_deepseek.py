@@ -56,7 +56,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.utils.import_utils import is_torch_fx_available
-from .configuration_deepseek import DeepseekV2Config
+from models.configuration_deepseek import DeepseekV2Config
 import torch.distributed as dist
 import numpy as np
 

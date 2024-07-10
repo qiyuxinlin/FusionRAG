@@ -1,8 +1,8 @@
 from typing import Any
 from torch import nn, Tensor
-from util.custom_gguf import GGUFLoader
+from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
-import util.utils as utils
+import ktransformers.util.utils as utils
 class BaseInjectedModule(nn.Module):
     
     def __init__(self,

@@ -22,9 +22,9 @@ import torch
 import sys, os
 from operators.base_operator import BaseInjectedModule
 
-sys.path.append(os.path.dirname(__file__) + "/../third_party/pcinfer/build")
-import pcinfer
-from pcinfer.moe import MOEConfig, MOE
+sys.path.append(os.path.dirname(__file__) + "/../ktransformers_ext/build")
+import cpuinfer_ext
+from cpuinfer_ext.moe import MOEConfig, MOE
 import ctypes
 from util.custom_gguf import GGUFLoader
 from transformers.activations import ACT2FN
@@ -37,7 +37,7 @@ from operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTrans
 # from gguf.quants import quant_shape_to_byte_shape, GGML_QUANT_SIZES
 from multiprocessing import cpu_count
 
-pc_infer = pcinfer.PCInfer(cpu_count() - 4)
+cpu_infer = cpuinfer_ext.CPUInfer(cpu_count() - 4)
 
 class MLPExpertsBase(BaseInjectedModule, ABC):
 # class MLPExpertsBase(ABC):
@@ -138,7 +138,7 @@ class MLPExperts(MLPExpertsBase):
         )
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
         self.moe = MOE(moe_config)
-        self.pc_infer = pc_infer
+        self.cpu_infer = cpu_infer
 
         return True
 
@@ -147,7 +147,7 @@ class MLPExperts(MLPExpertsBase):
         expert_ids = expert_ids.contiguous()
         weights = weights.contiguous().to(torch.float32)
         output = torch.empty_like(input_tensor).contiguous()
-        self.pc_infer.submit(
+        self.cpu_infer.submit(
             self.moe.forward,
             expert_ids.size(0),
             expert_ids.data_ptr(),
@@ -155,7 +155,7 @@ class MLPExperts(MLPExpertsBase):
             input_tensor.data_ptr(),
             output.data_ptr(),
         )
-        self.pc_infer.sync()
+        self.cpu_infer.sync()
         return output
 
 class MLPExpertsMarlin(MLPExpertsBase):
@@ -436,7 +436,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
 
         if isinstance(self.experts, MLPExpertsBase):
             y = (
-                self.moe_on_pcinfer(
+                self.moe_on_cpuinfer(
                     hidden_states_cpu, selected_experts_cpu, routing_weights_cpu
                 )
                 .view(*orig_shape)
@@ -455,7 +455,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         return y, router_logits
 
     @torch.no_grad()
-    def moe_on_pcinfer(
+    def moe_on_cpuinfer(
         self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
     ) -> torch.Tensor:
         outs = torch.empty_like(x)
@@ -548,7 +548,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
 
         if isinstance(self.experts, MLPExperts):
             y = (
-                self.moe_on_pcinfer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
+                self.moe_on_cpuinfer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
@@ -569,7 +569,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         return y
 
     @torch.no_grad()
-    def moe_on_pcinfer(
+    def moe_on_cpuinfer(
         self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
     ) -> torch.Tensor:
         # print("x", x)

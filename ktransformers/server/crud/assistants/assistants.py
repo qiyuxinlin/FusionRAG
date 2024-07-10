@@ -2,11 +2,11 @@ from time import time
 from typing import Optional,List
 from uuid import uuid4
 
-from server.models.assistants.assistants import Assistant
-from server.schemas.assistants.assistants import AssistantCreate,AssistantObject,AssistantModify,AssistantBuildStatus
-from server.utils.sql_utils import SQLUtil
-from server.config.log import logger
-from server.schemas.base import Order
+from ktransformers.server.models.assistants.assistants import Assistant
+from ktransformers.server.schemas.assistants.assistants import AssistantCreate,AssistantObject,AssistantModify,AssistantBuildStatus
+from ktransformers.server.utils.sql_utils import SQLUtil
+from ktransformers.server.config.log import logger
+from ktransformers.server.schemas.base import Order
 
 
 class AssistantDatabaseManager:

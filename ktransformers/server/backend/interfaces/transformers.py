@@ -1,12 +1,12 @@
 from typing import Any, List, Optional, Set
 from transformers import LlamaTokenizer,AutoTokenizer, AutoConfig, LlamaForCausalLM,GenerationConfig, StaticCache, AutoModelForCausalLM,BitsAndBytesConfig
 
-from server.schemas.base import ObjectID
-from server.utils.multi_timer import Profiler
+from ktransformers.server.schemas.base import ObjectID
+from ktransformers.server.utils.multi_timer import Profiler
 import torch
 import sys, os
 from ..base import ThreadContext,BackendInterfaceBase
-from server.config.log import logger
+from ktransformers.server.config.log import logger
 from ..args import ConfigArgs,default_args
 
 
@@ -148,7 +148,7 @@ class TransformersInterface(BackendInterfaceBase):
     
     @property
     def active_cache_position(self):
-        return  torch.tensor([self.seq_length], device=self.args.device)
+        return  torch.tensor([self.seq_length-1], device=self.args.device)
 
 
     def tokenize_prompt(self,prompt:str):
@@ -215,10 +215,12 @@ class TransformersInterface(BackendInterfaceBase):
 
     def decode_one_tokens(self):
         if self.use_static_cache:
+            mask = torch.ones((1,self.seq_length)).to(self.args.device)
             logits = self.model(
                 self.current_ids,
                 cache_position=self.active_cache_position,
                 past_key_values=self.cache,
+                attention_mask=mask,
                 return_dict=False,
                 use_cache=True
             )[0]
@@ -261,10 +263,10 @@ class TransformersInterface(BackendInterfaceBase):
         cache_position = torch.arange(former_seq_length,self.seq_length, device=self.args.device)
         self.generated_ids[:,cache_position] = input_ids.to(self.args.device).to(torch.int)
 
-
+        mask = torch.ones((1,self.seq_length)).to(self.args.device)
         if self.use_static_cache:
             logits = self.model(
-                input_ids=input_ids, cache_position=cache_position, past_key_values=self.cache,return_dict=False, use_cache=True
+                input_ids=input_ids, cache_position=cache_position, past_key_values=self.cache,return_dict=False, use_cache=True,attention_mask=mask
             )[0]
         else:
             logits = self.model(

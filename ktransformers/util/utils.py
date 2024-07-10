@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 import itertools
-from util.custom_gguf import translate_name_to_gguf
-from util.custom_gguf import GGUFLoader
-from operators import base_operator
+from ktransformers.util.custom_gguf import translate_name_to_gguf
+from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.operators import base_operator
 
 def _set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')

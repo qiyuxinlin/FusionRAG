@@ -4,9 +4,9 @@ from typing_extensions import Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from server.schemas.base import Metadata, MetadataField, ObjectWithCreatedTime
-from server.schemas.assistants.tool import ToolResource
-from server.schemas.assistants.messages import MessageCore
+from ktransformers.server.schemas.base import Metadata, MetadataField, ObjectWithCreatedTime
+from ktransformers.server.schemas.assistants.tool import ToolResource
+from ktransformers.server.schemas.assistants.messages import MessageCore
 
 
 class ThreadBase(BaseModel):

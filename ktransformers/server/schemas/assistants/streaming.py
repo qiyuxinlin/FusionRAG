@@ -5,9 +5,9 @@ from fastapi import Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from server.schemas.assistants.runs import RunStreamResponse
-from server.schemas.endpoints.chat import ChatCompletionChunk
-from server.config.log import logger
+from ktransformers.server.schemas.assistants.runs import RunStreamResponse
+from ktransformers.server.schemas.endpoints.chat import ChatCompletionChunk
+from ktransformers.server.config.log import logger
 
 from ..base import Object
 from .messages import ContentType, ImageFileObject, ImageUrlObject, MessageObject, Text, TextObject
