@@ -343,8 +343,7 @@ CPU_EXPERTS_MAP={
     "MLPExpertsTorch": MLPExpertsTorch
 }
 
-class KTransformersMLPExpert():#BaseInjectedModule, MLPExpertsBase):
-    pass
+class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
     # def __init__(self,
     #              key: str,
     #              gguf_loader: GGUFLoader,
