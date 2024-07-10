@@ -7,3 +7,10 @@ server.db
 logs
 dist
 node_modules
+*.nsys-rep
+.vs/
+*pycache*
+*build/
+operators/custom_marlin/dist/
+operators/custom_marlin/qlib.egg-info/
+ktransformers/third_party/*
