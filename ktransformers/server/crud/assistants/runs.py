@@ -48,11 +48,3 @@ class RunsDatabaseManager:
         with self.sql_util.get_db() as db:
             db_run = db.query(Run).filter(Run.id == run_id).first()
             return RunObject.model_validate(db_run.__dict__)
-
-
-def run_sync_db(self: RunObject) -> None:
-    runs_manager = RunsDatabaseManager()
-    runs_manager.db_sync_run(self)
-
-
-RunObject.sync_db = run_sync_db

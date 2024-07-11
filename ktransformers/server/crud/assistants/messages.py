@@ -84,11 +84,3 @@ class MessageDatabaseManager:
             assert message.thread_id == thread_id
             db.delete(message)
             db.commit()
-
-
-def message_sync_db(self: MessageObject):
-    message_manager = MessageDatabaseManager()
-    message_manager.db_sync_message(self)
-
-
-MessageObject.sync_db = message_sync_db

@@ -6,9 +6,9 @@ from pydantic import BaseModel, PrivateAttr, model_validator
 
 from ktransformers.server.exceptions import not_implemented
 from ktransformers.server.config.log import logger
-
-from ..base import Metadata, MetadataField, ObjectWithCreatedTime
-from .tool import Field,CodeInterpreter,FileSearch
+from ktransformers.server.models.assistants.messages import Message
+from ktransformers.server.schemas.base import Metadata, MetadataField, ObjectWithCreatedTime
+from ktransformers.server.schemas.assistants.tool import Field,CodeInterpreter,FileSearch
 
 
 class IncompleteDetails(BaseModel):
@@ -147,7 +147,12 @@ class MessageObject(MessageBase, ObjectWithCreatedTime):
         raise NotImplementedError # should be replaced 
     
     def sync_db(self):
-        raise NotImplementedError # should be replaced 
+        # raise NotImplementedError # should be replaced
+        db_message = Message(
+            **self.model_dump(mode="json"),
+        )
+        with self.sql_util.get_db() as db:
+            self.sql_util.db_merge_commit(db, db_message)
     
 
     def stream_response_with_event(self, event: MessageBase.Status) -> MessageStreamResponse:
