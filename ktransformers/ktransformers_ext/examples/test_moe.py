@@ -43,7 +43,7 @@ with torch.inference_mode(mode=True):
         input = torch.randn((1, hidden_size), dtype=torch.float16).contiguous()
         output = torch.empty((1, hidden_size), dtype=torch.float16).contiguous()
         input = input / 100
-
+        
         CPUInfer.submit(moe.forward, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
         CPUInfer.sync()
         # print('cpuinfer output', output)
@@ -86,13 +86,13 @@ with torch.inference_mode(mode=True):
         input = torch.randn((1, hidden_size), dtype=torch.float16).contiguous()
         output = torch.empty((1, hidden_size), dtype=torch.float16).contiguous()
         input = input / 100
-        start = time.time()
+        start = time.perf_counter()
         CPUInfer.submit(moe.forward, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
         CPUInfer.sync()
-        end = time.time()
+        end = time.perf_counter()
         total_time += end - start
     print('Time: ', total_time)
     print('Iteration: ', test_iter) 
     print('Time per iteration: ', total_time / test_iter)
-    print('Bandwidth: ', hidden_size * intermediate_size * 3 * n_routed_experts * 2 * test_iter / total_time / 1024 / 1024 / 1024, 'GB/s')
+    print('Bandwidth: ', hidden_size * intermediate_size * 3 * n_routed_experts * 2 * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
     print("All tasks completed.")

@@ -44,10 +44,6 @@ with torch.inference_mode(mode=True):
         print('diff = ', diff)
         assert(diff < 0.001)
 
-    input = torch.randn((1, input_size), dtype=torch.float16).contiguous()
-    output = torch.empty((1, output_size), dtype=torch.float16).contiguous()
-    input = input / 100
-
     # warm up
     for i in range(warm_up_iter):
         linear = linears[i % layer_num]
@@ -64,13 +60,13 @@ with torch.inference_mode(mode=True):
         input = torch.randn((1, input_size), dtype=torch.float16).contiguous()
         output = torch.empty((1, output_size), dtype=torch.float16).contiguous()
         input = input / 100
-        start = time.time()
+        start = time.perf_counter()
         CPUInfer.submit(linear.forward, input.data_ptr(), output.data_ptr())
         CPUInfer.sync()
-        end = time.time()
+        end = time.perf_counter()
         total_time += end - start
     print('Time: ', total_time)
     print('Iteration: ', test_iter) 
     print('Time per iteration: ', total_time / test_iter)
-    print('Bandwidth: ', input_size * output_size * 2 * test_iter / total_time / 1024 / 1024 / 1024, 'GB/s')
+    print('Bandwidth: ', input_size * output_size * 2 * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
     print("All tasks completed.")

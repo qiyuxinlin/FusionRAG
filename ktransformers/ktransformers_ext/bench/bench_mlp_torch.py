@@ -11,8 +11,8 @@ def bench_mlp(quant_mode: str):
         hidden_size = 5120
         intermediate_size = 3072
         layer_num = 10
-        warm_up_iter = 3000
-        test_iter = 30000
+        warm_up_iter = 1000
+        test_iter = 10000
 
         if quant_mode == "fp32":
             proj_type = torch.float32
@@ -58,7 +58,6 @@ def bench_mlp(quant_mode: str):
         # warm up
         for i in range(warm_up_iter):
             input = torch.randn((1, hidden_size), dtype=torch.float32).contiguous()
-            input = input / 100
             if quant_mode == "qint8":
                 input_q = torch.quantize_per_tensor(input, scale, zero_point, torch.quint8)
                 quantized_gate = gate_projs[i % layer_num]
@@ -84,8 +83,7 @@ def bench_mlp(quant_mode: str):
         total_time = 0
         for i in range(test_iter):
             input = torch.randn((1, hidden_size), dtype=torch.float32).contiguous()
-            input = input / 100
-            start = time.time()
+            start = time.perf_counter()
             if quant_mode == "qint8":
                 input_q = torch.quantize_per_tensor(input, scale, zero_point, torch.quint8)
                 quantized_gate = gate_projs[i % layer_num]
@@ -106,13 +104,13 @@ def bench_mlp(quant_mode: str):
                 up_buf = torch.mm(input.to(proj_type), up_proj.t())
                 intermediate = act_fn(gate_buf) * up_buf
                 t_output = torch.mm(intermediate.to(proj_type), down_proj.t())
-            end = time.time()
+            end = time.perf_counter()
             total_time += end - start
         print('Quant mode: ', quant_mode)
         print('Time(s): ', total_time)
         print('Iteration: ', test_iter) 
         print('Time(us) per iteration: ', total_time / test_iter * 1000000)
-        print('Bandwidth: ', hidden_size * intermediate_size * 3 * bytes_per_elem * test_iter / total_time / 1024 / 1024 / 1024, 'GB/s')
+        print('Bandwidth: ', hidden_size * intermediate_size * 3 * bytes_per_elem * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
         print('')
 
 bench_mlp("fp32")

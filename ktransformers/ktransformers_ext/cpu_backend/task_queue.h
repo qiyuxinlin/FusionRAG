@@ -24,8 +24,7 @@ class TaskQueue {
     std::queue<std::function<void()>> tasks;
     std::thread worker;
     std::mutex mutex;
-    std::condition_variable cv;
-    std::condition_variable cvSync;
-    bool stop;
+    std::atomic<bool> sync_flag;
+    std::atomic<bool> exit_flag;
 };
 #endif
