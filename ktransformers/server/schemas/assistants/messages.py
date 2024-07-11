@@ -9,6 +9,7 @@ from ktransformers.server.config.log import logger
 from ktransformers.server.models.assistants.messages import Message
 from ktransformers.server.schemas.base import Metadata, MetadataField, ObjectWithCreatedTime
 from ktransformers.server.schemas.assistants.tool import Field,CodeInterpreter,FileSearch
+from ktransformers.server.utils.sql_utils import SQLUtil
 
 
 class IncompleteDetails(BaseModel):
@@ -148,11 +149,12 @@ class MessageObject(MessageBase, ObjectWithCreatedTime):
     
     def sync_db(self):
         # raise NotImplementedError # should be replaced
+        sql_utils = SQLUtil()
         db_message = Message(
             **self.model_dump(mode="json"),
         )
-        with self.sql_util.get_db() as db:
-            self.sql_util.db_merge_commit(db, db_message)
+        with sql_utils.get_db() as db:
+            sql_utils.db_merge_commit(db, db_message)
     
 
     def stream_response_with_event(self, event: MessageBase.Status) -> MessageStreamResponse:
