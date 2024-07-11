@@ -137,7 +137,7 @@ class KTransformersInterface(TransformersInterface):
 
         print("optimize_config_path is not set, generating it automatically.")
         optimize_config = {}
-        gen_optimize_config(self.model, optimize_config,device=args.device)
+        gen_optimize_config(self.model, optimize_config, device=args.device)
         # print(optimize_config)
 
         gguf_path = args.gguf_path
