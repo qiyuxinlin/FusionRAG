@@ -26,14 +26,14 @@ model:
   # name: deepseek-coder-1.3b-base
   # path: /mnt/data/model/deepseek-coder-1.3b-base/
 
-  name: DeepSeek-Coder-V2-Instruct
-  path: /mnt/data/model/DeepSeek-Coder-V2-Instruct/
-  gguf_path: /mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH/
+  # name: DeepSeek-Coder-V2-Instruct
+  # path: /mnt/data/model/DeepSeek-Coder-V2-Instruct/
+  # gguf_path: /mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH/
 
 
-  # name: Qwen2-57B-A14B-Instruct
-  # path: /mnt/data/model/Qwen2-57B-A14B-Instruct
-  # gguf_path: /mnt/data/models_qwen_gguf/qwen2-57b-a14b-instruct-q8_0
+  name: Qwen2-57B-A14B-Instruct
+  path: /mnt/data/model/Qwen2-57B-A14B-Instruct
+  gguf_path: /mnt/data/models_qwen_gguf/qwen2-57b-a14b-instruct-q8_0
 
   # type: exllamav2 
   # name: Mistral-7B-Instruct-v0.2

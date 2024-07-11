@@ -50,7 +50,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
-from operators.base_operator import BaseInjectedModule
+from ktransformers.operators.base_operator import BaseInjectedModule
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
@@ -183,7 +183,7 @@ QWEN2MOE_INPUTS_DOCSTRING = r"""
             the complete sequence length.
 """
 
-from util.custom_gguf import GGUFLoader
+from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
 
 @add_start_docstrings(
