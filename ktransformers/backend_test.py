@@ -7,8 +7,8 @@ import torch.nn as nn
 import time
 import json
 prompts = [
-    {"role": 'system', "content": "you are a helpful assistant. 你是一个乐于助人的助手"},
-    {"role": 'user', "content": "你好，请给我介绍一下秦始皇"}
+    {"role": 'system', "content": "you are a helpful assistant."},
+    {"role": 'user', "content": "Hello, please introduce superman for me."}
 ]
 
 import torch._dynamo
