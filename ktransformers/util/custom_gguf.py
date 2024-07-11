@@ -886,8 +886,3 @@ def translate_name_to_gguf(name):
     # name = name.replace("")
 
     return name
-
-if __name__ == '__main__':
-    gguf_path = '/mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH'
-    loader = GGUFLoader(gguf_path)
-    loader.load_gguf_tensor('token_embd.weight')
