@@ -11,8 +11,8 @@ def bench_mlp(quant_mode: str):
         stride = 16
         layer_num = 10
         CPUInfer = cpuinfer_ext.CPUInfer(64)
-        warm_up_iter = 3000
-        test_iter = 30000
+        warm_up_iter = 1000
+        test_iter = 10000
 
         hidden_type = 30 # ggml_type::GGML_TYPE_BF16
         if quant_mode == "fp32":
@@ -94,7 +94,6 @@ def bench_mlp(quant_mode: str):
             mlp = mlps[i % layer_num]
             input = torch.randn((1, hidden_size), dtype=torch.bfloat16).contiguous()
             output = torch.empty((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            input = input / 100
             CPUInfer.submit(mlp.forward, input.data_ptr(), output.data_ptr())
             CPUInfer.sync()
 
@@ -104,17 +103,16 @@ def bench_mlp(quant_mode: str):
             mlp = mlps[i % layer_num]
             input = torch.randn((1, hidden_size), dtype=torch.bfloat16).contiguous()
             output = torch.empty((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            input = input / 100
-            start = time.time()
+            start = time.perf_counter()
             CPUInfer.submit(mlp.forward, input.data_ptr(), output.data_ptr())
             CPUInfer.sync()
-            end = time.time()
+            end = time.perf_counter()
             total_time += end - start
         print('Quant mode: ', quant_mode)
         print('Time(s): ', total_time)
         print('Iteration: ', test_iter) 
         print('Time(us) per iteration: ', total_time / test_iter * 1000000)
-        print('Bandwidth: ', hidden_size * intermediate_size * 3 * bytes_per_elem * test_iter / total_time / 1024 / 1024 / 1024, 'GB/s')
+        print('Bandwidth: ', hidden_size * intermediate_size * 3 * bytes_per_elem * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
         print('')
 
 bench_mlp("fp32")
