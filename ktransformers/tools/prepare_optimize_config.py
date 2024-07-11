@@ -44,11 +44,11 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     #         "module_name": "operators.layer_wise_prefill_deepseek",
     #         "class_name": "DeepseekV2ModelPerLayerPrefill",
     #         "device_idx": device}
-    if isinstance(module, Qwen2MoeModel):
-        out_data[module_name]={"key": translated_name,
-            "module_name": "ktransformers.operators.layer_wise_prefill_qwen_moe",
-            "class_name": "Qwen2MoeModelPerLayerPrefill",
-            "device_idx": device}
+    # if isinstance(module, Qwen2MoeModel):
+    #     out_data[module_name]={"key": translated_name,
+    #         "module_name": "ktransformers.operators.layer_wise_prefill_qwen_moe",
+    #         "class_name": "Qwen2MoeModelPerLayerPrefill",
+    #         "device_idx": device}
     if isinstance(module, Qwen2MoeSparseMoeBlock):
         out_data[module_name]={"key": translated_name,
             "module_name": "ktransformers.operators.experts",
