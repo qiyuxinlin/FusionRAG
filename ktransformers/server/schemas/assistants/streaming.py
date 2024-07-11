@@ -8,9 +8,8 @@ from pydantic import BaseModel
 from ktransformers.server.schemas.assistants.runs import RunStreamResponse
 from ktransformers.server.schemas.endpoints.chat import ChatCompletionChunk
 from ktransformers.server.config.log import logger
-
-from ..base import Object
-from .messages import ContentType, ImageFileObject, ImageUrlObject, MessageObject, Text, TextObject
+from ktransformers.server.schemas.base import Object
+from ktransformers.server.schemas.assistants.messages import ContentType, ImageFileObject, ImageUrlObject, MessageObject, Text, TextObject
 
 
 class TextObjectWithIndex(TextObject):

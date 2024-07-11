@@ -1,17 +1,21 @@
+from enum import Enum
 from time import time
 from typing import AsyncIterable, Callable, Dict, List, Optional, Union
+from asyncio import Lock, Queue
 
-from pydantic import BaseModel, Field, PrivateAttr, constr, field_validator, model_validator, validator
+from fastapi import logger
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 import torch
 
 from ktransformers.server.config.config import Config
+from ktransformers.server.models.assistants.assistants import Assistant
+from ktransformers.server.models.assistants.threads import Thread
 from ktransformers.server.schemas.assistants.messages import Role
-from ktransformers.server.schemas.assistants.runs import *
-
-from ..base import *
-from .tool import *
-
-from asyncio import Lock, Queue
+from ktransformers.server.schemas.assistants.runs import RunObject,RunStreamResponse,ObjectWithCreatedTime
+from ktransformers.server.schemas.assistants.threads import ThreadObject
+from ktransformers.server.schemas.base import Metadata,MetadataField,ObjectID
+from ktransformers.server.schemas.assistants.tool import Tool,CodeInterpreter,FileSearch,RelatedThreads,FuntionTool,ToolResource,CodeInterpreterResource,FileSearchResource,RelatedThreadsResource,ToolType
+from ktransformers.server.utils.sql_utils import SQLUtil
 
 
 class AssistantBase(BaseModel):
@@ -26,17 +30,17 @@ class AssistantBase(BaseModel):
         if not isinstance(value, list):
             raise ValueError('Invalid type for tools')
 
-        for t in value:
-            if 'type' not in t:
+        for tool in value:
+            if 'type' not in tool:
                 raise ValueError('Invalid type for tools')
-            if t['type'] == 'code_interpreter':
-                re.append(CodeInterpreter(**t))
-            elif t['type'] == 'file_search':
-                re.append(FileSearch(**t))
-            elif t['type'] == 'related_threads':
-                re.append(RelatedThreads(**t))
-            elif t['type'] == 'function':
-                re.append(FuntionTool(**t))
+            if tool['type'] == 'code_interpreter':
+                re.append(CodeInterpreter(**tool))
+            elif tool['type'] == 'file_search':
+                re.append(FileSearch(**tool))
+            elif tool['type'] == 'related_threads':
+                re.append(RelatedThreads(**tool))
+            elif tool['type'] == 'function':
+                re.append(FuntionTool(**tool))
             else:
                 raise ValueError('Invalid type for tools')
         return re
@@ -49,13 +53,13 @@ class AssistantBase(BaseModel):
         if not isinstance(value, list):
             raise ValueError('Invalid type for tool resources')
 
-        for tr in value:
-            if 'file_ids' in tr:
-                re.append(CodeInterpreterResource(**tr))
-            elif 'vector_stores' in tr:
-                re.append(FileSearchResource(**tr))
-            elif 'thread_ids' in tr:
-                re.append(RelatedThreadsResource(**tr))
+        for tool_re in value:
+            if 'file_ids' in tool_re:
+                re.append(CodeInterpreterResource(**tool_re))
+            elif 'vector_stores' in tool_re:
+                re.append(FileSearchResource(**tool_re))
+            elif 'thread_ids' in tool_re:
+                re.append(RelatedThreadsResource(**tool_re))
             else:
                 raise ValueError('Invalid type for tool resources')
         return re
@@ -121,19 +125,28 @@ class AssistantObject(AssistantBase, ObjectWithCreatedTime):
 
     def get_related_threads_ids(self) -> List[ObjectID]:
         re = []
-        for t, tr in zip(self.tools, self.tool_resources):
-            if t.type == ToolType.RELATED_THREADS:
-                re += tr.thread_ids or []
+        for tool, tool_re in zip(self.tools, self.tool_resources):
+            if tool.type == ToolType.RELATED_THREADS:
+                re += tool_re.thread_ids or []
         return re
 
     def get_related_threads_objects(self) -> List:
-        raise NotImplementedError  # should be replaced
+        # raise NotImplementedError  # should be replaced
+        sql_utils = SQLUtil()
+        if self.related_threads_objects is None:
+            with sql_utils.get_db() as db:
+                db_threads = db.query(Thread).all()
+            self.related_threads_objects = [tool for tool in [ThreadObject.model_validate(
+                tool.__dict__) for tool in db_threads] if tool.is_related_threads and tool.meta_data['assistant_id'] == self.id]
+            # logger.debug(
+            #     f'Found {len(self.related_threads_objects)} related threads')
+        return self.related_threads_objects
 
     def append_related_threads(self, thread_ids: List[ObjectID]):
         # logger.debug(f'{self.tools} {self.tool_resources}')
-        for t, tr in zip(self.tools, self.tool_resources):
-            if t.type == ToolType.RELATED_THREADS:
-                tr.thread_ids += thread_ids
+        for tool, tool_re in zip(self.tools, self.tool_resources):
+            if tool.type == ToolType.RELATED_THREADS:
+                tool_re.thread_ids += thread_ids
                 return
 
         self.tools.append(RelatedThreads(type=ToolType.RELATED_THREADS))
@@ -167,7 +180,13 @@ class AssistantObject(AssistantBase, ObjectWithCreatedTime):
      
     
     def sync_db(self)->None:
-        raise NotImplementedError # should be replaced
+        # raise NotImplementedError # should be replaced
+        sql_utils = SQLUtil()
+        db_assistant = Assistant(
+            **self.model_dump(mode='json'),
+        )
+        with sql_utils.get_db() as db:
+            sql_utils.db_merge_commit(db, db_assistant)
     
     def get_encoded_instruction(self,encode_fn:Callable)->torch.Tensor:
         if self._encoded_instruction is None:
