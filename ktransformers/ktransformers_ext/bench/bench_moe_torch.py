@@ -13,7 +13,6 @@ def bench_moe(quant_mode: str):
         intermediate_size = 1536
         n_routed_experts = 6
         layer_num = 10
-        torch.set_num_threads(48)
         warm_up_iter = 1000
         test_iter = 10000
 
@@ -70,7 +69,6 @@ def bench_moe(quant_mode: str):
             expert_ids = torch.randint(0, expert_num, (n_routed_experts,), dtype=torch.int64).contiguous()
             weights = torch.rand((n_routed_experts,), dtype=torch.float32).contiguous()
             input = torch.randn((1, hidden_size), dtype=torch.float32).contiguous()
-            input = input / 100
             if quant_mode == "qint8":
                 input_q = torch.quantize_per_tensor(input, scale, zero_point, torch.quint8)
                 t_output = torch.zeros((1, hidden_size), dtype=torch.float32).contiguous()
@@ -108,8 +106,7 @@ def bench_moe(quant_mode: str):
             expert_ids = torch.randint(0, expert_num, (n_routed_experts,), dtype=torch.int64).contiguous()
             weights = torch.rand((n_routed_experts,), dtype=torch.float32).contiguous()
             input = torch.randn((1, hidden_size), dtype=torch.float32).contiguous()
-            input = input / 100
-            start = time.time()
+            start = time.perf_counter()
             if quant_mode == "qint8":
                 input_q = torch.quantize_per_tensor(input, scale, zero_point, torch.quint8)
                 t_output = torch.zeros((1, hidden_size), dtype=torch.float32).contiguous()
@@ -140,16 +137,16 @@ def bench_moe(quant_mode: str):
                     intermediate = act_fn(gate_buf) * up_buf
                     expert_output = torch.mm(intermediate.to(proj_type), down_proj[expert_id].t())
                     t_output += weights[i] * expert_output
-            end = time.time()
+            end = time.perf_counter()
             total_time += end - start
         print('Quant mode: ', quant_mode)
         print('Time(s): ', total_time)
         print('Iteration: ', test_iter) 
         print('Time(us) per iteration: ', total_time / test_iter * 1000000)
-        print('Bandwidth: ', hidden_size * intermediate_size * 3 * n_routed_experts * bytes_per_elem * test_iter / total_time / 1024 / 1024 / 1024, 'GB/s')
+        print('Bandwidth: ', hidden_size * intermediate_size * 3 * n_routed_experts * bytes_per_elem * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
         print('')
 
-# bench_moe("fp32")
-# bench_moe("fp16")
-# bench_moe("bf16")
+bench_moe("fp32")
+bench_moe("fp16")
+bench_moe("bf16")
 bench_moe("qint8")
