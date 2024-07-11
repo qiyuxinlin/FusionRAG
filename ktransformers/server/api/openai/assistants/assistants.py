@@ -3,13 +3,13 @@ from typing import Optional
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
 
-from server.crud.assistants.assistants import AssistantDatabaseManager
-from server.crud.assistants.runs import RunsDatabaseManager
-# from server.backend.context_manager import *
-from server.schemas.assistants.assistants import AssistantCreate, AssistantModify, ObjectID, AssistantBuildStatus, AssistantObject
-from server.schemas.base import DeleteResponse, Order
-# from server.schemas.assistants.streaming import *
-from server.config.log import logger
+from ktransformers.server.crud.assistants.assistants import AssistantDatabaseManager
+from ktransformers.server.crud.assistants.runs import RunsDatabaseManager
+# from ktransformers.server.backend.context_manager import *
+from ktransformers.server.schemas.assistants.assistants import AssistantCreate, AssistantModify, ObjectID, AssistantBuildStatus, AssistantObject
+from ktransformers.server.schemas.base import DeleteResponse, Order
+# from ktransformers.server.schemas.assistants.streaming import *
+from ktransformers.server.config.log import logger
 
 
 router = APIRouter(prefix="/assistants")

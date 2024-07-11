@@ -4,9 +4,9 @@ from typing import AsyncIterable, Callable, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, PrivateAttr, constr, field_validator, model_validator, validator
 import torch
 
-from server.config.config import Config
-from server.schemas.assistants.messages import Role
-from server.schemas.assistants.runs import *
+from ktransformers.server.config.config import Config
+from ktransformers.server.schemas.assistants.messages import Role
+from ktransformers.server.schemas.assistants.runs import *
 
 from ..base import *
 from .tool import *

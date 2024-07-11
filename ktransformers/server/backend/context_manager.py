@@ -1,11 +1,11 @@
 from asyncio import Lock
 from typing import Dict, Optional
 
-from server.backend.base import ThreadContext
-from server.schemas.assistants.runs import RunObject
-from server.schemas.base import ObjectID
-from server.config.log import logger
-from server.config.config import Config
+from ktransformers.server.backend.base import ThreadContext
+from ktransformers.server.schemas.assistants.runs import RunObject
+from ktransformers.server.schemas.base import ObjectID
+from ktransformers.server.config.log import logger
+from ktransformers.server.config.config import Config
 
 conf = Config()
 
@@ -15,6 +15,8 @@ if conf.backend_type=='transformers':
     from .interfaces.transformers import TransformersThreadContext as TContext, TransformersInterface as BackendInterface
 elif conf.backend_type == 'exllamav2':
     from .interfaces.exllamav2 import ExllamaThreadContext as TContext, ExllamaInterface as BackendInterface
+elif conf.backend_type == 'ktransformers':
+    from .interfaces.ktransformers import KTransformersThreadContext as TContext, KTransformersInterface as BackendInterface
 else:
     raise NotImplementedError(f'{conf.backend_type} not implemented')
 

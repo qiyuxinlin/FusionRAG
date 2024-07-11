@@ -1,6 +1,6 @@
 from pydantic import BaseModel,Field
 from typing import Optional
-from server.config.config import Config
+from ktransformers.server.config.config import Config
 
 
 class ConfigArgs(BaseModel):

@@ -5,18 +5,18 @@ from typing import AsyncIterator, Dict, List, Optional, Tuple
 
 import torch
 
-from server.config.log import logger
-from server.crud.assistants.assistants import AssistantDatabaseManager
-from server.crud.assistants.messages import MessageDatabaseManager
-from server.crud.assistants.runs import RunsDatabaseManager
-from server.crud.assistants.threads import ThreadsDatabaseManager
-from server.exceptions import request_error
-from server.schemas.assistants.assistants import AssistantObject
-from server.schemas.assistants.messages import MessageCreate, MessageObject, Role
-from server.schemas.assistants.runs import RunObject
-from server.schemas.assistants.threads import ThreadObject
-from server.schemas.base import ObjectID, Order
-from server.utils.multi_timer import Profiler
+from ktransformers.server.config.log import logger
+from ktransformers.server.crud.assistants.assistants import AssistantDatabaseManager
+from ktransformers.server.crud.assistants.messages import MessageDatabaseManager
+from ktransformers.server.crud.assistants.runs import RunsDatabaseManager
+from ktransformers.server.crud.assistants.threads import ThreadsDatabaseManager
+from ktransformers.server.exceptions import request_error
+from ktransformers.server.schemas.assistants.assistants import AssistantObject
+from ktransformers.server.schemas.assistants.messages import MessageCreate, MessageObject, Role
+from ktransformers.server.schemas.assistants.runs import RunObject
+from ktransformers.server.schemas.assistants.threads import ThreadObject
+from ktransformers.server.schemas.base import ObjectID, Order
+from ktransformers.server.utils.multi_timer import Profiler
 
 
 from .args import ConfigArgs,default_args

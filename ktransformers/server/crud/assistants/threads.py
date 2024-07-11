@@ -2,15 +2,15 @@ from time import time
 from typing import Optional,List
 from uuid import uuid4
 
-from server.models.assistants.messages import Message
-from server.models.assistants.threads import Thread
-from server.schemas.assistants.assistants import AssistantObject
-from server.schemas.assistants.threads import ThreadCreate,ThreadObject
-from server.schemas.base import ObjectID, Order
-from server.schemas.conversation import ThreadPreview
-from server.utils.sql_utils import SQLUtil
-from server.crud.assistants.messages import MessageDatabaseManager
-from server.config.log import logger
+from ktransformers.server.models.assistants.messages import Message
+from ktransformers.server.models.assistants.threads import Thread
+from ktransformers.server.schemas.assistants.assistants import AssistantObject
+from ktransformers.server.schemas.assistants.threads import ThreadCreate,ThreadObject
+from ktransformers.server.schemas.base import ObjectID, Order
+from ktransformers.server.schemas.conversation import ThreadPreview
+from ktransformers.server.utils.sql_utils import SQLUtil
+from ktransformers.server.crud.assistants.messages import MessageDatabaseManager
+from ktransformers.server.config.log import logger
 from .assistants import AssistantDatabaseManager
 
 class ThreadsDatabaseManager:

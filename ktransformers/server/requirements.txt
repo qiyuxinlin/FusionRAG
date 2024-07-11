@@ -9,3 +9,5 @@ setuptools
 ninja
 wheel
 colorlog
+fire
+flash-attn

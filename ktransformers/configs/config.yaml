@@ -7,7 +7,7 @@ log:
 
 server:
   ip: 0.0.0.0
-  port: 9016
+  port: 12345
 
 db:
   type: "sqllite"
@@ -20,10 +20,20 @@ user:
   algorithm: "HS256"
 
 model:
-  type: transformers
+  # type: transformers
+  type: ktransformers
 
-  name: deepseek-coder-1.3b-base
-  path: /mnt/data/model/deepseek-coder-1.3b-base/
+  # name: deepseek-coder-1.3b-base
+  # path: /mnt/data/model/deepseek-coder-1.3b-base/
+
+  name: DeepSeek-Coder-V2-Instruct
+  path: /mnt/data/model/DeepSeek-Coder-V2-Instruct/
+  gguf_path: /mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH/
+
+
+  # name: Qwen2-57B-A14B-Instruct
+  # path: /mnt/data/model/Qwen2-57B-A14B-Instruct
+  # gguf_path: /mnt/data/models_qwen_gguf/qwen2-57b-a14b-instruct-q8_0
 
   # type: exllamav2 
   # name: Mistral-7B-Instruct-v0.2
@@ -42,7 +52,7 @@ model:
   # path: /models/Qwen2-57B-A14B-Instruct
   # path: /models/DeepSeek-Coder-V2-Instruct-GGUF
   # path: /models/Qwen1.5-7B-Chat
-  device: cuda:1
+  device: cuda:0
 
 web:
   mount: False

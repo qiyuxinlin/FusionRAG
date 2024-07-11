@@ -1,7 +1,7 @@
 from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
-from server.utils.sql_utils import Base
+from ktransformers.server.utils.sql_utils import Base
 
 
 class Run(Base):

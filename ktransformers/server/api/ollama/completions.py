@@ -8,9 +8,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from server.config.config import Config
-from server.backend.context_manager import get_interface, BackendInterface
-from server.schemas.assistants.streaming import check_link_response
+from ktransformers.server.config.config import Config
+from ktransformers.server.backend.context_manager import get_interface, BackendInterface
+from ktransformers.server.schemas.assistants.streaming import check_link_response
 
 router = APIRouter(prefix='/api')
 
