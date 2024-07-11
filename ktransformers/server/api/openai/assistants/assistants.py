@@ -5,10 +5,8 @@ from fastapi.testclient import TestClient
 
 from ktransformers.server.crud.assistants.assistants import AssistantDatabaseManager
 from ktransformers.server.crud.assistants.runs import RunsDatabaseManager
-# from ktransformers.server.backend.context_manager import *
 from ktransformers.server.schemas.assistants.assistants import AssistantCreate, AssistantModify, ObjectID, AssistantBuildStatus, AssistantObject
 from ktransformers.server.schemas.base import DeleteResponse, Order
-# from ktransformers.server.schemas.assistants.streaming import *
 from ktransformers.server.config.log import logger
 
 
@@ -19,9 +17,9 @@ runs_manager = RunsDatabaseManager()
 
 @router.post("/", tags=['openai'])
 async def create_assistant(
-    ass: AssistantCreate,
+    assistant: AssistantCreate,
 ):
-    return assistant_manager.db_create_assistant(ass).as_api_response()
+    return assistant_manager.db_create_assistant(assistant).as_api_response()
 
 
 @router.get("/", tags=['openai'])
@@ -31,7 +29,7 @@ async def list_assistants(
     after: Optional[str] = None,
     before: Optional[str] = None,
 ):
-    return [d.as_api_response() for d in assistant_manager.db_list_assistants(limit, order)]
+    return [assistant.as_api_response() for assistant in assistant_manager.db_list_assistants(limit, order)]
 
 # list assistant with status
 
@@ -56,9 +54,9 @@ async def retrieve_assistant(
 @router.post("/{assistant_id}", tags=['openai'])
 async def modify_assistant(
     assistant_id: str,
-    ass: AssistantModify,
+    assistant: AssistantModify,
 ):
-    return assistant_manager.db_update_assistant_by_id(assistant_id, ass).as_api_response()
+    return assistant_manager.db_update_assistant_by_id(assistant_id, assistant).as_api_response()
 
 
 @router.delete("/{assistant_id}", tags=['openai'], response_model=DeleteResponse)
@@ -69,14 +67,14 @@ async def delete_assistant(assistant_id: str):
 
 @router.get("/{assistant_id}/related_thread", tags=['openai'])
 async def get_related_thread(assistant_id: ObjectID):
-    ass = assistant_manager.db_get_assistant_by_id(assistant_id)
-    return ass.get_related_threads_ids()
+    assistant = assistant_manager.db_get_assistant_by_id(assistant_id)
+    return assistant.get_related_threads_ids()
 
 
 def create_default_assistant():
     logger.info('Creating default assistant')
     if assistant_manager.db_count_assistants() == 0:
-        default_assistant = assistant_manager.db_create_assistant(AssistantCreate(name="Madsys 小助手",
+        default_assistant = assistant_manager.db_create_assistant(AssistantCreate(name="KT Assistant",
                                                                                   model="default model",
                                                                                   instructions="""You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  """ +
                                                                                   """Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. """ +
@@ -95,11 +93,11 @@ def test_create_assistant():
     res = client.post("/", json=ass_create.model_dump(mode="json"))
 
     assert res.status_code == 200
-    ass = AssistantObject.model_validate(res.json())
+    assistant = AssistantObject.model_validate(res.json())
 
-    assert ass.model == ass_create.model
-    assert ass.instructions == ass_create.instructions
+    assert assistant.model == ass_create.model
+    assert assistant.instructions == ass_create.instructions
 
-    res = client.get(f"/{ass.id}")
+    res = client.get(f"/{assistant.id}")
     ass1 = AssistantObject.model_validate(res.json())
-    assert ass == ass1
+    assert assistant == ass1

@@ -4,14 +4,13 @@ from uuid import uuid4
 
 from ktransformers.server.models.assistants.messages import Message
 from ktransformers.server.models.assistants.threads import Thread
-from ktransformers.server.schemas.assistants.assistants import AssistantObject
 from ktransformers.server.schemas.assistants.threads import ThreadCreate,ThreadObject
 from ktransformers.server.schemas.base import ObjectID, Order
 from ktransformers.server.schemas.conversation import ThreadPreview
 from ktransformers.server.utils.sql_utils import SQLUtil
 from ktransformers.server.crud.assistants.messages import MessageDatabaseManager
 from ktransformers.server.config.log import logger
-from .assistants import AssistantDatabaseManager
+from ktransformers.server.crud.assistants.assistants import AssistantDatabaseManager
 
 class ThreadsDatabaseManager:
     def __init__(self) -> None:
@@ -67,7 +66,7 @@ class ThreadsDatabaseManager:
             else:
                 db_threads = query.all()
 
-            return [ThreadObject.model_validate(t.__dict__) for t in db_threads]
+            return [ThreadObject.model_validate(tool.__dict__) for tool in db_threads]
 
     def db_list_threads_preview(self, limit: Optional[int], order: Order) -> List[ThreadPreview]:
         threads = self.db_list_threads(limit, order)
@@ -92,19 +91,3 @@ class ThreadsDatabaseManager:
             db.delete(db_thread)
             # TODO delete related messages and runs and other stuff or just gc
             db.commit()
-
-
-def db_get_related_threads_objects(self: AssistantObject) -> List[ThreadObject]:
-
-    sql_utils = SQLUtil()
-    if self.related_threads_objects is None:
-        with sql_utils.get_db() as db:
-            db_threads = db.query(Thread).all()
-        self.related_threads_objects = [t for t in [ThreadObject.model_validate(
-            t.__dict__) for t in db_threads] if t.is_related_threads and t.meta_data['assistant_id'] == self.id]
-        logger.debug(
-            f'Found {len(self.related_threads_objects)} related threads')
-    return self.related_threads_objects
-
-
-AssistantObject.get_related_threads_objects = db_get_related_threads_objects

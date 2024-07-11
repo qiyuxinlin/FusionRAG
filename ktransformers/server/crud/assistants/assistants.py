@@ -3,7 +3,7 @@ from typing import Optional,List
 from uuid import uuid4
 
 from ktransformers.server.models.assistants.assistants import Assistant
-from ktransformers.server.schemas.assistants.assistants import AssistantCreate,AssistantObject,AssistantModify,AssistantBuildStatus
+from ktransformers.server.schemas.assistants.assistants import AssistantCreate,AssistantObject,AssistantModify
 from ktransformers.server.utils.sql_utils import SQLUtil
 from ktransformers.server.config.log import logger
 from ktransformers.server.schemas.base import Order
@@ -13,9 +13,9 @@ class AssistantDatabaseManager:
     def __init__(self) -> None:
         self.sql_util = SQLUtil()
 
-    def create_assistant_object(self, ass: AssistantCreate) -> AssistantObject:
+    def create_assistant_object(self, assistant: AssistantCreate) -> AssistantObject:
         assistant = AssistantObject(
-            **ass.model_dump(mode='json'),
+            **assistant.model_dump(mode='json'),
             id=str(uuid4()),
             object='assistant',
             created_at=int(time()),
@@ -64,14 +64,3 @@ class AssistantDatabaseManager:
             db.delete(db_assistant)
             db.commit()
 
-
-def db_sync_assistant(self: AssistantObject) -> None:
-    sql_utils = SQLUtil()
-    db_assistant = Assistant(
-        **self.model_dump(mode='json'),
-    )
-    with sql_utils.get_db() as db:
-        sql_utils.db_merge_commit(db, db_assistant)
-
-
-AssistantObject.sync_db = db_sync_assistant

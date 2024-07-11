@@ -3,9 +3,10 @@ from typing import Dict, List, Optional, Union, ForwardRef
 
 from pydantic import BaseModel, Field, model_validator
 
-from ..base import TODO, Metadata, MetadataField, ObjectWithCreatedTime
-from .threads import ThreadCreate
-from .tool import Tool, ToolResource
+from ktransformers.server.models.assistants.runs import Run
+from ktransformers.server.schemas.base import TODO, Metadata, MetadataField, ObjectWithCreatedTime
+from ktransformers.server.schemas.assistants.threads import ThreadCreate
+from ktransformers.server.schemas.assistants.tool import Tool, ToolResource
 
 
 class ToolCall(BaseModel):
@@ -110,7 +111,12 @@ class RunObject(RunBase, ObjectWithCreatedTime):
  
     
     def sync_db(self):
-        raise NotImplementedError # should be replaced in crud
+        # raise NotImplementedError # should be replaced in crud
+        db_run = Run(
+            **self.model_dump(mode='json'),
+        )
+        with self.sql_util.get_db() as db:
+            self.sql_util.db_merge_commit(db, db_run)
     
     def create_message_creation_step(self):
         raise NotImplementedError # should be replaced 
