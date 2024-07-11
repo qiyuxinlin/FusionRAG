@@ -51,6 +51,8 @@ from transformers.utils import (
 )
 from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
 from operators.base_operator import BaseInjectedModule
+from operators.experts import KTransformersMLPExpert
+from operators.linear import KTransformerLinear
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
@@ -211,13 +213,17 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: Optional[int] = None, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 1, # if None, no per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
+        print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
             per_layer_prefill_flag = True
             # set all self.layers to cpu
+            # self.embed_tokens.to("cpu")
+            self.layers.to("cpu")
             self.recursive_load_to(self.layers, "cpu")
+            torch.cuda.empty_cache()
         else:
             pass
 
@@ -294,7 +300,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
             else:
                 if per_layer_prefill_flag:
+                    hidden_states = hidden_states.to("cuda")
                     decoder_layer.to("cuda")
+                    self.recursive_load_to(decoder_layer, "cuda")
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=causal_mask,
@@ -307,6 +315,7 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
                 if per_layer_prefill_flag:
                     decoder_layer.to("cpu")
+                    self.recursive_load_to(decoder_layer, "cpu")
             hidden_states = layer_outputs[0]
 
             if use_cache:
@@ -322,7 +331,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
 
         if per_layer_prefill_flag:
             per_layer_prefill_flag = False
-            self.recursive_load_to(self.layers, "restore")
+            self.layers.to("cuda")
+            for layer in self.layers:
+                self.recursive_load_to(layer, "restore")
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -347,8 +358,17 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         )
 
     def recursive_load_to(self, module:nn.Module, target:str):
-        if isinstance(module, BaseInjectedModule) and hasattr(module, "load_to"):
-            module.load_to(target)
-            return
-        for child in module._modules.values():
+        assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
+        if isinstance(module, BaseInjectedModule):
+            if hasattr(module, "load_to"):
+                module.load_to(target)
+                if isinstance(module, KTransformerLinear) or isinstance(module, KTransformersMLPExpert):
+                    return
+            # return
+        # else:
+        #     if target.lower() == "cpu":
+        #         module.to(target)
+        #     else:
+        #         module.to("cuda")
+        for name, child in module._modules.items():
             self.recursive_load_to(child, target)

@@ -51,24 +51,25 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix=""):
             "module_name": "operators.experts",
             "class_name": "Qwen2MoeSparseMoeBlockInjected",
             "device_idx": "cuda:0"}
-    if isinstance(module, nn.ModuleList) and "expert" in module_name:
-        out_data[module_name]={"key": translated_name,
-            "module_name": "operators.experts",
-            "file_name": "experts",
-            "class_name": "MLPExperts",
-            # "class_name": "MLPExpertsMarlin",
-            # "class_name": "MLPExpertsTorch",
-            "device_idx": "cuda:0"}
-        recursive = False
     # if isinstance(module, nn.ModuleList) and "expert" in module_name:
     #     out_data[module_name]={"key": translated_name,
     #         "module_name": "operators.experts",
     #         "file_name": "experts",
-    #         "class_name": "KTransformersMLPExpert",
-    #         "gpu_mlp_type": "MLPExpertsTorch",
-    #         "cpu_mlp_type": "MLPExperts",
+    #         "class_name": "MLPExperts",
+    #         # "class_name": "MLPExpertsMarlin",
+    #         # "class_name": "MLPExpertsTorch",
     #         "device_idx": "cuda:0"}
     #     recursive = False
+    if isinstance(module, nn.ModuleList) and "expert" in module_name:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "operators.experts",
+            "file_name": "experts",
+            "class_name": "KTransformersMLPExpert",
+            "gpu_mlp_type": "MLPExpertsTorch",
+            "cpu_mlp_type": "MLPExperts",
+            # "cpu_mlp_type": "MLPExpertsTorch",
+            "device": "cpu"}
+        recursive = False
     if "YarnRotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
             "module_name": "operators.RoPE",
