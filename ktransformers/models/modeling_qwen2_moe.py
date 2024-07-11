@@ -53,7 +53,7 @@ from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
 
 
 if is_flash_attn_2_available():
-    from flash_attn import flash_attn_func, flash_attn_varlen_func
+    from flash_attn import flash_attn_func, flash_attn_varlen_func, flash_attn_with_kvcache
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
 
     _flash_supports_window_size = "window_size" in list(inspect.signature(flash_attn_func).parameters)
@@ -171,42 +171,35 @@ class Qwen2MoeRMSNorm(nn.Module):
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
         return self.weight * hidden_states.to(input_dtype)
 
-
-# Copied from transformers.models.mixtral.modeling_mixtral.MixtralRotaryEmbedding with Mixtral->Qwen2Moe
+# Copied from transformers.models.mistral.modeling_mistral.MistralRotaryEmbedding with Mistral->Qwen2Moe
 class Qwen2MoeRotaryEmbedding(nn.Module):
-    def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
+    def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None, scaling_factor=1.0):
         super().__init__()
-
+        self.scaling_factor = scaling_factor
         self.dim = dim
         self.max_position_embeddings = max_position_embeddings
         self.base = base
-        inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2, dtype=torch.int64).float().to(device) / self.dim))
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        with torch.device("cuda"):
+            inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2, dtype=torch.int64).float().to(device) / self.dim))
+            self.register_buffer("inv_freq", inv_freq, persistent=False)
+        # For BC we register cos and sin cached
+        self.max_seq_len_cached = max_position_embeddings
 
-        # Build here to make `torch.jit.trace` work.
-        self._set_cos_sin_cache(
-            seq_len=max_position_embeddings, device=self.inv_freq.device, dtype=torch.get_default_dtype()
-        )
-
-    def _set_cos_sin_cache(self, seq_len, device, dtype):
-        self.max_seq_len_cached = seq_len
-        t = torch.arange(self.max_seq_len_cached, device=device, dtype=torch.int64).type_as(self.inv_freq)
-
-        freqs = torch.outer(t, self.inv_freq)
-        # Different from paper, but it uses a different permutation in order to obtain the same calculation
-        emb = torch.cat((freqs, freqs), dim=-1)
-        self.register_buffer("cos_cached", emb.cos().to(dtype), persistent=False)
-        self.register_buffer("sin_cached", emb.sin().to(dtype), persistent=False)
-
-    def forward(self, x, seq_len=None):
+    @torch.no_grad()
+    def forward(self, x, position_ids):
         # x: [bs, num_attention_heads, seq_len, head_size]
-        if seq_len > self.max_seq_len_cached:
-            self._set_cos_sin_cache(seq_len=seq_len, device=x.device, dtype=x.dtype)
-
-        return (
-            self.cos_cached[:seq_len].to(dtype=x.dtype),
-            self.sin_cached[:seq_len].to(dtype=x.dtype),
-        )
+        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+        position_ids_expanded = position_ids[:, None, :].float()
+        # Force float32 since bfloat16 loses precision on long contexts
+        # See https://github.com/huggingface/transformers/pull/29285
+        device_type = x.device.type
+        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+        with torch.autocast(device_type=device_type, enabled=False):
+            freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+            emb = torch.cat((freqs, freqs), dim=-1)
+            cos = emb.cos()
+            sin = emb.sin()
+        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
 
 
 # Copied from transformers.models.llama.modeling_llama.rotate_half
@@ -217,8 +210,8 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 
-# Copied from transformers.models.mixtral.modeling_mixtral.apply_rotary_pos_emb
-def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=1):
+# Copied from transformers.models.mistral.modeling_mistral.apply_rotary_pos_emb
+def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
     """Applies Rotary Position Embedding to the query and key tensors.
 
     Args:
@@ -227,8 +220,7 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=1):
         cos (`torch.Tensor`): The cosine part of the rotary embedding.
         sin (`torch.Tensor`): The sine part of the rotary embedding.
         position_ids (`torch.Tensor`):
-            The position indices of the tokens corresponding to the query and key tensors. For example, this can be
-            used to pass offsetted position ids when working with a KV-cache.
+            Deprecated and unused.
         unsqueeze_dim (`int`, *optional*, defaults to 1):
             The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and
             sin[position_ids] so that they can be properly broadcasted to the dimensions of q and k. For example, note
@@ -239,8 +231,8 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=1):
     Returns:
         `tuple(torch.Tensor)` comprising of the query and key tensors rotated using the Rotary Position Embedding.
     """
-    cos = cos[position_ids].unsqueeze(unsqueeze_dim)
-    sin = sin[position_ids].unsqueeze(unsqueeze_dim)
+    cos = cos.unsqueeze(unsqueeze_dim)
+    sin = sin.unsqueeze(unsqueeze_dim)
     q_embed = (q * cos) + (rotate_half(q) * sin)
     k_embed = (k * cos) + (rotate_half(k) * sin)
     return q_embed, k_embed
@@ -348,8 +340,8 @@ class Qwen2MoeAttention(nn.Module):
                     "with a layer index."
                 )
             kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+        cos, sin = self.rotary_emb(value_states, position_ids)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
@@ -442,11 +434,8 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
                 )
             kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
 
-        # Because the input can be padded, the absolute sequence length depends on the max position id.
-        rotary_seq_len = max(kv_seq_len, position_ids[:, -1].max().item()) + 1
-        cos, sin = self.rotary_emb(value_states, seq_len=rotary_seq_len)
-
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+        cos, sin = self.rotary_emb(value_states, position_ids)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
         use_sliding_windows = (
             _flash_supports_window_size
@@ -490,9 +479,10 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
             # we slice the states for static kv cache to be supported in FA2. Not sure it's a must as compile fails
-            if (cache_position is not None):  
-                key_states = key_states[:, :, : cache_position[-1] + 1, :]#.contiguous()
-                value_states = value_states[:, :, : cache_position[-1] + 1, :]#.contiguous()
+            # for bsz == 1, avoid using slice to capture cuda graph
+            if cache_position is not None and q_len > 1:
+                key_states = key_states[:, :, : cache_position[-1] + 1, :]
+                value_states = value_states[:, :, : cache_position[-1] + 1, :]
 
         # repeat k/v heads if n_kv_heads < n_heads
         key_states = repeat_kv(key_states, self.num_key_value_groups)
@@ -533,6 +523,7 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
             value_states,
             attention_mask,
             q_len,
+            position_ids=position_ids,
             dropout=dropout_rate,
             use_sliding_windows=use_sliding_windows,
         )
@@ -552,6 +543,7 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
         value_states,
         attention_mask,
         query_length,
+        position_ids,
         dropout=0.0,
         softmax_scale=None,
         use_sliding_windows=False,
@@ -628,14 +620,25 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
         else:
             if not use_sliding_windows:
-                attn_output = flash_attn_func(
-                    query_states,
-                    key_states,
-                    value_states,
-                    dropout,
-                    softmax_scale=softmax_scale,
-                    causal=causal,
-                )
+                if query_length == 1:
+                    position_ids = position_ids.to(dtype=torch.int32).squeeze(1)
+                    attn_output = flash_attn_with_kvcache(
+                        query_states,
+                        key_states,
+                        value_states,
+                        cache_seqlens=position_ids,
+                        softmax_scale=softmax_scale,
+                        causal=causal,
+                    )   
+                else:
+                    attn_output = flash_attn_func(
+                        query_states,
+                        key_states,
+                        value_states,
+                        dropout,
+                        softmax_scale=softmax_scale,
+                        causal=causal,
+                    )
             else:
                 attn_output = flash_attn_func(
                     query_states,
@@ -740,9 +743,8 @@ class Qwen2MoeSdpaAttention(Qwen2MoeAttention):
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
             kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+        cos, sin = self.rotary_emb(value_states, position_ids)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
@@ -800,13 +802,8 @@ class Qwen2MoeSparseMoeBlock(nn.Module):
 
         # gating
         self.gate = nn.Linear(config.hidden_size, config.num_experts, bias=False)
-        
-        if getattr(config, "skip_init_experts", False):
-            num_experts_to_init = 0
-        else:
-            num_experts_to_init = config.num_experts
         self.experts = nn.ModuleList(
-            [Qwen2MoeMLP(config, intermediate_size=config.moe_intermediate_size) for _ in range(num_experts_to_init)]
+            [Qwen2MoeMLP(config, intermediate_size=config.moe_intermediate_size) for _ in range(self.num_experts)]
         )
 
         self.shared_expert = Qwen2MoeMLP(config, intermediate_size=config.shared_expert_intermediate_size)
@@ -814,10 +811,8 @@ class Qwen2MoeSparseMoeBlock(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         """ """
-        orig_shape = hidden_states.shape
         batch_size, sequence_length, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(-1, hidden_dim)
-        hidden_states_cpu = hidden_states.cpu()
         # router_logits: (batch * sequence_length, n_experts)
         router_logits = self.gate(hidden_states)
 
@@ -827,58 +822,14 @@ class Qwen2MoeSparseMoeBlock(nn.Module):
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
         routing_weights = routing_weights.to(hidden_states.dtype)
-        
-        selected_experts_cpu = selected_experts.cpu()
-        routing_weights_cpu = routing_weights.cpu()
-        
-        shared_expert_output = self.shared_expert(hidden_states)
-        shared_expert_output = F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
-        
-        from operators.experts import MLPExperts
-        if isinstance(self.experts, MLPExperts):
-            y = self.moe_on_pcinfer(hidden_states_cpu, selected_experts_cpu, routing_weights_cpu) \
-                .view(*orig_shape) \
-                .to(device=hidden_states.device)
-        elif hidden_states_cpu.size(0) > 10:
-            y = self.moe_infer(hidden_states_cpu, selected_experts_cpu, routing_weights_cpu, orig_shape).to(device=hidden_states.device)
-        else:
-            y = self.moe_infer_simple(hidden_states_cpu, selected_experts_cpu, routing_weights_cpu).to(device=hidden_states.device)
-        y += shared_expert_output
-        y.resize_(*orig_shape)
-        return y, router_logits
-    
-    @torch.no_grad()
-    def moe_on_pcinfer(self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor) -> torch.Tensor:
-        outs = torch.empty_like(x)
-        for token_idx in range(topk_ids.size(0)):
-            outs[token_idx] = self.experts(x[token_idx], topk_ids[token_idx], topk_weight[token_idx])
-        return outs
-
-    @torch.no_grad()
-    def moe_infer_simple(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor) -> torch.Tensor:
-        '''
-        hidden_states_cpu: [num_tokens, hidden_size]
-        topk_ids, topk_weight: [num_tokens, num_selected_experts]
-        '''
-        outs = torch.zeros_like(hidden_states_cpu)
-        for token_idx in range(selected_experts_cpu.size(0)):
-            for expert_idx in range(selected_experts_cpu.size(1)):
-                expert = self.experts[selected_experts_cpu[token_idx, expert_idx]]
-                outs[token_idx] += expert.forward(hidden_states_cpu[token_idx]) * routing_weights_cpu[token_idx, expert_idx]
-        return outs
-    
-    @torch.no_grad()
-    def moe_infer(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor, orig_shape: tuple) -> torch.Tensor:
-        
-        batch_size, sequence_length, hidden_dim = orig_shape
 
         final_hidden_states = torch.zeros(
-            (batch_size * sequence_length, hidden_dim), dtype=hidden_states_cpu.dtype, device=hidden_states_cpu.device
+            (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
         )
 
         # One hot encode the selected experts to create an expert mask
         # this will be used to easily index which expert is going to be sollicitated
-        expert_mask = torch.nn.functional.one_hot(selected_experts_cpu, num_classes=self.num_experts).permute(2, 1, 0)
+        expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
 
         # Loop over all available experts in the model and perform the computation on each expert
         for expert_idx in range(self.num_experts):
@@ -888,14 +839,20 @@ class Qwen2MoeSparseMoeBlock(nn.Module):
             # Index the correct hidden states and compute the expert hidden state for
             # the current expert. We need to make sure to multiply the output hidden
             # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
-            current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim)
-            current_hidden_states = expert_layer.forward_cpu(current_state) * routing_weights_cpu[top_x, idx, None]
+            current_state = hidden_states[None, top_x].reshape(-1, hidden_dim)
+            current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
 
             # However `index_add_` only support torch tensors for indexing so we'll use
             # the `top_x` tensor here.
-            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states_cpu.dtype))
+            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
 
-        return final_hidden_states
+        shared_expert_output = self.shared_expert(hidden_states)
+        shared_expert_output = F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
+
+        final_hidden_states = final_hidden_states + shared_expert_output
+
+        final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
+        return final_hidden_states, router_logits
 
 
 class Qwen2MoeDecoderLayer(nn.Module):

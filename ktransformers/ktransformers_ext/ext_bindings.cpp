@@ -1,11 +1,13 @@
 // Python bindings
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 #include <iostream>
 #include <memory>
 #include "pybind11/functional.h"
 #include "pybind11/operators.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
-
+#include <cstdint>
 #include "cpu_backend/cpuinfer.h"
 #include "llamafile/flags.h"
 #include "operators/llamafile/linear.h"
@@ -105,6 +107,27 @@ class MOEBindings {
     }
 };
 
+struct MOEForwardArgs {
+    CPUInfer* cpuinfer;
+    MOE* moe;
+    int k;
+    uint64_t* expert_ids;
+    float* weights;
+    void* input;
+    void* output;
+};
+
+void submit_moe_forward_with_host_args_ptr(void* host_args_ptr) {
+    MOEForwardArgs* host_args = (MOEForwardArgs*)host_args_ptr;
+    host_args->cpuinfer->submit(&MOE::forward, host_args->moe,
+        host_args->k, host_args->expert_ids, host_args->weights, host_args->input, host_args->output);
+}
+
+void cpuinfer_sync(void* host_args_ptr) {
+    CPUInfer* cpuinfer = (CPUInfer*)host_args_ptr;
+    cpuinfer->sync();
+}
+
 PYBIND11_MODULE(cpuinfer_ext, m) {
     auto linear_module = m.def_submodule("linear");
 
@@ -157,7 +180,7 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
     py::class_<CPUInfer>(m, "CPUInfer")
         .def(py::init<int>())
         .def("submit",
-             [linear_module, mlp_module, moe_module](CPUInfer& cpuinfer, py::object func, py::args args, py::kwargs kwargs) {
+             [linear_module, mlp_module, moe_module](CPUInfer& cpuinfer, intptr_t user_cuda_stream, py::object func, py::args args, py::kwargs kwargs) {
                  if (py::hasattr(func, "__self__") &&
                      py::hasattr(func, "__func__")) {
                      std::string class_name = py::str(func.attr("__self__")
@@ -170,8 +193,21 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
                          MLPBindings::bind_functions(cpuinfer, func,
                                                      args, kwargs);
                      } else if (class_name == "MOE") {
-                         MOEBindings::bind_functions(cpuinfer, func,
-                                                     args, kwargs);
+                         std::string func_name = py::str(func.attr("__func__").attr("__name__"));
+                         if (func_name == "forward") {
+                             auto moe = func.attr("__self__").cast<MOE*>();
+                             int k = args[0].cast<int>();
+                             auto expert_ids = args[1].cast<intptr_t>();
+                             auto weights = args[2].cast<intptr_t>();
+                             auto input = args[3].cast<intptr_t>();
+                             auto output = args[4].cast<intptr_t>();
+                             MOEForwardArgs* moe_forward_args = new MOEForwardArgs{ &cpuinfer, moe, k, (uint64_t*)expert_ids, (float*)weights, (void*)input, (void*)output };
+                             //submit_moe_forward_with_host_args_ptr(moe_forward_args);
+                             cudaLaunchHostFunc((cudaStream_t)user_cuda_stream, (cudaHostFn_t)submit_moe_forward_with_host_args_ptr, moe_forward_args);
+                         }
+                         else {
+                             MOEBindings::bind_functions(cpuinfer, func, args, kwargs);
+                         }
                      } else {
                          // handle other classes
                          throw py::type_error("Unsupported class type: " +
@@ -185,5 +221,8 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
                          "__self__ or __func__ attribute.");
                  }
              })
-        .def("sync", &CPUInfer::sync);
+        .def("sync", [](CPUInfer& cpuinfer, intptr_t user_cuda_stream) {
+                 //cpuinfer_sync((void*)(&cpuinfer));
+                 cudaLaunchHostFunc((cudaStream_t)user_cuda_stream, (cudaHostFn_t)cpuinfer_sync, (void*)(&cpuinfer));
+            });
 }
