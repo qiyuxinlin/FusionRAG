@@ -183,7 +183,7 @@ QWEN2MOE_INPUTS_DOCSTRING = r"""
             the complete sequence length.
 """
 
-from util.custom_gguf import GGUFLoader
+from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
 
 @add_start_docstrings(
