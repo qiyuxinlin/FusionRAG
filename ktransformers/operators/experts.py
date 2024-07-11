@@ -35,9 +35,9 @@ from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinea
 
 # from gguf.constants import GGMLQuantizationType
 # from gguf.quants import quant_shape_to_byte_shape, GGML_QUANT_SIZES
-from multiprocessing import cpu_count
+# from multiprocessing import cpu_count
 
-cpu_infer = cpuinfer_ext.CPUInfer(cpu_count() - 4)
+cpu_infer = cpuinfer_ext.CPUInfer(68)
 
 class MLPExpertsBase(BaseInjectedModule, ABC):
 # class MLPExpertsBase(ABC):
@@ -87,8 +87,11 @@ class MLPExpertsBase(BaseInjectedModule, ABC):
         return res
 
 class MLPExperts(MLPExpertsBase):
-    readers: dict = {}  # {filename: GGUFReader}
-
+    input_tensor_cpu:Tensor = None
+    expert_ids_cpu:Tensor = None
+    weights_cpu:Tensor = None
+    output_cpu:Tensor = None
+    output_gpu:Tensor = None
     def __init__(
         self,
         key: str,
@@ -137,26 +140,63 @@ class MLPExperts(MLPExpertsBase):
             30,
         )
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
+        num_experts_per_tok = self.config.num_experts_per_tok
         self.moe = MOE(moe_config)
         self.cpu_infer = cpu_infer
+        self.cpu_infer.submit(torch.cuda.current_stream().cuda_stream, self.moe.warm_up)
+        self.cpu_infer.sync(torch.cuda.current_stream().cuda_stream)
+        if MLPExperts.output_gpu == None:
+            MLPExperts.input_tensor_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
+            MLPExperts.expert_ids_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
+            MLPExperts.weights_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
+            MLPExperts.output_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
+            MLPExperts.output_gpu = torch.empty((self.config.hidden_size), device=object.__getattribute__(self, "device"))
 
-        return True
+    def submit_for_one_decode(self, input_tensor, expert_ids, weights):
+        MLPExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
+        MLPExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
+        MLPExperts.weights_cpu.copy_(weights, non_blocking=True)
+        self.cpu_infer.submit(torch.cuda.current_stream().cuda_stream, self.moe.forward, expert_ids.size(0), MLPExperts.expert_ids_cpu.data_ptr(), MLPExperts.weights_cpu.data_ptr(), MLPExperts.input_tensor_cpu.data_ptr(), MLPExperts.output_cpu.data_ptr())
+    
+    def sync_for_one_decode(self):
+        self.cpu_infer.sync(torch.cuda.current_stream().cuda_stream)
+        MLPExperts.output_gpu.copy_(MLPExperts.output_cpu, non_blocking=True)
+        #print("capturing experts finish")
+        return MLPExperts.output_gpu
 
     def forward(self, input_tensor, expert_ids, weights):
-        input_tensor = input_tensor.contiguous()
-        expert_ids = expert_ids.contiguous()
-        weights = weights.contiguous().to(torch.float32)
-        output = torch.empty_like(input_tensor).contiguous()
-        self.cpu_infer.submit(
-            self.moe.forward,
-            expert_ids.size(0),
-            expert_ids.data_ptr(),
-            weights.data_ptr(),
-            input_tensor.data_ptr(),
-            output.data_ptr(),
-        )
-        self.cpu_infer.sync()
-        return output
+        # generate, capture and run cuda graph
+        #print("capturing experts")
+        MLPExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
+        MLPExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
+        MLPExperts.weights_cpu.copy_(weights, non_blocking=True)
+        self.cpu_infer.submit(torch.cuda.current_stream().cuda_stream, self.moe.forward, expert_ids.size(0), MLPExperts.expert_ids_cpu.data_ptr(), MLPExperts.weights_cpu.data_ptr(), MLPExperts.input_tensor_cpu.data_ptr(), MLPExperts.output_cpu.data_ptr())
+        self.cpu_infer.sync(torch.cuda.current_stream().cuda_stream)
+        MLPExperts.output_gpu.copy_(MLPExperts.output_cpu, non_blocking=True)
+        #print("capturing experts finish")
+        return MLPExperts.output_gpu
+        # TODO: support one forward for more than one tokens
+        """
+        if input_tensor.size(0)==1:
+            # generate, capture and run cuda graph
+            print("capturing experts")
+            MLPExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
+            MLPExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
+            MLPExperts.weights_cpu.copy_(weights, non_blocking=True)
+            args = CallbackArgs(self, MLPExperts.input_tensor_cpu, MLPExperts.expert_ids_cpu, MLPExperts.weights_cpu, MLPExperts.output_cpu)
+            cupy.cuda.runtime.launchHostFunc(torch.cuda.current_stream().cuda_stream, callback_submit_and_sync, id(args))
+            MLPExperts.output_gpu.copy_(MLPExperts.output_cpu, non_blocking=True)
+            print("capturing experts finish")
+            return MLPExperts.output_gpu
+        else:
+            input_tensor = input_tensor.contiguous().cpu()
+            expert_ids = expert_ids.contiguous().cpu()
+            weights = weights.contiguous().to(torch.float32).cpu()
+            output = torch.empty_like(input_tensor).contiguous()
+            self.cpu_infer.submit(self.moe.forward, expert_ids.size(0), expert_ids.data_ptr(), weights.data_ptr(), input_tensor.data_ptr(), output.data_ptr())
+            self.cpu_infer.sync()
+            return output.to(device=object.__getattribute__(self, "device"))
+        """    
 
 class MLPExpertsMarlin(MLPExpertsBase):
     expert_num: int
@@ -413,101 +453,77 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         orig_shape = hidden_states.shape
         batch_size, sequence_length, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(-1, hidden_dim)
-        hidden_states_cpu = hidden_states.cpu()
         # router_logits: (batch * sequence_length, n_experts)
         router_logits = self.gate(hidden_states)
 
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-        routing_weights, selected_experts = torch.topk(
-            routing_weights, self.top_k, dim=-1
-        )
+        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
         routing_weights = routing_weights.to(hidden_states.dtype)
-
-        selected_experts_cpu = selected_experts.cpu()
-        routing_weights_cpu = routing_weights.cpu()
+        
+        if sequence_length == 1:
+            self.experts.submit_for_one_decode(hidden_states[0], selected_experts[0], routing_weights[0])
+            shared_expert_output = self.shared_expert(hidden_states)
+            shared_expert_output = F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
+            y = self.experts.sync_for_one_decode().unsqueeze(0)
+            y += shared_expert_output
+            y.resize_(*orig_shape)
+            return y, router_logits
 
         shared_expert_output = self.shared_expert(hidden_states)
-        shared_expert_output = (
-            F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
-        )
-
-        if isinstance(self.experts, MLPExpertsBase):
-            y = (
-                self.moe_on_cpuinfer(
-                    hidden_states_cpu, selected_experts_cpu, routing_weights_cpu
-                )
-                .view(*orig_shape)
-                .to(device=hidden_states.device)
-            )
-        elif hidden_states_cpu.size(0) > 10:
-            y = self.moe_infer(
-                hidden_states_cpu, selected_experts_cpu, routing_weights_cpu, orig_shape
-            ).to(device=hidden_states.device)
+        shared_expert_output = F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
+        
+        if isinstance(self.experts, MLPExperts):
+            y = self.moe_on_cpuinfer(hidden_states, selected_experts, routing_weights, hidden_states.size(0) != 1)
+        elif hidden_states.size(0) > 10:
+            # TODO test this branch, add reshape and device copy
+            y = self.moe_infer(hidden_states, selected_experts, routing_weights, orig_shape).to(device=hidden_states.device)
         else:
-            y = self.moe_infer_simple(
-                hidden_states_cpu, selected_experts_cpu, routing_weights_cpu
-            ).to(device=hidden_states.device)
+            # TODO test this branch, add reshape and device copy
+            y = self.moe_infer_simple(hidden_states, selected_experts, routing_weights).to(device=hidden_states.device)
         y += shared_expert_output
         y.resize_(*orig_shape)
         return y, router_logits
-
+    
     @torch.no_grad()
-    def moe_on_cpuinfer(
-        self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
-    ) -> torch.Tensor:
+    def moe_on_cpuinfer(self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor, need_sync: bool) -> torch.Tensor:
         outs = torch.empty_like(x)
         for token_idx in range(topk_ids.size(0)):
-            outs[token_idx] = self.experts(
-                x[token_idx], topk_ids[token_idx], topk_weight[token_idx]
-            )
+            outs[token_idx] = self.experts(x[token_idx], topk_ids[token_idx], topk_weight[token_idx])
+            if need_sync:
+                torch.cuda.synchronize()
+            #print("alive")
         return outs
 
     @torch.no_grad()
-    def moe_infer_simple(
-        self,
-        hidden_states_cpu: torch.Tensor,
-        selected_experts_cpu: torch.Tensor,
-        routing_weights_cpu: torch.Tensor,
-    ) -> torch.Tensor:
-        """
+    # TODO
+    def moe_infer_simple(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor) -> torch.Tensor:
+        '''
         hidden_states_cpu: [num_tokens, hidden_size]
         topk_ids, topk_weight: [num_tokens, num_selected_experts]
-        """
+        '''
         outs = torch.zeros_like(hidden_states_cpu)
         for token_idx in range(selected_experts_cpu.size(0)):
             for expert_idx in range(selected_experts_cpu.size(1)):
                 expert = self.experts[selected_experts_cpu[token_idx, expert_idx]]
-                outs[token_idx] += (
-                    expert.forward(hidden_states_cpu[token_idx])
-                    * routing_weights_cpu[token_idx, expert_idx]
-                )
+                outs[token_idx] += expert.forward(hidden_states_cpu[token_idx]) * routing_weights_cpu[token_idx, expert_idx]
         return outs
-
+    
     @torch.no_grad()
-    def moe_infer(
-        self,
-        hidden_states_cpu: torch.Tensor,
-        selected_experts_cpu: torch.Tensor,
-        routing_weights_cpu: torch.Tensor,
-        orig_shape: tuple,
-    ) -> torch.Tensor:
-
+    # TODO
+    def moe_infer(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor, orig_shape: tuple) -> torch.Tensor:
+        
         batch_size, sequence_length, hidden_dim = orig_shape
 
         final_hidden_states = torch.zeros(
-            (batch_size * sequence_length, hidden_dim),
-            dtype=hidden_states_cpu.dtype,
-            device=hidden_states_cpu.device,
+            (batch_size * sequence_length, hidden_dim), dtype=hidden_states_cpu.dtype, device=hidden_states_cpu.device
         )
 
         # One hot encode the selected experts to create an expert mask
         # this will be used to easily index which expert is going to be sollicitated
-        expert_mask = torch.nn.functional.one_hot(
-            selected_experts_cpu, num_classes=self.num_experts
-        ).permute(2, 1, 0)
+        expert_mask = torch.nn.functional.one_hot(selected_experts_cpu, num_classes=self.num_experts).permute(2, 1, 0)
 
         # Loop over all available experts in the model and perform the computation on each expert
         for expert_idx in range(self.num_experts):
@@ -518,16 +534,11 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
             # the current expert. We need to make sure to multiply the output hidden
             # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
             current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim)
-            current_hidden_states = (
-                expert_layer.forward_cpu(current_state)
-                * routing_weights_cpu[top_x, idx, None]
-            )
+            current_hidden_states = expert_layer.forward_cpu(current_state) * routing_weights_cpu[top_x, idx, None]
 
             # However `index_add_` only support torch tensors for indexing so we'll use
             # the `top_x` tensor here.
-            final_hidden_states.index_add_(
-                0, top_x, current_hidden_states.to(hidden_states_cpu.dtype)
-            )
+            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states_cpu.dtype))
 
         return final_hidden_states
 
