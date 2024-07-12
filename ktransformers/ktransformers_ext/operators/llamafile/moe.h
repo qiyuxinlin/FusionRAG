@@ -37,7 +37,8 @@ class MOE {
    public:
     MOE(MOEConfig);
     void warm_up(Backend* backend);
-    void forward(int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
+    void forward_one(int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
+    void forward(int qlen, int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
 
    public:
     MOEConfig config_;
