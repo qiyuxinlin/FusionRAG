@@ -210,11 +210,6 @@ def main(
     gguf_path: str = None,
     use_generate:bool = False,
 ):
-    path = "./test_input.txt"
-    # read file
-    with open (path, "r", encoding='utf-8') as f:
-        long_context = f.read()
-
     torch.set_grad_enabled(False)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -257,8 +252,7 @@ def main(
     while True:
         content = input("Chat: ")
         if content == "":
-            # content = "Please write a piece of quicksort code in C++."
-            content = long_context 
+            content = "Please write a piece of quicksort code in C++."
             # content = """
             # <|im_start|>system
 

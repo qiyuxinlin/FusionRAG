@@ -68,9 +68,10 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
             "file_name": "experts",
             "class_name": "KTransformersMLPExpert",
             "gpu_mlp_type": "MLPExpertsTorch",
-            "cpu_mlp_type": "MLPExperts",
+            "cpu_mlp_type": "MLPCPUExperts",
             # "cpu_mlp_type": "MLPExpertsTorch",
-            "device": "cpu"}
+            "device": "cpu",
+            "out_device": "cuda"}
         recursive = False
     if "YarnRotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
