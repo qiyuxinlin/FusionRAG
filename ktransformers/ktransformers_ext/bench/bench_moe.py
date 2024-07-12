@@ -6,15 +6,16 @@ import torch
 
 def bench_moe(quant_mode: str):
     with torch.inference_mode(mode=True):
-        expert_num = 10
+        expert_num = 160
         hidden_size = 5120
         intermediate_size = 1536
         stride = 16
         n_routed_experts = 6
-        layer_num = 10
+        layer_num = 2
+        qlen = 128
         CPUInfer = cpuinfer_ext.CPUInfer(64)
-        warm_up_iter = 1000
-        test_iter = 10000
+        warm_up_iter = 100
+        test_iter = 500
 
         hidden_type = 30 # ggml_type::GGML_TYPE_BF16
         if quant_mode == "fp32":
@@ -94,23 +95,23 @@ def bench_moe(quant_mode: str):
         # warm up
         for i in range(warm_up_iter):
             moe = moes[i % layer_num]
-            expert_ids = torch.randint(0, expert_num, (n_routed_experts,), dtype=torch.int64).contiguous()
-            weights = torch.rand((n_routed_experts,), dtype=torch.float32).contiguous()
-            input = torch.randn((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            output = torch.empty((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            CPUInfer.submit(moe.forward, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
+            expert_ids = torch.randint(0, expert_num, (qlen, n_routed_experts), dtype=torch.int64).contiguous()
+            weights = torch.rand((qlen, n_routed_experts), dtype=torch.float32).contiguous()
+            input = torch.randn((qlen, hidden_size), dtype=torch.bfloat16).contiguous()
+            output = torch.empty((qlen, hidden_size), dtype=torch.bfloat16).contiguous()
+            CPUInfer.submit(moe.forward, qlen, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
             CPUInfer.sync()
 
         # test
         total_time = 0
         for i in range(test_iter):
             moe = moes[i % layer_num]
-            expert_ids = torch.randint(0, expert_num, (n_routed_experts,), dtype=torch.int64).contiguous()
-            weights = torch.rand((n_routed_experts,), dtype=torch.float32).contiguous()
-            input = torch.randn((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            output = torch.empty((1, hidden_size), dtype=torch.bfloat16).contiguous()
+            expert_ids = torch.randint(0, expert_num, (qlen, n_routed_experts), dtype=torch.int64).contiguous()
+            weights = torch.rand((qlen, n_routed_experts), dtype=torch.float32).contiguous()
+            input = torch.randn((qlen, hidden_size), dtype=torch.bfloat16).contiguous()
+            output = torch.empty((qlen, hidden_size), dtype=torch.bfloat16).contiguous()
             start = time.perf_counter()
-            CPUInfer.submit(moe.forward, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
+            CPUInfer.submit(moe.forward, qlen, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
             CPUInfer.sync()
             end = time.perf_counter()
             total_time += end - start
@@ -121,15 +122,15 @@ def bench_moe(quant_mode: str):
         print('Bandwidth: ', hidden_size * intermediate_size * 3 * n_routed_experts * bytes_per_elem * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
         print('')
 
-bench_moe("fp32")
-bench_moe("fp16")
-bench_moe("bf16")
-bench_moe("q8_0")
-bench_moe("q6_k")
-bench_moe("q5_k_m")
+# bench_moe("fp32")
+# bench_moe("fp16")
+# bench_moe("bf16")
+# bench_moe("q8_0")
+# bench_moe("q6_k")
+# bench_moe("q5_k_m")
 bench_moe("q4_k_m")
-bench_moe("q3_k_m")
-bench_moe("q2_k")
+# bench_moe("q3_k_m")
+# bench_moe("q2_k")
 # Not supported on __x86_64__
 # bench_linear("iq3_xs")
 # bench_linear("iq2_xxs")
