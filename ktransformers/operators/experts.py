@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from socket import NETLINK_ROUTE
 from typing import Any, Union
 import numpy as np
 import numpy.typing as npt
@@ -547,29 +546,37 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
     def forward(self, hidden_states):
         identity = hidden_states
         orig_shape = hidden_states.shape
+        sequence_length = orig_shape[1]
         topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         flat_topk_idx = topk_idx.view(-1)
+        
+        if sequence_length == 1:
+            self.experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
+            if self.config.n_shared_experts is not None:
+                y_ = self.shared_experts(identity)
+            y = self.experts.sync_for_one_decode().unsqueeze(0)
+            y += y_
+            y.resize_(*orig_shape)
+            return y
 
-        hidden_states_cpu = hidden_states.cpu()
-        topk_idx_cpu = topk_idx.cpu()
-        topk_weight_cpu = topk_weight.cpu()
         if self.config.n_shared_experts is not None:
             y_ = self.shared_experts(identity)
 
         if isinstance(self.experts, MLPExperts):
-            y = (
-                self.moe_on_cpuinfer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
-                .view(*orig_shape)
-                .to(device=hidden_states.device)
-            )
+            hidden_states_cpu = hidden_states.cpu()
+            topk_idx_cpu = topk_idx.cpu()
+            topk_weight_cpu = topk_weight.cpu()
+            y = self.moe_on_cpuinfer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
         elif hidden_states_cpu.size(0) > 10:
+            # TODO
             y = (
                 self.moe_infer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
         else:
+            # TODO
             y = (
                 self.moe_infer_simple(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
                 .view(*orig_shape)
