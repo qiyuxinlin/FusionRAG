@@ -1,0 +1,7 @@
+graft third_party
+graft ktransformers
+graft local_chat.py
+include LICENSE README.md
+prune ktransformers/website
+prune ktransformers/logs
+exclude __pycache__

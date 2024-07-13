@@ -35,9 +35,9 @@ classifiers = [
 ]
 
 [project.scripts]
-ktransformers = "ktransformers.server.main"
+ktransformers = "ktransformers.server.main:main"
 
 [tool.setuptools.packages.find]
-where = ["ktransformers"]
-include = ["server*"]
+where = ["./", ]
+include = ["ktransformers"]
 
