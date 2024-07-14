@@ -123,7 +123,8 @@ void MOE::forward_one(int k, const uint64_t* expert_ids, const float* weights, c
 }
 
 void MOE::forward(int qlen, int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend) {
-    if (qlen) {
+    int threshold = 10;
+    if (qlen < 10) {
         for (int i = 0; i < qlen; i++) {
             forward_one(k, expert_ids + i * k, weights + i * k, (input + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type)), output + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), backend);
         }
