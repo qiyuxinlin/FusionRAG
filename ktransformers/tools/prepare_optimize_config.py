@@ -17,9 +17,17 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     module_name = prefix[:-1]
     translated_name = translate_name_to_gguf(prefix)[:-1]
     recursive = True
+    if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "ktransformers.operators.linear",
+            "class_name": "KTransformerLinear",
+            "gpu_linear_type": "QuantizedLinearMarlin",
+            "cpu_linear_type": "QuantizedLinearTorch",
+            "device": "cuda"}
+        recursive = False
     # if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
     #     out_data[module_name]={"key": translated_name,
-    #         "module_name": "ktransformers.operators.linear",
+    #         "module_name": "operators.linear",
     #         "class_name": "KTransformerLinear",
     #         "gpu_linear_type": "QuantizedLinearMarlin",
     #         "cpu_linear_type": "QuantizedLinearTorch",
@@ -57,25 +65,27 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
         out_data[module_name]={"key": translated_name,
             "module_name": "ktransformers.operators.experts",
             "class_name": "Qwen2MoeSparseMoeBlockInjected",
-            "device_idx": device}
-    if isinstance(module, nn.ModuleList) and "expert" in module_name:
-        out_data[module_name]={"key": translated_name,
-            "module_name": "ktransformers.operators.experts",
-            "file_name": "experts",
-            "class_name": "MLPExperts",
-            # "class_name": "MLPExpertsMarlin",
-            # "class_name": "MLPExpertsTorch",
-            "device_idx": device}
-        recursive = False
+            "device_idx": "cuda:0"}
     # if isinstance(module, nn.ModuleList) and "expert" in module_name:
     #     out_data[module_name]={"key": translated_name,
     #         "module_name": "operators.experts",
     #         "file_name": "experts",
-    #         "class_name": "KTransformersMLPExpert",
-    #         "gpu_mlp_type": "MLPExpertsTorch",
-    #         "cpu_mlp_type": "MLPExperts",
-    #         "device_idx": device}
+    #         "class_name": "MLPExperts",
+    #         # "class_name": "MLPExpertsMarlin",
+    #         # "class_name": "MLPExpertsTorch",
+    #         "device_idx": "cuda:0"}
     #     recursive = False
+    if isinstance(module, nn.ModuleList) and "expert" in module_name:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "ktransformers.operators.experts",
+            "file_name": "experts",
+            "class_name": "KTransformersMLPExpert",
+            "gpu_mlp_type": "MLPExpertsTorch",
+            "cpu_mlp_type": "MLPCPUExperts",
+            # "cpu_mlp_type": "MLPExpertsTorch",
+            "device": "cpu",
+            "out_device": "cuda"}
+        recursive = False
     if "YarnRotaryEmbedding" in module.__class__.__name__:
         out_data[module_name]={"key": translated_name,
             "module_name": "ktransformers.operators.RoPE",

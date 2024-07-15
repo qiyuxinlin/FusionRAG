@@ -8,6 +8,7 @@ from typing import Sequence
 import os
 from enum import IntEnum
 import cupy as cp
+import cupy as cp
 
 # copied from llama.cpp/gguf-py/gguf/constants.py to avoid dependence of gguf
 class GGMLQuantizationType(IntEnum):
@@ -886,3 +887,8 @@ def translate_name_to_gguf(name):
     # name = name.replace("")
 
     return name
+
+if __name__ == '__main__':
+    gguf_path = '/mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH'
+    loader = GGUFLoader(gguf_path)
+    loader.load_gguf_tensor('token_embd.weight')
