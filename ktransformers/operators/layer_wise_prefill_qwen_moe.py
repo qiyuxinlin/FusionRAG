@@ -306,11 +306,11 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
             else:
                 t3 = time.time()
+                hidden_states = hidden_states.to("cuda")
+                position_ids = position_ids.to("cuda")
+                cache_position = cache_position.to("cuda")
                 if per_layer_prefill_flag:
-                    print(f"to gpu")
-                    hidden_states = hidden_states.to("cuda")
-                    position_ids = position_ids.to("cuda")
-                    cache_position = cache_position.to("cuda")
+                    # print(f"to gpu")
                     self.load_layer_to(decoder_layer, "cuda")
                     torch.cuda.empty_cache()
                 t4 = time.time()
@@ -326,7 +326,7 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
                 t5 = time.time()
                 if per_layer_prefill_flag:
-                    print(f"to cpu")
+                    # print(f"to cpu")
                     self.load_layer_to(decoder_layer, "cpu")
                     torch.cuda.empty_cache()
                 t6 = time.time()
@@ -348,9 +348,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
 
 
         t7 = time.time()
+        hidden_states = hidden_states.to("cpu")
         if per_layer_prefill_flag:
-            print(f"restore")
-            hidden_states = hidden_states.to("cpu")
+            # print(f"restore")
             per_layer_prefill_flag = False
             for layer in self.layers:
                 self.load_layer_to(layer, "restore")
