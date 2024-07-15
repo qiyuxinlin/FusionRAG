@@ -39,7 +39,7 @@ def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         print("default loading weights", key, translated_key)
         if translated_key in gguf_loader.tensor_file_map:
             target_dtype = torch.get_default_dtype()
-            device = "cpu" if "embed_tokens" in key or "lm_head" in key else "cuda"
+            device = "cuda"  # "cpu" if "embed_tokens" in key or "lm_head" in key else "cuda"
             weights = torch.tensor(gguf_loader.load_gguf_tensor(translated_key)).to(device=device).to(dtype=target_dtype)
             _set_param(module, name, weights)
             del weights

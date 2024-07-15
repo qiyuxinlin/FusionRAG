@@ -19,20 +19,20 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     recursive = True
     if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
         # exclude embed and lmhead:
-        if "embed" in module_name or "lm_head" in module_name:
-            out_data[module_name]={"key": translated_name,
-                "module_name": "ktransformers.operators.linear",
-                "class_name": "KTransformerLinear",
-                "gpu_linear_type": "QuantizedLinearMarlin",
-                "cpu_linear_type": "QuantizedLinearTorch",
-                "device": "cpu"}
-        else:
-            out_data[module_name]={"key": translated_name,
-                "module_name": "ktransformers.operators.linear",
-                "class_name": "KTransformerLinear",
-                "gpu_linear_type": "QuantizedLinearMarlin",
-                "cpu_linear_type": "QuantizedLinearTorch",
-                "device": "cuda"}
+        # if "embed" in module_name or "lm_head" in module_name:
+        #     out_data[module_name]={"key": translated_name,
+        #         "module_name": "ktransformers.operators.linear",
+        #         "class_name": "KTransformerLinear",
+        #         "gpu_linear_type": "QuantizedLinearMarlin",
+        #         "cpu_linear_type": "QuantizedLinearTorch",
+        #         "device": "cpu"}
+        # else:
+        out_data[module_name]={"key": translated_name,
+            "module_name": "ktransformers.operators.linear",
+            "class_name": "KTransformerLinear",
+            "gpu_linear_type": "QuantizedLinearMarlin",
+            "cpu_linear_type": "QuantizedLinearTorch",
+            "device": "cuda"}
         recursive = False
     if isinstance(module, DeepseekV2Attention):
         out_data[module_name]={"key": translated_name,

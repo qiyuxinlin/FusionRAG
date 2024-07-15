@@ -264,7 +264,11 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             )
 
         if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids)
+            if torch.cuda.is_current_stream_capturing():
+                pass
+            else:
+                # input_ids = input_ids.to("cpu")
+                inputs_embeds = self.embed_tokens(input_ids)
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -306,9 +310,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
             else:
                 t3 = time.time()
-                hidden_states = hidden_states.to("cuda")
-                position_ids = position_ids.to("cuda")
-                cache_position = cache_position.to("cuda")
+                # hidden_states = hidden_states.to("cuda")
+                # position_ids = position_ids.to("cuda")
+                # cache_position = cache_position.to("cuda")
                 if per_layer_prefill_flag:
                     # print(f"to gpu")
                     self.load_layer_to(decoder_layer, "cuda")
@@ -348,7 +352,7 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
 
 
         t7 = time.time()
-        hidden_states = hidden_states.to("cpu")
+        # hidden_states = hidden_states.to("cpu")
         if per_layer_prefill_flag:
             # print(f"restore")
             per_layer_prefill_flag = False
