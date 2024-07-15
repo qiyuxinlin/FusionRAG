@@ -20,8 +20,8 @@ user:
   algorithm: "HS256"
 
 model:
-  type: transformers
-  # type: ktransformers
+  # type: transformers
+  type: ktransformers
 
   # name: deepseek-coder-1.3b-base
   # path: /mnt/data/model/deepseek-coder-1.3b-base/
@@ -36,7 +36,7 @@ model:
   gguf_path: /mnt/data/models_qwen_gguf/qwen2-57b-a14b-instruct-q8_0
 
   # type: exllamav2 
-  name: Mistral-7B-Instruct-v0.2
+  # name: Mistral-7B-Instruct-v0.2
   # name: CodeLlama-7b-hf 
   # name: LLaMA-2-7B-32K
   # name: Mistral-7B-Instruct-v0.2
@@ -45,7 +45,7 @@ model:
   # name: Qwen1.5-7B-Chat 
 
   # path: /root/chenxl/models/Mistral-7B-Instruct-v0.2
-  path: /mnt/data/model/Mistral-7B-Instruct-v0.2
+  # path: /mnt/data/model/Mistral-7B-Instruct-v0.2
   # path: /models/CodeLlama-7b-hf 
   # path: /models/LLaMA-2-7B-32K
   # path: /mnt/data/model/Mistral-7B-Instruct-v0.2
