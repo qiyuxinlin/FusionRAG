@@ -64,7 +64,7 @@ class KTransformersInterface(TransformersInterface):
         
         if hasattr(self, "cuda_graph_runner"):
             logits = self.cuda_graph_runner(self.current_ids, self.active_cache_position.unsqueeze(0), self.active_cache_position)
-            self.past_key_values.change_seq_length(1)
+            self.cache.change_seq_length(1)
             torch.cuda.synchronize()
             logits = logits[0,-1,:]
             return self.logits_to_token(logits)
