@@ -31,6 +31,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
 from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTransformerLinear
+import time
 
 
 # from gguf.constants import GGMLQuantizationType
@@ -53,14 +54,14 @@ class MLPExpertsBase(ABC):
         pass
 
     @abstractmethod
-    def load(self, w: dict | nn.Parameter | tuple | None = None):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str = "cpu"):
         pass
     
     @abstractmethod
     def unload():
         pass
 
-    def load_weights(self, override_key: str | None = None):
+    def load_weights(self, override_key: str | None = None, device: str = "cpu"):
         res = {}
         if override_key is not None:
             keys = override_key
@@ -76,13 +77,23 @@ class MLPExpertsBase(ABC):
 
         for key in keys:
             if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
-                gate = self.gguf_loader.get_mmap_tensor(key + ".ffn_gate_exps.weight")
-                up = self.gguf_loader.get_mmap_tensor(key + ".ffn_up_exps.weight")
-                down = self.gguf_loader.get_mmap_tensor(key + ".ffn_down_exps.weight")
-                gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
-                up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
-                down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
-                # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])    
+                if device.lower() == "cpu":
+                    gate = self.gguf_loader.get_mmap_tensor(key + ".ffn_gate_exps.weight")
+                    up = self.gguf_loader.get_mmap_tensor(key + ".ffn_up_exps.weight")
+                    down = self.gguf_loader.get_mmap_tensor(key + ".ffn_down_exps.weight")
+                    gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
+                    up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
+                    down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
+                    # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])   
+                else:
+                    is_gpu = True
+                    gate = self.gguf_loader.load_gguf_tensor(key + ".ffn_gate_exps.weight", is_gpu=is_gpu)
+                    up = self.gguf_loader.load_gguf_tensor(key + ".ffn_up_exps.weight", is_gpu=is_gpu)
+                    down = self.gguf_loader.load_gguf_tensor(key + ".ffn_down_exps.weight", is_gpu=is_gpu)
+                    gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
+                    up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
+                    down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
+                    # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])
             res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
         return res
 
@@ -298,6 +309,9 @@ class MLPExpertsMarlin(MLPExpertsBase):
 class MLPExpertsTorch(MLPExpertsBase):
     expert_num: int
     loaded_experts_idx: list[int]
+    gate: torch.Tensor
+    up: torch.Tensor
+    down: torch.Tensor
     def __init__(
         self,
         key: str,
@@ -310,75 +324,62 @@ class MLPExpertsTorch(MLPExpertsBase):
     ):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
         self.expert_num = n_routed_experts
-        self.loaded_experts_idx = []
+        # self.loaded_experts_idx = []
         self.act_fn = ACT2FN[config.hidden_act]
         self.device = device
-        # create empty marlin experts according to the number of experts 
-        self.up_projs = [QuantizedLinearTorch(key+ "." + "ffn_up_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
-        self.gate_projs = [QuantizedLinearTorch(key+ "." + "ffn_gate_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
-        self.down_projs = [QuantizedLinearTorch(key+ "." + "ffn_down_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
+        self.gate = None
+        self.up = None
+        self.donw = None
+        self.dtype = torch.get_default_dtype()
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None):
         if device is None: device = self.device
-        if w is None: w = self.load_weights()[self.key]
+        t1 = time.time()
+        if w is None: w = self.load_weights(device=device)[self.key]
+        t2 = time.time()
 
         if isinstance(w, dict):
-            
-            self.gate = torch.from_numpy(w["gate"])
-            self.up = torch.from_numpy(w["up"])
-            self.down = torch.from_numpy(w["down"])
-            for i in range(self.expert_num):
-                self.up_projs[i].load(nn.Parameter(self.up[i,...]), device=device)
-                self.gate_projs[i].load(nn.Parameter(self.gate[i,...]), device=device)
-                self.down_projs[i].load(nn.Parameter(self.down[i,...]), device=device)
-                self.loaded_experts_idx.append(i)
-        return 
+            self.gate = torch.tensor(w["gate"], dtype=torch.float32).to(device).to(dtype=self.dtype)
+            self.up = torch.tensor(w["up"], dtype=torch.float32).to(device).to(dtype=self.dtype)
+            self.down = torch.tensor(w["down"], dtype=torch.float32).to(device).to(dtype=self.dtype)
+        t3 = time.time()
+        # print(f"Moe load weights time: {t2-t1}, to tensor time: {t3-t2}")
 
     def unload(self):
-        for i in self.loaded_experts_idx:
-            self.up_projs[i].unload()
-            self.gate_projs[i].unload()
-            self.down_projs[i].unload()
-        self.loaded_experts_idx = []
+        if self.gate is not None:
+            self.gate = None
+            self.up = None
+            self.down = None
 
-    def load_weights(self, override_key: str | None = None):
-        res = {}
-        if override_key is not None:
-            keys = override_key
-        else:
-            keys = [self.key]
+    def forward(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor) -> torch.Tensor:
+        
+        batch_sequence_length, hidden_dim = hidden_states_cpu.size()
 
-        gate = None
-        up = None
-        down = None
-        gate_type = None
-        up_type = None
-        down_type = None
+        final_hidden_states = torch.zeros(
+            (batch_sequence_length, hidden_dim), dtype=hidden_states_cpu.dtype, device=hidden_states_cpu.device
+        )
 
-        for key in keys:
-            if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
-                gate = self.gguf_loader.load_gguf_tensor(key + ".ffn_gate_exps.weight")
-                up = self.gguf_loader.load_gguf_tensor(key + ".ffn_up_exps.weight")
-                down = self.gguf_loader.load_gguf_tensor(key + ".ffn_down_exps.weight")
-                gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
-                up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
-                down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
-                # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])    
-            res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
-        return res
+        # One hot encode the selected experts to create an expert mask
+        # this will be used to easily index which expert is going to be sollicitated
+        expert_mask = torch.nn.functional.one_hot(selected_experts_cpu, num_classes=self.expert_num).permute(2, 1, 0)
 
-    def forward(self, input_tensor:torch.Tensor, expert_ids, weights):
-        # forward
-        device = input_tensor.device
-        input_tensor = input_tensor.to("cuda")
-        outs = torch.zeros_like(input_tensor)
-        for expert_idx in range(expert_ids.size(0)):
-            down_proj = self.down_projs[expert_idx]
-            gate_proj = self.gate_projs[expert_idx]
-            up_proj = self.up_projs[expert_idx]
-            outs += down_proj.forward(self.act_fn(gate_proj.forward(input_tensor)) * up_proj.forward(input_tensor)) * weights[expert_idx]
-        outs = outs.to(device)
-        return outs
+        # Loop over all available experts in the model and perform the computation on each expert
+        for expert_idx in range(self.expert_num):
+            idx, top_x = torch.where(expert_mask[expert_idx])
+            # Index the correct hidden states and compute the expert hidden state for
+            # the current expert. We need to make sure to multiply the output hidden
+            # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
+            current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim)
+            G = current_state @ self.gate[expert_idx,...].T
+            A = self.act_fn(G)
+            U = current_state @ self.up[expert_idx,...].T
+            H = A * U  # Element-wise multiplication
+            current_hidden_states = H @ self.down[expert_idx,...].T * routing_weights_cpu[top_x, idx, None]
+            # However `index_add_` only support torch tensors for indexing so we'll use
+            # the `top_x` tensor here.
+            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states_cpu.dtype))
+
+        return final_hidden_states
 
 GPU_EXPERTS_MAP={
     "MLPExpertsMarlin": MLPExpertsMarlin,
@@ -420,10 +421,10 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
         if device is None: device = self.device
         # load to device
         if self.current_device.lower() == "cpu":
-            print(f'loading {self.key} to {self.device} from class {self.cpu_mlp_type}')
+            # print(f'loading {self.key} to {self.device} from class {self.cpu_mlp_type}')
             self.cpu_experts.load()
         else:
-            print(f'loading {self.key} to {self.device} from class {self.gpu_mlp_type}')
+            # print(f'loading {self.key} to {self.device} from class {self.gpu_mlp_type}')
             self.gpu_experts.load()
         self.current_device = device
 
@@ -443,7 +444,7 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
             return self.gpu_experts.forward(input_tensor, expert_ids, weights)
         
     def load_to(self, target):
-        print(f"loading {self.key} to {target}")
+        # print(f"loading {self.key} to {target}")
         if isinstance(target, str) and target == "cpu":
             self.cpu_experts.load(device=target)
             if self.gpu_experts is not None:
@@ -520,11 +521,9 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
     @torch.no_grad()
     def moe_on_cpuinfer(self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor, need_sync: bool) -> torch.Tensor:
         outs = torch.empty_like(x)
-        for token_idx in range(topk_ids.size(0)):
-            outs[token_idx] = self.experts(x[token_idx], topk_ids[token_idx], topk_weight[token_idx])
-            if need_sync:
-                torch.cuda.synchronize()
-            #print("alive")
+        outs = self.experts(x, topk_ids, topk_weight)
+        if need_sync:
+            torch.cuda.synchronize()
         return outs
 
     @torch.no_grad()

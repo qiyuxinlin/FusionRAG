@@ -17,6 +17,14 @@ __cuda_arch = torch.cuda.get_device_capability()
 
 MARLIN_TILE = 16
 
+GPTQ_MARLIN_TILE = 16
+GPTQ_MARLIN_MIN_THREAD_N = 64
+GPTQ_MARLIN_MIN_THREAD_K = 128
+GPTQ_MARLIN_MAX_PARALLEL = 16
+
+GPTQ_MARLIN_SUPPORTED_NUM_BITS = [4, 8]
+GPTQ_MARLIN_SUPPORTED_GROUP_SIZES = [-1, 32, 64, 128]
+GPTQ_MARLIN_SUPPORTED_SYM = [True]
 
 def is_marlin_supported():
     return __cuda_arch[0] >= 8

@@ -18,12 +18,21 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     translated_name = translate_name_to_gguf(prefix)[:-1]
     recursive = True
     if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
-        out_data[module_name]={"key": translated_name,
-            "module_name": "ktransformers.operators.linear",
-            "class_name": "KTransformerLinear",
-            "gpu_linear_type": "QuantizedLinearMarlin",
-            "cpu_linear_type": "QuantizedLinearTorch",
-            "device": "cuda"}
+        # exclude embed and lmhead:
+        if "embed" in module_name or "lm_head" in module_name:
+            out_data[module_name]={"key": translated_name,
+                "module_name": "ktransformers.operators.linear",
+                "class_name": "KTransformerLinear",
+                "gpu_linear_type": "QuantizedLinearMarlin",
+                "cpu_linear_type": "QuantizedLinearTorch",
+                "device": "cpu"}
+        else:
+            out_data[module_name]={"key": translated_name,
+                "module_name": "ktransformers.operators.linear",
+                "class_name": "KTransformerLinear",
+                "gpu_linear_type": "QuantizedLinearMarlin",
+                "cpu_linear_type": "QuantizedLinearTorch",
+                "device": "cuda"}
         recursive = False
     # if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
     #     out_data[module_name]={"key": translated_name,
@@ -43,11 +52,11 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     #         "module_name": "operators.layer_wise_prefill_deepseek",
     #         "class_name": "DeepseekV2ModelPerLayerPrefill",
     #         "device_idx": device}
-    # if isinstance(module, Qwen2MoeModel):
-    #     out_data[module_name]={"key": translated_name,
-    #         "module_name": "ktransformers.operators.layer_wise_prefill_qwen_moe",
-    #         "class_name": "Qwen2MoeModelPerLayerPrefill",
-    #         "device_idx": device}
+    if isinstance(module, Qwen2MoeModel):
+        out_data[module_name]={"key": translated_name,
+            "module_name": "ktransformers.operators.layer_wise_prefill_qwen_moe",
+            "class_name": "Qwen2MoeModelPerLayerPrefill",
+            "device": device} # debug use 
     if isinstance(module, Qwen2MoeSparseMoeBlock):
         out_data[module_name]={"key": translated_name,
             "module_name": "ktransformers.operators.experts",

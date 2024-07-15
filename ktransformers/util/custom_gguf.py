@@ -8,7 +8,6 @@ from typing import Sequence
 import os
 from enum import IntEnum
 import cupy as cp
-import cupy as cp
 
 # copied from llama.cpp/gguf-py/gguf/constants.py to avoid dependence of gguf
 class GGMLQuantizationType(IntEnum):
@@ -259,7 +258,9 @@ class GGUFLoader:
         itemsize = int(np.empty([], dtype = item_type).itemsize)
         return mmap_data[offset : offset + itemsize * item_count]
     
-    def load_gguf_tensor(self, name, is_gpu=False):
+    def load_gguf_tensor(self, name: str, is_gpu: bool=False):
+        # TODO Suppport GPU dequant
+        is_gpu=False
         t = self.tensor_info[name]
         mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
         #with open(self.tensor_file_map[name], "rb") as f:
