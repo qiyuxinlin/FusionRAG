@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from socket import NETLINK_ROUTE
 from typing import Any, Union
 import numpy as np
 import numpy.typing as npt
@@ -39,7 +38,7 @@ from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinea
 
 cpu_infer = cpuinfer_ext.CPUInfer(60)
 
-# class MLPExpertsBase(BaseInjectedModule, ABC):
+# class Base(BaseInjectedModule, ABC):
 class MLPExpertsBase(ABC):
     def __init__(self, key: str, gguf_loader: GGUFLoader, config: PretrainedConfig, orig_module: nn.Module, device: str = "cuda", **kwargs):
         # super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
@@ -500,7 +499,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         if isinstance(self.experts, MLPExpertsBase):
             y = (
                 self.moe_on_cpuinfer(
-                    hidden_states_expert, selected_experts_expert, routing_weights_expert, sequence_length!=1
+                    hidden_states_expert, selected_experts_expert, routing_weights_expert, sequence_length != 1
                 )
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
@@ -577,31 +576,36 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
     def forward(self, hidden_states):
         identity = hidden_states
         orig_shape = hidden_states.shape
+        sequence_length = orig_shape[1]
         topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         flat_topk_idx = topk_idx.view(-1)
+        
+        if sequence_length == 1:
+            self.experts.cpu_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
+            if self.config.n_shared_experts is not None:
+                y_ = self.shared_experts(identity).squeeze(0)
+            y = self.experts.cpu_experts.sync_for_one_decode().unsqueeze(0)
+            y += y_
+            y.resize_(*orig_shape)
+            return y
 
-        hidden_states_cpu = hidden_states.cpu()
-        topk_idx_cpu = topk_idx.cpu()
-        topk_weight_cpu = topk_weight.cpu()
         if self.config.n_shared_experts is not None:
-            y_ = self.shared_experts(identity)
-
-        if isinstance(self.experts, MLPCPUExperts):
+            y_ = self.shared_experts(identity).squeeze(0)
+            
+        if isinstance(self.experts, MLPExpertsBase):
+            y = self.moe_on_cpuinfer(hidden_states, topk_idx, topk_weight)
+        elif hidden_states.size(0) > 10:
+            # TODO
             y = (
-                self.moe_on_cpuinfer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
-                .view(*orig_shape)
-                .to(device=hidden_states.device)
-            )
-        elif hidden_states_cpu.size(0) > 10:
-            y = (
-                self.moe_infer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
+                self.moe_infer(hidden_states, topk_idx, topk_weight)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
         else:
+            # TODO
             y = (
-                self.moe_infer_simple(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
+                self.moe_infer_simple(hidden_states, topk_idx, topk_weight)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
@@ -613,15 +617,8 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
     def moe_on_cpuinfer(
         self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
     ) -> torch.Tensor:
-        # print("x", x)
-        # print("topk_ids", topk_ids)
-        # print("topk_weight", topk_weight)
         outs = torch.empty_like(x)
         for token_idx in range(topk_ids.size(0)):
-            # print(token_idx)
-            # print(x[token_idx])
-            # print(topk_ids[token_idx])
-            # print(topk_weight[token_idx])
             outs[token_idx] = self.experts(
                 x[token_idx], topk_ids[token_idx], topk_weight[token_idx]
             )
