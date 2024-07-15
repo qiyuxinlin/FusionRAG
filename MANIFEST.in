@@ -4,4 +4,5 @@ graft local_chat.py
 include LICENSE README.md
 prune ktransformers/website
 prune ktransformers/logs
+graft ktransformers/website/dist
 exclude __pycache__

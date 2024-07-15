@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-13 11:58:24
+LastEditTime : 2024-07-13 12:48:29
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -28,9 +28,11 @@ import os
 import sys
 import re
 import subprocess
+from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-from pathlib import Path
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
@@ -44,8 +46,11 @@ class CMakeExtension(Extension):
         super().__init__(name, sources=[])
         # self.sourcedir = os.path.dirname(__file__)
         self.sourcedir = os.fspath(Path(sourcedir).resolve() / "ktransformers/ktransformers_ext")
-class CMakeBuild(build_ext):
-    def build_extension(self, ext: CMakeExtension) -> None:
+class CMakeBuild(BuildExtension):
+    def build_extension(self, ext) -> None:
+        if not isinstance(ext, CMakeExtension):
+            super().build_extension(ext)
+            return
         ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
         extdir = ext_fullpath.parent.resolve()
 
@@ -140,6 +145,10 @@ class CMakeBuild(build_ext):
 
 setup(
     ext_modules=[
+        CUDAExtension('qlib', [
+              'ktransformers/ktransformers_ext/custom_marlin/qlib.cpp',
+              'ktransformers/ktransformers_ext/custom_marlin/gptq_marlin/gptq_marlin.cu',
+      ]),
         CMakeExtension("cpuinfer_ext")],
     cmdclass={"build_ext": CMakeBuild}
 )

@@ -6,6 +6,8 @@ accelerate >= 0.31.0
 torch >= 2.3.0
 sentencepiece >= 0.1.97
 setuptools
+build
+cupy
 ninja
 wheel
 colorlog

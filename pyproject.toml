@@ -1,23 +1,26 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "torch"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ktransformers"
 version = "0.1.0"
 dependencies = [
+  "torch >= 2.3.0",
   "transformers >= 4.40.2",
   "fastapi >= 0.111.0",
   "langchain >= 0.2.0",
   "blessed >= 1.20.0",
   "accelerate >= 0.31.0",
-  "torch >= 2.3.0",
   "sentencepiece >= 0.1.97",
   "setuptools",
   "ninja",
   "wheel",
   "colorlog",
-  "build"
+  "build",
+  "cupy",
+  "flash-attn",
+  "fire"
 ]
 requires-python = ">=3.10"
 authors = [
