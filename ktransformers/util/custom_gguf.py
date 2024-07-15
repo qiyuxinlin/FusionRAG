@@ -258,7 +258,7 @@ class GGUFLoader:
         itemsize = int(np.empty([], dtype = item_type).itemsize)
         return mmap_data[offset : offset + itemsize * item_count]
     
-    def load_gguf_tensor(self, name, is_gpu=True):
+    def load_gguf_tensor(self, name, is_gpu=False):
         t = self.tensor_info[name]
         mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
         #with open(self.tensor_file_map[name], "rb") as f:

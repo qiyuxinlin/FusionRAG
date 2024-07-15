@@ -32,7 +32,11 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
             "device_idx": device}
         recursive = False
     if isinstance(module, DeepseekV2Attention):
-        out_data[module_name]="default"
+        out_data[module_name]={"key": translated_name,
+            "module_name": "ktransformers.operators.attention",
+            "class_name": "DeepseekV2AttentionInjected",
+            "device_idx": device}
+        gen_optimize_config(module.rotary_emb, out_data, prefix + "rotary_emb.")
         recursive = False
     if isinstance(module, DeepseekV2MoE):
         out_data[module_name]={"key": translated_name,

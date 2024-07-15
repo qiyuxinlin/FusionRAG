@@ -554,31 +554,28 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         if sequence_length == 1:
             self.experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
             if self.config.n_shared_experts is not None:
-                y_ = self.shared_experts(identity)
+                y_ = self.shared_experts(identity).squeeze(0)
             y = self.experts.sync_for_one_decode().unsqueeze(0)
             y += y_
             y.resize_(*orig_shape)
             return y
 
         if self.config.n_shared_experts is not None:
-            y_ = self.shared_experts(identity)
-
+            y_ = self.shared_experts(identity).squeeze(0)
+            
         if isinstance(self.experts, MLPExperts):
-            hidden_states_cpu = hidden_states.cpu()
-            topk_idx_cpu = topk_idx.cpu()
-            topk_weight_cpu = topk_weight.cpu()
-            y = self.moe_on_cpuinfer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
-        elif hidden_states_cpu.size(0) > 10:
+            y = self.moe_on_cpuinfer(hidden_states, topk_idx, topk_weight)
+        elif hidden_states.size(0) > 10:
             # TODO
             y = (
-                self.moe_infer(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
+                self.moe_infer(hidden_states, topk_idx, topk_weight)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
         else:
             # TODO
             y = (
-                self.moe_infer_simple(hidden_states_cpu, topk_idx_cpu, topk_weight_cpu)
+                self.moe_infer_simple(hidden_states, topk_idx, topk_weight)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
@@ -590,15 +587,8 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
     def moe_on_cpuinfer(
         self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
     ) -> torch.Tensor:
-        # print("x", x)
-        # print("topk_ids", topk_ids)
-        # print("topk_weight", topk_weight)
         outs = torch.empty_like(x)
         for token_idx in range(topk_ids.size(0)):
-            # print(token_idx)
-            # print(x[token_idx])
-            # print(topk_ids[token_idx])
-            # print(topk_weight[token_idx])
             outs[token_idx] = self.experts(
                 x[token_idx], topk_ids[token_idx], topk_weight[token_idx]
             )
