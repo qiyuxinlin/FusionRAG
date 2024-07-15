@@ -38,8 +38,7 @@ from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinea
 
 cpu_infer = cpuinfer_ext.CPUInfer(60)
 
-# class 
-Base(BaseInjectedModule, ABC):
+# class Base(BaseInjectedModule, ABC):
 class MLPExpertsBase(ABC):
     def __init__(self, key: str, gguf_loader: GGUFLoader, config: PretrainedConfig, orig_module: nn.Module, device: str = "cuda", **kwargs):
         # super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
@@ -583,10 +582,10 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         flat_topk_idx = topk_idx.view(-1)
         
         if sequence_length == 1:
-            self.experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
+            self.experts.cpu_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
             if self.config.n_shared_experts is not None:
                 y_ = self.shared_experts(identity).squeeze(0)
-            y = self.experts.sync_for_one_decode().unsqueeze(0)
+            y = self.experts.cpu_experts.sync_for_one_decode().unsqueeze(0)
             y += y_
             y.resize_(*orig_shape)
             return y
@@ -594,7 +593,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         if self.config.n_shared_experts is not None:
             y_ = self.shared_experts(identity).squeeze(0)
             
-        if isinstance(self.experts, MLPCPUExperts):
+        if isinstance(self.experts, MLPExpertsBase):
             y = self.moe_on_cpuinfer(hidden_states, topk_idx, topk_weight)
         elif hidden_states.size(0) > 10:
             # TODO

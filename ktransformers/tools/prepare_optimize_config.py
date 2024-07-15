@@ -25,20 +25,6 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
             "cpu_linear_type": "QuantizedLinearTorch",
             "device": "cuda"}
         recursive = False
-    # if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
-    #     out_data[module_name]={"key": translated_name,
-    #         "module_name": "operators.linear",
-    #         "class_name": "KTransformerLinear",
-    #         "gpu_linear_type": "QuantizedLinearMarlin",
-    #         "cpu_linear_type": "QuantizedLinearTorch",
-    #         "device": "cuda"}
-    #     recursive = False
-    if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
-        out_data[module_name]={"key": translated_name,
-            "module_name": "ktransformers.operators.linear",
-            "class_name": "QuantizedLinearMarlin",
-            "device_idx": device}
-        recursive = False
     if isinstance(module, DeepseekV2Attention):
         out_data[module_name]={"key": translated_name,
             "module_name": "ktransformers.operators.attention",
