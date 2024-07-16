@@ -796,16 +796,16 @@ GGML_DEQUANTIZE = {
     "Q6_K": dequantize_q6_k,
 }
 
-# GGML_DEQUANTIZE_GPU = {
-#     "F32": dequantize_f32,
-#     "F16": dequantize_f16,
-#     "Q8_0": dequantize_q8_0_gpu,
-#     "Q2_K": dequantize_q2_k_gpu,
-#     "Q3_K": dequantize_q3_k_gpu,
-#     "Q4_K": dequantize_q4_k_gpu,
-#     "Q5_K": dequantize_q5_k_gpu,
-#     "Q6_K": dequantize_q6_k_gpu,
-# }
+GGML_DEQUANTIZE_GPU = {
+    "F32": dequantize_f32,
+    "F16": dequantize_f16,
+    "Q8_0": dequantize_q8_0_gpu,
+    "Q2_K": dequantize_q2_k_gpu,
+    "Q3_K": dequantize_q3_k_gpu,
+    "Q4_K": dequantize_q4_k_gpu,
+    "Q5_K": dequantize_q5_k_gpu,
+    "Q6_K": dequantize_q6_k_gpu,
+}
 
 def translate_name_to_gguf(name):
     name = name.replace("lm_head.", "output.")

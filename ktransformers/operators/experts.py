@@ -340,11 +340,9 @@ class MLPExpertsTorch(MLPExpertsBase):
         t2 = time.time()
 
         if isinstance(w, dict):
-            self.gate = torch.tensor(w["gate"], dtype=torch.float32).to(device).to(dtype=self.dtype)
-            self.up = torch.tensor(w["up"], dtype=torch.float32).to(device).to(dtype=self.dtype)
-            self.down = torch.tensor(w["down"], dtype=torch.float32).to(device).to(dtype=self.dtype)
-        t3 = time.time()
-        # print(f"Moe load weights time: {t2-t1}, to tensor time: {t3-t2}")
+            self.gate = torch.tensor(w["gate"], dtype=self.dtype).to(device)
+            self.up = torch.tensor(w["up"], dtype=self.dtype).to(device)
+            self.down = torch.tensor(w["down"], dtype=self.dtype).to(device)
 
     def unload(self):
         if self.gate is not None:
