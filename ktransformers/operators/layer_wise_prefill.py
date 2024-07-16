@@ -361,6 +361,12 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 self.load_layer_to(layer, "restore")
             torch.cuda.empty_cache()
         t8 = time.time()
+        # print(f"{t2-t1} seconds for loading {len(self.layers)} layers to cpu")
+        # print(f"{t_to_gpu} seconds for loading {len(self.layers)} layers to cuda")
+        # print(f"{t_forward} seconds for forward {len(self.layers)} layers")
+        # print(f"{t_to_cpu} seconds for loading {len(self.layers)} layers to cpu")
+        # print(f"{t8-t7} seconds for restoring {len(self.layers)} layers to cuda")
+        # add hidden states from the last decoder n1ayer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
@@ -381,6 +387,90 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             attentions=all_self_attns,
             router_logits=all_router_logits,
         )
+
+
+    # def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
+    #     assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
+    #     assert isinstance(layer, Qwen2MoeDecoderLayer), "module should be nn.ModuleList of decoder layers"
+
+    #     # TODO Support restore to original device, not only cuda
+    #     device = "cpu" if target.lower() == "cpu" else "cuda" 
+    #     import time
+    #     # attn部分
+    #     start_time = time.time()
+    #     layer.self_attn.q_proj.load_to(target)
+    #     print("q_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #     start_time = time.time()
+    #     layer.self_attn.k_proj.load_to(target)
+    #     print("k_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #     start_time = time.time()
+    #     layer.self_attn.v_proj.load_to(target)
+    #     print("v_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #     start_time = time.time()
+    #     layer.self_attn.o_proj.load_to(target)
+    #     print("o_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #     start_time = time.time()
+    #     layer.self_attn.rotary_emb = layer.self_attn.rotary_emb.to(device)
+    #     print("rotary_emb moved in {:.6f} seconds".format(time.time() - start_time))
+
+    #     # MLP部分
+    #     if isinstance(layer.mlp, Qwen2MoeSparseMoeBlock):
+    #         start_time = time.time()
+    #         layer.mlp.gate.load_to(target)
+    #         print("mlp.gate loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.experts.load_to(target)
+    #         print("mlp.experts loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.shared_expert.gate_proj.load_to(target)
+    #         print("mlp.shared_expert.gate_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.shared_expert.up_proj.load_to(target)
+    #         print("mlp.shared_expert.up_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.shared_expert.down_proj.load_to(target)
+    #         print("mlp.shared_expert.down_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.shared_expert.act_fn.to(device)
+    #         print("mlp.shared_expert.act_fn moved in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.shared_expert_gate.to(device)
+    #         print("mlp.shared_expert_gate moved in {:.6f} seconds".format(time.time() - start_time))
+    #     else:
+    #         start_time = time.time()
+    #         layer.mlp.gate_proj.load_to(target)
+    #         print("mlp.gate_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.up_proj.load_to(target)
+    #         print("mlp.up_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.down_proj.load_to(target)
+    #         print("mlp.down_proj loaded in {:.6f} seconds".format(time.time() - start_time))
+
+    #         start_time = time.time()
+    #         layer.mlp.act_fn.to(device)
+    #         print("mlp.act_fn moved in {:.6f} seconds".format(time.time() - start_time))
+
+    #     # Layer Norm部分
+    #     start_time = time.time()
+    #     layer.input_layernorm.to(device)
+    #     print("input_layernorm moved in {:.6f} seconds".format(time.time() - start_time))
+
+    #     start_time = time.time()
+    #     layer.post_attention_layernorm.to(device)
+    #     print("post_attention_layernorm moved in {:.6f} seconds".format(time.time() - start_time))
 
     def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
         assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
