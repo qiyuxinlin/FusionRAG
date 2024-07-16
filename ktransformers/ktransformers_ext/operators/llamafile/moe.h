@@ -38,9 +38,13 @@ class MOE {
     MOE(MOEConfig);
     void warm_up(Backend* backend);
     void forward_one(int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
+    void forward_many(int qlen, int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
     void forward(int qlen, int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
 
-   public:
+   private:
+    static int group_min_len;
+    static int group_max_len;
+
     MOEConfig config_;
     void* gate_proj_;  // [expert_num * intermediate_size * hidden_size ( /32 if quantized)]
     void* up_proj_;    // [expert_num * intermediate_size * hidden_size ( /32 if quantized)]

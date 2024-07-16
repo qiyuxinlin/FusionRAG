@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from socket import NETLINK_ROUTE
+import time
 from typing import Any, Union
 import numpy as np
 import numpy.typing as npt
@@ -37,7 +38,7 @@ from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinea
 # from gguf.quants import quant_shape_to_byte_shape, GGML_QUANT_SIZES
 # from multiprocessing import cpu_count
 
-cpu_infer = cpuinfer_ext.CPUInfer(60)
+cpu_infer = cpuinfer_ext.CPUInfer(65)
 
 # class MLPExpertsBase(BaseInjectedModule, ABC):
 class MLPExpertsBase(ABC):
@@ -185,8 +186,11 @@ class MLPCPUExperts(MLPExpertsBase):
             expert_ids = expert_ids.contiguous().cpu()
             weights = weights.contiguous().to(torch.float32).cpu()
             output = torch.empty_like(input_tensor).contiguous()
+            start = time.perf_counter()
             self.cpu_infer.submit(self.moe.forward, expert_ids.size(0), expert_ids.size(1), expert_ids.data_ptr(), weights.data_ptr(), input_tensor.data_ptr(), output.data_ptr())
             self.cpu_infer.sync()
+            end = time.perf_counter()
+            print("MoE Time(s): ", end - start)
             return output.to(device=object.__getattribute__(self, "device"))
     
     def unload(self):
