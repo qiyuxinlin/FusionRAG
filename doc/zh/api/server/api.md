@@ -76,7 +76,6 @@ POST /api/generate
 
 
 - `prompt`：一个字符串，代表输入的 prompt。
-
 - `model`：选定的模型名
 - `stream`：取值 true 或者 false。表示是否使用流式返回。如果为 true，则以 http 的 event stream 的方式返回模型推理结果。
 
