@@ -130,6 +130,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         seq_length += 1
         temp_token = []
         #decode_one_tokens = torch.compile(decode_one_tokens)
+        torch.cuda.synchronize()
         cuda_graph_runner = CUDAGraphRunner()
         cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, return_dict=False, use_cache=True)
         print("finish capture")

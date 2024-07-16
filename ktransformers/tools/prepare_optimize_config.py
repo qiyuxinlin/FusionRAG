@@ -17,7 +17,10 @@ def gen_optimize_config(module:nn.Module, out_data:Mapping, prefix="", device='c
     module_name = prefix[:-1]
     translated_name = translate_name_to_gguf(prefix)[:-1]
     recursive = True
-    if isinstance(module, nn.Linear) and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
+    if isinstance(module, nn.Linear) \
+        and "lm_head" not in module_name \
+        and module.out_features%GPTQ_MARLIN_MIN_THREAD_N==0 \
+        and module.in_features%GPTQ_MARLIN_MIN_THREAD_N==0:
         # exclude embed and lmhead:
         # if "embed" in module_name or "lm_head" in module_name:
         #     out_data[module_name]={"key": translated_name,

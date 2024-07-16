@@ -56,7 +56,7 @@ def quantize_weights(w: torch.Tensor, num_bits: int, group_size: int,
 
     # Reshape to [groupsize, -1]
     if group_size < size_k:
-        w = w.reshape((-1, group_size, size_n))
+        w = w.view((-1, group_size, size_n))
         w = w.permute(1, 0, 2)
         w = w.reshape((group_size, -1))
 

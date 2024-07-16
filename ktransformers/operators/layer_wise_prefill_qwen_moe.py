@@ -267,8 +267,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             if torch.cuda.is_current_stream_capturing():
                 pass
             else:
+                pass
                 # input_ids = input_ids.to("cpu")
-                inputs_embeds = self.embed_tokens(input_ids)
+            inputs_embeds = self.embed_tokens(input_ids)
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
