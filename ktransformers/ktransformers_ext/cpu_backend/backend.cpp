@@ -83,7 +83,7 @@ void Backend::worker_thread(int thread_id) {
         } else if (status == ThreadStatus::STEALING) {
             auto now = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-            if (duration > 10) {
+            if (duration > 50) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         } else if (status == ThreadStatus::EXIT) {

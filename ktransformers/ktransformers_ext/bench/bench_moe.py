@@ -12,7 +12,7 @@ def bench_moe(quant_mode: str):
         stride = 16
         n_routed_experts = 6
         layer_num = 2
-        qlen = 1024
+        qlen = 2048
         CPUInfer = cpuinfer_ext.CPUInfer(64)
         warm_up_iter = 100
         test_iter = 500
