@@ -23,13 +23,6 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         self.orig_module.__init__(orig_module.config,
             orig_module.layer_idx)
 
-    def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
-        return (
-            tensor.view(bsz, seq_len, self.num_heads, self.v_head_dim)
-            .transpose(1, 2)
-            .contiguous()
-        )
-
     def get_absorbed(self) -> Tuple[torch.Tensor, torch.Tensor]:
         if not (hasattr(self, 'q_absorb') and hasattr(self, 'out_absorb')):
             kv_b_proj = self.kv_b_proj.weight.view(self.num_heads, -1, self.kv_lora_rank)
