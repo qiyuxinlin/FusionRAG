@@ -36,14 +36,11 @@ MOE::MOE(MOEConfig config) {
         m_gate_input_[i].resize(config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type));
         m_up_input_[i].resize(config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type));
     }
-    m_local_pos.resize(group_max_len);
+    m_local_pos_.resize(group_max_len);
     for (int i = 0; i < group_max_len; i++) {
-        m_local_pos[i].reserve(config_.expert_num);
+        m_local_pos_[i].reserve(config_.expert_num);
     }
-    m_local_tokens_.resize(config_.expert_num);
-    for (int i = 0; i < config_.expert_num; i++) {
-        m_local_tokens_[i].reserve(group_max_len);
-    }
+    m_local_num_.resize(config_.expert_num);
     m_local_gate_input_.resize(config_.expert_num);
     m_local_up_input_.resize(config_.expert_num);
     m_local_gate_output_.resize(config_.expert_num);
@@ -165,26 +162,42 @@ void MOE::forward_one(int k, const uint64_t* expert_ids, const float* weights, c
 }
 
 void MOE::forward_many(int qlen, int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend) {
-    std::vector<std::vector<int>> local_tokens(config_.expert_num);
-    std::vector<std::vector<int>> local_pos(qlen, std::vector<int>(k));
+    for (int i = 0; i < config_.expert_num; i++) {
+        m_local_num_[i] = 0;
+    }
     for (int i = 0; i < qlen; i++) {
         for (int j = 0; j < k; j++) {
-            local_pos[i][j] = local_tokens[expert_ids[j + i * k]].size();
-            local_tokens[expert_ids[j + i * k]].push_back(i);
+            m_local_pos_[i][j] = m_local_num_[expert_ids[i * k + j]]++;
         }
     }
     backend->do_work_stealing_job(qlen, [&](int i) {
-        to_float(input + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), m_input_fp32_[i].data(), config_.hidden_size, config_.hidden_type);
-        from_float(m_input_fp32_[i].data(), m_gate_input_[i].data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
-        from_float(m_input_fp32_[i].data(), m_up_input_[i].data(), config_.hidden_size, ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
-    });
-    backend->do_work_stealing_job(config_.expert_num, [&](int i) {
-        int local_num = local_tokens[i].size();
-        if (local_num > 0) {
-            for (int j = 0; j < local_num; j++) {
-                memcpy(m_local_gate_input_[i].data() + j * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type), m_gate_input_[local_tokens[i][j]].data(), config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type));
-                memcpy(m_local_up_input_[i].data() + j * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type), m_up_input_[local_tokens[i][j]].data(), config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type));
+        const void* gate_input_ptr;
+        const void* up_input_ptr;
+        if (config_.hidden_type == ggml_internal_get_type_traits(config_.gate_type).vec_dot_type && config_.hidden_type == ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
+            gate_input_ptr = up_input_ptr = input + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type);
+        } else {
+            to_float(input + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), m_input_fp32_[i].data(), config_.hidden_size, config_.hidden_type);
+            if (ggml_internal_get_type_traits(config_.gate_type).vec_dot_type == ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
+                from_float(m_input_fp32_[i].data(), m_gate_input_[i].data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
+                gate_input_ptr = up_input_ptr = m_gate_input_[i].data();
+            } else {
+                if (config_.hidden_type != ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) {
+                    from_float(m_input_fp32_[i].data(), m_gate_input_[i].data(), config_.hidden_size, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
+                    gate_input_ptr = m_gate_input_[i].data();
+                } else {
+                    gate_input_ptr = input + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type);
+                }
+                if (config_.hidden_type != ggml_internal_get_type_traits(config_.up_type).vec_dot_type) {
+                    from_float(m_input_fp32_[i].data(), m_up_input_[i].data(), config_.hidden_size, ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
+                    up_input_ptr = m_up_input_[i].data();
+                } else {
+                    up_input_ptr = input + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type);
+                }
             }
+        }
+        for (int j = 0; j < k; j++) {
+            memcpy(m_local_gate_input_[expert_ids[i * k + j]].data() + m_local_pos_[i][j] * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type), gate_input_ptr, config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type));
+            memcpy(m_local_up_input_[expert_ids[i * k + j]].data() + m_local_pos_[i][j] * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type), up_input_ptr, config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type));
         }
     });
     int stride = QK_K;
@@ -192,24 +205,21 @@ void MOE::forward_many(int qlen, int k, const uint64_t* expert_ids, const float*
     backend->do_work_stealing_job(nth * config_.expert_num, [&](int task_id) {
         int expert_idx = task_id / nth;
         int ith = task_id % nth;
-        int local_num = local_tokens[expert_idx].size();
-        if (local_num > 0) {
-            void* gate_input_ptr = m_local_gate_input_[expert_idx].data();
-            void* gate_proj_ptr = gate_proj_ + (expert_idx * config_.intermediate_size + ith * stride) * config_.hidden_size * ggml_type_size(config_.gate_type) / ggml_blck_size(config_.gate_type);
-            float* gate_output_ptr = m_local_gate_output_[expert_idx].data() + ith * stride;
-            llamafile_sgemm(stride, local_num, config_.hidden_size / ggml_blck_size(config_.gate_type), gate_proj_ptr, config_.hidden_size / ggml_blck_size(config_.gate_type), gate_input_ptr, config_.hidden_size / ggml_blck_size(config_.gate_type), gate_output_ptr, config_.intermediate_size, 0, 1, GGML_TASK_TYPE_COMPUTE, config_.gate_type, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
-            void* up_input_ptr = m_local_up_input_[expert_idx].data();
-            void* up_proj_ptr = up_proj_ + (expert_idx * config_.intermediate_size + ith * stride) * config_.hidden_size * ggml_type_size(config_.up_type) / ggml_blck_size(config_.up_type);
-            float* up_output_ptr = m_local_up_output_[expert_idx].data() + ith * stride;
-            llamafile_sgemm(stride, local_num, config_.hidden_size / ggml_blck_size(config_.up_type), up_proj_ptr, config_.hidden_size / ggml_blck_size(config_.up_type), up_input_ptr, config_.hidden_size / ggml_blck_size(config_.up_type), up_output_ptr, config_.intermediate_size, 0, 1, GGML_TASK_TYPE_COMPUTE, config_.up_type, ggml_internal_get_type_traits(config_.up_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
-            for (int i = 0; i < local_num; i++) {
-                for (int j = ith * stride; j < (ith + 1) * stride; j++) {
-                    m_local_intermediate_fp32_[expert_idx][i * config_.intermediate_size + j] = act_fn(m_local_gate_output_[expert_idx][i * config_.intermediate_size + j]) * m_local_up_output_[expert_idx][i * config_.intermediate_size + j];
-                }
-                float* intermediate_fp32_ptr = m_local_intermediate_fp32_[expert_idx].data() + i * config_.intermediate_size + ith * stride;
-                void* down_input_ptr = m_local_down_input_[expert_idx].data() + i * config_.intermediate_size * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) + ith * stride * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
-                from_float(intermediate_fp32_ptr, down_input_ptr, stride, ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
+        void* gate_input_ptr = m_local_gate_input_[expert_idx].data();
+        void* gate_proj_ptr = gate_proj_ + (expert_idx * config_.intermediate_size + ith * stride) * config_.hidden_size * ggml_type_size(config_.gate_type) / ggml_blck_size(config_.gate_type);
+        float* gate_output_ptr = m_local_gate_output_[expert_idx].data() + ith * stride;
+        llamafile_sgemm(stride, m_local_num_[expert_idx], config_.hidden_size / ggml_blck_size(config_.gate_type), gate_proj_ptr, config_.hidden_size / ggml_blck_size(config_.gate_type), gate_input_ptr, config_.hidden_size / ggml_blck_size(config_.gate_type), gate_output_ptr, config_.intermediate_size, 0, 1, GGML_TASK_TYPE_COMPUTE, config_.gate_type, ggml_internal_get_type_traits(config_.gate_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
+        void* up_input_ptr = m_local_up_input_[expert_idx].data();
+        void* up_proj_ptr = up_proj_ + (expert_idx * config_.intermediate_size + ith * stride) * config_.hidden_size * ggml_type_size(config_.up_type) / ggml_blck_size(config_.up_type);
+        float* up_output_ptr = m_local_up_output_[expert_idx].data() + ith * stride;
+        llamafile_sgemm(stride, m_local_num_[expert_idx], config_.hidden_size / ggml_blck_size(config_.up_type), up_proj_ptr, config_.hidden_size / ggml_blck_size(config_.up_type), up_input_ptr, config_.hidden_size / ggml_blck_size(config_.up_type), up_output_ptr, config_.intermediate_size, 0, 1, GGML_TASK_TYPE_COMPUTE, config_.up_type, ggml_internal_get_type_traits(config_.up_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
+        for (int i = 0; i < m_local_num_[expert_idx]; i++) {
+            for (int j = ith * stride; j < (ith + 1) * stride; j++) {
+                m_local_intermediate_fp32_[expert_idx][i * config_.intermediate_size + j] = act_fn(m_local_gate_output_[expert_idx][i * config_.intermediate_size + j]) * m_local_up_output_[expert_idx][i * config_.intermediate_size + j];
             }
+            float* intermediate_fp32_ptr = m_local_intermediate_fp32_[expert_idx].data() + i * config_.intermediate_size + ith * stride;
+            void* down_input_ptr = m_local_down_input_[expert_idx].data() + i * config_.intermediate_size * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) + ith * stride * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
+            from_float(intermediate_fp32_ptr, down_input_ptr, stride, ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
         }
     });
     stride = QK_K;
@@ -217,13 +227,10 @@ void MOE::forward_many(int qlen, int k, const uint64_t* expert_ids, const float*
     backend->do_work_stealing_job(nth * config_.expert_num, [&](int task_id) {
         int expert_idx = task_id / nth;
         int ith = task_id % nth;
-        int local_num = local_tokens[expert_idx].size();
-        if (local_num > 0) {
-            void* down_input_ptr = m_local_down_input_[expert_idx].data();
-            void* down_proj_ptr = down_proj_ + (expert_idx * config_.hidden_size + ith * stride) * config_.intermediate_size * ggml_type_size(config_.down_type) / ggml_blck_size(config_.down_type);
-            float* down_output_ptr = m_local_down_output_[expert_idx].data() + ith * stride;
-            llamafile_sgemm(stride, local_num, config_.intermediate_size / ggml_blck_size(config_.down_type), down_proj_ptr, config_.intermediate_size / ggml_blck_size(config_.down_type), down_input_ptr, config_.intermediate_size / ggml_blck_size(config_.down_type), down_output_ptr, config_.hidden_size, 0, 1, GGML_TASK_TYPE_COMPUTE, config_.down_type, ggml_internal_get_type_traits(config_.down_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
-        }
+        void* down_input_ptr = m_local_down_input_[expert_idx].data();
+        void* down_proj_ptr = down_proj_ + (expert_idx * config_.hidden_size + ith * stride) * config_.intermediate_size * ggml_type_size(config_.down_type) / ggml_blck_size(config_.down_type);
+        float* down_output_ptr = m_local_down_output_[expert_idx].data() + ith * stride;
+        llamafile_sgemm(stride, m_local_num_[expert_idx], config_.intermediate_size / ggml_blck_size(config_.down_type), down_proj_ptr, config_.intermediate_size / ggml_blck_size(config_.down_type), down_input_ptr, config_.intermediate_size / ggml_blck_size(config_.down_type), down_output_ptr, config_.hidden_size, 0, 1, GGML_TASK_TYPE_COMPUTE, config_.down_type, ggml_internal_get_type_traits(config_.down_type).vec_dot_type, GGML_TYPE_F32, GGML_PREC_DEFAULT);
     });
     backend->do_work_stealing_job(qlen, [&](int i) {
         for (int e = 0; e < config_.hidden_size; e++) {
@@ -231,7 +238,7 @@ void MOE::forward_many(int qlen, int k, const uint64_t* expert_ids, const float*
         }
         for (int j = 0; j < k; j++) {
             for (int e = 0; e < config_.hidden_size; e++) {
-                m_output_fp32_[i][e] += m_local_down_output_[expert_ids[j + i * k]][local_pos[i][j] * config_.hidden_size + e] * weights[j + i * k];
+                m_output_fp32_[i][e] += m_local_down_output_[expert_ids[i * k + j]][m_local_pos_[i][j] * config_.hidden_size + e] * weights[i * k + j];
             }
         }
         from_float(m_output_fp32_[i].data(), output + i * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), config_.hidden_size, config_.hidden_type);
