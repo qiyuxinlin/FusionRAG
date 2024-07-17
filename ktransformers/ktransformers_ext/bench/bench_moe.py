@@ -6,16 +6,16 @@ import torch
 
 def bench_moe(quant_mode: str):
     with torch.inference_mode(mode=True):
-        expert_num = 160
+        expert_num = 10
         hidden_size = 5120
         intermediate_size = 1536
         stride = 16
         n_routed_experts = 6
-        layer_num = 2
-        qlen = 2048
+        layer_num = 10
+        qlen = 1
         CPUInfer = cpuinfer_ext.CPUInfer(64)
-        warm_up_iter = 100
-        test_iter = 500
+        warm_up_iter = 1000
+        test_iter = 10000
 
         hidden_type = 30 # ggml_type::GGML_TYPE_BF16
         if quant_mode == "fp32":
@@ -127,15 +127,15 @@ def bench_moe(quant_mode: str):
         print('Bandwidth: ', hidden_size * intermediate_size * 3 * n_routed_experts * bytes_per_elem * test_iter / total_time / 1000 / 1000 / 1000, 'GB/s')
         print('')
 
-# bench_moe("fp32")
-# bench_moe("fp16")
-# bench_moe("bf16")
-# bench_moe("q8_0")
-# bench_moe("q6_k")
-# bench_moe("q5_k_m")
+bench_moe("fp32")
+bench_moe("fp16")
+bench_moe("bf16")
+bench_moe("q8_0")
+bench_moe("q6_k")
+bench_moe("q5_k_m")
 bench_moe("q4_k_m")
-# bench_moe("q3_k_m")
-# bench_moe("q2_k")
+bench_moe("q3_k_m")
+bench_moe("q2_k")
 # Not supported on __x86_64__
 # bench_linear("iq3_xs")
 # bench_linear("iq2_xxs")
