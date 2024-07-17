@@ -45,6 +45,7 @@ def optimize_via_injection(module:nn.Module, optimization_dict: Mapping[str, Any
         raise TypeError(f"Expected optimization_dict to be dict-like, got {type(optimization_dict)}.")
 
     gguf_loader=GGUFLoader(gguf_path)
-    inject(module, optimization_dict, model_config, gguf_loader)
+    with torch.device("meta"):
+        inject(module, optimization_dict, model_config, gguf_loader)
     load_weights(module, gguf_loader)
     del_meta(module)
