@@ -22,7 +22,7 @@ def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader
                     import_class_name = import_path[-1]
                     module_cls=getattr(__import__(import_module_name, fromlist=[""]), import_class_name)
                     print(f"Injecting {child_prefix} as", import_module_name, ".", import_class_name)
-                    inject_module=module_cls(key = inject_module_meta["key"], gguf_loader = gguf_loader, config = model_config, orig_module=child, **inject_module_meta["kwargs"])
+                    inject_module=module_cls(key = inject_module_meta["key"], gguf_loader = gguf_loader, config = model_config, orig_module=child, device = inject_module_meta["device"], **inject_module_meta["kwargs"])
                     set_module(module, name, inject_module)
                 elif isinstance(inject_module_meta, str):
                     assert inject_module_meta=="default", "for str inject_module_meta, only support \"default\"."
@@ -44,9 +44,9 @@ def del_meta(module:nn.Module):
         del_meta(child)
 
 def gen_optimize_config(module: nn.Module, out_data: Mapping, rule_list: List, prefix: str="", default_device: str = "cuda:0"):
-    #print("gen_optimize_config", prefix)
     module_name = prefix[:-1]
     translated_name = translate_name_to_gguf(prefix)[:-1]
+    #print("gen_optimize_config", prefix, module_name, translated_name)
     recursive = True
     for rule in rule_list:
         #print(rule)
@@ -59,18 +59,21 @@ def gen_optimize_config(module: nn.Module, out_data: Mapping, rule_list: List, p
             if not isinstance(module, module_cls):
                 continue
         if "name" in match_meta:
-            if re.search(match_meta["name"], prefix) is None:
+            if re.search(match_meta["name"], module_name) is None:
                 continue
         replace_meta = rule["replace"]
         out_data[module_name]={"key": translated_name,
                                "class": replace_meta["class"],
-                               "device": default_device,
+                               "device": replace_meta["device"] if "device" in replace_meta else default_device,
                                "kwargs": replace_meta["kwargs"] if "kwargs" in replace_meta else dict()}
         if "recursive" in rule:
             recursive = bool(rule["recursive"])
             
     if module_name not in out_data:
         out_data[module_name]="default"
+
+    #print(out_data[module_name])
+    #input()
 
     if recursive:
         for name, child in module._modules.items():

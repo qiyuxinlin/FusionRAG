@@ -396,7 +396,7 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
                  config: PretrainedConfig,
                  orig_module: nn.Module,
                  device: str = "cuda",
-                 prefill_device:str="cpu",
+                 prefill_device:str = "cpu",
                  gpu_mlp_type: str | None = None,
                  cpu_mlp_type: str | None = None,
                  **kwargs):
