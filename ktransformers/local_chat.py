@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import contextmanager
+import os
+import sys
+project_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, project_dir)
 import torch
 import logging
 from transformers import (
@@ -34,7 +37,13 @@ custom_models = {
     "Qwen2MoeForCausalLM": Qwen2MoeForCausalLM,
 }
 
-def main(
+ktransformer_rules_dir = os.path.dirname(os.path.abspath(__file__)) + "/optimize/optimize_rules/"
+default_optimize_rules ={
+    "DeepseekV2ForCausalLM": ktransformer_rules_dir + "DeepSeek-V2-Chat.yaml",
+    "Qwen2MoeForCausalLM": ktransformer_rules_dir + "Qwen2-57B-A14B-Instruct.yaml",
+}
+
+def local_chat(
     model_name: str,
     optimize_rule_path: str = None,
     gguf_path: str = None,
@@ -59,9 +68,13 @@ def main(
             )
 
     if optimize_rule_path is None:
-        optimize_rule_path = input(
-            "please input the path of your rule file(yaml file containing optimize rules):"
-        )
+        if config.architectures[0] in default_optimize_rules:
+            print("using default_optimize_rule for", config.architectures[0])
+            optimize_rule_path = default_optimize_rules[config.architectures[0]]
+        else:
+            optimize_rule_path = input(
+                "please input the path of your rule file(yaml file containing optimize rules):"
+            )
 
     if gguf_path is None:
         gguf_path = input(
@@ -92,4 +105,4 @@ def main(
             generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
         #print(generated.numel())
 
-fire.Fire(main)
+fire.Fire(local_chat)
