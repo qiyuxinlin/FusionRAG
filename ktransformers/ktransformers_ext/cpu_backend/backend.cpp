@@ -5,7 +5,7 @@ Backend::Backend(int thread_num) {
     thread_state_.resize(thread_num);
     for (int i = 0; i < thread_num; i++) {
         thread_state_[i].curr = std::make_unique<std::atomic<int>>();
-        thread_state_[i].status = std::make_unique<std::atomic<ThreadStatus>>(ThreadStatus::STEALING);
+        thread_state_[i].status = std::make_unique<std::atomic<ThreadStatus>>(ThreadStatus::WAITING);
     }
     workers_.resize(thread_num);
     for (int i = 1; i < thread_num; i++) {
@@ -15,7 +15,7 @@ Backend::Backend(int thread_num) {
 
 Backend::~Backend() {
     for (int i = 0; i < thread_num_; i++) {
-        thread_state_[i].status->store(ThreadStatus::EXIT, std::memory_order_relaxed);
+        thread_state_[i].status->store(ThreadStatus::EXIT, std::memory_order_seq_cst);
     }
     for (int i = 1; i < thread_num_; i++) {
         if (workers_[i].joinable()) {
@@ -32,55 +32,53 @@ void Backend::do_work_stealing_job(int task_num, std::function<void(int)> func) 
     func_ = func;
     int base = task_num / thread_num_;
     int remain = task_num % thread_num_;
-    thread_state_[0].curr->store(0, std::memory_order_relaxed);
     thread_state_[0].end = base + (0 < remain);
-    thread_state_[0].status->store(ThreadStatus::WORKING);
-
     for (int i = 1; i < thread_num_; i++) {
-        thread_state_[i].curr->store(thread_state_[i - 1].end, std::memory_order_relaxed);
-        thread_state_[i].end = thread_state_[i].curr->load(std::memory_order_relaxed) + base + (i < remain);
-        thread_state_[i].status->store(ThreadStatus::WORKING);
+        thread_state_[i].curr->store(thread_state_[i - 1].end, std::memory_order_seq_cst);
+        thread_state_[i].end = thread_state_[i - 1].end + base + (i < remain);
+        thread_state_[i].status->store(ThreadStatus::WORKING, std::memory_order_seq_cst);
     }
+    thread_state_[0].curr->store(0, std::memory_order_seq_cst);
+    thread_state_[0].status->store(ThreadStatus::WORKING, std::memory_order_seq_cst);
     process_tasks(0);
     for (int i = 1; i < thread_num_; i++) {
-        while (thread_state_[i].status->load(std::memory_order_relaxed) == ThreadStatus::WORKING) {
+        while (thread_state_[i].status->load(std::memory_order_seq_cst) == ThreadStatus::WORKING) {
         }
     }
 }
 
 void Backend::process_tasks(int thread_id) {
     while (true) {
-        int task_id = thread_state_[thread_id].curr->fetch_add(1, std::memory_order_relaxed);
+        int task_id = thread_state_[thread_id].curr->fetch_add(1, std::memory_order_seq_cst);
         if (task_id >= thread_state_[thread_id].end) {
             break;
         }
         func_(task_id);
     }
-    thread_state_[thread_id].status->store(ThreadStatus::STEALING);
     for (int t_offset = 1; t_offset < thread_num_; t_offset++) {
         int t_i = (thread_id + t_offset) % thread_num_;
-        ThreadStatus status = thread_state_[t_i].status->load(std::memory_order_relaxed);
-        if (status == ThreadStatus::STEALING) {
+        if (thread_state_[t_i].status->load(std::memory_order_seq_cst) != ThreadStatus::WORKING) {
             continue;
         }
         while (true) {
-            int task_id = thread_state_[thread_id].curr->fetch_add(1, std::memory_order_relaxed);
-            if (task_id >= thread_state_[thread_id].end) {
+            int task_id = thread_state_[t_i].curr->fetch_add(1, std::memory_order_seq_cst);
+            if (task_id >= thread_state_[t_i].end) {
                 break;
             }
             func_(task_id);
         }
     }
+    thread_state_[thread_id].status->store(ThreadStatus::WAITING, std::memory_order_seq_cst);
 }
 
 void Backend::worker_thread(int thread_id) {
     auto start = std::chrono::steady_clock::now();
     while (true) {
-        ThreadStatus status = thread_state_[thread_id].status->load(std::memory_order_relaxed);
+        ThreadStatus status = thread_state_[thread_id].status->load(std::memory_order_seq_cst);
         if (status == ThreadStatus::WORKING) {
             process_tasks(thread_id);
             start = std::chrono::steady_clock::now();
-        } else if (status == ThreadStatus::STEALING) {
+        } else if (status == ThreadStatus::WAITING) {
             auto now = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
             if (duration > 50) {

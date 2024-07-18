@@ -78,7 +78,7 @@ void MOE::warm_up(Backend* backend) {
         input_fp32[i] = 0;
     }
     from_float(input_fp32.data(), input.data(), config_.hidden_size, config_.hidden_type);
-    forward(1, k, expert_ids.data(), weights.data(), input.data(), output.data(), backend);
+    forward_one(k, expert_ids.data(), weights.data(), input.data(), output.data(), backend);
 }
 
 static float act_fn(float x) {
