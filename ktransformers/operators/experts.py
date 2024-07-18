@@ -26,17 +26,12 @@ import cpuinfer_ext
 from cpuinfer_ext.moe import MOEConfig, MOE
 import ctypes
 from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.server.config.config import Config
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
 from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTransformerLinear
 
-
-# from gguf.constants import GGMLQuantizationType
-# from gguf.quants import quant_shape_to_byte_shape, GGML_QUANT_SIZES
-# from multiprocessing import cpu_count
-
-cpu_infer = cpuinfer_ext.CPUInfer(60) # TODO: Auto generate thread_num, or set by user
 
 # class Base(BaseInjectedModule, ABC):
 class MLPExpertsBase(ABC):
@@ -145,7 +140,7 @@ class MLPCPUExperts(MLPExpertsBase):
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
         num_experts_per_tok = self.config.num_experts_per_tok
         self.moe = MOE(moe_config)
-        self.cpu_infer = cpu_infer
+        self.cpu_infer = cpuinfer_ext.CPUInfer(Config().cpu_infer)
         self.cpu_infer.submit(self.moe.warm_up)
         self.cpu_infer.sync()
         if MLPCPUExperts.output_gpu == None:

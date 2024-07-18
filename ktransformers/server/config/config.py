@@ -6,7 +6,7 @@ Author       : unicornchan
 Date         : 2024-06-11 16:35:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-09 07:02:09
+LastEditTime : 2024-07-18 12:45:44
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -104,3 +104,6 @@ class Config(metaclass=Singleton):
         self.web: dict = cfg.get("web", {})
         self.web_cross_domain: bool = self.web.get("open_cross_domain", True)
         self.mount_web: bool = self.web.get("mount", False)
+        
+        self.ext: dict = cfg.get("ext", {})
+        self.cpu_infer = self.ext.get("cpu_infer", 10)

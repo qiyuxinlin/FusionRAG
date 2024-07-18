@@ -116,6 +116,7 @@ def main():
     parser.add_argument("--device", type=str, default=cfg.model_device)
     parser.add_argument("--gguf_path", type=str, default=cfg.gguf_path)
     parser.add_argument("--optimize_config_path", type=str, required=False)
+    parser.add_argument("--cpu_infer", type=int, default=cfg.cpu_infer)
 
     # 初始化消息
     args = parser.parse_args()
@@ -125,6 +126,7 @@ def main():
     cfg.mount_web = args.web
     cfg.server_ip = args.host
     cfg.server_port = args.port
+    cfg.cpu_infer = args.cpu_infer
 
     default_args.model_dir = args.model_path
     default_args.device = args.device
