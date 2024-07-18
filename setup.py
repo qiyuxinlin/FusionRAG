@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-13 12:48:29
+LastEditTime : 2024-07-18 11:25:25
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -28,6 +28,8 @@ import os
 import sys
 import re
 import subprocess
+import pdb
+import glob
 from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
@@ -41,6 +43,12 @@ PLAT_TO_CMAKE = {
     "win-arm32": "ARM",
     "win-arm64": "ARM64",
 }
+
+class CopyExtension(Extension):
+    def __init__(self, name: str, sourcedir: str = "") -> None:
+        super().__init__(name, sources=[])
+        # self.sourcedir = os.path.dirname(__file__)
+        self.sourcedir = os.fspath(Path(sourcedir).resolve())
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = "") -> None:
         super().__init__(name, sources=[])
@@ -48,6 +56,10 @@ class CMakeExtension(Extension):
         self.sourcedir = os.fspath(Path(sourcedir).resolve() / "ktransformers/ktransformers_ext")
 class CMakeBuild(BuildExtension):
     def build_extension(self, ext) -> None:
+        if  isinstance(ext, CopyExtension):
+            ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
+            
+            return
         if not isinstance(ext, CMakeExtension):
             super().build_extension(ext)
             return
@@ -136,19 +148,30 @@ class CMakeBuild(BuildExtension):
         build_temp = Path(ext.sourcedir) / "build"
         if not build_temp.exists():
             build_temp.mkdir(parents=True)
+        pdb.set_trace()
         subprocess.run(
             ["cmake", ext.sourcedir, *cmake_args], cwd=build_temp, check=True
         )
         subprocess.run(
             ["cmake", "--build", ".", *build_args], cwd=build_temp, check=True
         )
+    
 
-setup(
-    ext_modules=[
-        CUDAExtension('qlib', [
-              'ktransformers/ktransformers_ext/custom_marlin/qlib.cpp',
-              'ktransformers/ktransformers_ext/custom_marlin/gptq_marlin/gptq_marlin.cu',
-      ]),
-        CMakeExtension("cpuinfer_ext")],
-    cmdclass={"build_ext": CMakeBuild}
-)
+
+qlib_files = glob.glob("qlib.*.so")
+if not qlib_files:
+    setup(
+        ext_modules=[
+            CUDAExtension('qlib', [
+                  'ktransformers/ktransformers_ext/custom_marlin/qlib.cpp',
+                  'ktransformers/ktransformers_ext/custom_marlin/gptq_marlin/gptq_marlin.cu',
+          ]),
+            CMakeExtension("cpuinfer_ext")],
+        cmdclass={"build_ext": CMakeBuild}
+    )
+else:
+    setup(
+        ext_modules=[
+            CMakeExtension("cpuinfer_ext")],
+        cmdclass={"build_ext": CMakeBuild},
+    )
