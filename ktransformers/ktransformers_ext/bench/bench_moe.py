@@ -12,6 +12,7 @@ def bench_moe(quant_mode: str):
         stride = 16
         n_routed_experts = 6
         layer_num = 10
+        qlen = 1
         CPUInfer = cpuinfer_ext.CPUInfer(64)
         warm_up_iter = 1000
         test_iter = 10000
@@ -90,30 +91,35 @@ def bench_moe(quant_mode: str):
             up_projs.append(up_proj)
             down_projs.append(down_proj)
             moes.append(moe)
+        expert_ids = torch.randint(0, expert_num, (layer_num, qlen, n_routed_experts), dtype=torch.int64, device = "cuda").to("cpu").contiguous()
+        weights = torch.rand((layer_num, qlen, n_routed_experts), dtype=torch.float32, device = "cuda").to("cpu").contiguous()
+        input = torch.randn((layer_num, qlen, hidden_size), dtype=torch.bfloat16, device = "cuda").to("cpu").contiguous()
+        output = torch.empty((layer_num, qlen, hidden_size), dtype=torch.bfloat16, device = "cuda").to("cpu").contiguous()
 
         # warm up
         for i in range(warm_up_iter):
-            moe = moes[i % layer_num]
-            expert_ids = torch.randint(0, expert_num, (n_routed_experts,), dtype=torch.int64).contiguous()
-            weights = torch.rand((n_routed_experts,), dtype=torch.float32).contiguous()
-            input = torch.randn((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            output = torch.empty((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            CPUInfer.submit(moe.forward, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
+            CPUInfer.submit(moes[i % layer_num].forward, 
+                            qlen, 
+                            n_routed_experts, 
+                            expert_ids[i % layer_num].data_ptr(), 
+                            weights[i % layer_num].data_ptr(),
+                            input[i % layer_num].data_ptr(), 
+                            output[i % layer_num].data_ptr())
             CPUInfer.sync()
 
         # test
-        total_time = 0
+        start = time.perf_counter()
         for i in range(test_iter):
-            moe = moes[i % layer_num]
-            expert_ids = torch.randint(0, expert_num, (n_routed_experts,), dtype=torch.int64).contiguous()
-            weights = torch.rand((n_routed_experts,), dtype=torch.float32).contiguous()
-            input = torch.randn((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            output = torch.empty((1, hidden_size), dtype=torch.bfloat16).contiguous()
-            start = time.perf_counter()
-            CPUInfer.submit(moe.forward, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
+            CPUInfer.submit(moes[i % layer_num].forward, 
+                            qlen, 
+                            n_routed_experts, 
+                            expert_ids[i % layer_num].data_ptr(), 
+                            weights[i % layer_num].data_ptr(),
+                            input[i % layer_num].data_ptr(), 
+                            output[i % layer_num].data_ptr())
             CPUInfer.sync()
-            end = time.perf_counter()
-            total_time += end - start
+        end = time.perf_counter()
+        total_time = end - start
         print('Quant mode: ', quant_mode)
         print('Time(s): ', total_time)
         print('Iteration: ', test_iter) 
