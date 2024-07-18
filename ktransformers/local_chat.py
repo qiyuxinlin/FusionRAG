@@ -105,4 +105,5 @@ def local_chat(
             generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
         #print(generated.numel())
 
-fire.Fire(local_chat)
+if __name__ == "__main__":
+    fire.Fire(local_chat)
