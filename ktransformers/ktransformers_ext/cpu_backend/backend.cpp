@@ -15,7 +15,7 @@ Backend::Backend(int thread_num) {
 
 Backend::~Backend() {
     for (int i = 0; i < thread_num_; i++) {
-        thread_state_[i].status->store(ThreadStatus::EXIT, std::memory_order_seq_cst);
+        thread_state_[i].status->store(ThreadStatus::EXIT, std::memory_order_release);
     }
     for (int i = 1; i < thread_num_; i++) {
         if (workers_[i].joinable()) {
@@ -34,22 +34,22 @@ void Backend::do_work_stealing_job(int task_num, std::function<void(int)> func) 
     int remain = task_num % thread_num_;
     thread_state_[0].end = base + (0 < remain);
     for (int i = 1; i < thread_num_; i++) {
-        thread_state_[i].curr->store(thread_state_[i - 1].end, std::memory_order_seq_cst);
+        thread_state_[i].curr->store(thread_state_[i - 1].end, std::memory_order_relaxed);
         thread_state_[i].end = thread_state_[i - 1].end + base + (i < remain);
-        thread_state_[i].status->store(ThreadStatus::WORKING, std::memory_order_seq_cst);
+        thread_state_[i].status->store(ThreadStatus::WORKING, std::memory_order_release);
     }
-    thread_state_[0].curr->store(0, std::memory_order_seq_cst);
-    thread_state_[0].status->store(ThreadStatus::WORKING, std::memory_order_seq_cst);
+    thread_state_[0].curr->store(0, std::memory_order_relaxed);
+    thread_state_[0].status->store(ThreadStatus::WORKING, std::memory_order_release);
     process_tasks(0);
     for (int i = 1; i < thread_num_; i++) {
-        while (thread_state_[i].status->load(std::memory_order_seq_cst) == ThreadStatus::WORKING) {
+        while (thread_state_[i].status->load(std::memory_order_acquire) == ThreadStatus::WORKING) {
         }
     }
 }
 
 void Backend::process_tasks(int thread_id) {
     while (true) {
-        int task_id = thread_state_[thread_id].curr->fetch_add(1, std::memory_order_seq_cst);
+        int task_id = thread_state_[thread_id].curr->fetch_add(1, std::memory_order_acq_rel);
         if (task_id >= thread_state_[thread_id].end) {
             break;
         }
@@ -57,24 +57,24 @@ void Backend::process_tasks(int thread_id) {
     }
     for (int t_offset = 1; t_offset < thread_num_; t_offset++) {
         int t_i = (thread_id + t_offset) % thread_num_;
-        if (thread_state_[t_i].status->load(std::memory_order_seq_cst) != ThreadStatus::WORKING) {
+        if (thread_state_[t_i].status->load(std::memory_order_acquire) != ThreadStatus::WORKING) {
             continue;
         }
         while (true) {
-            int task_id = thread_state_[t_i].curr->fetch_add(1, std::memory_order_seq_cst);
+            int task_id = thread_state_[t_i].curr->fetch_add(1, std::memory_order_acq_rel);
             if (task_id >= thread_state_[t_i].end) {
                 break;
             }
             func_(task_id);
         }
     }
-    thread_state_[thread_id].status->store(ThreadStatus::WAITING, std::memory_order_seq_cst);
+    thread_state_[thread_id].status->store(ThreadStatus::WAITING, std::memory_order_release);
 }
 
 void Backend::worker_thread(int thread_id) {
     auto start = std::chrono::steady_clock::now();
     while (true) {
-        ThreadStatus status = thread_state_[thread_id].status->load(std::memory_order_seq_cst);
+        ThreadStatus status = thread_state_[thread_id].status->load(std::memory_order_acquire);
         if (status == ThreadStatus::WORKING) {
             process_tasks(thread_id);
             start = std::chrono::steady_clock::now();
