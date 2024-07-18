@@ -84,14 +84,14 @@ class QuantizedLinearBase(ABC):
             if key + ".weight" in self.gguf_loader.tensor_file_map:
                 if key + ".bias" in self.gguf_loader.tensor_file_map:
                     tensors = self.load_multi(key, ["weight", "bias"], device=device)
-                    tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
-                    bias = torch.tensor(tensors["bias"], dtype=torch.float32)
+                    tensor = tensors["weight"]
+                    bias = tensors["bias"]
                     # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
                     # print(torch.isinf(tensor).any(), torch.isinf(bias).any())
                     return nn.Parameter(tensor), nn.Parameter(bias)
                 else:
                     tensors = self.load_multi(key, ["weight"], device=device)
-                    tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
+                    tensor = tensors["weight"]
                     # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
                     return nn.Parameter(tensor)
             else:
@@ -99,9 +99,8 @@ class QuantizedLinearBase(ABC):
 
     def load_multi(self, key: str, keys: list[str], device: str = "cpu"):
         tensors = {}
-        is_gpu = True if device.lower() != "cpu" else False
         for k in keys:
-            tensors[k] = self.gguf_loader.load_gguf_tensor(key + "." + k, is_gpu=is_gpu)
+            tensors[k] = self.gguf_loader.load_gguf_tensor(key + "." + k, device=device)
         return tensors
 
     @abstractmethod
@@ -303,16 +302,15 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
             return self.gpu_linear.forward(x)
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None):
-        if w is None: self.w = self.load_weight(device="cpu")
-        else: self.w = w
+
         if device is None: device = self.device
         # load to device
         if self.device == "cpu":
             # print(f'loading {self.key} to {self.device} from class {self.cpu_linear_type}')
-            self.cpu_linear.load(self.w, device=device)
+            self.cpu_linear.load(w, device=device)
         elif "cuda" in self.device.lower():
             # print(f'loading {self.key} to {self.device} from class {self.gpu_linear_type}')
-            self.gpu_linear.load(self.w, device=device)
+            self.gpu_linear.load(w, device=device)
         self.current_device = device
 
     def unload(self):
@@ -325,11 +323,11 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
     def load_to(self, target):
         # print(f"loading {self.key} to {target}")
         if isinstance(target, str) and target == "cpu":
-            self.cpu_linear.load(w=self.w, device="cpu")
+            self.cpu_linear.load(device="cpu")
             self.gpu_linear.unload()
             self.current_device = target
         elif isinstance(target, str) and "cuda" in target:
-            self.gpu_linear.load(w=self.w, device=target)
+            self.gpu_linear.load(device=target)
             self.cpu_linear.unload()
             self.current_device = target
         elif isinstance(target, str) and target == "restore":

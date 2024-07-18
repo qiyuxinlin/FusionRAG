@@ -76,6 +76,7 @@ class MLPExpertsBase(ABC):
 
         for key in keys:
             if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
+                keys = [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"]
                 if device.lower() == "cpu":
                     gate = self.gguf_loader.get_mmap_tensor(key + ".ffn_gate_exps.weight")
                     up = self.gguf_loader.get_mmap_tensor(key + ".ffn_up_exps.weight")
@@ -83,20 +84,24 @@ class MLPExpertsBase(ABC):
                     gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
                     up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
                     down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
-                    # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])   
                 else:
-                    is_gpu = True
-                    gate = self.gguf_loader.load_gguf_tensor(key + ".ffn_gate_exps.weight", is_gpu=is_gpu)
-                    up = self.gguf_loader.load_gguf_tensor(key + ".ffn_up_exps.weight", is_gpu=is_gpu)
-                    down = self.gguf_loader.load_gguf_tensor(key + ".ffn_down_exps.weight", is_gpu=is_gpu)
+                    tensors = self.load_multi(key, keys, device=device)
+                    gate = tensors[".ffn_gate_exps.weight"]
+                    up = tensors[".ffn_up_exps.weight"]
+                    down = tensors[".ffn_down_exps.weight"]
                     gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
                     up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
                     down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
-                    # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])
             else:
                 raise ValueError(f"Experts {key} not found in gguf_loader")
             res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
         return res
+    
+    def load_multi(self, key: str, keys: list[str], device: str = "cpu"):
+        tensors = {}
+        for k in keys:
+            tensors[k] = self.gguf_loader.load_gguf_tensor(key + k, device=device)
+        return tensors
 
 class MLPCPUExperts(MLPExpertsBase):
     input_tensor_cpu:Tensor = None
@@ -340,9 +345,9 @@ class MLPExpertsTorch(MLPExpertsBase):
         t2 = time.time()
 
         if isinstance(w, dict):
-            self.gate = torch.tensor(w["gate"], dtype=self.dtype).to(device)
-            self.up = torch.tensor(w["up"], dtype=self.dtype).to(device)
-            self.down = torch.tensor(w["down"], dtype=self.dtype).to(device)
+            self.gate = w["gate"]
+            self.up = w["up"]
+            self.down = w["down"]
 
     def unload(self):
         if self.gate is not None:
@@ -368,7 +373,7 @@ class MLPExpertsTorch(MLPExpertsBase):
             # Index the correct hidden states and compute the expert hidden state for
             # the current expert. We need to make sure to multiply the output hidden
             # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
-            current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim)
+            current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim).to(torch.float32)
             G = current_state @ self.gate[expert_idx,...].T
             A = self.act_fn(G)
             U = current_state @ self.up[expert_idx,...].T

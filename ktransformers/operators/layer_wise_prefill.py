@@ -214,22 +214,22 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 10000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 1, # if None, no per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
         import time
+        t1 = time.time()
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
             per_layer_prefill_flag = True
             # print("to cpu")
-            t1 = time.time()
             torch.cuda.empty_cache()
             for layer in self.layers:
                 self.load_layer_to(layer, "cpu")
-            t2 = time.time()
             torch.cuda.empty_cache()
         else:
             pass
+        t2 = time.time()
 
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_router_logits = (
@@ -361,11 +361,11 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 self.load_layer_to(layer, "restore")
             torch.cuda.empty_cache()
         t8 = time.time()
-        # print(f"{t2-t1} seconds for loading {len(self.layers)} layers to cpu")
-        # print(f"{t_to_gpu} seconds for loading {len(self.layers)} layers to cuda")
-        # print(f"{t_forward} seconds for forward {len(self.layers)} layers")
-        # print(f"{t_to_cpu} seconds for loading {len(self.layers)} layers to cpu")
-        # print(f"{t8-t7} seconds for restoring {len(self.layers)} layers to cuda")
+        print(f"{t2-t1} seconds for loading {len(self.layers)} layers to cpu")
+        print(f"{t_to_gpu} seconds for loading {len(self.layers)} layers to cuda")
+        print(f"{t_forward} seconds for forward {len(self.layers)} layers")
+        print(f"{t_to_cpu} seconds for loading {len(self.layers)} layers to cpu")
+        print(f"{t8-t7} seconds for restoring {len(self.layers)} layers to cuda")
         # add hidden states from the last decoder n1ayer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)

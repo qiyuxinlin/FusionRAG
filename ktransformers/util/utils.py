@@ -48,7 +48,7 @@ def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
             raise Exception(f"can't fand {translated_key} in GGUF file!")
         
 def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix='', return_when_injected:bool = False, only_load_injected:bool = False):
-    # print(f"recursively loading weights {prefix},{return_when_injected=}, {only_load_injected=}")
+    print(f"recursively loading weights {prefix},{return_when_injected=}, {only_load_injected=}")
     for name, child in module._modules.items():
         if child is not None:
             if isinstance(child, base_operator.BaseInjectedModule) and return_when_injected:
