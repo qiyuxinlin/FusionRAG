@@ -48,5 +48,7 @@ class BaseInjectedModule(nn.Module):
         return self.orig_module.forward(*args, **kwargs)
     
     def load(self):
-        utils.load_weight_default(self, self.gguf_loader, self.key)
-        utils.load_weights(self, self.gguf_loader, self.key+".", True, False)
+        for name, child in self._modules.items():
+            utils.load_weights(child, self.gguf_loader, self.key+".")
+        #utils.load_weight_default(self, self.gguf_loader, self.key)
+        #utils.load_weights(self, self.gguf_loader, self.key+".", True, False)

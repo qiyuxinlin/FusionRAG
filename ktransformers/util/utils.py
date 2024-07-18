@@ -8,7 +8,7 @@ from ktransformers.operators import base_operator
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 
-def _set_module(model, submodule_key, module):
+def set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')
     sub_tokens = tokens[:-1]
     cur_mod = model
@@ -22,14 +22,15 @@ def _set_module(model, submodule_key, module):
     else: # nn.ModuleList or nn.ModuleList
         cur_mod[int(tokens[-1])] = module
 
-def _set_param(module: nn.Module, name: str, weights: torch.Tensor):
+def set_param(module: nn.Module, name: str, weights: torch.Tensor):
     
     param=nn.parameter.Parameter(weights, requires_grad=False)
     if isinstance(module, nn.Linear) and len(weights.shape)==1:
         param.unsqueeze_(0)
     setattr(module, name, param)
 
-def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str = ""):
+def load_cur_state_dict(module: nn.Module, gguf_loader: GGUFLoader, prefix: str = ""):
+    prefix = prefix.replace("orig_module.", "")
     persistent_buffers = {k: v for k, v in module._buffers.items() if k not in module._non_persistent_buffers_set}
     local_name_params = itertools.chain(module._parameters.items(), persistent_buffers.items())
     local_state = {k: v for k, v in local_name_params if v is not None}
@@ -39,9 +40,8 @@ def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         print("default loading weights", key, translated_key)
         if translated_key in gguf_loader.tensor_file_map:
             target_dtype = torch.get_default_dtype()
-            device = "cuda"  # "cpu" if "embed_tokens" in key or "lm_head" in key else "cuda"
-            weights = torch.tensor(gguf_loader.load_gguf_tensor(translated_key)).to(device=device).to(dtype=target_dtype)
-            _set_param(module, name, weights)
+            weights = torch.tensor(gguf_loader.load_gguf_tensor(translated_key)).to(device="cuda").to(dtype=target_dtype)
+            set_param(module, name, weights)
             del weights
         else:
             #print(load_config.tensor_file_map.keys())
@@ -49,6 +49,14 @@ def load_weight_default(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         
 def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix='', return_when_injected:bool = False, only_load_injected:bool = False):
     # print(f"recursively loading weights {prefix},{return_when_injected=}, {only_load_injected=}")
+    if not isinstance(module, base_operator.BaseInjectedModule):
+        load_cur_state_dict(module, gguf_loader, prefix)
+        for name, child in module._modules.items():
+            load_weights(child, gguf_loader, prefix+name+".")
+    else:
+        module.load()
+    
+    """
     for name, child in module._modules.items():
         if child is not None:
             if isinstance(child, base_operator.BaseInjectedModule) and return_when_injected:
@@ -60,6 +68,7 @@ def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix='', return_whe
                 if not isinstance(module, base_operator.BaseInjectedModule) and not only_load_injected:
                     load_weight_default(child, gguf_loader, prefix+name+".")
                 load_weights(child, gguf_loader, prefix+name+"." if not isinstance(module, base_operator.BaseInjectedModule) else prefix, return_when_injected, only_load_injected)
+    """
                 
 def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
     import os
@@ -92,7 +101,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
 
     with torch.no_grad():
         past_key_values = StaticCache(
-            config=model.config, max_batch_size=1, max_cache_len=4096, device=torch_device, dtype=model.dtype
+            config = model.config, max_batch_size = 1, max_cache_len = seq_length + max_new_tokens, device = torch_device, dtype = model.dtype
         )
         cache_position = torch.arange(seq_length, device=torch_device)
         generated_ids = torch.zeros(

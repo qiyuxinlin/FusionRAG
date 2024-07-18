@@ -11,7 +11,7 @@
 
 enum ThreadStatus {
     WORKING,
-    STEALING,
+    WAITING,
     EXIT,
 };
 
