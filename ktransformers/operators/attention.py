@@ -23,13 +23,6 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         self.orig_module.__init__(orig_module.config,
             orig_module.layer_idx)
 
-    def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
-        return (
-            tensor.view(bsz, seq_len, self.num_heads, self.v_head_dim)
-            .transpose(1, 2)
-            .contiguous()
-        )
-
     def get_absorbed(self) -> Tuple[torch.Tensor, torch.Tensor]:
         if not (hasattr(self, 'q_absorb') and hasattr(self, 'out_absorb')):
             kv_b_proj = self.kv_b_proj.weight.view(self.num_heads, -1, self.kv_lora_rank)
@@ -46,7 +39,7 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         out_absorb = self.out_absorb.weight.view(self.num_heads, self.v_head_dim, self.kv_lora_rank)
         return q_absorb, out_absorb
 
-    def forward(
+    def forward_chunck(
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
@@ -55,12 +48,8 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         output_attentions: bool = False,
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
-        **kwargs,
+        **kwargs
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        if "padding_mask" in kwargs:
-            warnings.warn(
-                "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
-            )
         bsz, q_len, _ = hidden_states.size()
 
         q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
@@ -142,7 +131,56 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
 
         attn_output = self.o_proj(attn_output)
 
-        if not output_attentions:
-            attn_weights = None
+        return attn_output, None, past_key_value
 
-        return attn_output, attn_weights, past_key_value
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_value: Optional[Cache] = None,
+        output_attentions: bool = False,
+        use_cache: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
+        **kwargs,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        if "padding_mask" in kwargs:
+            warnings.warn(
+                "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
+            )
+        bsz, q_len, _ = hidden_states.size()
+        chunck_size = 256 # TODO, generate chunck_size automatically.
+        
+        if q_len <= chunck_size:
+            return self.forward_chunck(
+                            hidden_states,
+                            attention_mask,
+                            position_ids,
+                            past_key_value,
+                            output_attentions,
+                            use_cache,
+                            cache_position,
+                            **kwargs
+                        )
+
+        assert output_attentions == False, "output_attentions is not supported when using chunked attention"
+        attn_output = None
+        cur_idx = 0
+        while cur_idx < q_len:
+            cur_output, _, _ = self.forward_chunck(
+                            hidden_states[:, cur_idx:min(cur_idx + chunck_size, q_len), ...],
+                            attention_mask[:, :, cur_idx:min(cur_idx + chunck_size, q_len), ...],
+                            position_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
+                            past_key_value,
+                            output_attentions,
+                            use_cache,
+                            cache_position[cur_idx:min(cur_idx + chunck_size, q_len)],
+                            **kwargs
+                        )
+            cur_idx += chunck_size
+            if attn_output is None:
+                attn_output = cur_output
+            else:
+                attn_output = torch.cat((attn_output, cur_output), dim=-2)
+                
+        return attn_output, None, past_key_value

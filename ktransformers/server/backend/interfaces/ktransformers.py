@@ -1,21 +1,11 @@
-import json
 import torch
-from transformers import LlamaTokenizer,AutoTokenizer, AutoConfig, LlamaForCausalLM,GenerationConfig, Cache, AutoModelForCausalLM,BitsAndBytesConfig
-from typing import Any, Dict, List, Optional, Tuple, Union
-from transformers.configuration_utils import PretrainedConfig
-from .transformers import TransformersInterface,ConfigArgs, TransformersThreadContext,default_args,TextStreamer
+from transformers import AutoTokenizer, AutoConfig, GenerationConfig
+from ktransformers.server.backend.interfaces.transformers import TransformersInterface,ConfigArgs, TransformersThreadContext,default_args,TextStreamer
 from ktransformers.server.config.log import logger
-from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
-from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
-from ktransformers.optimize.optimize import optimize_via_injection
-from ktransformers.tools.prepare_optimize_config import gen_optimize_config
+from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
-
-custom_models={
-    "DeepseekV2ForCausalLM":DeepseekV2ForCausalLM,
-    "Qwen2MoeForCausalLM":Qwen2MoeForCausalLM
-    }
+from ktransformers.local_chat import custom_models, default_optimize_rules
 
 
 class KTransformersThreadContext(TransformersThreadContext):
@@ -35,9 +25,11 @@ class KTransformersInterface(TransformersInterface):
         with torch.device("meta"):
             self.model=custom_models[config.architectures[0]](config)
 
-        print("optimize_config_path is not set, generating it automatically.")
-        optimize_config = {}
-        gen_optimize_config(self.model, optimize_config, device=args.device)
+        if optimize_rule_path is None:
+            if config.architectures[0] in default_optimize_rules:
+                print("using default_optimize_rule for", config.architectures[0])
+                optimize_rule_path = default_optimize_rules[config.architectures[0]]
+                
         # print(optimize_config)
 
         gguf_path = args.gguf_path
@@ -45,7 +37,7 @@ class KTransformersInterface(TransformersInterface):
             gguf_path = input(
             "please input the path of your gguf file(gguf file in the dir containing input gguf file must all belong to current model):"
             )
-        optimize_via_injection(self.model, optimize_config, gguf_path, config)
+        optimize_and_load_gguf(self.model, optimize_rule_path, gguf_path, config)
 
         
     
