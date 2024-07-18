@@ -188,7 +188,6 @@ QWEN2MOE_INPUTS_DOCSTRING = r"""
 
 from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
-import time
 @add_start_docstrings(
     "The bare Qwen2MoE Model outputting raw hidden-states without any specific head on top.",
     QWEN2MOE_START_DOCSTRING,
@@ -218,11 +217,8 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
-        import time
-        t1 = time.time()
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
             per_layer_prefill_flag = True
-            # print("to cpu")
             torch.cuda.empty_cache()
             for layer in self.layers:
                 self.load_layer_to(layer, "cpu")
@@ -290,9 +286,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         all_self_attns = () if output_attentions else None
         all_router_logits = () if output_router_logits else None
         next_decoder_cache = None
-        t_to_gpu = 0
-        t_forward = 0
-        t_to_cpu = 0
         for decoder_layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -310,15 +303,10 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                     cache_position,
                 )
             else:
-                t3 = time.time()
-                # hidden_states = hidden_states.to("cuda")
-                # position_ids = position_ids.to("cuda")
-                # cache_position = cache_position.to("cuda")
                 if per_layer_prefill_flag:
                     # print(f"to gpu")
                     self.load_layer_to(decoder_layer, "cuda")
                     torch.cuda.empty_cache()
-                t4 = time.time()
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=causal_mask,
@@ -329,15 +317,11 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                     use_cache=use_cache,
                     cache_position=cache_position,
                 )
-                t5 = time.time()
                 if per_layer_prefill_flag:
                     # print(f"to cpu")
                     self.load_layer_to(decoder_layer, "cpu")
                     torch.cuda.empty_cache()
-                t6 = time.time()
-                t_forward += t5-t4
-                t_to_cpu += t6-t5
-                t_to_gpu += t4-t3
+
             hidden_states = layer_outputs[0]
 
             if use_cache:
@@ -352,7 +336,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         hidden_states = self.norm(hidden_states)
 
 
-        t7 = time.time()
         # hidden_states = hidden_states.to("cpu")
         if per_layer_prefill_flag:
             # print(f"restore")
@@ -360,13 +343,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             for layer in self.layers:
                 self.load_layer_to(layer, "restore")
             torch.cuda.empty_cache()
-        t8 = time.time()
-        print(f"{t2-t1} seconds for loading {len(self.layers)} layers to cpu")
-        print(f"{t_to_gpu} seconds for loading {len(self.layers)} layers to cuda")
-        print(f"{t_forward} seconds for forward {len(self.layers)} layers")
-        print(f"{t_to_cpu} seconds for loading {len(self.layers)} layers to cpu")
-        print(f"{t8-t7} seconds for restoring {len(self.layers)} layers to cuda")
-        # add hidden states from the last decoder n1ayer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
@@ -387,90 +363,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             attentions=all_self_attns,
             router_logits=all_router_logits,
         )
-
-
-    # def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
-    #     assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
-    #     assert isinstance(layer, Qwen2MoeDecoderLayer), "module should be nn.ModuleList of decoder layers"
-
-    #     # TODO Support restore to original device, not only cuda
-    #     device = "cpu" if target.lower() == "cpu" else "cuda" 
-    #     import time
-    #     # attn部分
-    #     start_time = time.time()
-    #     layer.self_attn.q_proj.load_to(target)
-    #     print("q_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.k_proj.load_to(target)
-    #     print("k_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.v_proj.load_to(target)
-    #     print("v_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.o_proj.load_to(target)
-    #     print("o_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.rotary_emb = layer.self_attn.rotary_emb.to(device)
-    #     print("rotary_emb moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #     # MLP部分
-    #     if isinstance(layer.mlp, Qwen2MoeSparseMoeBlock):
-    #         start_time = time.time()
-    #         layer.mlp.gate.load_to(target)
-    #         print("mlp.gate loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.experts.load_to(target)
-    #         print("mlp.experts loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.gate_proj.load_to(target)
-    #         print("mlp.shared_expert.gate_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.up_proj.load_to(target)
-    #         print("mlp.shared_expert.up_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.down_proj.load_to(target)
-    #         print("mlp.shared_expert.down_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.act_fn.to(device)
-    #         print("mlp.shared_expert.act_fn moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert_gate.to(device)
-    #         print("mlp.shared_expert_gate moved in {:.6f} seconds".format(time.time() - start_time))
-    #     else:
-    #         start_time = time.time()
-    #         layer.mlp.gate_proj.load_to(target)
-    #         print("mlp.gate_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.up_proj.load_to(target)
-    #         print("mlp.up_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.down_proj.load_to(target)
-    #         print("mlp.down_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.act_fn.to(device)
-    #         print("mlp.act_fn moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #     # Layer Norm部分
-    #     start_time = time.time()
-    #     layer.input_layernorm.to(device)
-    #     print("input_layernorm moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.post_attention_layernorm.to(device)
-    #     print("post_attention_layernorm moved in {:.6f} seconds".format(time.time() - start_time))
 
     def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
         assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"

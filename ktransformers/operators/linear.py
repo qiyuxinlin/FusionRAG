@@ -204,7 +204,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         elif isinstance(w, tuple):
             w = list(w)
             weight = w[0].T
-            self.bias = w[1].to(device)
+            self.bias = w[1]
             self.has_bias = True
         else:
             raise ValueError("Invalid weight type")
