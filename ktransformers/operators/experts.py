@@ -86,6 +86,7 @@ class MLPCPUExperts(MLPExpertsBase):
     weights_cpu:Tensor = None
     output_cpu:Tensor = None
     output_gpu:Tensor = None
+    CPU_INFER = cpuinfer_ext.CPUInfer(Config().cpu_infer)
     def __init__(
         self,
         key: str,
@@ -140,7 +141,7 @@ class MLPCPUExperts(MLPExpertsBase):
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
         num_experts_per_tok = self.config.num_experts_per_tok
         self.moe = MOE(moe_config)
-        self.cpu_infer = cpuinfer_ext.CPUInfer(Config().cpu_infer)
+        self.cpu_infer = MLPCPUExperts.CPU_INFER
         self.cpu_infer.submit(self.moe.warm_up)
         self.cpu_infer.sync()
         if MLPCPUExperts.output_gpu == None:
