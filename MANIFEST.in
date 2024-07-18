@@ -5,4 +5,4 @@ include LICENSE README.md
 prune ktransformers/website
 prune ktransformers/logs
 graft ktransformers/website/dist
-exclude __pycache__
+global-exclude __pycache__
