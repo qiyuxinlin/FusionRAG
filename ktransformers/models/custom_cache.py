@@ -1,7 +1,8 @@
 import torch
+import transformers
 from transformers import Cache, PretrainedConfig
 from typing import List, Optional, Dict, Any, Tuple
-class StaticCache(Cache):
+class StaticCache(transformers.StaticCache):
     """
     Static Cache class to be used with `torch.compile(model)`.
 
@@ -19,7 +20,7 @@ class StaticCache(Cache):
     """
 
     def __init__(self, config: PretrainedConfig, max_batch_size: int, max_cache_len: int, device, dtype=None) -> None:
-        super().__init__()
+        Cache.__init__(self)
         self.max_batch_size = max_batch_size
         self.max_cache_len = config.max_position_embeddings if max_cache_len is None else max_cache_len
         # Some model define a custom `head_dim` != config.hidden_size // config.num_attention_heads
@@ -35,17 +36,27 @@ class StaticCache(Cache):
         self.key_cache: List[torch.Tensor] = []
         self.value_cache: List[torch.Tensor] = []
         cache_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, self.head_dim)
-        for _ in range(config.num_hidden_layers):
+        if config.architectures[0] == "DeepseekV2ForCausalLM":
+            # key_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, config.qk_rope_head_dim + config.qk_nope_head_dim)
+            # value_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, config.v_head_dim)
+            key_shape = (max_batch_size, 1, self.max_cache_len, config.qk_rope_head_dim)
+            value_shape = (max_batch_size, 1, self.max_cache_len, config.kv_lora_rank)
+        else:
+            key_shape = cache_shape
+            value_shape = cache_shape
+
+        self.past_tokens = []
+        self.num_hidden_layers = config.num_hidden_layers
+        for _ in range(self.num_hidden_layers):
             # Note: `mark_static_address` is used to tag the cache as an fixed data pointer, preventing cuda graph
             # breaks when updating the cache.
-            new_layer_key_cache = torch.zeros(cache_shape, dtype=self.dtype, device=device)
-            new_layer_value_cache = torch.zeros(cache_shape, dtype=self.dtype, device=device)
+            new_layer_key_cache = torch.zeros(key_shape, dtype=self.dtype, device=device)
+            new_layer_value_cache = torch.zeros(value_shape, dtype=self.dtype, device=device)
             torch._dynamo.mark_static_address(new_layer_key_cache)
             torch._dynamo.mark_static_address(new_layer_value_cache)
             self.key_cache.append(new_layer_key_cache)
             self.value_cache.append(new_layer_value_cache)
-            
-        self.past_tokens = 0
+            self.past_tokens.append(0)
 
     def update(
         self,
@@ -75,10 +86,10 @@ class StaticCache(Cache):
         cache_position = cache_kwargs.get("cache_position")
         k_out = self.key_cache[layer_idx]
         v_out = self.value_cache[layer_idx]
-
+        #print(cache_position)
         k_out[:, :, cache_position] = key_states
         v_out[:, :, cache_position] = value_states
-        self.past_tokens += cache_position.size(0)
+        self.past_tokens[layer_idx] += cache_position.size(0)
         return k_out, v_out
 
     def get_seq_length(self, layer_idx: Optional[int] = 0) -> int:
@@ -86,7 +97,15 @@ class StaticCache(Cache):
         # Occupied cache == any slot in the 3rd dim (sequence length) holds a non-zero value. To save on compute, let's
         # limit the check to the first batch member and head dimension.
         # TODO: deprecate this function in favor of `cache_position`
-        return self.past_tokens
+        return self.past_tokens[layer_idx]
+    
+    def change_seq_length(self, bias: Optional[int] = 0) -> int:
+        """Returns the sequence length of the cached states that were seen by the model."""
+        # Occupied cache == any slot in the 3rd dim (sequence length) holds a non-zero value. To save on compute, let's
+        # limit the check to the first batch member and head dimension.
+        # TODO: deprecate this function in favor of `cache_position`
+        for layer_idx in range(self.num_hidden_layers):
+            self.past_tokens[layer_idx] += bias
 
     def get_max_length(self) -> Optional[int]:
         """Returns the maximum sequence length of the cached states."""

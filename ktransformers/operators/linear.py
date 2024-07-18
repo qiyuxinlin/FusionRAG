@@ -47,7 +47,7 @@ GPTQ_MARLIN_SUPPORTED_GROUP_SIZES = [-1, 32, 64, 128]
 GPTQ_MARLIN_SUPPORTED_SYM = [True]
 
 
-# class QuantizedLinearBase(BaseInjectedModule, ABC):
+#class QuantizedLinearBase(BaseInjectedModule, ABC):
 class QuantizedLinearBase(ABC):
     def __init__(
         self,
