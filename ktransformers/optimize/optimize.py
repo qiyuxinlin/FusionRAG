@@ -1,13 +1,14 @@
-from typing import Any, Mapping
+from typing import Mapping, List
 import torch
+import yaml
+import re
 from torch import nn
 from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 # from operators import BaseInjectedModule
-from ktransformers.util.custom_gguf import GGUFLoader
-from ktransformers.util.utils import _set_module, _set_param, load_weights
+from ktransformers.util.custom_gguf import GGUFLoader, translate_name_to_gguf
+from ktransformers.util.utils import set_module, load_weights
 import itertools
-from ktransformers import operators
 
 def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader:GGUFLoader, prefix=''):
     for name, child in module._modules.items():
@@ -16,10 +17,13 @@ def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader
             if child_prefix in local_optimization_dict:
                 inject_module_meta=local_optimization_dict[child_prefix]
                 if isinstance(inject_module_meta, Mapping):
-                    module_cls=getattr(__import__(inject_module_meta["module_name"], fromlist=[""]), inject_module_meta["class_name"])
-                    print(f"Injecting {child_prefix} as", inject_module_meta["module_name"], ".", inject_module_meta["class_name"])
-                    inject_module=module_cls(gguf_loader=gguf_loader, config=model_config, orig_module=child, **inject_module_meta)
-                    _set_module(module, name, inject_module)
+                    import_path = inject_module_meta["class"].split(".")
+                    import_module_name = ".".join(import_path[:-1])
+                    import_class_name = import_path[-1]
+                    module_cls=getattr(__import__(import_module_name, fromlist=[""]), import_class_name)
+                    print(f"Injecting {child_prefix} as", import_module_name, ".", import_class_name)
+                    inject_module=module_cls(key = inject_module_meta["key"], gguf_loader = gguf_loader, config = model_config, orig_module=child, **inject_module_meta["kwargs"])
+                    set_module(module, name, inject_module)
                 elif isinstance(inject_module_meta, str):
                     assert inject_module_meta=="default", "for str inject_module_meta, only support \"default\"."
                 else:
@@ -39,13 +43,51 @@ def del_meta(module:nn.Module):
     for name, child in module._modules.items():
         del_meta(child)
 
-def optimize_via_injection(module:nn.Module, optimization_dict: Mapping[str, Any], gguf_path: str, model_config: PretrainedConfig) -> None:
-    
-    if not isinstance(optimization_dict, Mapping):
-        raise TypeError(f"Expected optimization_dict to be dict-like, got {type(optimization_dict)}.")
+def gen_optimize_config(module: nn.Module, out_data: Mapping, rule_list: List, prefix: str="", default_device: str = "cuda:0"):
+    #print("gen_optimize_config", prefix)
+    module_name = prefix[:-1]
+    translated_name = translate_name_to_gguf(prefix)[:-1]
+    recursive = True
+    for rule in rule_list:
+        #print(rule)
+        match_meta = rule["match"]
+        if "class" in match_meta:
+            import_path = match_meta["class"].split(".")
+            import_module_name = ".".join(import_path[:-1])
+            import_class_name = import_path[-1]
+            module_cls=getattr(__import__(import_module_name, fromlist=[""]), import_class_name)
+            if not isinstance(module, module_cls):
+                continue
+        if "name" in match_meta:
+            if re.search(match_meta["name"], prefix) is None:
+                continue
+        replace_meta = rule["replace"]
+        out_data[module_name]={"key": translated_name,
+                               "class": replace_meta["class"],
+                               "device": default_device,
+                               "kwargs": replace_meta["kwargs"] if "kwargs" in replace_meta else dict()}
+        if "recursive" in rule:
+            recursive = bool(rule["recursive"])
+            
+    if module_name not in out_data:
+        out_data[module_name]="default"
 
+    if recursive:
+        for name, child in module._modules.items():
+            if child is not None:
+                child_prefix = prefix + name + "."
+                gen_optimize_config(child, out_data, rule_list, child_prefix)
+    
+
+def optimize_and_load_gguf(module: nn.Module, rule_file: str, gguf_path: str, model_config: PretrainedConfig, default_device: str = "cuda:0"):
+    with open(rule_file, 'r', encoding='utf-8') as f:
+        rule_list = yaml.load(f.read(), Loader=yaml.FullLoader)
+    
+    optimize_config = dict()
+    gen_optimize_config(module, optimize_config, rule_list, default_device = default_device)
+    
     gguf_loader=GGUFLoader(gguf_path)
     with torch.device("meta"):
-        inject(module, optimization_dict, model_config, gguf_loader)
+        inject(module, optimize_config, model_config, gguf_loader)
     load_weights(module, gguf_loader)
     del_meta(module)

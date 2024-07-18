@@ -8,7 +8,7 @@ from ktransformers.operators import base_operator
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 
-def _set_module(model, submodule_key, module):
+def set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')
     sub_tokens = tokens[:-1]
     cur_mod = model
@@ -22,7 +22,7 @@ def _set_module(model, submodule_key, module):
     else: # nn.ModuleList or nn.ModuleList
         cur_mod[int(tokens[-1])] = module
 
-def _set_param(module: nn.Module, name: str, weights: torch.Tensor):
+def set_param(module: nn.Module, name: str, weights: torch.Tensor):
     
     param=nn.parameter.Parameter(weights, requires_grad=False)
     if isinstance(module, nn.Linear) and len(weights.shape)==1:
@@ -41,7 +41,7 @@ def load_cur_state_dict(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         if translated_key in gguf_loader.tensor_file_map:
             target_dtype = torch.get_default_dtype()
             weights = torch.tensor(gguf_loader.load_gguf_tensor(translated_key)).to(device="cuda").to(dtype=target_dtype)
-            _set_param(module, name, weights)
+            set_param(module, name, weights)
             del weights
         else:
             #print(load_config.tensor_file_map.keys())
