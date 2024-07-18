@@ -34,7 +34,6 @@ from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.quant_utils im
 )
 from ktransformers.operators.base_operator import BaseInjectedModule
 from transformers.configuration_utils import PretrainedConfig
-from ktransformers.util.utils import _set_param
 from abc import ABC, abstractmethod
 
 GPTQ_MARLIN_TILE = 16
@@ -67,8 +66,15 @@ class QuantizedLinearBase(ABC):
 
         self.has_bias = False
         self.dtype = torch.get_default_dtype()
-        self.in_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][0]
-        self.out_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][1]
+        if orig_module is not None:
+            self.in_features = orig_module.in_features
+            self.out_features = orig_module.out_features
+        else:
+            shape = self.gguf_loader.tensor_info[key + ".weight"]["shape"]
+            if len(shape) == 1:
+                print("orig_module is not set, but has in_features or out_features equals to 1, can't get in_features and out_features from GGUF")
+            self.in_features  = self.gguf_loader.tensor_info[key + ".weight"]["shape"][0]
+            self.out_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][1]
 
     @abstractmethod
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -144,13 +150,15 @@ class QuantizedLinearTorch(QuantizedLinearBase):
             self.linear = nn.Linear(
                 self.in_features, self.out_features, bias=False, dtype=self.dtype
             )
-            self.linear.weight.data = w.to(dtype=self.dtype)
+            # view loaded weight to correct shape to avoid GGUF squeeze dim
+            self.linear.weight.data = w.view(self.out_features, self.in_features).to(dtype=self.dtype)
             self.has_bias = False
         elif isinstance(w, tuple):
             self.linear = nn.Linear(
                 self.in_features, self.out_features, bias=True, dtype=self.dtype
             )
-            self.linear.weight.data = w[0].to(dtype=self.dtype)
+            # view loaded weight to correct shape to avoid GGUF squeeze dim
+            self.linear.weight.data = w[0].view(self.out_features, self.in_features).to(dtype=self.dtype)
             self.linear.bias.data = w[1].to(dtype=self.dtype)
             self.has_bias = True
         else:
@@ -195,7 +203,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         elif isinstance(w, tuple):
             w = list(w)
             weight = w[0].T
-            _set_param(self, "bias", w[1].to(device))
+            self.bias = w[1].to(device)
             self.has_bias = True
         else:
             raise ValueError("Invalid weight type")
@@ -212,10 +220,6 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         self.g_idx = g_idx.to(device)
         self.sort_indices = sort_indices.to(device)
 
-        # _set_param(self, "marlin_q_w", marlin_q_w.to(device))
-        # _set_param(self, "marlin_s", marlin_s.to(device))
-        # _set_param(self, "g_idx", g_idx.to(device))
-        # _set_param(self, "sort_indices", sort_indices.to(device))
         self.k = weight.shape[0]
         self.n = weight.shape[1]
 
@@ -278,6 +282,8 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
     ):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
         QuantizedLinearBase.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        self.gpu_linear_type = gpu_linear_type
+        self.cpu_linear_type = cpu_linear_type
         # build all the linear operators
         if cpu_linear_type is not None:
             assert cpu_linear_type in CPU_LINEAR_MAP, f"cpu_linear_type {cpu_linear_type} not supported"
@@ -286,11 +292,15 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
             self.cpu_linear = None
         if gpu_linear_type is not None:
             assert gpu_linear_type in GPU_LINEAR_MAP, f"gpu_linear_type {gpu_linear_type} not supported"
-            self.gpu_linear = GPU_LINEAR_MAP[gpu_linear_type](key, gguf_loader, config, orig_module, "cuda", **kwargs)
+            if gpu_linear_type == "QuantizedLinearMarlin" and (orig_module.in_features%GPTQ_MARLIN_MIN_THREAD_N!=0 or orig_module.out_features%GPTQ_MARLIN_MIN_THREAD_N!=0):
+                print(f"This linear module's in_features or out_features is not divisible by GPTQ_MARLIN_MIN_THREAD_N({GPTQ_MARLIN_MIN_THREAD_N}), using QuantizedLinearTorch instead.")
+                print(orig_module)
+                self.gpu_linear_type = "QuantizedLinearTorch"
+                self.gpu_linear = QuantizedLinearTorch(key, gguf_loader, config, orig_module, "cuda", **kwargs)
+            else:
+                self.gpu_linear = GPU_LINEAR_MAP[gpu_linear_type](key, gguf_loader, config, orig_module, "cuda", **kwargs)
         else:
             self.gpu_linear = None
-        self.gpu_linear_type = gpu_linear_type
-        self.cpu_linear_type = cpu_linear_type
         self.current_device = device
 
     def forward(self, x):
@@ -302,16 +312,18 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
             return self.gpu_linear.forward(x)
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None):
-        if w is None: self.w = self.load_weight()
-        else: self.w = w
+        #if w is None: self.w = self.load_weight()
+        #else: self.w = w
         if device is None: device = self.device
         # load to device
         if self.device == "cpu":
             print(f'loading {self.key} to {self.device} from class {self.cpu_linear_type}')
-            self.cpu_linear.load(self.w, device=device)
+            #self.cpu_linear.load(self.w, device=device)
+            self.cpu_linear.load(device=device)
         elif "cuda" in self.device.lower():
             print(f'loading {self.key} to {self.device} from class {self.gpu_linear_type}')
-            self.gpu_linear.load(self.w, device=device)
+            #self.gpu_linear.load(self.w, device=device)
+            self.gpu_linear.load(device=device)
         self.current_device = device
 
     def unload(self):
@@ -324,11 +336,13 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
     def load_to(self, target):
         print(f"loading {self.key} to {target}")
         if isinstance(target, str) and target == "cpu":
-            self.cpu_linear.load(w=self.w, device="cpu")
+            #self.cpu_linear.load(w=self.w, device="cpu")
+            self.cpu_linear.load(device="cpu")
             self.gpu_linear.unload()
             self.current_device = target
         elif isinstance(target, str) and "cuda" in target:
-            self.gpu_linear.load(w=self.w, device=target)
+            #self.gpu_linear.load(w=self.w, device=target)
+            self.gpu_linear.load(device=target)
             self.cpu_linear.unload()
             self.current_device = target
         elif isinstance(target, str) and target == "restore":

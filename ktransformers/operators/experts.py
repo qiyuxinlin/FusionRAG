@@ -36,7 +36,7 @@ from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinea
 # from gguf.quants import quant_shape_to_byte_shape, GGML_QUANT_SIZES
 # from multiprocessing import cpu_count
 
-cpu_infer = cpuinfer_ext.CPUInfer(60)
+cpu_infer = cpuinfer_ext.CPUInfer(60) # TODO: Auto generate thread_num, or set by user
 
 # class Base(BaseInjectedModule, ABC):
 class MLPExpertsBase(ABC):
@@ -140,7 +140,7 @@ class MLPCPUExperts(MLPExpertsBase):
             self.gate_type,
             self.up_type,
             self.down_type,
-            30,
+            30, # TODO: get from model.dtype
         )
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
         num_experts_per_tok = self.config.num_experts_per_tok
@@ -396,7 +396,7 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
                  config: PretrainedConfig,
                  orig_module: nn.Module,
                  device: str = "cuda",
-                 prefill_device:str="cpu",
+                 prefill_device:str = "cpu",
                  gpu_mlp_type: str | None = None,
                  cpu_mlp_type: str | None = None,
                  **kwargs):
