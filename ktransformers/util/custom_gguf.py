@@ -8,7 +8,6 @@ from typing import Sequence
 import os
 from enum import IntEnum
 import cupy as cp
-import cupy as cp
 
 # copied from llama.cpp/gguf-py/gguf/constants.py to avoid dependence of gguf
 class GGMLQuantizationType(IntEnum):
@@ -259,7 +258,9 @@ class GGUFLoader:
         itemsize = int(np.empty([], dtype = item_type).itemsize)
         return mmap_data[offset : offset + itemsize * item_count]
     
-    def load_gguf_tensor(self, name, is_gpu=False):
+    def load_gguf_tensor(self, name: str, is_gpu: bool=False):
+        # TODO Suppport GPU dequant
+        is_gpu=False
         t = self.tensor_info[name]
         mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
         #with open(self.tensor_file_map[name], "rb") as f:
@@ -806,48 +807,6 @@ GGML_DEQUANTIZE_GPU = {
     "Q6_K": dequantize_q6_k_gpu,
 }
 
-"""
-def translate_name_from_gguf(name):
-    if name == "output.weight":
-        return "lm_head.weight"
-
-    if name == "token_embd.weight":
-        return "model.embed_tokens.weight"
-
-    if name == "output_norm.weight":
-        return "model.norm.weight"
-
-    name = name.replace("blk.", "model.layers.")
-    name = name.replace(".attn_norm.weight", ".input_layernorm.weight")
-    name = name.replace(".ffn_down.weight", ".mlp.down_proj.weight")
-    name = name.replace(".ffn_gate.weight", ".mlp.gate_proj.weight")
-    name = name.replace(".ffn_up.weight", ".mlp.up_proj.weight")
-    name = name.replace(".ffn_norm.weight", ".post_attention_layernorm.weight")
-    name = name.replace(".attn_q.weight", ".self_attn.q_proj.weight")
-    name = name.replace(".attn_q.bias", ".self_attn.q_proj.bias")
-    name = name.replace(".attn_k.weight", ".self_attn.k_proj.weight")
-    name = name.replace(".attn_k.bias", ".self_attn.k_proj.bias")
-    name = name.replace(".attn_v.weight", ".self_attn.v_proj.weight")
-    name = name.replace(".attn_v.bias", ".self_attn.v_proj.bias")
-    name = name.replace(".attn_output.weight", ".self_attn.o_proj.weight")
-    name = name.replace(".attn_qkv.weight", ".self_attn.qkv_proj.weight")
-    name = name.replace(".attn_kv_a_mqa.", ".self_attn.kv_a_proj_with_mqa.")
-    name = name.replace(".attn_kv_a_norm.", ".self_attn.kv_a_layernorm.")
-    name = name.replace(".attn_kv_b.", ".self_attn.kv_b_proj.")
-    name = name.replace(".attn_q_a.", ".self_attn.q_a_proj.")
-    name = name.replace(".attn_q_a_norm.", ".self_attn.q_a_layernorm.")
-    name = name.replace(".attn_q_b.", ".self_attn.q_b_proj.")
-    name = name.replace(".ffn_down_shexp.", ".mlp.shared_experts.down_proj.")
-    name = name.replace(".ffn_gate_inp.", ".mlp.gate.")
-    name = name.replace(".ffn_gate_shexp.", ".mlp.shared_experts.gate_proj.")
-    name = name.replace(".ffn_up_shexp.", ".mlp.shared_experts.up_proj.")
-    name = name.replace(".ffn_gate_inp_shexp.", ".mlp.shared_expert_gate.")
-    #name = name.replace(".ffn_down_exps.", ".mlp.experts.ffn_down_exps.")
-    #name = name.replace(".ffn_gate_exps.", ".mlp.experts.ffn_gate_exps.")
-    #name = name.replace(".ffn_up_exps.", ".mlp.experts.ffn_up_exps.")
-
-    return name
-"""
 def translate_name_to_gguf(name):
     name = name.replace("lm_head.", "output.")
     name = name.replace("model.embed_tokens.", "token_embd.")
@@ -884,7 +843,6 @@ def translate_name_to_gguf(name):
     name = name.replace(".mlp.experts.ffn_down_exps", ".ffn_down_exps")
     name = name.replace(".mlp.experts.ffn_gate_exps", ".ffn_gate_exps")
     name = name.replace(".mlp.experts.ffn_up_exps", ".ffn_up_exps")
-    # name = name.replace("")
 
     return name
 

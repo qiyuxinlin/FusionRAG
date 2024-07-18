@@ -31,6 +31,4 @@ PYBIND11_MODULE(qlib, m) {
           py::arg("a"), py::arg("b_q_weight"), py::arg("b_scales"), py::arg("g_idx"),
           py::arg("perm"), py::arg("workspace"), py::arg("num_bits"), py::arg("size_m"),
           py::arg("size_n"), py::arg("size_k"), py::arg("is_k_full"));
-    /*m.def("add", &add, "Add two tensors.");
-    m.def("add", &add_torch, "Add two tensors.");*/
 }

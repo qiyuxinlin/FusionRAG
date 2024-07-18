@@ -49,6 +49,7 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
+from ktransformers.models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock, Qwen2MoeMLP, Qwen2MoeDecoderLayer
 from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.operators.experts import KTransformersMLPExpert
@@ -187,7 +188,6 @@ QWEN2MOE_INPUTS_DOCSTRING = r"""
 
 from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.configuration_utils import PretrainedConfig
-
 @add_start_docstrings(
     "The bare Qwen2MoE Model outputting raw hidden-states without any specific head on top.",
     QWEN2MOE_START_DOCSTRING,
@@ -213,16 +213,15 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = None, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 10000, # if None, no per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
-        print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
+        # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
             per_layer_prefill_flag = True
-            # set all self.layers to cpu
-            # self.embed_tokens.to("cpu")
-            self.layers.to("cpu")
-            self.recursive_load_to(self.layers, "cpu")
+            torch.cuda.empty_cache()
+            for layer in self.layers:
+                self.load_layer_to(layer, "cpu")
             torch.cuda.empty_cache()
         else:
             pass
@@ -260,6 +259,11 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             )
 
         if inputs_embeds is None:
+            if torch.cuda.is_current_stream_capturing():
+                pass
+            else:
+                pass
+                # input_ids = input_ids.to("cpu")
             inputs_embeds = self.embed_tokens(input_ids)
 
         if cache_position is None:
@@ -281,7 +285,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         all_self_attns = () if output_attentions else None
         all_router_logits = () if output_router_logits else None
         next_decoder_cache = None
-
         for decoder_layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -300,9 +303,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
             else:
                 if per_layer_prefill_flag:
-                    hidden_states = hidden_states.to("cuda")
-                    decoder_layer.to("cuda")
-                    self.recursive_load_to(decoder_layer, "cuda")
+                    # print(f"to gpu")
+                    self.load_layer_to(decoder_layer, "cuda")
+                    torch.cuda.empty_cache()
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=causal_mask,
@@ -314,8 +317,10 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                     cache_position=cache_position,
                 )
                 if per_layer_prefill_flag:
-                    decoder_layer.to("cpu")
-                    self.recursive_load_to(decoder_layer, "cpu")
+                    # print(f"to cpu")
+                    self.load_layer_to(decoder_layer, "cpu")
+                    torch.cuda.empty_cache()
+
             hidden_states = layer_outputs[0]
 
             if use_cache:
@@ -329,13 +334,15 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
 
         hidden_states = self.norm(hidden_states)
 
-        if per_layer_prefill_flag:
-            per_layer_prefill_flag = False
-            self.layers.to("cuda")
-            for layer in self.layers:
-                self.recursive_load_to(layer, "restore")
 
-        # add hidden states from the last decoder layer
+        # hidden_states = hidden_states.to("cpu")
+        if per_layer_prefill_flag:
+            # print(f"restore")
+            per_layer_prefill_flag = False
+            for layer in self.layers:
+                self.load_layer_to(layer, "restore")
+            torch.cuda.empty_cache()
+
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
@@ -357,18 +364,34 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             router_logits=all_router_logits,
         )
 
-    def recursive_load_to(self, module:nn.Module, target:str):
+    def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
         assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
-        if isinstance(module, BaseInjectedModule):
-            if hasattr(module, "load_to"):
-                module.load_to(target)
-                if isinstance(module, KTransformerLinear) or isinstance(module, KTransformersMLPExpert):
-                    return
-            # return
-        # else:
-        #     if target.lower() == "cpu":
-        #         module.to(target)
-        #     else:
-        #         module.to("cuda")
-        for name, child in module._modules.items():
-            self.recursive_load_to(child, target)
+        assert isinstance(layer, Qwen2MoeDecoderLayer), "module should be nn.ModuleList of decoder layers"
+
+        # TODO Support restore to original device, not only cuda
+        device = "cpu" if target.lower() == "cpu" else "cuda" 
+
+        # attn
+        layer.self_attn.q_proj.load_to(target)
+        layer.self_attn.k_proj.load_to(target)
+        layer.self_attn.v_proj.load_to(target)
+        layer.self_attn.o_proj.load_to(target)
+        layer.self_attn.rotary_emb = layer.self_attn.rotary_emb.to(device)
+
+        # mlp
+        if isinstance(layer.mlp, Qwen2MoeSparseMoeBlock):
+            layer.mlp.gate.load_to(target)
+            layer.mlp.experts.load_to(target)
+            layer.mlp.shared_expert.gate_proj.load_to(target)
+            layer.mlp.shared_expert.up_proj.load_to(target)
+            layer.mlp.shared_expert.down_proj.load_to(target)
+            layer.mlp.shared_expert.act_fn.to(device)
+            layer.mlp.shared_expert_gate.to(device)
+        else:
+            layer.mlp.gate_proj.load_to(target)
+            layer.mlp.up_proj.load_to(target)
+            layer.mlp.down_proj.load_to(target)
+            layer.mlp.act_fn.to(device)
+        # layer norm
+        layer.input_layernorm.to(device)
+        layer.post_attention_layernorm.to(device)

@@ -26,6 +26,13 @@ from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_utils i
     marlin_24_quantize,
     marlin_quantize,
     marlin_weights,
+    GPTQ_MARLIN_TILE,
+    GPTQ_MARLIN_MIN_THREAD_N,
+    GPTQ_MARLIN_MIN_THREAD_K,
+    GPTQ_MARLIN_MAX_PARALLEL,
+    GPTQ_MARLIN_SUPPORTED_NUM_BITS,
+    GPTQ_MARLIN_SUPPORTED_GROUP_SIZES,
+    GPTQ_MARLIN_SUPPORTED_SYM,
 )
 from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
     gptq_pack,
@@ -35,15 +42,8 @@ from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.quant_utils im
 from ktransformers.operators.base_operator import BaseInjectedModule
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
+import time
 
-GPTQ_MARLIN_TILE = 16
-GPTQ_MARLIN_MIN_THREAD_N = 64
-GPTQ_MARLIN_MIN_THREAD_K = 128
-GPTQ_MARLIN_MAX_PARALLEL = 16
-
-GPTQ_MARLIN_SUPPORTED_NUM_BITS = [4, 8]
-GPTQ_MARLIN_SUPPORTED_GROUP_SIZES = [-1, 32, 64, 128]
-GPTQ_MARLIN_SUPPORTED_SYM = [True]
 
 
 #class QuantizedLinearBase(BaseInjectedModule, ABC):
@@ -80,7 +80,7 @@ class QuantizedLinearBase(ABC):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
-    def load_weight(self, override_key: str | None = None):
+    def load_weight(self, override_key: str | None = None, device: str | None = None):
         if override_key is not None:
             keys = override_key
         else:
@@ -89,25 +89,25 @@ class QuantizedLinearBase(ABC):
         for key in keys:
             if key + ".weight" in self.gguf_loader.tensor_file_map:
                 if key + ".bias" in self.gguf_loader.tensor_file_map:
-                    tensors = self.load_multi(key, ["weight", "bias"])
+                    tensors = self.load_multi(key, ["weight", "bias"], device=device)
                     tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
                     bias = torch.tensor(tensors["bias"], dtype=torch.float32)
                     # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
                     # print(torch.isinf(tensor).any(), torch.isinf(bias).any())
                     return nn.Parameter(tensor), nn.Parameter(bias)
                 else:
-                    tensors = self.load_multi(key, ["weight"])
+                    tensors = self.load_multi(key, ["weight"], device=device)
                     tensor = torch.tensor(tensors["weight"], dtype=torch.float32)
                     # self.qtype = GGML_TYPE_QTYPE_MAP[tensorinfo[key + ".weight"]["ggml_type"]]
                     return nn.Parameter(tensor)
             else:
                 raise FileNotFoundError(f"Weight file not found for key {key}")
 
-    def load_multi(self, key: str, keys: list[str]):
+    def load_multi(self, key: str, keys: list[str], device: str = "cpu"):
         tensors = {}
-        is_gpu = True if self.device.lower() != "cpu" else False
+        is_gpu = True if device.lower() != "cpu" else False
         for k in keys:
-            tensors[k] = self.gguf_loader.load_gguf_tensor(key + "." + k, is_gpu=False)
+            tensors[k] = self.gguf_loader.load_gguf_tensor(key + "." + k, is_gpu=is_gpu)
         return tensors
 
     @abstractmethod
@@ -138,39 +138,41 @@ class QuantizedLinearTorch(QuantizedLinearBase):
         out_device = x.device
         x = x.to(device=self.device)
         x = x.to(dtype=self.dtype)
-        x = self.linear(x)
+        x = x @ self.w
         x = x.to(dtype).to(out_device)
         return x
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device: str|None = None):
         if device is None: device = self.device
-        if w is None: w = self.load_weight()
+        if w is None: w = self.load_weight(device=device)
 
         if isinstance(w, nn.Parameter):
-            self.linear = nn.Linear(
-                self.in_features, self.out_features, bias=False, dtype=self.dtype
-            )
-            # view loaded weight to correct shape to avoid GGUF squeeze dim
-            self.linear.weight.data = w.view(self.out_features, self.in_features).to(dtype=self.dtype)
+            self.w = w.to(dtype=self.dtype).T
             self.has_bias = False
         elif isinstance(w, tuple):
-            self.linear = nn.Linear(
-                self.in_features, self.out_features, bias=True, dtype=self.dtype
-            )
-            # view loaded weight to correct shape to avoid GGUF squeeze dim
-            self.linear.weight.data = w[0].view(self.out_features, self.in_features).to(dtype=self.dtype)
-            self.linear.bias.data = w[1].to(dtype=self.dtype)
+            self.w = w[0].to(dtype=self.dtype).T
+            self.bias = w[1].to(dtype=self.dtype)
             self.has_bias = True
         else:
             raise ValueError("Invalid weight type")
-        self.linear = self.linear.to(device)
+        # self.linear = self.linear.to(device)
+        self.w = self.w.to(device)
+        if self.has_bias:
+            self.bias = self.bias.to(device)
 
     def unload(self):
-        self.linear = None
-        self.bias = None
+        if self.w is not None:
+            self.w = None
+        if self.has_bias is not None:
+            self.bias = None
 
 
 class QuantizedLinearMarlin(QuantizedLinearBase):
+    marlin_q_w: torch.Tensor
+    marlin_s: torch.Tensor
+    g_idx: torch.Tensor
+    sort_indices: torch.Tensor
+    has_bias: bool
     def __init__(
         self,
         key: str,
@@ -194,7 +196,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
     def load(self, w: dict | nn.Parameter | tuple | None = None, device: str|None = "cuda"):
         if device is None: device = self.device
         assert device.lower() != "cpu", "Marlin quantized linear only supports GPU device"
-        if w is None: w = self.load_weight()
+        if w is None: w = self.load_weight(device=device)
 
         if isinstance(w, nn.Parameter):
             # pad weight
@@ -203,11 +205,13 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         elif isinstance(w, tuple):
             w = list(w)
             weight = w[0].T
-            self.bias = w[1].to(device)
+            self.bias = w[1]
             self.has_bias = True
         else:
             raise ValueError("Invalid weight type")
-
+        weight = weight.to(device)
+        if self.has_bias:
+            self.bias = self.bias.to(device)
         # Pack Marlin linear
         w_ref, marlin_q_w, marlin_s, g_idx, sort_indices, _ = marlin_quantize(
             weight, self.num_bits, self.group_size, self.act_order
@@ -215,11 +219,10 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         self.workspace = MarlinWorkspace(
             self.out_features, GPTQ_MARLIN_MIN_THREAD_N, GPTQ_MARLIN_MAX_PARALLEL
         )
-        self.marlin_q_w = marlin_q_w.to(device)
-        self.marlin_s = marlin_s.to(device)
-        self.g_idx = g_idx.to(device)
-        self.sort_indices = sort_indices.to(device)
-
+        self.marlin_q_w = marlin_q_w
+        self.marlin_s = marlin_s
+        self.g_idx = g_idx
+        self.sort_indices = sort_indices
         self.k = weight.shape[0]
         self.n = weight.shape[1]
 
@@ -334,7 +337,7 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
         self.w = None
 
     def load_to(self, target):
-        print(f"loading {self.key} to {target}")
+        # print(f"loading {self.key} to {target}")
         if isinstance(target, str) and target == "cpu":
             #self.cpu_linear.load(w=self.w, device="cpu")
             self.cpu_linear.load(device="cpu")
