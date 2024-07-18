@@ -481,7 +481,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
 
         shared_expert_output = self.shared_expert(hidden_states)
         shared_expert_output = (
-            F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
+            F.sigmoid(self.shared_expert_gate(hidden_states)).unsqueeze(-1) * shared_expert_output
         )
 
         if isinstance(self.experts, MLPExpertsBase):
