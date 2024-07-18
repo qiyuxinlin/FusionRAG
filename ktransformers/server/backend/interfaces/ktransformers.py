@@ -25,10 +25,7 @@ class KTransformersInterface(TransformersInterface):
         with torch.device("meta"):
             self.model=custom_models[config.architectures[0]](config)
 
-        if optimize_rule_path is None:
-            if config.architectures[0] in default_optimize_rules:
-                print("using default_optimize_rule for", config.architectures[0])
-                optimize_rule_path = default_optimize_rules[config.architectures[0]]
+        optimize_rule_path = default_optimize_rules[config.architectures[0]]
                 
         # print(optimize_config)
 
