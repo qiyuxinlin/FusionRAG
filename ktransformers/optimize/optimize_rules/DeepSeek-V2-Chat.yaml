@@ -1,0 +1,25 @@
+- match:
+    class: ktransformers.models.modeling_deepseek.DeepseekV2YarnRotaryEmbedding
+  replace:
+    class: ktransformers.operators.RoPE.YarnRotaryEmbedding
+- match:
+    name: "^model\\.layer\\.(?!.*self_attn).*$"  # regular expression 
+    class: torch.nn.Linear  # only match modules matching name and class simultaneously
+  replace:
+    class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
+    kwargs:
+      gpu_linear_type: "QuantizedLinearMarlin"
+      cpu_linear_type: "QuantizedLinearTorch"
+- match:
+    name: "^model\\.layers\\..*\\.mlp\\.experts$"
+  replace:
+    class: ktransformers.operators.experts.MLPExperts     # custom MoE Kernel with expert paralleism
+    kwargs:
+      gpu_mlp_type: "MLPExpertsTorch"
+      cpu_mlp_type: "MLPCPUExperts"
+      out_device: "cuda:0"
+    recursive: False # don't recursively inject submodules of this module
+- match:
+    name: "^model\\.layers\\..*\\.self_attn$"
+  replace:
+    class: ktransformers.operators.attention.DeepseekV2AttentionInjected # optimized MLA implementation
