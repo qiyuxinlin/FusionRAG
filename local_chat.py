@@ -24,8 +24,7 @@ from transformers import (
 )
 import json
 import fire
-from ktransformers.tools.prepare_optimize_config import gen_optimize_config
-from ktransformers.optimize.optimize import optimize_via_injection
+from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
 from ktransformers.util.utils import prefill_and_generate
@@ -37,7 +36,7 @@ custom_models = {
 
 def main(
     model_name: str,
-    optimize_config_path: str = None,
+    optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
     use_generate: bool = False,
@@ -59,20 +58,16 @@ def main(
                 config, trust_remote_code=True, attn_implementation="flash_attention_2"
             )
 
-    if optimize_config_path is not None:
-        with open(optimize_config_path, "r", encoding="utf-8") as file:
-            optimize_config = json.load(file)
-    else:
-        print("optimize_config_path is not set, generating it automatically.")
-        optimize_config = {}
-        gen_optimize_config(model, optimize_config)
-        # print(optimize_config)
+    if optimize_rule_path is None:
+        optimize_rule_path = input(
+            "please input the path of your rule file(yaml file containing optimize rules):"
+        )
 
     if gguf_path is None:
         gguf_path = input(
             "please input the path of your gguf file(gguf file in the dir containing input gguf file must all belong to current model):"
         )
-    optimize_via_injection(model, optimize_config, gguf_path, config)
+    optimize_and_load_gguf(model, optimize_rule_path, gguf_path, config)
 
     model.generation_config = GenerationConfig.from_pretrained(model_name)
     if model.generation_config.pad_token_id is None:
