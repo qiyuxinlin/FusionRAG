@@ -1,9 +1,9 @@
 - match:
-    class: ktransformers.models.modeling_deepseek.DeepseekV2YarnRotaryEmbedding
+    class: ktransformers.models.modeling_qwen2_moe.Qwen2MoeRotaryEmbedding
   replace:
-    class: ktransformers.operators.RoPE.YarnRotaryEmbedding
+    class: ktransformers.operators.RoPE.RotaryEmbedding
 - match:
-    name: "^model\\.layers\\.(?!.*self_attn).*$"  # regular expression 
+    name: "^model\\.layers\\..*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
@@ -12,9 +12,9 @@
       cpu_linear_type: "QuantizedLinearTorch"
 - match:
     name: "^model\\.layers\\..*\\.mlp$"
-    class: ktransformers.models.modeling_deepseek.DeepseekV2MoE
+    class: ktransformers.models.modeling_qwen2_moe.Qwen2MoeSparseMoeBlock
   replace:
-    class: ktransformers.operators.experts.DeepseekV2MoEInjected     # mlp module with custom forward function
+    class: ktransformers.operators.experts.Qwen2MoeSparseMoeBlockInjected     # mlp module with custom forward function
 - match:
     name: "^model\\.layers\\..*\\.mlp\\.experts$"
   replace:
@@ -25,7 +25,3 @@
       cpu_mlp_type: "MLPCPUExperts"
       out_device: "cuda:0"
   recursive: False # don't recursively inject submodules of this module
-- match:
-    name: "^model\\.layers\\..*\\.self_attn$"
-  replace:
-    class: ktransformers.operators.attention.DeepseekV2AttentionInjected # optimized MLA implementation
