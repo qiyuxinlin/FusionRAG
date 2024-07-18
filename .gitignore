@@ -16,3 +16,4 @@ operators/custom_marlin/qlib.egg-info/
 ktransformers/third_party/*
 .DS_Store
 compile_commands.json
+ktransformers.egg-info
