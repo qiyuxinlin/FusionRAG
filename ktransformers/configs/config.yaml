@@ -57,3 +57,6 @@ model:
 web:
   mount: False
   open_cross_domain: True
+
+ext:
+  cpu_infer: 10

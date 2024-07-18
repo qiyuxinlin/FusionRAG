@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-13 12:48:29
+LastEditTime : 2024-07-18 12:38:49
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -25,12 +25,13 @@ software or the use or other dealings in the Software.
 
 '''
 import os
+import shutil
 import sys
 import re
 import subprocess
+import glob
 from pathlib import Path
 from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 
@@ -41,13 +42,23 @@ PLAT_TO_CMAKE = {
     "win-arm32": "ARM",
     "win-arm64": "ARM64",
 }
+
+class CopyExtension(Extension):
+    def __init__(self, name: str, sourcedir: str = "", copy_file_source="") -> None:
+        super().__init__(name, sources=[])
+        self.sourcedir = os.fspath(Path(sourcedir).resolve())
+        self.source_file = copy_file_source
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = "") -> None:
         super().__init__(name, sources=[])
-        # self.sourcedir = os.path.dirname(__file__)
         self.sourcedir = os.fspath(Path(sourcedir).resolve() / "ktransformers/ktransformers_ext")
 class CMakeBuild(BuildExtension):
     def build_extension(self, ext) -> None:
+        if  isinstance(ext, CopyExtension):
+            ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
+            extdir = ext_fullpath.parent.resolve()
+            shutil.copy(ext.source_file, extdir)
+            return
         if not isinstance(ext, CMakeExtension):
             super().build_extension(ext)
             return
@@ -104,10 +115,6 @@ class CMakeBuild(BuildExtension):
 
             # CMake allows an arch-in-generator style for backward compatibility
             contains_arch = any(x in cmake_generator for x in {"ARM", "Win64"})
-
-            # Specify the arch if using MSVC generator, but only if it doesn't
-            # contain a backward-compatibility arch spec already in the
-            # generator name.
             if not single_config and not contains_arch:
                 cmake_args += ["-A", PLAT_TO_CMAKE[self.plat_name]]
 
@@ -127,10 +134,7 @@ class CMakeBuild(BuildExtension):
         # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
         # across all generators.
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-            # self.parallel is a Python 3 only way to set parallel jobs by hand
-            # using -j in the build_ext call, not supported by pip or PyPA-build.
             if hasattr(self, "parallel") and self.parallel:
-                # CMake 3.12+ only.
                 build_args += [f"-j{self.parallel}"]
 
         build_temp = Path(ext.sourcedir) / "build"
@@ -143,12 +147,23 @@ class CMakeBuild(BuildExtension):
             ["cmake", "--build", ".", *build_args], cwd=build_temp, check=True
         )
 
-setup(
-    ext_modules=[
-        CUDAExtension('qlib', [
-              'ktransformers/ktransformers_ext/custom_marlin/qlib.cpp',
-              'ktransformers/ktransformers_ext/custom_marlin/gptq_marlin/gptq_marlin.cu',
-      ]),
-        CMakeExtension("cpuinfer_ext")],
-    cmdclass={"build_ext": CMakeBuild}
-)
+
+qlib_files = glob.glob("qlib.*.so")
+if not qlib_files:
+    setup(
+        ext_modules=[
+            CUDAExtension('qlib', [
+                  'ktransformers/ktransformers_ext/custom_marlin/qlib.cpp',
+                  'ktransformers/ktransformers_ext/custom_marlin/gptq_marlin/gptq_marlin.cu',
+          ]),
+            CMakeExtension("cpuinfer_ext")],
+        cmdclass={"build_ext": CMakeBuild}
+    )
+else:
+    qlib_file = os.path.join(Path.cwd(), qlib_files[0]) 
+    setup(
+        ext_modules=[
+            CopyExtension('qlib',"", qlib_file),
+            CMakeExtension("cpuinfer_ext")],
+        cmdclass={"build_ext": CMakeBuild},
+    )
