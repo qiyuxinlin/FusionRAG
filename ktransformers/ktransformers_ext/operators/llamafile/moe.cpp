@@ -11,7 +11,7 @@ MOE::MOE(MOEConfig config) {
     down_proj_ = config_.down_proj;
 
     if (MOE::buffer_ == nullptr) {
-        int buffer_size = 0;
+        uint64_t buffer_size = 0;
         buffer_size += sizeof(float) * config_.group_max_len * config_.hidden_size;
         buffer_size += config_.group_max_len * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
         buffer_size += config_.group_max_len * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
@@ -26,29 +26,29 @@ MOE::MOE(MOEConfig config) {
         buffer_ = malloc(buffer_size);
     }
 
-    int offset = 0;
+    uint64_t offset = 0;
     s_input_fp32_ = (float*)(buffer_ + offset);
-    offset += sizeof(float) * config_.group_max_len * config_.hidden_size;
+    offset += sizeof(float) * config_.hidden_size;
     s_gate_input_ = (uint8_t*)(buffer_ + offset);
-    offset += config_.group_max_len * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
+    offset += config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
     s_up_input_ = (uint8_t*)(buffer_ + offset);
-    offset += config_.group_max_len * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
-    s_gate_output_.resize(config_.expert_num);
-    s_up_output_.resize(config_.expert_num);
-    s_intermediate_fp32_.resize(config_.expert_num);
-    s_down_input_.resize(config_.expert_num);
-    s_down_output_.resize(config_.expert_num);
-    for (int i = 0; i < config_.expert_num; i++) {
+    offset += config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type);
+    s_gate_output_.resize(config_.routed_expert_num);
+    s_up_output_.resize(config_.routed_expert_num);
+    s_intermediate_fp32_.resize(config_.routed_expert_num);
+    s_down_input_.resize(config_.routed_expert_num);
+    s_down_output_.resize(config_.routed_expert_num);
+    for (int i = 0; i < config_.routed_expert_num; i++) {
         s_gate_output_[i] = (float*)(buffer_ + offset);
-        offset += sizeof(float) * config_.group_max_len * config_.intermediate_size;
+        offset += sizeof(float) * config_.intermediate_size;
         s_up_output_[i] = (float*)(buffer_ + offset);
-        offset += sizeof(float) * config_.group_max_len * config_.intermediate_size;
+        offset += sizeof(float) * config_.intermediate_size;
         s_intermediate_fp32_[i] = (float*)(buffer_ + offset);
-        offset += sizeof(float) * config_.group_max_len * config_.intermediate_size;
+        offset += sizeof(float) * config_.intermediate_size;
         s_down_input_[i] = (uint8_t*)(buffer_ + offset);
-        offset += config_.group_max_len * config_.intermediate_size * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
+        offset += config_.intermediate_size * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type);
         s_down_output_[i] = (float*)(buffer_ + offset);
-        offset += sizeof(float) * config_.group_max_len * config_.hidden_size;
+        offset += sizeof(float) * config_.hidden_size;
     }
     s_output_fp32_ = (float*)(buffer_ + offset);
 
@@ -99,13 +99,6 @@ MOE::MOE(MOEConfig config) {
 }
 
 void MOE::warm_up(Backend* backend) {
-    int k = config_.expert_num;
-    std::vector<uint64_t> expert_ids(k);
-    std::vector<float> weights(k);
-    for (int i = 0; i < k; i++) {
-        expert_ids[i] = i;
-        weights[i] = 0;
-    }
     std::vector<float> input_fp32(config_.hidden_size);
     std::vector<uint8_t> input(config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type));
     std::vector<uint8_t> output(config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type));
@@ -113,7 +106,11 @@ void MOE::warm_up(Backend* backend) {
         input_fp32[i] = 0;
     }
     from_float(input_fp32.data(), input.data(), config_.hidden_size, config_.hidden_type);
-    forward_one(k, expert_ids.data(), weights.data(), input.data(), output.data(), backend);
+    for (int i = 0; i < config_.expert_num; i++) {
+        uint64_t expert_ids = i;
+        float weights = 0;
+        forward_one(1, &expert_ids, &weights, input.data(), output.data(), backend);
+    }
 }
 
 static float act_fn(float x) {
@@ -205,7 +202,7 @@ void MOE::forward_many(int qlen, int k, const uint64_t* expert_ids, const float*
             m_local_pos_[i][j] = m_local_num_[expert_ids[i * k + j]]++;
         }
     }
-    int offset = 0;
+    uint64_t offset = 0;
     for (int i = 0; i < config_.expert_num; i++) {
         m_local_gate_input_ptr_[i] = m_local_gate_input_ + offset * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.gate_type).vec_dot_type);
         m_local_up_input_ptr_[i] = m_local_up_input_ + offset * config_.hidden_size * ggml_type_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.up_type).vec_dot_type);

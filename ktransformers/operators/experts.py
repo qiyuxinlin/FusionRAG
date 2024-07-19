@@ -131,9 +131,12 @@ class MLPCPUExperts(MLPExpertsBase):
         # n_routed_experts = len(self.orig_module)
         moe_config = MOEConfig(
             n_routed_experts,
+            self.config.num_experts_per_tok,
             self.config.hidden_size,
             self.config.moe_intermediate_size,
             64,
+            10,
+            1024,
             gate_ptr,
             up_ptr,
             down_ptr,
