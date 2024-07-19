@@ -9,6 +9,8 @@ with torch.inference_mode(mode=True):
     hidden_size = 5120
     intermediate_size = 1536
     stride = 32
+    group_min_len = 10
+    group_max_len = 1024
     gate_type = 1 # ggml_type::GGML_TYPE_F16
     up_type = 1 # ggml_type::GGML_TYPE_F16
     down_type = 1 # ggml_type::GGML_TYPE_F16
@@ -29,7 +31,7 @@ with torch.inference_mode(mode=True):
         gate_proj = torch.randn((expert_num, intermediate_size, hidden_size), dtype=torch.float16, device = "cuda").to("cpu").contiguous()
         up_proj = torch.randn((expert_num, intermediate_size, hidden_size), dtype=torch.float16, device = "cuda").to("cpu").contiguous()
         down_proj = torch.randn((expert_num, hidden_size, intermediate_size), dtype=torch.float16, device = "cuda").to("cpu").contiguous()
-        config = cpuinfer_ext.moe.MOEConfig(expert_num, hidden_size, intermediate_size, stride, gate_proj.data_ptr(), up_proj.data_ptr(), down_proj.data_ptr(), gate_type, up_type, down_type, hidden_type)
+        config = cpuinfer_ext.moe.MOEConfig(expert_num, n_routed_experts, hidden_size, intermediate_size, stride, group_min_len, group_max_len, gate_proj.data_ptr(), up_proj.data_ptr(), down_proj.data_ptr(), gate_type, up_type, down_type, hidden_type)
         moe = cpuinfer_ext.moe.MOE(config)
         gate_projs.append(gate_proj)
         up_projs.append(up_proj)
