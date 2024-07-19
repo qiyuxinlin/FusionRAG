@@ -213,20 +213,16 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 1, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 20000, # if None, no per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
             per_layer_prefill_flag = True
-            torch.cuda.empty_cache()
             for layer in self.layers:
                 self.load_layer_to(layer, "cpu")
-            torch.cuda.empty_cache()
         else:
             pass
-        t2 = time.time()
-
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_router_logits = (
             output_router_logits if output_router_logits is not None else self.config.output_router_logits
