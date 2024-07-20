@@ -259,7 +259,7 @@ class GGUFLoader:
         itemsize = int(np.empty([], dtype = item_type).itemsize)
         return mmap_data[offset : offset + itemsize * item_count]
     
-    def load_gguf_tensor(self, name: str, device:str = "cuda:0")->torch.Tensor:
+    def load_gguf_tensor(self, name: str, device:str = "cpu")->torch.Tensor:
         t = self.tensor_info[name]
         mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
         #with open(self.tensor_file_map[name], "rb") as f:
@@ -287,6 +287,34 @@ class GGUFLoader:
             values = torch.from_numpy(values)
         
         return values.view(shape[::-1])
+
+    def load_gguf_tensor_mmp_test(self, name):
+        t = self.tensor_info[name]
+        mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
+        #with open(self.tensor_file_map[name], "rb") as f:
+
+        offset = t["offset"]
+        shape = t["shape"]
+        ggml_type = t["ggml_type"]
+
+        if ggml_type not in GGML_NAMES:
+            raise NotImplementedError(f"ggml_type {ggml_type} not implemented")
+
+        ggml_name = GGML_NAMES[ggml_type]
+        block_size = GGML_BLOCK_SIZES[ggml_name]
+        elements_per_block = GGML_ELEMENTS_PER_BLOCK[ggml_name]
+
+        num_elements = np.prod(shape)
+
+        size = num_elements * block_size // elements_per_block
+        data = mmap_data[offset : offset + size]
+        num_blocks = len(data) // GGML_BLOCK_SIZES["Q8_0"]
+
+        scales = np.frombuffer(data, dtype=np.float16).reshape(num_blocks, 1 + 16)[:, :1].astype(np.float32)
+        qs = np.frombuffer(data, dtype=np.int8).reshape(num_blocks, 2 + 32)[:, 2:]
+
+
+        return data, scales, qs
 
 def read_value(f, data_type):
     if data_type == DATA_TYPES["string"]:
@@ -582,8 +610,9 @@ def dequantize_q6_k(data):
         sc[:, 13] * q7[:, 16:],
         sc[:, 14] * q8[:, :16],
         sc[:, 15] * q8[:, 16:],
-    ], axis=1) # , ql, qh, sc
+    ], axis=1) 
 
+# @torch.jit.script
 def dequantize_q6_k_gpu(data:torch.Tensor, device:str = "cuda"):
     block_size = GGML_BLOCK_SIZES["Q6_K"]
     num_blocks = len(data) // block_size
@@ -605,7 +634,7 @@ def dequantize_q6_k_gpu(data:torch.Tensor, device:str = "cuda"):
 
     scales = data_f16_gpu[:, -1].view(num_blocks, 1).to(torch.float32)
 
-    ql = data_u8_gpu[:, :128].to(torch.int16)
+    ql = data_u8_gpu[:, :128]#.to(torch.int16)
     qh = data_u8_gpu[:, 128:192].to(torch.int16)
     sc = data_i8_gpu[:, 192:208].unsqueeze(-1)
 

@@ -55,7 +55,7 @@ class MLPExpertsBase(ABC):
         pass
 
     @abstractmethod
-    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str = "cpu"):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str = "cpu", warmup: bool = False):
         pass
     
     @abstractmethod
@@ -127,9 +127,10 @@ class MLPCPUExperts(MLPExpertsBase):
         self.n_routed_experts = n_routed_experts
         self.out_device = out_device
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = False):
         if device:
             assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
+        t1 = time.time()
         if w is None: w = self.load_weights()[self.key]
         self.gate = w["gate"]
         self.up = w["up"]
@@ -137,6 +138,7 @@ class MLPCPUExperts(MLPExpertsBase):
         self.gate_type = w["gate_type"]
         self.up_type = w["up_type"]
         self.down_type = w["down_type"]
+        t2 = time.time()
         gate_ptr = ctypes.addressof(
             ctypes.cast(self.gate.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
         )
@@ -146,6 +148,8 @@ class MLPCPUExperts(MLPExpertsBase):
         down_ptr = ctypes.addressof(
             ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
         )
+        t3 = time.time()
+
         # print(self.gate_qtype, self.up_qtype, self.down_qtype)
         n_routed_experts = self.n_routed_experts
         # n_routed_experts = len(self.orig_module)
@@ -162,19 +166,25 @@ class MLPCPUExperts(MLPExpertsBase):
             self.down_type,
             30, # TODO: get from model.dtype
         )
+        t4 = time.time()
+
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
         num_experts_per_tok = self.config.num_experts_per_tok
-        self.moe = MOE(moe_config)
-        self.cpu_infer = cpu_infer
-        self.cpu_infer.submit(self.moe.warm_up)
-        self.cpu_infer.sync()
+        if warmup:
+            self.moe = MOE(moe_config)
+            self.cpu_infer = cpu_infer
+            self.cpu_infer.submit(self.moe.warm_up)
+            self.cpu_infer.sync()
+        t5 = time.time()
+
         if MLPCPUExperts.output_gpu == None:
             MLPCPUExperts.input_tensor_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
             MLPCPUExperts.expert_ids_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
             MLPCPUExperts.weights_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
             MLPCPUExperts.output_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
             MLPCPUExperts.output_gpu = torch.empty((self.config.hidden_size), device=self.out_device)
-
+        t6 = time.time()
+        # print(f"load time: {t2-t1}, {t3-t2}, {t4-t3}, {t5-t4}, {t6-t5}")
     def submit_for_one_decode(self, input_tensor, expert_ids, weights):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
         MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
@@ -208,7 +218,7 @@ class MLPCPUExperts(MLPExpertsBase):
             self.cpu_infer.submit(self.moe.forward, expert_ids.size(0), expert_ids.size(1), expert_ids.data_ptr(), weights.data_ptr(), input_tensor.data_ptr(), output.data_ptr())
             self.cpu_infer.sync()
             end = time.perf_counter()
-            print("MoE Time(s): ", end - start)
+            # print("MoE Time(s): ", end - start)
             return output.to(device=object.__getattribute__(self, "device"))
     
     def unload(self):
@@ -241,7 +251,7 @@ class MLPExpertsMarlin(MLPExpertsBase):
         # down
         self.down_projs = [QuantizedLinearMarlin(key+ "." + "ffn_down_exps", gguf_loader, config, device=device) for i in range(self.expert_num)]
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None, warmup: bool = False):
         if device is None: device = self.device
         assert device.lower() != "cpu", "Marlin experts can only be loaded on GPU"
         if w is None: w = self.load_weights()[self.key]
@@ -330,7 +340,7 @@ class MLPExpertsTorch(MLPExpertsBase):
         self.donw = None
         self.dtype = torch.get_default_dtype()
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None, warmup: bool = False):
         if device is None: device = self.device
         t1 = time.time()
         if w is None: w = self.load_weights(device=device)[self.key]
@@ -412,16 +422,16 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
         self.cpu_mlp_type = cpu_mlp_type
         self.current_device = device
 
-    def load(self, w: dict = None, device: str= None):
+    def load(self, w: dict = None, device: str= None, warmup: bool = False):
         # TODO support w as input
         if device is None: device = self.device
         # load to device
         if self.current_device.lower() == "cpu":
             # print(f'loading {self.key} to {self.device} from class {self.cpu_mlp_type}')
-            self.cpu_experts.load()
+            self.cpu_experts.load(warmup=True)
         else:
             # print(f'loading {self.key} to {self.device} from class {self.gpu_mlp_type}')
-            self.gpu_experts.load()
+            self.gpu_experts.load(warmup=True)
         self.current_device = device
 
     def unload(self):
