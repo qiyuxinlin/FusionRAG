@@ -28,23 +28,25 @@ __device__ void get_scale_min_k4(int j, const uint8_t * q, uint8_t * __restrict_
 __global__ void dequantize_q4_k_kernel(int8_t* data, float* output, int blk_size, int num_blocks) {
     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
     for (auto block_id=global_idx; block_id<num_blocks;block_id+=blockDim.x * gridDim.x){
-
+        float* __restrict__ output_blk = (float*)(output + block_id * 256);
         // const uint8_t * q = data[i].qs;
-        const uint8_t * q = (uint8_t*)(data + block_id * blk_size + 16);
+        const uint8_t * q = (uint8_t*)(data + block_id * 144 + 16);
 
-        const float d   = __half2float(*(reinterpret_cast<half*>(data + block_id * blk_size + 0)));
-        const float min = __half2float(*(reinterpret_cast<half*>(data + block_id * blk_size + 2)));
-        
+        const float d   = __half2float(*(reinterpret_cast<half*>(data + block_id * 144 + 0)));
+        const float min = __half2float(*(reinterpret_cast<half*>(data + block_id * 144 + 2)));
+        if(block_id==1){
+            printf("q[0]:%d; d: %f; min: %f \n",q[0], d, min);
+        }
         int is = 0;
         uint8_t sc, m;
         for (int j = 0; j < blk_size; j += 64) {
-            uint8_t* scales = (uint8_t*)(data + block_id * blk_size + 4);
+            uint8_t* scales = (uint8_t*)(data + block_id * 144 + 4);
             get_scale_min_k4(is + 0, scales, &sc, &m);
             const float d1 = d * sc; const float m1 = min * m;
             get_scale_min_k4(is + 1, scales, &sc, &m);
             const float d2 = d * sc; const float m2 = min * m;
-            for (int l = 0; l < 32; ++l) *output++ = d1 * (q[l] & 0xF) - m1;
-            for (int l = 0; l < 32; ++l) *output++ = d2 * (q[l]  >> 4) - m2;
+            for (int l = 0; l < 32; ++l) *output_blk++ = d1 * (q[l] & 0xF) - m1;
+            for (int l = 0; l < 32; ++l) *output_blk++ = d2 * (q[l]  >> 4) - m2;
             q += 32; is += 2;
         }
     }
@@ -138,6 +140,7 @@ torch::Tensor dequantize_q6_k(torch::Tensor data, int blk_size, torch::Device de
 torch::Tensor dequantize_q4_k(torch::Tensor data, int blk_size, torch::Device device) {
     // data.numel%blk_size should be 0, else raise err
     int num_blocks = data.numel() / blk_size;
+    // std::cout<<"num_blocks: " << num_blocks<<std::endl;
 
     auto options = torch::TensorOptions().dtype(torch::kInt8).device(device).memory_format(torch::MemoryFormat::Contiguous);
     auto data_gpu = torch::empty({data.numel()}, options);
@@ -145,10 +148,10 @@ torch::Tensor dequantize_q4_k(torch::Tensor data, int blk_size, torch::Device de
     data_gpu.copy_(data, false);
 
     // Create output tensor
-    auto output = torch::zeros({num_blocks, 128}, torch::dtype(torch::kFloat32).device(device));
+    auto output = torch::zeros({num_blocks, 256}, torch::dtype(torch::kFloat32).device(device));
 
     // Launch kernel
-    dequantize_q4_k_kernel<<< 512, 256 >>>(data_gpu.data_ptr<int8_t>(), output.data_ptr<float>(), blk_size, num_blocks);
+    dequantize_q4_k_kernel<<< 512, 256 >>>(data_gpu.data_ptr<int8_t>(), output.data_ptr<float>(), 256, num_blocks);
 
     cudaDeviceSynchronize();
     return output;

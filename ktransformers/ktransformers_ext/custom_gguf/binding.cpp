@@ -19,7 +19,8 @@ PYBIND11_MODULE(cudaops, m) {
           py::arg("data"), py::arg("blk_size"), py::arg("device"));
     m.def("dequantize_q6_k", &dequantize_q6_k, "Function to dequantize q6_k data.",
           py::arg("data"), py::arg("blk_size"), py::arg("device"));
-
+    m.def("dequantize_q4_k",  &dequantize_q4_k, "Function to dequantize q4_k data.",
+          py::arg("data"), py::arg("blk_size"), py::arg("device"));
     m.def("test", &test, "Function to test.");
     
 }

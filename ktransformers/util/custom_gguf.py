@@ -460,6 +460,7 @@ def dequantize_q4_k(data):
     # Casting to float32 because float16 is very slow on CPU
     scale_factors = data_f16[:, 0].reshape(num_blocks, 1, 1).astype(np.float32)
     scale_offsets = data_f16[:, 1].reshape(num_blocks, 1, 1).astype(np.float32)
+    print(f"d: {scale_factors[1]}; min: {scale_offsets[1]}")
     qs1 = data_u8[:, 4:16].reshape(num_blocks, 12, 1)
     qs2 = data_u8[:, 16:].reshape(num_blocks, 4, 32)
 
