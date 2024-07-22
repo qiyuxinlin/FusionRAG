@@ -23,8 +23,9 @@ class CUDAGraphRunner:
         self.graph = torch.cuda.CUDAGraph()
         #self.graph.enable_debug_mode()
         self.model = model
+        inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to("cuda")
         with torch.cuda.graph(self.graph):
-            logits=model(cur_token, 
+            logits=model(inputs_embeds=inputs_embeds, 
                          position_ids=position_ids,
                          cache_position=cache_position,
                          past_key_values=past_key_values,
@@ -35,7 +36,7 @@ class CUDAGraphRunner:
 
         # Save the input and output buffers.
         self.input_buffers = {
-            "cur_token": cur_token,
+            "inputs_embeds": inputs_embeds,
             "position_ids": position_ids,
             "cache_position": cache_position,
         }
@@ -49,7 +50,8 @@ class CUDAGraphRunner:
         cache_position,
     ) -> torch.Tensor:
         # Copy the input tensors to the input buffers.
-        self.input_buffers["cur_token"].copy_(cur_token)
+        inputs_embeds = self.model.model.embed_tokens(cur_token.to("cpu"))
+        self.input_buffers["inputs_embeds"].copy_(inputs_embeds)
         self.input_buffers["position_ids"].copy_(position_ids)
         self.input_buffers["cache_position"].copy_(cache_position)
 

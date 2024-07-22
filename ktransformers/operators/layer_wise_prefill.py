@@ -213,19 +213,17 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 10000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 30000, # if None, no per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
-        if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
+        seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
+        if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
             per_layer_prefill_flag = True
-            torch.cuda.empty_cache()
             for layer in self.layers:
                 self.load_layer_to(layer, "cpu")
-            torch.cuda.empty_cache()
         else:
             pass
-
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_router_logits = (
             output_router_logits if output_router_logits is not None else self.config.output_router_logits
@@ -259,12 +257,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             )
 
         if inputs_embeds is None:
-            if torch.cuda.is_current_stream_capturing():
-                pass
-            else:
-                pass
-                # input_ids = input_ids.to("cpu")
+            input_ids = input_ids.to("cpu")
             inputs_embeds = self.embed_tokens(input_ids)
+            inputs_embeds = inputs_embeds.to("cuda")
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -342,7 +337,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             for layer in self.layers:
                 self.load_layer_to(layer, "restore")
             torch.cuda.empty_cache()
-
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 

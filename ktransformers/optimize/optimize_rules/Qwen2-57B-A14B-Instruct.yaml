@@ -25,3 +25,7 @@
       cpu_mlp_type: "MLPCPUExperts"
       out_device: "cuda:0"
   recursive: False # don't recursively inject submodules of this module
+- match:
+    name: "^model$"
+  replace:
+    class: "ktransformers.operators.layer_wise_prefill.Qwen2MoeModelPerLayerPrefill"
