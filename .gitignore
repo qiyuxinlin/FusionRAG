@@ -17,3 +17,4 @@ ktransformers/third_party/*
 .DS_Store
 compile_commands.json
 ktransformers.egg-info
+*egg-info*

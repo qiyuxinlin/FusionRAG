@@ -34,9 +34,6 @@ __global__ void dequantize_q4_k_kernel(int8_t* data, float* output, int blk_size
 
         const float d   = __half2float(*(reinterpret_cast<half*>(data + block_id * 144 + 0)));
         const float min = __half2float(*(reinterpret_cast<half*>(data + block_id * 144 + 2)));
-        if(block_id==1){
-            printf("q[0]:%d; d: %f; min: %f \n",q[0], d, min);
-        }
         int is = 0;
         uint8_t sc, m;
         for (int j = 0; j < blk_size; j += 64) {
@@ -140,7 +137,6 @@ torch::Tensor dequantize_q6_k(torch::Tensor data, int blk_size, torch::Device de
 torch::Tensor dequantize_q4_k(torch::Tensor data, int blk_size, torch::Device device) {
     // data.numel%blk_size should be 0, else raise err
     int num_blocks = data.numel() / blk_size;
-    // std::cout<<"num_blocks: " << num_blocks<<std::endl;
 
     auto options = torch::TensorOptions().dtype(torch::kInt8).device(device).memory_format(torch::MemoryFormat::Contiguous);
     auto data_gpu = torch::empty({data.numel()}, options);

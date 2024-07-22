@@ -7,8 +7,9 @@ import numpy.typing as npt
 from typing import Sequence
 import os
 from enum import IntEnum
-import cupy as cp
 import torch
+import KCudaOps
+import cupy as cp
 import time
 # copied from llama.cpp/gguf-py/gguf/constants.py to avoid dependence of gguf
 class GGMLQuantizationType(IntEnum):
@@ -262,9 +263,7 @@ class GGUFLoader:
     def load_gguf_tensor(self, name: str, device:str = "cpu")->torch.Tensor:
         t = self.tensor_info[name]
         mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
-        #with open(self.tensor_file_map[name], "rb") as f:
 
-        offset = t["offset"]
         shape = t["shape"]
         ggml_type = t["ggml_type"]
 
@@ -272,13 +271,9 @@ class GGUFLoader:
             raise NotImplementedError(f"ggml_type {ggml_type} not implemented")
 
         ggml_name = GGML_NAMES[ggml_type]
-        block_size = GGML_BLOCK_SIZES[ggml_name]
-        elements_per_block = GGML_ELEMENTS_PER_BLOCK[ggml_name]
 
-        num_elements = np.prod(shape)
-
-        size = num_elements * block_size // elements_per_block
-        data = mmap_data[offset : offset + size]
+        data = self.get_mmap_tensor(name)
+        
 
         if "cuda" in device.lower():
             values = GGML_DEQUANTIZE_GPU[ggml_name](data, device)
@@ -287,34 +282,6 @@ class GGUFLoader:
             values = torch.from_numpy(values)
         
         return values.view(shape[::-1])
-
-    def load_gguf_tensor_mmp_test(self, name):
-        t = self.tensor_info[name]
-        mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
-        #with open(self.tensor_file_map[name], "rb") as f:
-
-        offset = t["offset"]
-        shape = t["shape"]
-        ggml_type = t["ggml_type"]
-
-        if ggml_type not in GGML_NAMES:
-            raise NotImplementedError(f"ggml_type {ggml_type} not implemented")
-
-        ggml_name = GGML_NAMES[ggml_type]
-        block_size = GGML_BLOCK_SIZES[ggml_name]
-        elements_per_block = GGML_ELEMENTS_PER_BLOCK[ggml_name]
-
-        num_elements = np.prod(shape)
-
-        size = num_elements * block_size // elements_per_block
-        data = mmap_data[offset : offset + size]
-        num_blocks = len(data) // GGML_BLOCK_SIZES["Q8_0"]
-
-        scales = np.frombuffer(data, dtype=np.float16).reshape(num_blocks, 1 + 16)[:, :1].astype(np.float32)
-        qs = np.frombuffer(data, dtype=np.int8).reshape(num_blocks, 2 + 32)[:, 2:]
-
-
-        return data, scales, qs
 
 def read_value(f, data_type):
     if data_type == DATA_TYPES["string"]:
@@ -460,7 +427,6 @@ def dequantize_q4_k(data):
     # Casting to float32 because float16 is very slow on CPU
     scale_factors = data_f16[:, 0].reshape(num_blocks, 1, 1).astype(np.float32)
     scale_offsets = data_f16[:, 1].reshape(num_blocks, 1, 1).astype(np.float32)
-    print(f"d: {scale_factors[1]}; min: {scale_offsets[1]}")
     qs1 = data_u8[:, 4:16].reshape(num_blocks, 12, 1)
     qs2 = data_u8[:, 16:].reshape(num_blocks, 4, 32)
 
@@ -473,37 +439,11 @@ def dequantize_q4_k(data):
     # Dequantize final weights using scales and offsets
     return factors * qs2 - offsets
 
-def dequantize_q4_k_gpu(data, device:torch.device="cuda"):
-    # C implementation
-    # https://github.com/ggerganov/ggml/blob/fca1caafea7de9fbd7efc733b9818f9cf2da3050/src/ggml-quants.c#L1929
-    # C struct definition
-    # https://github.com/ggerganov/ggml/blob/fca1caafea7de9fbd7efc733b9818f9cf2da3050/src/ggml-quants.h#L116
-    block_size = GGML_BLOCK_SIZES["Q4_K"]
-    num_blocks = len(data) // block_size
-
-    data_f16 = np.frombuffer(data, dtype=np.float16).reshape(num_blocks, block_size // 2)
-    data_u8 = np.frombuffer(data, dtype=np.uint8).reshape(num_blocks, block_size)
-
-    data_f16 = torch.from_numpy(data_f16)
-    data_u8 = torch.from_numpy(data_u8)
-    data_f16_gpu = torch.empty_like(data_f16, device=device)
-    data_u8_gpu = torch.empty_like(data_u8, device=device)
-
-    data_f16_gpu.copy_(data_f16)
-    data_u8_gpu.copy_(data_u8)
-    
-    scale_factors = data_f16_gpu[:, 0].view(num_blocks, 1, 1).to(torch.float32)
-    scale_offsets = data_f16_gpu[:, 1].view(num_blocks, 1, 1).to(torch.float32)
-    qs1 = data_u8_gpu[:, 4:16].view(num_blocks, 12, 1)
-    qs2 = data_u8_gpu[:, 16:].view(num_blocks, 4, 32)
-
-    # Dequantize scales and offsets (6 bits and 4 + 2 bits)
-    factors = scale_factors * torch.cat([qs1[:, 0:4] & 0b111111, (qs1[:, 8:] & 15) | ((qs1[:, 0:4] >> 6) << 4)], dim=1)
-    offsets = scale_offsets * torch.cat([qs1[:, 4:8] & 0b111111, (qs1[:, 8:] >> 4) | ((qs1[:, 4:8] >> 6) << 4)], dim=1)
-    # Interleave low and high quantized bits
-    qs2 = torch.stack([qs2 & 0xf, qs2 >> 4], dim=2).view(num_blocks, 8, 32)
-    # Dequantize final weights using scales and offsets
-    return factors * qs2 - offsets
+def dequantize_q4_k_gpu(data, device:str ="cuda"):
+    data = np.frombuffer(data, dtype=data.dtype)
+    device = torch.device(device)
+    data = torch.from_numpy(data)
+    return KCudaOps.dequantize_q4_k(data, 144, device)
 
 def dequantize_q5_k(data):
     # C implementation
@@ -614,63 +554,13 @@ def dequantize_q6_k(data):
     ], axis=1) 
 
 # @torch.jit.script
-def dequantize_q6_k_gpu(data:torch.Tensor, device:str = "cuda"):
+def dequantize_q6_k_gpu(data: np.ndarray, device:str = "cuda"):
     block_size = GGML_BLOCK_SIZES["Q6_K"]
+    device = torch.device(device)
     num_blocks = len(data) // block_size
-
-    data_f16 = np.frombuffer(data, dtype=np.float16).reshape(num_blocks, block_size // 2)
-    data_u8 = np.frombuffer(data, dtype=np.uint8).reshape(num_blocks, block_size)
-    data_i8 = np.frombuffer(data, dtype=np.int8).reshape(num_blocks, block_size)
-
-    data_f16 = torch.from_numpy(data_f16)
-    data_u8 = torch.from_numpy(data_u8)
-    data_i8 = torch.from_numpy(data_i8)
-
-    data_f16_gpu = torch.empty_like(data_f16, device=device)
-    data_u8_gpu = torch.empty_like(data_u8, device=device)
-    data_i8_gpu = torch.empty_like(data_i8, device=device)
-    data_f16_gpu.copy_(data_f16)
-    data_u8_gpu.copy_(data_u8)
-    data_i8_gpu.copy_(data_i8)
-
-    scales = data_f16_gpu[:, -1].view(num_blocks, 1).to(torch.float32)
-
-    ql = data_u8_gpu[:, :128]#.to(torch.int16)
-    qh = data_u8_gpu[:, 128:192].to(torch.int16)
-    sc = data_i8_gpu[:, 192:208].unsqueeze(-1)
-
-    # Unpack bits and perform arithmetic operations
-    q1 = ((ql[:,   :32] & 0xF) | ((qh[:, :32] >> 0) & 3) << 4) - 32
-    q2 = ((ql[:, 32:64] & 0xF) | ((qh[:, :32] >> 2) & 3) << 4) - 32
-    q3 = ((ql[:,   :32] >> 4) | ((qh[:, :32] >> 4) & 3) << 4) - 32
-    q4 = ((ql[:, 32:64] >> 4) | ((qh[:, :32] >> 6) & 3) << 4) - 32
-    q5 = ((ql[:, 64:96] & 0xF) | ((qh[:, 32:] >> 0) & 3) << 4) - 32
-    q6 = ((ql[:,96:128] & 0xF) | ((qh[:, 32:] >> 2) & 3) << 4) - 32
-    q7 = ((ql[:, 64:96] >> 4) | ((qh[:, 32:] >> 4) & 3) << 4) - 32
-    q8 = ((ql[:,96:128] >> 4) | ((qh[:, 32:] >> 6) & 3) << 4) - 32
-
-    # Dequantize
-    dequantized_data = scales * torch.cat([
-        sc[:, 0] * q1[:, :16],
-        sc[:, 1] * q1[:, 16:],
-        sc[:, 2] * q2[:, :16],
-        sc[:, 3] * q2[:, 16:],
-        sc[:, 4] * q3[:, :16],
-        sc[:, 5] * q3[:, 16:],
-        sc[:, 6] * q4[:, :16],
-        sc[:, 7] * q4[:, 16:],
-        sc[:, 8] * q5[:, :16],
-        sc[:, 9] * q5[:, 16:],
-        sc[:, 10] * q6[:, :16],
-        sc[:, 11] * q6[:, 16:],
-        sc[:, 12] * q7[:, :16],
-        sc[:, 13] * q7[:, 16:],
-        sc[:, 14] * q8[:, :16],
-        sc[:, 15] * q8[:, 16:],
-    ], dim=1)
-
-    return dequantized_data
-
+    data = np.frombuffer(data, dtype=data.dtype)
+    data = torch.from_numpy(data)
+    return KCudaOps.dequantize_q6_k(data, 210, device)
 
 def dequantize_q8_0(data):
     # C struct definition
@@ -681,21 +571,15 @@ def dequantize_q8_0(data):
     qs = np.frombuffer(data, dtype=np.int8).reshape(num_blocks, 2 + 32)[:, 2:]
     return scales * qs
 
-def dequantize_q8_0_gpu(data, device:torch.device = "cuda"):
+def dequantize_q8_0_gpu(data, device:str = "cuda"):
     # C struct definition
     # https://github.com/ggerganov/ggml/blob/fca1caafea7de9fbd7efc733b9818f9cf2da3050/src/ggml-quants.h#L43
     num_blocks = len(data) // GGML_BLOCK_SIZES["Q8_0"]
+    device = torch.device(device)
+    data = np.frombuffer(data, dtype=data.dtype)
+    data = torch.from_numpy(data)
+    return KCudaOps.dequantize_q8_0(data, 34, device)
 
-    scales = np.frombuffer(data, dtype=np.float16).reshape(num_blocks, 1 + 16)[:, :1].astype(np.float32)
-    qs = np.frombuffer(data, dtype=np.int8).reshape(num_blocks, 2 + 32)[:, 2:]
-    scales = torch.from_numpy(scales)
-    qs = torch.from_numpy(qs)
-
-    scales_gpu = torch.empty_like(scales, device=device)
-    qs_gpu = torch.empty_like(qs, device=device)
-    scales_gpu.copy_(scales)
-    qs_gpu.copy_(qs)
-    return scales_gpu * qs_gpu
 
 def dequantize_f32(data):
     return np.frombuffer(data, dtype=np.float32)

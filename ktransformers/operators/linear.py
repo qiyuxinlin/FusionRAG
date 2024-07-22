@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch import linalg
-import qlib
+import KCudaOps 
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_perms import marlin_perm
 from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_utils import (
@@ -232,7 +232,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         orig_dtype = x.dtype
         x = x.reshape(-1, x.shape[-1])
         marlin_s = self.marlin_s.to(x.dtype)
-        x = qlib.gptq_marlin_gemm(
+        x = KCudaOps.gptq_marlin_gemm(
             x,
             self.marlin_q_w,
             marlin_s,

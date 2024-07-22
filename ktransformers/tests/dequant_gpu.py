@@ -12,7 +12,7 @@ import numpy as np
 # from ktransformers.operators.experts import KTransformersMLPExpert, MLPExpertsTorch
 from ktransformers.util.custom_gguf import GGUFLoader
 import torch
-import CudaOps
+import KCudaOps
 torch.set_default_dtype(torch.bfloat16)
 import time
 from transformers import (

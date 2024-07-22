@@ -6,7 +6,6 @@
 #include <torch/extension.h>
 #include <torch/torch.h>
 // namespace py = pybind11;
-// using namespace qlib;
 
 int test(){
     return 5;

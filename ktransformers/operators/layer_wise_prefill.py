@@ -213,7 +213,7 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 1, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 30000, # if None, no per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
@@ -261,7 +261,9 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             else:
                 pass
                 # input_ids = input_ids.to("cpu")
+            input_ids = input_ids.to("cpu")
             inputs_embeds = self.embed_tokens(input_ids)
+            inputs_embeds = inputs_embeds.to("cuda")
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -391,86 +393,3 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         # layer norm
         layer.input_layernorm.to(device)
         layer.post_attention_layernorm.to(device)
-
-    # def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
-    #     assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
-    #     assert isinstance(layer, Qwen2MoeDecoderLayer), "module should be nn.ModuleList of decoder layers"
-    #     print(f'________load {target=}')
-    #     # TODO Support restore to original device, not only cuda
-    #     device = "cpu" if target.lower() == "cpu" else "cuda" 
-    #     import time
-    #     # attn部分
-    #     start_time = time.time()
-    #     layer.self_attn.q_proj.load_to(target)
-    #     print("q_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.k_proj.load_to(target)
-    #     print("k_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.v_proj.load_to(target)
-    #     print("v_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.o_proj.load_to(target)
-    #     print("o_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.self_attn.rotary_emb = layer.self_attn.rotary_emb.to(device)
-    #     print("rotary_emb moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #     # MLP部分
-    #     if isinstance(layer.mlp, Qwen2MoeSparseMoeBlock):
-    #         start_time = time.time()
-    #         layer.mlp.gate.load_to(target)
-    #         print("mlp.gate loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.experts.load_to(target)
-    #         print("mlp.experts loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.gate_proj.load_to(target)
-    #         print("mlp.shared_expert.gate_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.up_proj.load_to(target)
-    #         print("mlp.shared_expert.up_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.down_proj.load_to(target)
-    #         print("mlp.shared_expert.down_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert.act_fn.to(device)
-    #         print("mlp.shared_expert.act_fn moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.shared_expert_gate.to(device)
-    #         print("mlp.shared_expert_gate moved in {:.6f} seconds".format(time.time() - start_time))
-    #     else:
-    #         start_time = time.time()
-    #         layer.mlp.gate_proj.load_to(target)
-    #         print("mlp.gate_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.up_proj.load_to(target)
-    #         print("mlp.up_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.down_proj.load_to(target)
-    #         print("mlp.down_proj loaded in {:.6f} seconds".format(time.time() - start_time))
-
-    #         start_time = time.time()
-    #         layer.mlp.act_fn.to(device)
-    #         print("mlp.act_fn moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #     # Layer Norm部分
-    #     start_time = time.time()
-    #     layer.input_layernorm.to(device)
-    #     print("input_layernorm moved in {:.6f} seconds".format(time.time() - start_time))
-
-    #     start_time = time.time()
-    #     layer.post_attention_layernorm.to(device)
-    #     print("post_attention_layernorm moved in {:.6f} seconds".format(time.time() - start_time))

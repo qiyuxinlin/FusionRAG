@@ -48,7 +48,7 @@ def local_chat(
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
-    use_generate: bool = False,
+    use_generate: bool = True,
 ):
     torch.set_grad_enabled(False)
 

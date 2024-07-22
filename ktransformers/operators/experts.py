@@ -342,9 +342,7 @@ class MLPExpertsTorch(MLPExpertsBase):
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device: str | None = None, warmup: bool = False):
         if device is None: device = self.device
-        t1 = time.time()
         if w is None: w = self.load_weights(device=device)[self.key]
-        t2 = time.time()
 
         if isinstance(w, dict):
             self.gate = w["gate"]
