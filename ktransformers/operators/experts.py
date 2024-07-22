@@ -489,7 +489,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         if isinstance(self.experts, MLPExpertsBase):
             y = (
                 self.moe_on_cpuinfer(
-                    hidden_states_expert, selected_experts_expert, routing_weights_expert, sequence_length != 1
+                    hidden_states_expert, selected_experts_expert, routing_weights_expert
                 )
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
@@ -507,15 +507,13 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         return y, router_logits
     
     @torch.no_grad()
-    def moe_on_cpuinfer(self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor, need_sync: bool) -> torch.Tensor:
+    def moe_on_cpuinfer(self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor) -> torch.Tensor:
         outs = torch.empty_like(x)
         outs = self.experts(x, topk_ids, topk_weight)
-        if need_sync:
-            torch.cuda.synchronize()
         return outs
 
     @torch.no_grad()
-    # TODO
+    # TODO may bugs here
     def moe_infer_simple(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor) -> torch.Tensor:
         '''
         hidden_states_cpu: [num_tokens, hidden_size]
@@ -529,7 +527,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         return outs
     
     @torch.no_grad()
-    # TODO
+    # TODO may bugs here
     def moe_infer(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor, orig_shape: tuple) -> torch.Tensor:
         
         batch_size, sequence_length, hidden_dim = orig_shape
@@ -551,7 +549,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
             # the current expert. We need to make sure to multiply the output hidden
             # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
             current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim)
-            current_hidden_states = expert_layer.forward_cpu(current_state) * routing_weights_cpu[top_x, idx, None]
+            current_hidden_states = expert_layer.forward(current_state) * routing_weights_cpu[top_x, idx, None]
 
             # However `index_add_` only support torch tensors for indexing so we'll use
             # the `top_x` tensor here.
@@ -581,16 +579,16 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
             y_ = self.shared_experts(identity).squeeze(0)
             
         if isinstance(self.experts, MLPExpertsBase):
-            y = self.moe_on_cpuinfer(hidden_states, topk_idx, topk_weight)
+            y = self.moe_on_cpuinfer(hidden_states, topk_idx, topk_weight).view(*orig_shape).to(device=hidden_states.device)
         elif hidden_states.size(0) > 10:
-            # TODO
+            # TODO may bugs here
             y = (
                 self.moe_infer(hidden_states, topk_idx, topk_weight)
                 .view(*orig_shape)
                 .to(device=hidden_states.device)
             )
         else:
-            # TODO
+            # TODO may bugs here
             y = (
                 self.moe_infer_simple(hidden_states, topk_idx, topk_weight)
                 .view(*orig_shape)
@@ -601,17 +599,13 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         return y
 
     @torch.no_grad()
-    def moe_on_cpuinfer(
-        self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
-    ) -> torch.Tensor:
+    def moe_on_cpuinfer(self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor) -> torch.Tensor:
         outs = torch.empty_like(x)
-        for token_idx in range(topk_ids.size(0)):
-            outs[token_idx] = self.experts(
-                x[token_idx], topk_ids[token_idx], topk_weight[token_idx]
-            )
+        outs = self.experts(x, topk_ids, topk_weight)
         return outs
 
     @torch.no_grad()
+    # TODO may bugs here
     def moe_infer_simple(
         self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
     ) -> torch.Tensor:
@@ -629,6 +623,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         return outs
 
     @torch.no_grad()
+    # TODO may bugs here
     def moe_infer(self, x, topk_ids, topk_weight):
         cnts = topk_ids.new_zeros((topk_ids.shape[0], len(self.experts)))
         cnts.scatter_(1, topk_ids, 1)
@@ -645,7 +640,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
                 continue
             expert = self.experts[i + self.ep_rank * self.experts_per_rank]
             tokens_for_this_expert = sorted_tokens[start_idx:end_idx]
-            expert_out = expert.forward_cpu(tokens_for_this_expert)
+            expert_out = expert.forward(tokens_for_this_expert)
             outputs.append(expert_out)
             start_idx = end_idx
 

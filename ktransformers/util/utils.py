@@ -113,8 +113,9 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         start_time = time.time()
         #custom_stream = torch.cuda.Stream()
 
+        inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to("cuda")
         logits = model(
-            inputs, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
+            inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0].clone()
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
