@@ -19,7 +19,7 @@ def act_fn(x):
 
 def mlp(input, gate_proj, up_proj, down_proj):
     if isinstance(gate_proj, nnq.Linear):
-        input_q = torch.quantize_per_tensor(input, scale, zero_point, torch.quint8)
+        input_q = torch.quantize_per_tensor(input.to(torch.float32), scale, zero_point, torch.quint8)
         gate_buf = gate_proj(input_q)
         up_buf = up_proj(input_q)
         gate_buf = gate_buf.dequantize()
