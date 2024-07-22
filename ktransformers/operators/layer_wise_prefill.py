@@ -217,7 +217,8 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
-        if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < input_ids.size(1):
+        seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
+        if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
             per_layer_prefill_flag = True
             for layer in self.layers:
                 self.load_layer_to(layer, "cpu")
@@ -256,11 +257,6 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             )
 
         if inputs_embeds is None:
-            if torch.cuda.is_current_stream_capturing():
-                pass
-            else:
-                pass
-                # input_ids = input_ids.to("cpu")
             input_ids = input_ids.to("cpu")
             inputs_embeds = self.embed_tokens(input_ids)
             inputs_embeds = inputs_embeds.to("cuda")
