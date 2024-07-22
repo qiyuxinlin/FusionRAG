@@ -1,8 +1,0 @@
-binding.cpp
-setup.py
-KCudaOps.egg-info/PKG-INFO
-KCudaOps.egg-info/SOURCES.txt
-KCudaOps.egg-info/dependency_links.txt
-KCudaOps.egg-info/top_level.txt
-custom_gguf/dequant.cu
-gptq_marlin/gptq_marlin.cu

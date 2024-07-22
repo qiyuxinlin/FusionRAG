@@ -8,8 +8,6 @@
 #include <torch/torch.h>
 // namespace py = pybind11;
 
-torch::Tensor dequantize_q6_k(torch::Tensor data, int blk_size, torch::Device device);
-
 PYBIND11_MODULE(KCudaOps, m) {
       m.def("dequantize_q8_0", &dequantize_q8_0, "Function to dequantize q8_0 data.",
             py::arg("data"), py::arg("blk_size"), py::arg("device"));
