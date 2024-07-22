@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from socket import NETLINK_ROUTE
-import time
 from typing import Any, Union
 import numpy as np
 import numpy.typing as npt
@@ -28,18 +26,13 @@ import cpuinfer_ext
 from cpuinfer_ext.moe import MOEConfig, MOE
 import ctypes
 from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.server.config.config import Config
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
 from ktransformers.operators.linear import QuantizedLinearMarlin, QuantizedLinearTorch, KTransformerLinear
 import time
 
-
-# from gguf.constants import GGMLQuantizationType
-# from gguf.quants import quant_shape_to_byte_shape, GGML_QUANT_SIZES
-# from multiprocessing import cpu_count
-
-cpu_infer = cpuinfer_ext.CPUInfer(60) # TODO: Auto generate thread_num, or set by user
 
 # class Base(BaseInjectedModule, ABC):
 class MLPExpertsBase(ABC):
@@ -78,7 +71,6 @@ class MLPExpertsBase(ABC):
 
         for key in keys:
             if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
-                keys = [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"]
                 if device.lower() == "cpu":
                     gate = self.gguf_loader.get_mmap_tensor(key + ".ffn_gate_exps.weight")
                     up = self.gguf_loader.get_mmap_tensor(key + ".ffn_up_exps.weight")
@@ -111,6 +103,7 @@ class MLPCPUExperts(MLPExpertsBase):
     weights_cpu:Tensor = None
     output_cpu:Tensor = None
     output_gpu:Tensor = None
+    CPU_INFER = cpuinfer_ext.CPUInfer(Config().cpu_infer)
     def __init__(
         self,
         key: str,
@@ -130,7 +123,6 @@ class MLPCPUExperts(MLPExpertsBase):
     def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = False):
         if device:
             assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
-        t1 = time.time()
         if w is None: w = self.load_weights()[self.key]
         self.gate = w["gate"]
         self.up = w["up"]
@@ -138,7 +130,6 @@ class MLPCPUExperts(MLPExpertsBase):
         self.gate_type = w["gate_type"]
         self.up_type = w["up_type"]
         self.down_type = w["down_type"]
-        t2 = time.time()
         gate_ptr = ctypes.addressof(
             ctypes.cast(self.gate.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
         )
@@ -148,16 +139,17 @@ class MLPCPUExperts(MLPExpertsBase):
         down_ptr = ctypes.addressof(
             ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
         )
-        t3 = time.time()
-
         # print(self.gate_qtype, self.up_qtype, self.down_qtype)
         n_routed_experts = self.n_routed_experts
         # n_routed_experts = len(self.orig_module)
         moe_config = MOEConfig(
             n_routed_experts,
+            self.config.num_experts_per_tok,
             self.config.hidden_size,
             self.config.moe_intermediate_size,
             64,
+            10,
+            1024,
             gate_ptr,
             up_ptr,
             down_ptr,
@@ -166,25 +158,20 @@ class MLPCPUExperts(MLPExpertsBase):
             self.down_type,
             30, # TODO: get from model.dtype
         )
-        t4 = time.time()
-
         # print(n_routed_experts, hidden_size, moe_intermediate_size)
         num_experts_per_tok = self.config.num_experts_per_tok
+        self.moe = MOE(moe_config)
+        self.cpu_infer = MLPCPUExperts.CPU_INFER
         if warmup:
-            self.moe = MOE(moe_config)
-            self.cpu_infer = cpu_infer
             self.cpu_infer.submit(self.moe.warm_up)
             self.cpu_infer.sync()
-        t5 = time.time()
-
         if MLPCPUExperts.output_gpu == None:
             MLPCPUExperts.input_tensor_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
             MLPCPUExperts.expert_ids_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
             MLPCPUExperts.weights_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
             MLPCPUExperts.output_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
             MLPCPUExperts.output_gpu = torch.empty((self.config.hidden_size), device=self.out_device)
-        t6 = time.time()
-        # print(f"load time: {t2-t1}, {t3-t2}, {t4-t3}, {t5-t4}, {t6-t5}")
+
     def submit_for_one_decode(self, input_tensor, expert_ids, weights):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
         MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
@@ -214,11 +201,8 @@ class MLPCPUExperts(MLPExpertsBase):
             expert_ids = expert_ids.contiguous().cpu()
             weights = weights.contiguous().to(torch.float32).cpu()
             output = torch.empty_like(input_tensor).contiguous()
-            start = time.perf_counter()
             self.cpu_infer.submit(self.moe.forward, expert_ids.size(0), expert_ids.size(1), expert_ids.data_ptr(), weights.data_ptr(), input_tensor.data_ptr(), output.data_ptr())
             self.cpu_infer.sync()
-            end = time.perf_counter()
-            # print("MoE Time(s): ", end - start)
             return output.to(device=object.__getattribute__(self, "device"))
     
     def unload(self):
@@ -373,7 +357,7 @@ class MLPExpertsTorch(MLPExpertsBase):
             # Index the correct hidden states and compute the expert hidden state for
             # the current expert. We need to make sure to multiply the output hidden
             # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
-            current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim).to(torch.float32)
+            current_state = hidden_states_cpu[None, top_x].reshape(-1, hidden_dim)
             G = current_state @ self.gate[expert_idx,...].T
             A = self.act_fn(G)
             U = current_state @ self.up[expert_idx,...].T
