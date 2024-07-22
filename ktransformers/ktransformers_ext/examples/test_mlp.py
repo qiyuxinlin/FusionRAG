@@ -15,8 +15,6 @@ with torch.inference_mode(mode=True):
     layer_num = 10
     CPUInfer = cpuinfer_ext.CPUInfer(48)
     validation_iter = 100
-    warm_up_iter = 1000
-    test_iter = 10000
 
     mlps = []
     gate_projs = []
@@ -58,30 +56,3 @@ with torch.inference_mode(mode=True):
         diff = torch.mean(torch.abs(output - t_output)) / torch.mean(torch.abs(t_output))
         print('diff = ', diff)
         assert(diff < 0.001)
-
-    # warm up
-    for i in range(warm_up_iter):
-        mlp = mlps[i % layer_num]
-        input = torch.randn((1, hidden_size), dtype=torch.float16).contiguous()
-        output = torch.empty((1, hidden_size), dtype=torch.float16).contiguous()
-        input = input / 100
-        CPUInfer.submit(mlp.forward, input.data_ptr(), output.data_ptr())
-        CPUInfer.sync()
-
-    # test
-    total_time = 0
-    for i in range(test_iter):
-        mlp = mlps[i % layer_num]
-        input = torch.randn((1, hidden_size), dtype=torch.float16).contiguous()
-        output = torch.empty((1, hidden_size), dtype=torch.float16).contiguous()
-        input = input / 100
-        start = time.time()
-        CPUInfer.submit(mlp.forward, input.data_ptr(), output.data_ptr())
-        CPUInfer.sync()
-        end = time.time()
-        total_time += end - start
-    print('Time: ', total_time)
-    print('Iteration: ', test_iter) 
-    print('Time per iteration: ', total_time / test_iter)
-    print('Bandwidth: ', hidden_size * intermediate_size * 3 * 2 * test_iter / total_time / 1024 / 1024 / 1024, 'GB/s')
-    print("All tasks completed.")
