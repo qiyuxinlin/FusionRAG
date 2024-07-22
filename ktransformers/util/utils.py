@@ -41,7 +41,7 @@ def load_cur_state_dict(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         if translated_key in gguf_loader.tensor_file_map:
             target_dtype = torch.get_default_dtype()
             device = "cpu" if "embd" in translated_key else "cuda"
-            weights = torch.tensor(gguf_loader.load_gguf_tensor(translated_key), device=device).to(dtype=target_dtype)
+            weights = gguf_loader.load_gguf_tensor(translated_key).to(device = device, dtype = target_dtype)
             set_param(module, name, weights)
             del weights
         else:

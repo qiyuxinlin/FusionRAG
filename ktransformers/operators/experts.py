@@ -483,7 +483,7 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
 
         shared_expert_output = self.shared_expert(hidden_states)
         shared_expert_output = (
-            F.sigmoid(self.shared_expert_gate(hidden_states)).unsqueeze(-1) * shared_expert_output
+            F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
         )
 
         if isinstance(self.experts, MLPExpertsBase):
@@ -567,7 +567,6 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         sequence_length = orig_shape[1]
         topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
-        flat_topk_idx = topk_idx.view(-1)
         
         if sequence_length == 1:
             self.experts.cpu_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
@@ -636,7 +635,6 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         tokens_per_expert = cnts.sum(dim=0)
         idxs = topk_ids.view(-1).argsort()
         sorted_tokens = x[idxs // topk_ids.shape[1]]
-        sorted_tokens_shape = sorted_tokens.shape
         tokens_per_expert = tokens_per_expert.cpu().numpy()
 
         outputs = []

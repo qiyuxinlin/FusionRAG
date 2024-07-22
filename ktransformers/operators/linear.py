@@ -72,7 +72,7 @@ class QuantizedLinearBase(ABC):
         else:
             shape = self.gguf_loader.tensor_info[key + ".weight"]["shape"]
             if len(shape) == 1:
-                print("orig_module is not set, but has in_features or out_features equals to 1, can't get in_features and out_features from GGUF")
+                print("Warning: orig_module is not set, but has in_features or out_features equals to 1, can't get in_features and out_features from GGUF")
             self.in_features  = self.gguf_loader.tensor_info[key + ".weight"]["shape"][0]
             self.out_features = self.gguf_loader.tensor_info[key + ".weight"]["shape"][1]
 
@@ -146,10 +146,10 @@ class QuantizedLinearTorch(QuantizedLinearBase):
         if w is None: w = self.load_weight(device=device)
 
         if isinstance(w, nn.Parameter):
-            self.w = w.to(dtype=self.dtype).T
+            self.w = w.to(dtype=self.dtype).view(self.out_features, self.in_features).T
             self.has_bias = False
         elif isinstance(w, tuple):
-            self.w = w[0].to(dtype=self.dtype).T
+            self.w = w[0].to(dtype=self.dtype).view(self.out_features, self.in_features).T
             self.bias = w[1].to(dtype=self.dtype)
             self.has_bias = True
         else:
@@ -199,11 +199,11 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
 
         if isinstance(w, nn.Parameter):
             # pad weight
-            weight = w.T
+            weight = w.view(self.out_features, self.in_features).T
             self.has_bias = False
         elif isinstance(w, tuple):
             w = list(w)
-            weight = w[0].T
+            weight = w[0].view(self.out_features, self.in_features).T
             self.bias = w[1]
             self.has_bias = True
         else:
@@ -296,7 +296,7 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
             assert gpu_linear_type in GPU_LINEAR_MAP, f"gpu_linear_type {gpu_linear_type} not supported"
             if gpu_linear_type == "QuantizedLinearMarlin" and (orig_module.in_features%GPTQ_MARLIN_MIN_THREAD_N!=0 or orig_module.out_features%GPTQ_MARLIN_MIN_THREAD_N!=0):
                 print(f"This linear module's in_features or out_features is not divisible by GPTQ_MARLIN_MIN_THREAD_N({GPTQ_MARLIN_MIN_THREAD_N}), using QuantizedLinearTorch instead.")
-                print(orig_module)
+                print(f"module info: key:{key} orig_module:{orig_module}")
                 self.gpu_linear_type = "QuantizedLinearTorch"
                 self.gpu_linear = QuantizedLinearTorch(key, gguf_loader, config, orig_module, "cuda", **kwargs)
             else:

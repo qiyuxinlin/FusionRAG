@@ -262,7 +262,6 @@ class GGUFLoader:
     
     def load_gguf_tensor(self, name: str, device:str = "cpu")->torch.Tensor:
         t = self.tensor_info[name]
-        mmap_data = self.file_data_map[ self.tensor_file_map[name] ]
 
         shape = t["shape"]
         ggml_type = t["ggml_type"]
@@ -442,6 +441,8 @@ def dequantize_q4_k(data):
 def dequantize_q4_k_gpu(data, device:str ="cuda"):
     data = np.frombuffer(data, dtype=data.dtype)
     device = torch.device(device)
+    # TODO: this and from_numpy in other functions will cause a warning saying that numpy is not writable, 
+    # the best way to fix this is transfer ptr to KCudaOps instead of Tensor.
     data = torch.from_numpy(data)
     return KCudaOps.dequantize_q4_k(data, 144, device)
 
