@@ -57,20 +57,6 @@ def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix='', return_whe
     else:
         module.load()
     
-    """
-    for name, child in module._modules.items():
-        if child is not None:
-            if isinstance(child, base_operator.BaseInjectedModule) and return_when_injected:
-                pass
-            elif isinstance(child, base_operator.BaseInjectedModule):
-                child.load()
-                load_weights(child, gguf_loader, prefix+name+"." if not isinstance(module, base_operator.BaseInjectedModule) else prefix, return_when_injected, True)
-            else:
-                if not isinstance(module, base_operator.BaseInjectedModule) and not only_load_injected:
-                    load_weight_default(child, gguf_loader, prefix+name+".")
-                load_weights(child, gguf_loader, prefix+name+"." if not isinstance(module, base_operator.BaseInjectedModule) else prefix, return_when_injected, only_load_injected)
-    """
-                
 def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
     import os
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
