@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-18 12:38:49
+LastEditTime : 2024-07-22 10:21:04
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -148,14 +148,15 @@ class CMakeBuild(BuildExtension):
         )
 
 
-qlib_files = glob.glob("qlib.*.so")
+qlib_files = glob.glob("KCudaOps.*.so")
 if not qlib_files:
     setup(
         ext_modules=[
-            CUDAExtension('qlib', [
-                  'ktransformers/ktransformers_ext/custom_marlin/qlib.cpp',
-                  'ktransformers/ktransformers_ext/custom_marlin/gptq_marlin/gptq_marlin.cu',
-          ]),
+            CUDAExtension('KCudaOps', [
+                'ktransformers/ktransformers_ext/cuda/custom_gguf/dequant.cu',
+                'ktransformers/ktransformers_ext/cuda/binding.cpp',
+                'ktransformers/ktransformers_ext/cuda/gptq_marlin/gptq_marlin.cu',
+      ]),
             CMakeExtension("cpuinfer_ext")],
         cmdclass={"build_ext": CMakeBuild}
     )
@@ -163,7 +164,7 @@ else:
     qlib_file = os.path.join(Path.cwd(), qlib_files[0]) 
     setup(
         ext_modules=[
-            CopyExtension('qlib',"", qlib_file),
+            CopyExtension('KCudaOps',"", qlib_file),
             CMakeExtension("cpuinfer_ext")],
         cmdclass={"build_ext": CMakeBuild},
     )
