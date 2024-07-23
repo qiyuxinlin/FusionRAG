@@ -26,10 +26,6 @@ In half-precision floating-point formats (fp16 and bf16), CPUInfer's performance
 
 In MoE module, each token selected 6 experts out of 160 for computation, with input and output dimensions of 5120, and an intermediate dimension of 1536.
 
-![MoE_time_per_layer_generation_phase](MoE_time_per_layer_generation_phase.png)
+![Combined_MoE_time_per_layer](Combined_MoE_time_per_layer.png)
 
-For half-precision floating points and 8-bit quantization formats, CPUInfer’s generation performance was 2.5 and 3.2 times better than Torch, respectively.
-
-![MoE_time_per_layer_prefill_phase](MoE_time_per_layer_prefill_phase.png)
-
-Moreover, using the 8-bit quantization format, CPUInfer achieved faster prefill speeds compared to Torch, with shorter prompts highlighting a more pronounced performance difference.
+For half-precision floating points and 8-bit quantization formats, CPUInfer’s generation performance was 2.5 and 3.2 times better than Torch, respectively. Moreover, using the 8-bit quantization format, CPUInfer achieved faster prefill speeds compared to Torch, with shorter prompts highlighting a more pronounced performance difference.
