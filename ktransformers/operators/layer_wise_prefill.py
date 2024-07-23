@@ -22,7 +22,7 @@
 import inspect
 import math
 from typing import List, Optional, Tuple, Union
-
+import time
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
@@ -50,7 +50,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock, Qwen2MoeMLP, Qwen2MoeDecoderLayer
-from ktransformers.models.modeling_deepseek import BaseModelOutputWithPast
+from ktransformers.models.modeling_deepseek import BaseModelOutputWithPast, DeepseekV2DecoderLayer, DeepseekV2MoE
 from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.operators.experts import KTransformersMLPExpert
@@ -483,7 +483,7 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 30000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = 50000, # if None, no per-layer prefill
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
         per_layer_prefill_flag = False
@@ -640,9 +640,9 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
 
 
 
-    def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
+    def load_layer_to(self,  layer:DeepseekV2DecoderLayer, target:str):
         assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
-        assert isinstance(layer, Qwen2MoeDecoderLayer), "module should be nn.ModuleList of decoder layers"
+        assert isinstance(layer, DeepseekV2DecoderLayer), "module should be nn.ModuleList of decoder layers"
 
         # TODO Support restore to original device, not only cuda
         # TODO Support DFS to auto use {to, load_to} according to the module type
@@ -652,8 +652,8 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         layer.self_attn.to(device)
 
         # mlp
-        if isinstance(layer.mlp, Qwen2MoeSparseMoeBlock):
-            layer.mlp.gate.load_to(target)
+        if isinstance(layer.mlp, DeepseekV2MoE):
+            layer.mlp.gate.to(device)
             layer.mlp.experts.load_to(target)
             layer.mlp.shared_experts.gate_proj.load_to(target)
             layer.mlp.shared_experts.up_proj.load_to(target)
