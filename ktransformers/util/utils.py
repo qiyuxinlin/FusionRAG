@@ -156,6 +156,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
     tokens_generated = len(tokens)
     tokens_per_second = tokens_generated / total_time
 
+    print("")
+
     print(f"prompt eval count:    {prefill_count} token(s)")
     print(f"prompt eval duration: {prefill_time}s")
     print(f"prompt eval rate:     {prefill_count/prefill_time} tokens/s")
