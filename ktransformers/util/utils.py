@@ -7,6 +7,7 @@ from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.operators import base_operator
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
+from ktransformers.util.textstream import TextStreamer
 
 def set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')
@@ -87,6 +88,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         return next_token
 
     with torch.no_grad():
+        stream = TextStreamer(tokenizer)
         past_key_values = StaticCache(
             config = model.config, max_batch_size = 1, max_cache_len = seq_length + max_new_tokens, device = torch_device, dtype = model.dtype
         )
@@ -117,15 +119,18 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         else:
             next_token = torch.argmax(next_token_scores, dim=-1)
         first_token_time = time.time() - start_time
-        print(f"Time to generate first token: {first_token_time} seconds")
-        print(f"Prefill sepeed: {seq_length/first_token_time} tokens/s")
+
+        prefill_count = seq_length
+        prefill_time = first_token_time
+
+        print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, seq_length] = next_token
         tokens.append(next_token)
         inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
         cache_position = torch.tensor([seq_length], device=torch_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
-        temp_token = []
+
         #decode_one_tokens = torch.compile(decode_one_tokens)
         # torch.cuda.synchronize()
         cuda_graph_runner = CUDAGraphRunner()
@@ -140,25 +145,24 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
             seq_length += 1
             
             if next_token[0].item() == tokenizer.eos_token_id:
+                print(stream.end(), end="", flush=True)
                 break
-            elif next_token[0].item() in range(3,259):
-                temp_token.append(next_token[0])
             else:
-                if len(temp_token) == 0:
-                    temp_token.append(next_token[0])
-                print(tokenizer.decode(torch.tensor(temp_token), skip_special_tokens=True))
-                temp_token = []
+                print(stream.put(next_token.item()), end="", flush=True)
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
 
     total_time = time.time() - start_time
     tokens_generated = len(tokens)
     tokens_per_second = tokens_generated / total_time
-    print(f"Tokens generated: {tokens_generated}")
-    print(f"Total time for generation: {total_time} seconds.")
-    print(f"Generate sepeed: {tokens_per_second} tokens/s.")
-    # generate_prompts = torch.tensor(tokens).unsqueeze(0)
-    # tokenizer.decode(tokens, skip_special_tokens=True)
-    text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-    print(text)
+
+    print("")
+
+    print(f"prompt eval count:    {prefill_count} token(s)")
+    print(f"prompt eval duration: {prefill_time}s")
+    print(f"prompt eval rate:     {prefill_count/prefill_time} tokens/s")
+    print(f"eval count:           {tokens_generated} token(s)")
+    print(f"eval duration:        {total_time}s")
+    print(f"eval rate:            {tokens_per_second} tokens/s")
+
     return tokens

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import platform
 import sys
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
@@ -88,6 +89,12 @@ def local_chat(
     model.eval()
 
     logging.basicConfig(level=logging.INFO)
+
+    system = platform.system()
+    if (system == u'Windows'):
+        os.system('cls')
+    else:
+        os.system('clear')
 
     while True:
         content = input("Chat: ")
