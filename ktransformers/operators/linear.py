@@ -18,8 +18,8 @@ from torch import nn
 from torch import linalg
 import KCudaOps 
 from ktransformers.util.custom_gguf import GGUFLoader
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_perms import marlin_perm
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_utils import (
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_perms import marlin_perm
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_utils import (
     MarlinWorkspace,
     compute_max_diff,
     is_marlin_supported,
@@ -34,7 +34,7 @@ from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_utils i
     GPTQ_MARLIN_SUPPORTED_GROUP_SIZES,
     GPTQ_MARLIN_SUPPORTED_SYM,
 )
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.quant_utils import (
     gptq_pack,
     quantize_weights,
     sort_weights,

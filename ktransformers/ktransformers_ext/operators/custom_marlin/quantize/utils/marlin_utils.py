@@ -4,13 +4,13 @@ import random
 import numpy
 import torch
 
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.format_24 import (
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.format_24 import (
     mask_creator, sparse_semi_structured_from_dense_cutlass)
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_24_perms import (
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_24_perms import (
     marlin_24_perm, marlin_24_scale_perm, marlin_24_scale_perm_single)
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.marlin_perms import (
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_perms import (
     marlin_perm, marlin_scale_perm, marlin_scale_perm_single)
-from ktransformers.ktransformers_ext.custom_marlin.quantize.utils.quant_utils import (
+from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.quant_utils import (
     get_pack_factor, quantize_weights, sort_weights)
 
 __cuda_arch = torch.cuda.get_device_capability()

@@ -79,7 +79,8 @@ class MLPExpertsBase(ABC):
                     up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
                     down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
                 else:
-                    tensors = self.load_multi(key, keys, device=device)
+                    targets = [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight" ]
+                    tensors = self.load_multi(key, targets, device=device)
                     gate = tensors[".ffn_gate_exps.weight"]
                     up = tensors[".ffn_up_exps.weight"]
                     down = tensors[".ffn_down_exps.weight"]
@@ -344,8 +345,10 @@ class MLPExpertsTorch(MLPExpertsBase):
         batch_sequence_length, hidden_dim = hidden_states_cpu.size()
 
         final_hidden_states = torch.zeros(
-            (batch_sequence_length, hidden_dim), dtype=hidden_states_cpu.dtype, device=hidden_states_cpu.device
+            (batch_sequence_length, hidden_dim), dtype=self.gate.dtype, device=hidden_states_cpu.device
         )
+        org_dtype = hidden_states_cpu.dtype
+        hidden_states_cpu = hidden_states_cpu.to(self.gate.dtype)
 
         # One hot encode the selected experts to create an expert mask
         # this will be used to easily index which expert is going to be sollicitated
@@ -365,9 +368,9 @@ class MLPExpertsTorch(MLPExpertsBase):
             current_hidden_states = H @ self.down[expert_idx,...].T * routing_weights_cpu[top_x, idx, None]
             # However `index_add_` only support torch tensors for indexing so we'll use
             # the `top_x` tensor here.
-            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states_cpu.dtype))
+            final_hidden_states.index_add_(0, top_x, current_hidden_states)
 
-        return final_hidden_states
+        return final_hidden_states.to(org_dtype)
 
 GPU_EXPERTS_MAP={
     "MLPExpertsMarlin": MLPExpertsMarlin,

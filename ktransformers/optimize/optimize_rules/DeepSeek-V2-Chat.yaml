@@ -29,3 +29,7 @@
     name: "^model\\.layers\\..*\\.self_attn$"
   replace:
     class: ktransformers.operators.attention.DeepseekV2AttentionInjected # optimized MLA implementation
+- match:
+    name: "^model$"
+  replace:
+    class: "ktransformers.operators.layer_wise_prefill.DeepseekV2ModelPerLayerPrefill"
