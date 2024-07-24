@@ -1,6 +1,6 @@
 <div align="center">
   <h1>KTransformers: A Flexible Framework for Experiencing <br/>Cutting-edge LLM Inference Optimizations</h1>
-  <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a>
+  <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a></strong>
 </div>
 
 KTransformers, or Quick Transformers, is designed to enhance your [🤗 Transformers](https://github.com/huggingface/transformers) experience with advanced kernel optimizations and placement/parallelism strategies. With KTransformers, you can run state-of-the-art models like the 236B DeepSeek-V2 on a single 24GB consumer GPU and 136GB DRAM by adding just one line of code. Experience up to 6X speedup on prefill and 3.4X speedup for generation compared to llama.cpp. More features, including support for extremely long contexts, are coming soon.
