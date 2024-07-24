@@ -1,21 +1,15 @@
 <div align="center">
   <h1>KTransformers</h1>
+  <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
+  <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a></strong>
 </div>
-
-<h3 align="center">
-A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations
-</h3>
-
-<p align="center">
-| <a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a> |
-</p>
 
 
 <h2 id="overview">🎉 Overview</h2>
-KTransformers, or Quick Transformers, is designed to enhance your [🤗 Transformers](https://github.com/huggingface/transformers) experience with advanced kernel optimizations and placement/parallelism strategies. With KTransformers, you can run state-of-the-art models like the 236B DeepSeek-V2 on a single 24GB consumer GPU and 136GB DRAM by adding just one line of code. Experience up to 6X speedup on prefill and 3.4X speedup for generation compared to llama.cpp. More features, including support for extremely long contexts, are coming soon.
-
+KTransformers, or Quick Transformers, is designed to enhance your 🤗 [Transformers](https://github.com/huggingface/transformers) experience with advanced kernel optimizations and placement/parallelism strategies. With KTransformers, you can run state-of-the-art models like the 236B DeepSeek-V2 on a single 24GB consumer GPU and 136GB DRAM by adding just one line of code. Experience up to 6X speedup on prefill and 3.4X speedup for generation compared to llama.cpp. More features, including support for extremely long contexts, are coming soon.
+<br/>
 KTransformers is a flexible, Python-centric framework designed to inject cutting-edge LLM inference optimizations into production-ready, user-friendly inference engines. Implement an optimized operator/kernel, inject it via KTransformers, and gain a Transformers-compatible interface, OpenAI/ollama-compatible API, and even a simple ChatGPT-like web UI.
-
+<br/>
 We aim to develop KTransformers as a user-friendly platform for experiencing and experimenting with cutting-edge LLM inference optimizations. Please let us know if you need any other features.
 
 
