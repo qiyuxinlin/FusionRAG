@@ -27,15 +27,19 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
     <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="https://XXXX.png" width=55%>
   </picture>
 </p>
+
 - **Local 236B DeepSeek-Coder-V2:** Running its Q4_K_M version using only 21GB VRAM and 136GB DRAM, attainable on a local desktop machine, which scores even better than GPT4-0613 in [BigCodeBench](https://huggingface.co/blog/leaderboard-bigcodebench).
+
 <p align="center">
   <picture>
     <img alt="DeepSeek-Coder-V2 Score" src="https://XXXX.png" width=55%>
   </picture>
 </p>
+
 - **Faster Speed:** Achieving 126 tokens/s for 2K prompt prefill and 13.6 tokens/s for generation through MoE offloading and injecting advanced kernels from [Llamafile](https://github.com/Mozilla-Ocho/llamafile/tree/main) and [Marlin](https://github.com/IST-DASLab/marlin).
 - **Long Context:** Further improved to XXX tokens/s for long 120K prompt via layer-wise GPU prefill, suitable for long context understanding.
 - **VSCode Integration:** Wrapped into an OpenAI and Ollama compatible API for seamless integration as a backend for [Tabby](https://github.com/TabbyML/tabby) and various other frontends.
+
 <p align="center">
   <picture>
     <img alt="Tabby integration" src="https://XXXX.png" width=55%>
@@ -51,9 +55,11 @@ TODO: Pip installation and requirements
 
 <h3>Local Chat</h3>
 After installation, we provide a simple command-line local chat Python script that you can run for testing:
+
 ```shell
 python local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat --gguf_path /mnt/default/data/deepseek-v2/gguf/DeepSeek-V2-Chat.q4_k_m.gguf/
 ```
+
 It features the following arguments:
 
 - model_name (required): name or path transformers will use to initialize the model. <strong>No safetensors</strong> are required in the directory.
@@ -106,3 +112,9 @@ Each rule in the YAML file has two parts: `match` and `replace`. The `match` par
 You can find example rule templates for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models, in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory. These templates are used to power the `local_chat.py` demo.
 
 A detailed description of the injection using DeepSeek-V2 as an example is given [here](doc/en/deepsee-v2-injection.md).
+
+<h2 id="ack">Acknowledgment</h2>
+
+The development of KTransformer is based on the flexible and versatile framework provided by Transformers. We also benefit from advanced kernels such as GGUF/GGML, Llamafile, and Marlin. 
+
+We are planning to contribute back to the community by upstreaming our modifications.
