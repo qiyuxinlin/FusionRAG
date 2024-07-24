@@ -113,8 +113,8 @@ You can find example rule templates for optimizing DeepSeek-V2 and Qwen2-57B-A14
 
 A detailed description of the injection using DeepSeek-V2 as an example is given [here](doc/en/deepsee-v2-injection.md).
 
-<h2 id="ack">Acknowledgment and Contributeors</h2>
+<h2 id="ack">Acknowledgment and Contributors</h2>
 
 The development of KTransformer is based on the flexible and versatile framework provided by Transformers. We also benefit from advanced kernels such as GGUF/GGML, Llamafile, and Marlin. We are planning to contribute back to the community by upstreaming our modifications.
 
-KTransformers is actively maintained and developed by contributors from [MADSys](https://madsys.cs.tsinghua.edu.cn/) group at Tsinghua University and members from [Approching.AI](http://approching.ai/). We welcome new contributors to join us in making KTransformers faster and more easier to use. 
+KTransformer is actively maintained and developed by contributors from the <a href="https://madsys.cs.tsinghua.edu.cn/">MADSys group</a> at Tsinghua University and members from <a href="http://approching.ai/">Approaching.AI</a>. We welcome new contributors to join us in making KTransformer faster and easier to use.
