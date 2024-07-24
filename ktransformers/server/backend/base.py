@@ -1,9 +1,7 @@
 from asyncio import Queue
 from enum import Enum
-import threading
 import sys, os
-import janus
-from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
+from typing import AsyncIterator, Dict, List, Optional, Tuple
 
 import torch
 
@@ -16,7 +14,6 @@ from ktransformers.server.exceptions import request_error
 from ktransformers.server.schemas.assistants.assistants import AssistantObject
 from ktransformers.server.schemas.assistants.messages import MessageCreate, MessageObject, Role
 from ktransformers.server.schemas.assistants.runs import RunObject
-from ktransformers.server.schemas.assistants.streaming import unwrap_async_queue
 from ktransformers.server.schemas.assistants.threads import ThreadObject
 from ktransformers.server.schemas.base import ObjectID, Order
 from ktransformers.server.utils.multi_timer import Profiler
@@ -53,9 +50,6 @@ class BackendInterfaceBase:
             async str output for stream update
 
         '''
-        raise NotImplementedError
-    
-    def inference_sync(self,local_messages,request_unique_id:Optional[str])->Iterator[str]:
         raise NotImplementedError
 
 
@@ -124,54 +118,6 @@ class ThreadContext:
     def delete_user_message(self,message_id: ObjectID):
         self.messages = [m for m in self.messages if m.id != message_id]
 
-    async def work_async(self)->AsyncIterator:
-        logger.debug('start working')
-        user_message = self.messages[-1]
-        if not user_message.role.is_user():
-            raise request_error('user must talk before LLM can talk')
-        user_message.status = MessageObject.Status.completed
-        user_message.sync_db()
-
-        local_messages = self.get_local_messages() # must get this before we interseted reply_message
-
-
-        response_str_count = 0  
-        reply_message = self.message_manager.create_message_object(
-                            self.thread.id,
-                            self.run.id,
-                            MessageCreate(role=Role.assistant, content=""),    
-                        )
-        reply_message.assistant_id = self.assistant.id
-        self.messages.append(reply_message) 
-
-        yield reply_message.stream_response_with_event(MessageObject.Status.created)
-        yield reply_message.stream_response_with_event(MessageObject.Status.in_progress)
-        yield self.run.stream_response_with_event(RunObject.Status.in_progress)
-
-        async for token in self.interface.inference(local_messages,self.thread.id):     
-            if self.run.status == RunObject.Status.cancelling:
-                logger.warn(f'Run {self.run.id} cancelling')
-                break
-            yield reply_message.append_message_delta(token)
-            response_str_count+=1
-        
-        if self.run.status == RunObject.Status.cancelling:
-            yield self.run.stream_response_with_event(RunObject.Status.cancelled)
-            yield reply_message.stream_response_with_event(MessageObject.Status.incomplete)
-        elif self.run.status == RunObject.Status.in_progress:
-            yield self.run.stream_response_with_event(RunObject.Status.completed)
-            yield reply_message.stream_response_with_event(MessageObject.Status.completed)
-        else:
-            raise NotImplementedError(f'{self.run.status} should not appear here')
-
-        reply_message.sync_db()
-        self.run.sync_db()
-
-    def work_with_queue(self,queue:janus.Queue,local_messages,request_unique_id):
-        for t in self.interface.inference_sync(local_messages,request_unique_id):
-            queue.sync_q.put(t)
-        queue.sync_q.put(None)
-
     async def work(self)->AsyncIterator:
         logger.debug('start working')
         user_message = self.messages[-1]
@@ -196,10 +142,7 @@ class ThreadContext:
         yield reply_message.stream_response_with_event(MessageObject.Status.in_progress)
         yield self.run.stream_response_with_event(RunObject.Status.in_progress)
 
-
-        jqueue = janus.Queue(maxsize=1024)
-        threading.Thread(target=self.work_with_queue,args=(jqueue,local_messages,self.thread.id,)).start()
-        async for token in  unwrap_async_queue(jqueue.async_q):     
+        async for token in self.interface.inference(local_messages,self.thread.id):     
             if self.run.status == RunObject.Status.cancelling:
                 logger.warn(f'Run {self.run.id} cancelling')
                 break

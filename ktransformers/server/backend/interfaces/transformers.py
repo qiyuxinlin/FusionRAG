@@ -264,7 +264,7 @@ class TransformersInterface(BackendInterfaceBase):
         self.generated_ids[:,cache_position] = input_ids.to(self.args.device).to(torch.int)
 
         mask = torch.ones((1,self.seq_length)).to(self.args.device)
-        inputs_embeds = self.model.model.embed_tokens(input_ids.to("cpu")).to(self.args.device)
+        inputs_embeds = self.model.model.embed_tokens(input_ids.to("cpu")).to("cuda")
         if self.use_static_cache:
             logits = self.model(
                 inputs_embeds=inputs_embeds, cache_position=cache_position, past_key_values=self.cache,return_dict=False, use_cache=True,attention_mask=mask
@@ -306,33 +306,6 @@ class TransformersInterface(BackendInterfaceBase):
                 return True
 
     async def inference(self,local_messages,thread_id:str):
-        self.profiler.create_and_start_timer('tokenize')
-        if isinstance(local_messages,List):
-            input_ids = self.format_and_tokenize_input_ids(thread_id,local_messages)
-        elif isinstance(local_messages,str):
-            input_ids = self.tokenize_prompt(local_messages)
-        else:
-            raise ValueError('local_messages should be List or str')
-
-        self.profiler.pause_timer('tokenize')
-
-        self.profiler.create_and_start_timer('prefill')
-        for t in self.prefill(input_ids,self.check_is_new(thread_id)):
-            if t is not None:
-                print(t,end='')
-                yield t
-        self.profiler.pause_timer('prefill')
-
-        self.profiler.create_and_start_timer('decode')
-        for t in self.generate():
-            if t is not None:
-                print(t,end='')
-                yield t
-        print('')
-        self.profiler.pause_timer('decode')
-        self.report_last_time_performance()
-
-    def inference_sync(self,local_messages,thread_id:str):
         self.profiler.create_and_start_timer('tokenize')
         if isinstance(local_messages,List):
             input_ids = self.format_and_tokenize_input_ids(thread_id,local_messages)

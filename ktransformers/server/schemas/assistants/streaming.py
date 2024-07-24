@@ -153,7 +153,7 @@ async def unwrap_async_queue(queue: asyncio.Queue) -> AsyncIterable:
         events = [await queue.get()]
         events.extend([queue.get_nowait() for _ in range(queue.qsize())])
 
-        # logger.debug(f'getting {len(events)} events')
+        logger.debug(f'getting {len(events)} events')
         for event in events:
             if event is None:
                 break
