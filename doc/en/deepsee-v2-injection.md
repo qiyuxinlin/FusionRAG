@@ -4,7 +4,7 @@ DeepSeek-(Code)-V2 is a series of strong mixture-of-experts (MoE) models, featur
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="../asset/BigCodeBench.png" width=80%>
+    <img alt="DeepSeek-Coder-V2 Score" src="../assets/BigCodeBench.png" width=80%>
   </picture>
 </p>
 
@@ -24,7 +24,7 @@ The following figure provides a brief overview of DeepSeek-V2 architecture. At t
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek on KTransformers" src="../asset/DeepSeek-on-KTransformers.PNG" width=55%>
+    <img alt="DeepSeek on KTransformers" src="../assets/DeepSeek-on-KTransformers.PNG" width=80%>
   </picture>
 </p>
 
@@ -51,7 +51,7 @@ In the current version of KTransformers, we utilize Marlin for GPU kernels and l
 
 <p align="center">
   <picture>
-    <img alt="CPUInfer Performance" src="../asset/cpuinfer.png" width=55%>
+    <img alt="CPUInfer Performance" src="../assets/cpuinfer.png" width=80%>
   </picture>
 </p>
 
@@ -65,7 +65,7 @@ KTransformers will iterate through all sub-modules of the model, match rules spe
 
 <p align="center">
   <picture>
-    <img alt="Inject-Struction" src="./doc/asset/InjectStruction.png" width=50%>
+    <img alt="Inject-Struction" src="../assets/InjectStruction.png" width=80%>
   </picture>
 </p>
 

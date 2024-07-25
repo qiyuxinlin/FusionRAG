@@ -2,7 +2,7 @@
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
   <picture>
-    <img alt="KTransformers" src="./doc/asset/KTransformers.png" width=55%>
+    <img alt="KTransformers" src="./doc/assets/KTransformers.png" width=55%>
   </picture>
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
@@ -32,7 +32,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="./doc/asset/BigCodeBench.png" width=80%>
+    <img alt="DeepSeek-Coder-V2 Score" src="./doc/assets/BigCodeBench.png" width=80%>
   </picture>
 </p>
 
@@ -128,13 +128,14 @@ More information about the RESTful API server can be found [here](doc/en/api/ser
 At the heart of KTransformers is a user-friendly, template-based injection framework. 
 This allows researchers to easily replace original torch modules with optimized variants. It also simplifies the process of combining multiple optimizations, allowing the exploration of their synergistic effects. 
 
+</br>
 <p align="center">
   <picture>
-    <img alt="Inject-Struction" src="./doc/asset/InjectStruction.png" width=50%>
+    <img alt="Inject-Struction" src="./doc/assets/InjectStruction.png" width=50%>
   </picture>
 </p>
 
-<br/><br/>
+
 Given that vLLM already serves as a great framework for large-scale deployment optimizations, KTransformers is particularly focused on local deployments that are constrained by limited resources. We pay special attention to heterogeneous computing opportunities, such as GPU/CPU offloading of quantized models. For example, we support the efficient [Llamafile](https://github.com/Mozilla-Ocho/llamafile/tree/main) and [Marlin](https://github.com/IST-DASLab/marlin) kernels for CPU and GPU, respectively. More details can be found [here](doc/en/operators/llamafile.md).
 
 <h3>Example Usage</h3>
