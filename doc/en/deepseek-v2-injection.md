@@ -72,7 +72,7 @@ Specifically, the following rules are used:
 
 
 
-<h3 id="mla">Inject Attention</h3>
+<h3 id="mla">MLA</h3>
 
 For attention module injection, we only need to match the module name used in Transformers using a regular expression and replace it with our pre-implemented module. 
 The YAML rule is listed below.
@@ -134,7 +134,7 @@ We also need to transfer some keywords similar to the injection of experts. Here
       cpu_linear_type: "QuantizedLinearTorch"
 ```
 
-### Injections to Pre-compute Buffers
+### Pre-compute Buffers
 
 The original model is initialized on the meta device. The rotary embedding module pre-computes some buffers when initializing, which has no effect and doesn't compute anything when using the meta device. Therefore, we need to compute the buffers when loading the model. For convenience, we inject the rotary embedding module with our custom module, which performs pre-computations when loading. Here is the YAML rule:
 
@@ -143,17 +143,6 @@ The original model is initialized on the meta device. The rotary embedding modul
     class: ktransformers.models.modeling_deepseek.DeepseekV2YarnRotaryEmbedding
   replace:
     class: ktransformers.operators.RoPE.YarnRotaryEmbedding
-```
-
-### Injections for Layer-wise Prefill (optional)
-
-For long prompts, the arithmetic intensity during prefill will be different from decoding. Most computations will become compute-intensive. It's worth transferring each layer to the GPU, computing, and transferring the activations back to the CPU during prefill if the VRAM is insufficient to hold all parameters. To do so, we have implemented a module containing a forward function that achieves this goal. What we need to do is only inject it into the model, replacing the whole model. Here is the YAML rule:
-
-```yaml
-- match:
-    name: "^model$"
-  replace:
-    class: "ktransformers.operators.layer_wise_prefill.DeepseekV2ModelPerLayerPrefill"
 ```
 
 ## Wrap Your Custom Module
