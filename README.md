@@ -69,9 +69,9 @@ Requirements:
   conda activate {your_env_name} 
   ```
 
-- PyTorch 2.3.0 and above
+- Packaging, pytorch 2.3.0 and above
   ```sh
-  pip install torch
+  pip install packaging torch
   ```
 
 Install KTransformers
