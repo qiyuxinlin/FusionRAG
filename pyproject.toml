@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "ktransformers"
 version = "0.1.0"
 dependencies = [
-  "torch >= 2.3.0",
   "transformers == 4.41.2",
   "fastapi >= 0.111.0",
   "langchain >= 0.2.0",
@@ -18,7 +17,8 @@ dependencies = [
   "wheel",
   "colorlog",
   "build",
-  "fire"
+  "fire",
+  "flash-attn"
 ]
 requires-python = ">=3.10"
 authors = [

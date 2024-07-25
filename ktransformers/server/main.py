@@ -1,14 +1,8 @@
-# import sys
-# print(sys.path)
-
 import os
 import re
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn.logging
-# project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-# sys.path.append(project_dir)
-# print(sys.path)
 import argparse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -117,6 +111,7 @@ def main():
     parser.add_argument("--gguf_path", type=str, default=cfg.gguf_path)
     parser.add_argument("--optimize_config_path", type=str, required=False)
     parser.add_argument("--cpu_infer", type=int, default=cfg.cpu_infer)
+    parser.add_argument("--type", type=str, default=cfg.backend_type)
 
     # 初始化消息
     args = parser.parse_args()
@@ -127,6 +122,7 @@ def main():
     cfg.server_ip = args.host
     cfg.server_port = args.port
     cfg.cpu_infer = args.cpu_infer
+    cfg.backend_type = args.type
 
     default_args.model_dir = args.model_path
     default_args.device = args.device
