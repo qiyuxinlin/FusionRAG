@@ -24,7 +24,8 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <h3>GPT-4-level Local VSCode Copilot on a Desktop with only 24GB VRAM</h3>
 <p align="center">
   <picture>
-    <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="https://XXXX.png" width=55%>
+    <!-- <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="https://XXXX.png" width=55%> -->
+    <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="./doc/asset/ktransformers_vs_llama.cpp.mp4" width=55%>
   </picture>
 </p>
 
@@ -42,7 +43,8 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="Tabby integration" src="https://XXXX.png" width=55%>
+    <!-- <img alt="Tabby integration" src="https://XXXX.png" width=55%> -->
+    <img alt="Tabby integration" src="./doc/asset/202407251009.mp4" width=55%>
   </picture>
 </p>
 
