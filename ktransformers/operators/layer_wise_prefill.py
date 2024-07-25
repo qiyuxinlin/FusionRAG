@@ -1,23 +1,14 @@
+#!/usr/bin/env python
 # coding=utf-8
-# Copyright 2024 The Qwen team, Alibaba Group and the HuggingFace Inc. team. All rights reserved.
-#
-# This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
-# and OPT implementations in this library. It has been modified from its
-# original forms to accommodate minor architectural differences compared
-# to GPT-NeoX and OPT used by the Meta AI team that trained the model.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""PyTorch Qwen2MoE model."""
+'''
+Description  :  
+Author       : Azure
+Date         : 2024-07-25 11:25:24
+Version      : 1.0.0
+LastEditors  : Azure 
+LastEditTime : 2024-07-25 12:30:07
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 
 import inspect
 import math
@@ -53,8 +44,7 @@ from ktransformers.models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock, Qwen
 from ktransformers.models.modeling_deepseek import BaseModelOutputWithPast, DeepseekV2DecoderLayer, DeepseekV2MoE
 from transformers.models.qwen2_moe.configuration_qwen2_moe import Qwen2MoeConfig
 from ktransformers.operators.base_operator import BaseInjectedModule
-from ktransformers.operators.experts import KTransformersMLPExpert
-from ktransformers.operators.linear import KTransformerLinear
+from ktransformers.util.utils import InferenceState
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
@@ -200,6 +190,19 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
     Args:
         config: Qwen2MoeConfig
     """
+    def __init__(
+        self,
+        key: str,
+        gguf_loader : GGUFLoader,
+        config: PretrainedConfig,
+        orig_module: nn.Module,
+        device: str = "cuda",
+        per_layer_prefill_intput_threshod: int = 30000, # if None, no per-layer prefill
+        **kwargs,
+    ):
+        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        self.per_layer_prefill_intput_threshod = per_layer_prefill_intput_threshod
+
     @add_start_docstrings_to_model_forward(QWEN2MOE_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -214,15 +217,17 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 30000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = None, # if None or 0, close per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
+
+        if per_layer_prefill_intput_threshod is None: per_layer_prefill_intput_threshod = self.per_layer_prefill_intput_threshod
         per_layer_prefill_flag = False
         seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
             per_layer_prefill_flag = True
             for layer in self.layers:
-                self.load_layer_to(layer, "cpu")
+                self.load_layer_to(layer, InferenceState.UNLOAD)
         else:
             pass
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -281,6 +286,7 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         all_self_attns = () if output_attentions else None
         all_router_logits = () if output_router_logits else None
         next_decoder_cache = None
+
         for decoder_layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -300,7 +306,7 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             else:
                 if per_layer_prefill_flag:
                     # print(f"to gpu")
-                    self.load_layer_to(decoder_layer, "cuda")
+                    self.load_layer_to(decoder_layer, InferenceState.PREFILL)
                     torch.cuda.empty_cache()
                 layer_outputs = decoder_layer(
                     hidden_states,
@@ -314,9 +320,8 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
                 )
                 if per_layer_prefill_flag:
                     # print(f"to cpu")
-                    self.load_layer_to(decoder_layer, "cpu")
+                    self.load_layer_to(decoder_layer, InferenceState.UNLOAD)
                     torch.cuda.empty_cache()
-
             hidden_states = layer_outputs[0]
 
             if use_cache:
@@ -331,13 +336,10 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         hidden_states = self.norm(hidden_states)
 
 
-        # hidden_states = hidden_states.to("cpu")
         if per_layer_prefill_flag:
-            # print(f"restore")
             per_layer_prefill_flag = False
             for layer in self.layers:
-                self.load_layer_to(layer, "restore")
-            torch.cuda.empty_cache()
+                self.load_layer_to(layer, InferenceState.GENERATE)
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
@@ -359,33 +361,32 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
             router_logits=all_router_logits,
         )
 
-    def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target:str):
-        assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
+    def load_layer_to(self,  layer:Qwen2MoeDecoderLayer, target: InferenceState):
         assert isinstance(layer, Qwen2MoeDecoderLayer), "module should be nn.ModuleList of decoder layers"
 
         # TODO Support restore to original device, not only cuda
-        device = "cpu" if target.lower() == "cpu" else "cuda" 
+        device = "cpu" if target == InferenceState.UNLOAD else "cuda" 
 
         # attn
-        layer.self_attn.q_proj.load_to(target)
-        layer.self_attn.k_proj.load_to(target)
-        layer.self_attn.v_proj.load_to(target)
-        layer.self_attn.o_proj.load_to(target)
+        layer.self_attn.q_proj.set_inference_mode(target)
+        layer.self_attn.k_proj.set_inference_mode(target)
+        layer.self_attn.v_proj.set_inference_mode(target)
+        layer.self_attn.o_proj.set_inference_mode(target)
         layer.self_attn.rotary_emb = layer.self_attn.rotary_emb.to(device)
 
         # mlp
         if isinstance(layer.mlp, Qwen2MoeSparseMoeBlock):
-            layer.mlp.gate.load_to(target)
-            layer.mlp.experts.load_to(target)
-            layer.mlp.shared_expert.gate_proj.load_to(target)
-            layer.mlp.shared_expert.up_proj.load_to(target)
-            layer.mlp.shared_expert.down_proj.load_to(target)
+            layer.mlp.gate.set_inference_mode(target)
+            layer.mlp.experts.set_inference_mode(target)
+            layer.mlp.shared_expert.gate_proj.set_inference_mode(target)
+            layer.mlp.shared_expert.up_proj.set_inference_mode(target)
+            layer.mlp.shared_expert.down_proj.set_inference_mode(target)
             layer.mlp.shared_expert.act_fn.to(device)
             layer.mlp.shared_expert_gate.to(device)
         else:
-            layer.mlp.gate_proj.load_to(target)
-            layer.mlp.up_proj.load_to(target)
-            layer.mlp.down_proj.load_to(target)
+            layer.mlp.gate_proj.set_inference_mode(target)
+            layer.mlp.up_proj.set_inference_mode(target)
+            layer.mlp.down_proj.set_inference_mode(target)
             layer.mlp.act_fn.to(device)
         # layer norm
         layer.input_layernorm.to(device)
@@ -469,6 +470,18 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
     Args:
         config: DeepseekV2Config
     """
+    def __init__(
+        self,
+        key: str,
+        gguf_loader : GGUFLoader,
+        config: PretrainedConfig,
+        orig_module: nn.Module,
+        device: str = "cuda",
+        per_layer_prefill_intput_threshod: int = 30000, # if None, no per-layer prefill
+        **kwargs,
+    ):
+        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        self.per_layer_prefill_intput_threshod = per_layer_prefill_intput_threshod
 
     @add_start_docstrings_to_model_forward(DeepseekV2_INPUTS_DOCSTRING)
     def forward(
@@ -483,15 +496,16 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 50000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = None, # if None, no per-layer prefill
     ) -> Union[Tuple, BaseModelOutputWithPast]:
-        # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
+        if per_layer_prefill_intput_threshod is None: per_layer_prefill_intput_threshod = self.per_layer_prefill_intput_threshod
         per_layer_prefill_flag = False
         seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
             per_layer_prefill_flag = True
             for layer in self.layers:
-                self.load_layer_to(layer, "cpu")
+                self.load_layer_to(layer,  InferenceState.UNLOAD)
+            torch.cuda.empty_cache()
         else:
             pass
         output_attentions = (
@@ -551,17 +565,25 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
             inputs_embeds = self.embed_tokens(input_ids)
             input_ids = input_ids.to(org_device)
 
+
         causal_mask = self._update_causal_mask(
             attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
 
+
         # embed positions
         hidden_states = inputs_embeds
+        if per_layer_prefill_flag:
+            print(f'Total length of input_ids: {hidden_states.size(1)}')
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
+
+        t_gpu = 0
+        t_cpu = 0
+        t_f = 0
 
         for decoder_layer in self.layers:
             if output_hidden_states:
@@ -579,10 +601,12 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
                     cache_position,
                 )
             else:
+                t3 = time.time()
                 if per_layer_prefill_flag:
                     # print(f"to gpu")
-                    self.load_layer_to(decoder_layer, "cuda")
+                    self.load_layer_to(decoder_layer, InferenceState.PREFILL)
                     torch.cuda.empty_cache()
+                t4 = time.time()
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=causal_mask,
@@ -592,10 +616,15 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
                     use_cache=use_cache,
                     cache_position=cache_position,
                 )
+                t5 = time.time()
                 if per_layer_prefill_flag:
                     # print(f"to cpu")
-                    self.load_layer_to(decoder_layer, "cpu")
+                    self.load_layer_to(decoder_layer,  InferenceState.UNLOAD)
                     torch.cuda.empty_cache()
+                t6 = time.time()
+            t_gpu += t4-t3
+            t_cpu += t6-t5
+            t_f += t5-t4
 
             hidden_states = layer_outputs[0]
 
@@ -608,11 +637,15 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         hidden_states = self.norm(hidden_states)
 
         if per_layer_prefill_flag:
+            t6 = time.time()
             # print(f"restore")
             per_layer_prefill_flag = False
             for layer in self.layers:
-                self.load_layer_to(layer, "restore")
+                self.load_layer_to(layer, InferenceState.GENERATE)
             torch.cuda.empty_cache()
+            t7 = time.time()
+
+            print(f"total time: {t7-t3}, \n layer num{len(self.layers)}, gpu time: {t_gpu}, cpu time: {t_cpu}, forward time: {t_f}, restore time: {t7-t6}")
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -638,32 +671,30 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
             attentions=all_self_attns,
         )
 
-
-
-    def load_layer_to(self,  layer:DeepseekV2DecoderLayer, target:str):
-        assert target.lower() in ["cpu", "restore"] or "cuda" in target.lower(), "target should be 'cpu' or 'cuda' or 'restore'"
+    def load_layer_to(self,  layer: DeepseekV2DecoderLayer, target: InferenceState):
         assert isinstance(layer, DeepseekV2DecoderLayer), "module should be nn.ModuleList of decoder layers"
 
         # TODO Support restore to original device, not only cuda
-        # TODO Support DFS to auto use {to, load_to} according to the module type
-        device = "cpu" if target.lower() == "cpu" else "cuda" 
+        device = "cpu" if target == InferenceState.UNLOAD else "cuda" 
+
+        # TODO Support DFS to auto use {to, set_inference_mode} according to the module type
 
         # attn
-        layer.self_attn.to(device)
+        layer.self_attn.to(device) #
 
         # mlp
         if isinstance(layer.mlp, DeepseekV2MoE):
             layer.mlp.gate.to(device)
-            layer.mlp.experts.load_to(target)
-            layer.mlp.shared_experts.gate_proj.load_to(target)
-            layer.mlp.shared_experts.up_proj.load_to(target)
-            layer.mlp.shared_experts.down_proj.load_to(target)
+            layer.mlp.experts.set_inference_mode(target)
+            layer.mlp.shared_experts.gate_proj.set_inference_mode(target)
+            layer.mlp.shared_experts.up_proj.set_inference_mode(target)
+            layer.mlp.shared_experts.down_proj.set_inference_mode(target)
             layer.mlp.shared_experts.act_fn.to(device)
             # layer.mlp.shared_expert_gate.to(device)
         else:
-            layer.mlp.gate_proj.load_to(target)
-            layer.mlp.up_proj.load_to(target)
-            layer.mlp.down_proj.load_to(target)
+            layer.mlp.gate_proj.set_inference_mode(target)
+            layer.mlp.up_proj.set_inference_mode(target)
+            layer.mlp.down_proj.set_inference_mode(target)
             layer.mlp.act_fn.to(device)
         # layer norm
         layer.input_layernorm.to(device)
