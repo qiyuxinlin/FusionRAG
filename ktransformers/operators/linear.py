@@ -1,50 +1,30 @@
-# Copyright 2024 Shaoyuan Chen
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : Azure
+Date         : 2024-07-25 11:25:24
+Version      : 1.0.0
+LastEditors  : Azure 
+LastEditTime : 2024-07-25 12:29:36
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 
-from dataclasses import dataclass
+
 import torch
 from torch import nn
-from torch import linalg
 import KCudaOps 
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.util.utils import InferenceState
-from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_perms import marlin_perm
 from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_utils import (
     MarlinWorkspace,
-    compute_max_diff,
-    is_marlin_supported,
-    marlin_24_quantize,
     marlin_quantize,
-    marlin_weights,
-    GPTQ_MARLIN_TILE,
     GPTQ_MARLIN_MIN_THREAD_N,
-    GPTQ_MARLIN_MIN_THREAD_K,
     GPTQ_MARLIN_MAX_PARALLEL,
-    GPTQ_MARLIN_SUPPORTED_NUM_BITS,
-    GPTQ_MARLIN_SUPPORTED_GROUP_SIZES,
-    GPTQ_MARLIN_SUPPORTED_SYM,
-)
-from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.quant_utils import (
-    gptq_pack,
-    quantize_weights,
-    sort_weights,
 )
 from ktransformers.operators.base_operator import BaseInjectedModule
 from transformers.configuration_utils import PretrainedConfig
 from abc import ABC, abstractmethod
-import time
-
 
 
 #class QuantizedLinearBase(BaseInjectedModule, ABC):
@@ -321,7 +301,8 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
             return self.generate_linear.forward(x)
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, mode: InferenceState = InferenceState.GENERATE):
-        if not mode: mode = InferenceState.GENERATE
+        if not mode:
+            mode = InferenceState.GENERATE
         # load to device
         if mode == InferenceState.PREFILL:
             self.generate_linear.unload()
@@ -347,7 +328,8 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
         self.device = self.generate_linear.device
 
     def set_inference_mode(self, mode: InferenceState):
-        if not mode: mode = InferenceState.GENERATE
+        if not mode: 
+            mode = InferenceState.GENERATE
         if mode == InferenceState.GENERATE:
             self.load(mode=InferenceState.GENERATE)
         elif mode == InferenceState.PREFILL:
