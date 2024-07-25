@@ -26,6 +26,7 @@ import cpuinfer_ext
 from cpuinfer_ext.moe import MOEConfig, MOE
 import ctypes
 from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.util.utils import InferenceState
 from ktransformers.server.config.config import Config
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
@@ -71,22 +72,14 @@ class MLPExpertsBase(ABC):
 
         for key in keys:
             if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
-                if device.lower() == "cpu":
-                    gate = self.gguf_loader.get_mmap_tensor(key + ".ffn_gate_exps.weight")
-                    up = self.gguf_loader.get_mmap_tensor(key + ".ffn_up_exps.weight")
-                    down = self.gguf_loader.get_mmap_tensor(key + ".ffn_down_exps.weight")
-                    gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
-                    up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
-                    down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
-                else:
-                    targets = [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight" ]
-                    tensors = self.load_multi(key, targets, device=device)
-                    gate = tensors[".ffn_gate_exps.weight"]
-                    up = tensors[".ffn_up_exps.weight"]
-                    down = tensors[".ffn_down_exps.weight"]
-                    gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
-                    up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
-                    down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
+                targets = [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight" ]
+                tensors = self.load_multi(key, targets, device=device)
+                gate = tensors[".ffn_gate_exps.weight"]
+                up = tensors[".ffn_up_exps.weight"]
+                down = tensors[".ffn_down_exps.weight"]
+                gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
+                up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
+                down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
             else:
                 raise ValueError(f"Experts {key} not found in gguf_loader")
             res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
@@ -209,6 +202,33 @@ class MLPCPUExperts(MLPExpertsBase):
     def unload(self):
         return
 
+    def load_weights(self, override_key: str | None = None, device: str = "cpu"):
+        res = {}
+        if override_key is not None:
+            keys = override_key
+        else:
+            keys = [self.key]
+
+        gate = None
+        up = None
+        down = None
+        gate_type = None
+        up_type = None
+        down_type = None
+
+        for key in keys:
+            if key + ".ffn_gate_exps.weight" in self.gguf_loader.tensor_info:
+                gate = self.gguf_loader.get_mmap_tensor(key + ".ffn_gate_exps.weight")
+                up = self.gguf_loader.get_mmap_tensor(key + ".ffn_up_exps.weight")
+                down = self.gguf_loader.get_mmap_tensor(key + ".ffn_down_exps.weight")
+                gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
+                up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
+                down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
+            else:
+                raise ValueError(f"Experts {key} not found in gguf_loader")
+            res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
+        return res
+    
 class MLPExpertsMarlin(MLPExpertsBase):
     expert_num: int
     loaded_experts_idx: list[int]
@@ -330,9 +350,9 @@ class MLPExpertsTorch(MLPExpertsBase):
         if w is None: w = self.load_weights(device=device)[self.key]
 
         if isinstance(w, dict):
-            self.gate = w["gate"]
-            self.up = w["up"]
-            self.down = w["down"]
+            self.gate = w["gate"].to(device)
+            self.up = w["up"].to(device)
+            self.down = w["down"].to(device)
 
     def unload(self):
         if self.gate is not None:
@@ -382,6 +402,11 @@ CPU_EXPERTS_MAP={
     "MLPExpertsTorch": MLPExpertsTorch
 }
 
+EXPERTS_MAP = {
+    "MLPCPUExperts": MLPCPUExperts,
+    "MLPExpertsTorch": MLPExpertsTorch,
+    "MLPExpertsMarlin": MLPExpertsMarlin,
+}
 class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
     def __init__(self,
                  key: str,
@@ -389,67 +414,72 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
                  config: PretrainedConfig,
                  orig_module: nn.Module,
                  device: str = "cuda",
-                 prefill_device:str = "cpu",
-                 gpu_mlp_type: str | None = None,
-                 cpu_mlp_type: str | None = None,
+                 prefill_device:str = "cuda",
+                 prefill_mlp_type: str | None = "MLPExpertsTorch",
+                 generate_device: str = "cpu",
+                 generate_mlp_type: str | None = "MLPCPUExperts",
                  **kwargs):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
         MLPExpertsBase.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
-        if cpu_mlp_type is not None:
-            self.cpu_experts = CPU_EXPERTS_MAP[cpu_mlp_type](key, gguf_loader, config, len(orig_module), device="cpu", **kwargs)
+        if generate_mlp_type is not None:
+            self.generate_experts = EXPERTS_MAP[generate_mlp_type](key, gguf_loader, config, len(orig_module), device=generate_device, **kwargs)
         else:
-            self.cpu_experts = None
-        if gpu_mlp_type is not None:
-            self.gpu_experts = GPU_EXPERTS_MAP[gpu_mlp_type](key, gguf_loader, config, len(orig_module), device="cuda", **kwargs)
+            self.generate_experts = None
+        if prefill_mlp_type is not None:
+            self.prefill_experts = EXPERTS_MAP[prefill_mlp_type](key, gguf_loader, config, len(orig_module), device=prefill_device, **kwargs)
         else:
-            self.gpu_experts = None
-        self.gpu_mlp_type = gpu_mlp_type
-        self.cpu_mlp_type = cpu_mlp_type
-        self.current_device = device
+            self.prefill_experts = None
+        self.gpu_mlp_type = prefill_mlp_type
+        self.cpu_mlp_type = generate_mlp_type
+        self.mode = InferenceState.UNLOAD
 
-    def load(self, w: dict = None, device: str= None, warmup: bool = False):
+    def load(self, w: dict = None,  mode: InferenceState = None, warmup: bool = True):
         # TODO support w as input
-        if device is None: device = self.device
-        # load to device
-        if self.current_device.lower() == "cpu":
-            # print(f'loading {self.key} to {self.device} from class {self.cpu_mlp_type}')
-            self.cpu_experts.load(warmup=True)
+        if not mode: mode = InferenceState.GENERATE
+        if mode == InferenceState.GENERATE:
+            self.prefill_experts.unload()
+            self.generate_experts.load(w, warmup=warmup)
+            self.device = self.generate_experts.device
+            self.mode = mode
+        elif mode == InferenceState.PREFILL:
+            self.generate_experts.unload()
+            self.prefill_experts.load(w, warmup=warmup)
+            self.device = self.prefill_experts.device
+            self.mode = mode
+        elif mode == InferenceState.UNLOAD:
+            self.unload()
+            self.mode = mode
+            self.device = self.generate_experts.device
         else:
-            # print(f'loading {self.key} to {self.device} from class {self.gpu_mlp_type}')
-            self.gpu_experts.load(warmup=True)
-        self.current_device = device
+            raise ValueError("mode must be either InferenceState.GENERATE, InferenceState.PREFILL or InferenceState.UNLOAD")
 
     def unload(self):
-        if self.current_device.lower() == "cpu":
-            self.cpu_experts.unload()
-        else:
-            self.gpu_experts.unload()
-        self.current_device = "cpu"
+        if self.generate_experts is not None:
+            self.generate_experts.unload()
+        if self.prefill_experts is not None:
+            self.prefill_experts.unload()
+        self.device = self.generate_experts.device
 
     def forward(self, input_tensor, expert_ids, weights):
-        if self.current_device == "cpu":
-            assert self.cpu_experts is not None, "cpu_experts is None"
-            return self.cpu_experts.forward(input_tensor, expert_ids, weights)
+        if self.mode == InferenceState.GENERATE:
+            assert self.generate_experts is not None, "generate_experts is None"
+            return self.generate_experts.forward(input_tensor, expert_ids, weights)
+        elif self.mode == InferenceState.PREFILL:
+            assert self.prefill_experts is not None, "prefill_experts is None"
+            return self.prefill_experts.forward(input_tensor, expert_ids, weights)
         else:
-            assert self.gpu_experts is not None, "gpu_experts is None"
-            return self.gpu_experts.forward(input_tensor, expert_ids, weights)
-        
-    def load_to(self, target):
-        # print(f"loading {self.key} to {target}")
-        if isinstance(target, str) and target == "cpu":
-            self.cpu_experts.load(device=target)
-            if self.gpu_experts is not None:
-                self.gpu_experts.unload()
-            self.current_device = target
-        elif isinstance(target, str) and "cuda" in target.lower():
-            self.gpu_experts.load(device=target)
-            if self.cpu_experts is not None:
-                self.cpu_experts.unload()
-            self.current_device = target
-        elif isinstance(target, str) and target == "restore":
-            self.load_to(self.device)
+            raise ValueError("load or set_inference_mode before forward")
+
+    def set_inference_mode(self, mode: InferenceState):
+        if mode == InferenceState.GENERATE:
+            self.load(mode=InferenceState.GENERATE, warmup=False)
+        elif mode == InferenceState.PREFILL:
+            self.load(mode=InferenceState.PREFILL, warmup=False)
+        elif mode == InferenceState.UNLOAD:
+            self.unload()
         else:
-            raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")
+            raise ValueError("mode must be either InferenceState.GENERATE, InferenceState.PREFILL or InferenceState.UNLOAD")
+
 
 from ktransformers.models.modeling_deepseek import DeepseekV2MoE
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock
@@ -471,18 +501,18 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
         # we cast back to the input dtype
         routing_weights = routing_weights.to(hidden_states.dtype)
         
-        if sequence_length == 1:
-            self.experts.cpu_experts.submit_for_one_decode(hidden_states[0], selected_experts[0], routing_weights[0])
+        if sequence_length == 1 and hasattr(self.experts.generate_experts, "submit_for_one_decode"):
+            self.experts.generate_experts.submit_for_one_decode(hidden_states[0], selected_experts[0], routing_weights[0])
             shared_expert_output = self.shared_expert(hidden_states)
             shared_expert_output = F.sigmoid(self.shared_expert_gate(hidden_states)) * shared_expert_output
-            y = self.experts.cpu_experts.sync_for_one_decode().unsqueeze(0)
+            y = self.experts.generate_experts.sync_for_one_decode().unsqueeze(0)
             y += shared_expert_output
             y.resize_(*orig_shape)
             return y, router_logits
         
-        hidden_states_expert = hidden_states.to(self.experts.current_device)  if isinstance(self.experts, MLPExpertsBase) else hidden_states_expert.cpu()
-        selected_experts_expert = selected_experts.to(self.experts.current_device) if isinstance(self.experts, MLPExpertsBase) else selected_experts_expert.cpu()
-        routing_weights_expert = routing_weights.to(self.experts.current_device) if isinstance(self.experts, MLPExpertsBase) else routing_weights_expert.cpu()
+        hidden_states_expert = hidden_states.to(self.experts.device)  if isinstance(self.experts, MLPExpertsBase) else hidden_states_expert.cpu()
+        selected_experts_expert = selected_experts.to(self.experts.device) if isinstance(self.experts, MLPExpertsBase) else selected_experts_expert.cpu()
+        routing_weights_expert = routing_weights.to(self.experts.device) if isinstance(self.experts, MLPExpertsBase) else routing_weights_expert.cpu()
 
         shared_expert_output = self.shared_expert(hidden_states)
         shared_expert_output = (
@@ -570,10 +600,10 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         
         if sequence_length == 1:
-            self.experts.cpu_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
+            self.experts.generate_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
             if self.config.n_shared_experts is not None:
                 y_ = self.shared_experts(identity).squeeze(0)
-            y = self.experts.cpu_experts.sync_for_one_decode().unsqueeze(0)
+            y = self.experts.generate_experts.sync_for_one_decode().unsqueeze(0)
             y += y_
             y.resize_(*orig_shape)
             return y

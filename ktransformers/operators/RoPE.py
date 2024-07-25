@@ -2,6 +2,7 @@ from torch import nn
 from ktransformers.models.modeling_deepseek import DeepseekV2YarnRotaryEmbedding, DeepseekV2RotaryEmbedding
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.util.utils import InferenceState
 from transformers.configuration_utils import PretrainedConfig
 # Copied from transformers.models.mixtral.modeling_mixtral.MixtralRotaryEmbedding with Mixtral->Qwen2Moe
 class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
@@ -22,6 +23,17 @@ class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
             self.orig_module.max_position_embeddings,
             self.orig_module.base,
             self.device)
+    
+    # def unload(self):
+    #     if hasattr(self, 'inv_freq'):
+    #         self.inv_freq = None
+
+    # def set_inference_mode(self, mode: InferenceState):
+    #     if not mode: mode = InferenceState.GENERATE
+    #     if mode == InferenceState.UNLOAD:
+    #         self.unload()
+    #     else:
+    #         self.load()
 
 class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
     def __init__(self,
@@ -55,3 +67,14 @@ class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
             self.orig_module.beta_slow,
             self.orig_module.mscale,
             self.orig_module.mscale_all_dim)
+    
+    # def unload(self):
+    #     if hasattr(self, 'inv_freq'):
+    #         self.inv_freq = None
+    
+    # def set_inference_mode(self, mode: InferenceState):
+    #     if not mode: mode = InferenceState.GENERATE
+    #     if mode == InferenceState.UNLOAD:
+    #         self.unload()
+    #     else:
+    #         self.load()

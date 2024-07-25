@@ -42,6 +42,8 @@ class BaseInjectedModule(nn.Module):
     def __setattr__(self, name: str, value: Tensor | nn.Module) -> None:
         if name == "orig_module":
             return nn.Module.__setattr__(self, "orig_module", value)
+        elif hasattr(self, name):
+            return object.__setattr__(self, name, value)
         return nn.Module.__getattr__(self, "orig_module").__setattr__(name, value)
     
     def forward(self, *args, **kwargs):
@@ -50,5 +52,3 @@ class BaseInjectedModule(nn.Module):
     def load(self):
         for name, child in self._modules.items():
             utils.load_weights(child, self.gguf_loader, self.key+".")
-        #utils.load_weight_default(self, self.gguf_loader, self.key)
-        #utils.load_weights(self, self.gguf_loader, self.key+".", True, False)

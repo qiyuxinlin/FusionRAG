@@ -18,6 +18,7 @@ from torch import nn
 from torch import linalg
 import KCudaOps 
 from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.util.utils import InferenceState
 from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_perms import marlin_perm
 from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_utils import (
     MarlinWorkspace,
@@ -131,14 +132,17 @@ class QuantizedLinearTorch(QuantizedLinearBase):
         super().__init__(key, gguf_loader, config, orig_module, device, **kwargs)
         self.has_bias = False
         self.dtype = torch.get_default_dtype()
+        self.w = None
+        self.has_bias = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         dtype = x.dtype
         out_device = x.device
-        x = x.to(device=self.device)
-        x = x.to(dtype=self.dtype)
+        x = x.to(device=self.device, dtype=self.dtype)
         x = x @ self.w
-        x = x.to(dtype).to(out_device)
+        if self.has_bias:
+            x = x + self.bias
+        x = x.to(dtype=dtype, device=out_device)
         return x
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device: str|None = None):
@@ -162,7 +166,7 @@ class QuantizedLinearTorch(QuantizedLinearBase):
     def unload(self):
         if self.w is not None:
             self.w = None
-        if self.has_bias is not None:
+        if self.has_bias:
             self.bias = None
 
 
@@ -268,7 +272,11 @@ GPU_LINEAR_MAP = {
     "QuantizedLinearMarlin": QuantizedLinearMarlin,
     "QuantizedLinearTorch": QuantizedLinearTorch,
 }
-
+LINEAR_MAP = {
+    "QuantizedLinearMarlin": QuantizedLinearMarlin,
+    "QuantizedLinearTorch": QuantizedLinearTorch,
+    "QuantizedLinearTorch": QuantizedLinearTorch,
+}
 
 class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
     def __init__(
@@ -278,72 +286,97 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
         config: PretrainedConfig,
         orig_module: nn.Module,
         device: str = "cuda",
-        gpu_linear_type: str| None = "QuantizedLinearMarlin",
-        cpu_linear_type: str| None = "QuantizedLinearTorch",
+        generate_device: str = "cuda",
+        generate_op: str| None = "QuantizedLinearMarlin",
+        prefill_device: str = "cuda",
+        prefill_op: str| None = "QuantizedLinearTorch",
         **kwargs,
     ):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
         QuantizedLinearBase.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
-        self.gpu_linear_type = gpu_linear_type
-        self.cpu_linear_type = cpu_linear_type
         # build all the linear operators
-        if cpu_linear_type is not None:
-            assert cpu_linear_type in CPU_LINEAR_MAP, f"cpu_linear_type {cpu_linear_type} not supported"
-            self.cpu_linear = CPU_LINEAR_MAP[cpu_linear_type](key, gguf_loader, config, orig_module, "cpu", **kwargs)
-        else:
-            self.cpu_linear = None
-        if gpu_linear_type is not None:
-            assert gpu_linear_type in GPU_LINEAR_MAP, f"gpu_linear_type {gpu_linear_type} not supported"
-            if gpu_linear_type == "QuantizedLinearMarlin" and (orig_module.in_features%GPTQ_MARLIN_MIN_THREAD_N!=0 or orig_module.out_features%GPTQ_MARLIN_MIN_THREAD_N!=0):
+        if prefill_op is not None:
+            assert prefill_op in LINEAR_MAP, f"linear_type {prefill_op} not supported"
+            if prefill_op == "QuantizedLinearMarlin" and (orig_module.in_features%GPTQ_MARLIN_MIN_THREAD_N!=0 or orig_module.out_features%GPTQ_MARLIN_MIN_THREAD_N!=0):
                 print(f"This linear module's in_features or out_features is not divisible by GPTQ_MARLIN_MIN_THREAD_N({GPTQ_MARLIN_MIN_THREAD_N}), using QuantizedLinearTorch instead.")
                 print(f"module info: key:{key} orig_module:{orig_module}")
-                self.gpu_linear_type = "QuantizedLinearTorch"
-                self.gpu_linear = QuantizedLinearTorch(key, gguf_loader, config, orig_module, "cuda", **kwargs)
+                self.prefill_linear = QuantizedLinearTorch(key, gguf_loader, config, orig_module, prefill_device, **kwargs)
             else:
-                self.gpu_linear = GPU_LINEAR_MAP[gpu_linear_type](key, gguf_loader, config, orig_module, "cuda", **kwargs)
+                self.prefill_linear = LINEAR_MAP[prefill_op](key, gguf_loader, config, orig_module, prefill_device, **kwargs)
         else:
-            self.gpu_linear = None
-        self.current_device = device
+            self.prefill_linear = None
+
+        if generate_op is not None:
+            assert generate_op in LINEAR_MAP, f"linear_type {generate_op} not supported"
+            if generate_op == "QuantizedLinearMarlin" and (orig_module.in_features%GPTQ_MARLIN_MIN_THREAD_N!=0 or orig_module.out_features%GPTQ_MARLIN_MIN_THREAD_N!=0):
+                print(f"This linear module's in_features or out_features is not divisible by GPTQ_MARLIN_MIN_THREAD_N({GPTQ_MARLIN_MIN_THREAD_N}), using QuantizedLinearTorch instead.")
+                print(f"module info: key:{key} orig_module:{orig_module}")
+                self.generate_op = "QuantizedLinearTorch"
+                self.generate_linear = QuantizedLinearTorch(key, gguf_loader, config, orig_module, generate_device, **kwargs)
+            else:
+                self.generate_linear = LINEAR_MAP[generate_op](key, gguf_loader, config, orig_module, generate_device, **kwargs)
+        else:
+            self.generate_linear = None
+        self.device = device
+        self.mode = InferenceState.UNLOAD
 
     def forward(self, x):
-        if self.current_device == "cpu":
-            assert self.cpu_linear is not None, "cpu linear is not initialized"
-            return self.cpu_linear.forward(x)
+        if self.mode == InferenceState.PREFILL:
+            assert self.prefill_linear is not None, "cpu linear is not initialized"
+            return self.prefill_linear.forward(x)
         else:
-            assert self.gpu_linear is not None, "gpu linear is not initialized"
-            return self.gpu_linear.forward(x)
+            assert self.generate_linear is not None, "gpu linear is not initialized"
+            return self.generate_linear.forward(x)
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None):
-
-        if device is None: device = self.device
+    def load(self, w: dict | nn.Parameter | tuple | None = None, mode: InferenceState = InferenceState.GENERATE):
+        if not mode: mode = InferenceState.GENERATE
         # load to device
-        if self.device == "cpu":
-            # print(f'loading {self.key} to {self.device} from class {self.cpu_linear_type}')
-            self.cpu_linear.load(w, device=device)
-        elif "cuda" in self.device.lower():
-            # print(f'loading {self.key} to {self.device} from class {self.gpu_linear_type}')
-            self.gpu_linear.load(w, device=device)
-        self.current_device = device
+        if mode == InferenceState.PREFILL:
+            self.generate_linear.unload()
+            self.prefill_linear.load(w=w)
+            self.device = self.prefill_linear.device 
+        elif mode == InferenceState.GENERATE:
+            self.prefill_linear.unload()
+            self.generate_linear.load(w=w)
+            self.device = self.generate_linear.device
+        elif mode == InferenceState.UNLOAD:
+            self.prefill_linear.unload()
+            self.generate_linear.unload()
+            self.device = "cpu"
+        else:
+            raise ValueError("mode must be either InferenceState.GENERATE, InferenceState.PREFILL or InferenceState.UNLOAD")
+        self.mode = mode
 
     def unload(self):
-        if self.cpu_linear is not None:
-            self.cpu_linear.unload()
-        if self.gpu_linear is not None:
-            self.gpu_linear.unload()
-        self.w = None
+        if self.prefill_linear is not None:
+            self.prefill_linear.unload()
+        if self.generate_linear is not None:
+            self.generate_linear.unload()
+        self.device = self.generate_linear.device
 
-    def load_to(self, target):
-        # print(f"loading {self.key} to {target}")
-        if isinstance(target, str) and target == "cpu":
-            self.cpu_linear.load(device="cpu")
-            self.gpu_linear.unload()
-            self.current_device = target
-        elif isinstance(target, str) and "cuda" in target:
-            self.gpu_linear.load(device=target)
-            self.cpu_linear.unload()
-            self.current_device = target
-        elif isinstance(target, str) and target == "restore":
-            assert self.device != "restore", "device is already restored"
-            self.load_to(self.device)
+    # def load_to(self, target):
+    #     # print(f"loading {self.key} to {target}")
+    #     if isinstance(target, str) and target == "cpu":
+    #         self.prefill_linear.load(device="cpu")
+    #         self.generate_linear.unload()
+    #         self.device = target
+    #     elif isinstance(target, str) and "cuda" in target:
+    #         self.generate_linear.load(device=target)
+    #         self.prefill_linear.unload()
+    #         self.device = target
+    #     elif isinstance(target, str) and target == "restore":
+    #         assert self.device != "restore", "device is already restored"
+    #         self.load_to(self.device)
+    #     else:
+    #         raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")
+    
+    def set_inference_mode(self, mode: InferenceState):
+        if not mode: mode = InferenceState.GENERATE
+        if mode == InferenceState.GENERATE:
+            self.load(mode=InferenceState.GENERATE)
+        elif mode == InferenceState.PREFILL:
+            self.load(mode=InferenceState.PREFILL)
+        elif mode == InferenceState.UNLOAD:
+            self.unload()
         else:
-            raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")
+            raise ValueError("mode must be either InferenceState.GENERATE, InferenceState.PREFILL or InferenceState.UNLOAD")
