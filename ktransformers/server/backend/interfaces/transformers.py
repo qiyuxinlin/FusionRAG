@@ -264,7 +264,10 @@ class TransformersInterface(BackendInterfaceBase):
         self.generated_ids[:,cache_position] = input_ids.to(self.args.device).to(torch.int)
 
         mask = torch.ones((1,self.seq_length)).to(self.args.device)
-        inputs_embeds = self.model.model.embed_tokens(input_ids.to("cpu")).to("cuda")
+        device = input_ids.device
+        if not (type(self) is TransformersInterface):
+            input_ids = input_ids.to("cpu")
+        inputs_embeds = self.model.model.embed_tokens(input_ids).to(device)
         if self.use_static_cache:
             logits = self.model(
                 inputs_embeds=inputs_embeds, cache_position=cache_position, past_key_values=self.cache,return_dict=False, use_cache=True,attention_mask=mask

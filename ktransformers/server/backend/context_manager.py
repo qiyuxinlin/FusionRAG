@@ -1,11 +1,10 @@
 from asyncio import Lock
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
-from ktransformers.server.backend.base import ThreadContext
+from ktransformers.server.backend.base import ThreadContext, BackendInterfaceBase
 from ktransformers.server.schemas.assistants.runs import RunObject
 from ktransformers.server.schemas.base import ObjectID
 from ktransformers.server.config.log import logger
-from ktransformers.server.config.config import Config
 from ktransformers.server.backend.interfaces.transformers import TransformersThreadContext
 from ktransformers.server.backend.interfaces.ktransformers import KTransformersThreadContext
 from ktransformers.server.backend.interfaces.exllamav2 import ExllamaThreadContext
@@ -16,7 +15,7 @@ from ktransformers.server.backend.interfaces.ktransformers import KTransformersI
 class ThreadContextManager:
     lock: Lock
     threads_context: Dict[ObjectID, ThreadContext]
-    interface: Any
+    interface: BackendInterfaceBase
     
     def __init__(self,interface) -> None:
         logger.debug(f"Creating Context Manager")
