@@ -72,6 +72,7 @@
             :style="{ height: textareaHeight + 'px' }"
             @input="handleInput"
             ref="textarea_ref"
+            maxlength="2000"
             cols="20"
           ></textarea>
           <i class="iconfont icon-sent" @click="clickCommitQuestion"></i>
@@ -134,7 +135,7 @@ export default defineComponent({
     const localMessages = ref<IMessageData[]>([...props.messages]);
     const showScrollButton = ref(false);
     const messageScroll = ref<BScroll | null>(null);
-    const inputQuestion = ref<string | undefined>("");
+    const inputQuestion = ref<string>("");
     const inputDisabled = ref(false);
     const msgBttnBoxShow = ref<boolean[]>([]);
     const answer = ref("");
@@ -218,8 +219,13 @@ export default defineComponent({
       }
     );
 
-    const handleInput = () => {
+    const handleInput = (event:any) => {
       adjustHeight();
+      const maxLength = 2000; 
+      if (inputQuestion.value?.length > maxLength) {
+        event.preventDefault(); 
+        inputQuestion.value = inputQuestion.value.substring(0, maxLength); 
+      }
     };
     const adjustHeight = () => {
       const currentScrollTop = textarea_ref.value.scrollTop;
