@@ -32,6 +32,7 @@ from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
 from ktransformers.util.utils import prefill_and_generate
+from ktransformers.server.config.config import Config
 
 custom_models = {
     "DeepseekV2ForCausalLM": DeepseekV2ForCausalLM,
@@ -45,16 +46,18 @@ default_optimize_rules ={
 }
 
 def local_chat(
-    model_name: str,
+    model_path: str,
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
     use_generate: bool = False,
+    cpu_infer: int = Config().cpu_infer
 ):
     torch.set_grad_enabled(False)
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    
+    Config().cpu_infer = cpu_infer
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     torch.set_default_dtype(config.torch_dtype)
 
     with torch.device("meta"):
@@ -83,7 +86,7 @@ def local_chat(
         )
     optimize_and_load_gguf(model, optimize_rule_path, gguf_path, config)
 
-    model.generation_config = GenerationConfig.from_pretrained(model_name)
+    model.generation_config = GenerationConfig.from_pretrained(model_path)
     if model.generation_config.pad_token_id is None:
         model.generation_config.pad_token_id = model.generation_config.eos_token_id
     model.eval()
