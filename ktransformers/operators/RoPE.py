@@ -24,17 +24,6 @@ class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
             self.orig_module.base,
             self.device)
     
-    # def unload(self):
-    #     if hasattr(self, 'inv_freq'):
-    #         self.inv_freq = None
-
-    # def set_inference_mode(self, mode: InferenceState):
-    #     if not mode: mode = InferenceState.GENERATE
-    #     if mode == InferenceState.UNLOAD:
-    #         self.unload()
-    #     else:
-    #         self.load()
-
 class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
     def __init__(self,
                  key: str,
@@ -68,13 +57,3 @@ class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
             self.orig_module.mscale,
             self.orig_module.mscale_all_dim)
     
-    # def unload(self):
-    #     if hasattr(self, 'inv_freq'):
-    #         self.inv_freq = None
-    
-    # def set_inference_mode(self, mode: InferenceState):
-    #     if not mode: mode = InferenceState.GENERATE
-    #     if mode == InferenceState.UNLOAD:
-    #         self.unload()
-    #     else:
-    #         self.load()

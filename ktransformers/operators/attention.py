@@ -152,7 +152,7 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
                 "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
             )
         bsz, q_len, _ = hidden_states.size()
-        chunck_size = 512 # TODO, generate chunck_size automatically.
+        chunck_size = 256 # TODO, generate chunck_size automatically.
         
         if q_len <= chunck_size:
             return self.forward_chunck(

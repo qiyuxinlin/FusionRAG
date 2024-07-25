@@ -392,16 +392,6 @@ class MLPExpertsTorch(MLPExpertsBase):
 
         return final_hidden_states.to(org_dtype)
 
-GPU_EXPERTS_MAP={
-    "MLPExpertsMarlin": MLPExpertsMarlin,
-    "MLPExpertsTorch": MLPExpertsTorch
-}
-
-CPU_EXPERTS_MAP={
-    "MLPCPUExperts": MLPCPUExperts,
-    "MLPExpertsTorch": MLPExpertsTorch
-}
-
 EXPERTS_MAP = {
     "MLPCPUExperts": MLPCPUExperts,
     "MLPExpertsTorch": MLPExpertsTorch,

@@ -264,14 +264,6 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         self.sort_indices = None
         self.workspace = None
     
-
-CPU_LINEAR_MAP = {
-    "QuantizedLinearTorch": QuantizedLinearTorch,
-}
-GPU_LINEAR_MAP = {
-    "QuantizedLinearMarlin": QuantizedLinearMarlin,
-    "QuantizedLinearTorch": QuantizedLinearTorch,
-}
 LINEAR_MAP = {
     "QuantizedLinearMarlin": QuantizedLinearMarlin,
     "QuantizedLinearTorch": QuantizedLinearTorch,
@@ -354,22 +346,6 @@ class KTransformerLinear(BaseInjectedModule, QuantizedLinearBase):
             self.generate_linear.unload()
         self.device = self.generate_linear.device
 
-    # def load_to(self, target):
-    #     # print(f"loading {self.key} to {target}")
-    #     if isinstance(target, str) and target == "cpu":
-    #         self.prefill_linear.load(device="cpu")
-    #         self.generate_linear.unload()
-    #         self.device = target
-    #     elif isinstance(target, str) and "cuda" in target:
-    #         self.generate_linear.load(device=target)
-    #         self.prefill_linear.unload()
-    #         self.device = target
-    #     elif isinstance(target, str) and target == "restore":
-    #         assert self.device != "restore", "device is already restored"
-    #         self.load_to(self.device)
-    #     else:
-    #         raise ValueError("target must be either \"cpu\", \"cuda\", \"cuda:idx\" or \"restore\"")
-    
     def set_inference_mode(self, mode: InferenceState):
         if not mode: mode = InferenceState.GENERATE
         if mode == InferenceState.GENERATE:
