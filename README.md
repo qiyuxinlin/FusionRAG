@@ -1,8 +1,8 @@
 <div align="center">
-  <h1>KTransformers</h1>
+  <!-- <h1>KTransformers</h1> -->
   <p align="center">
   <picture>
-    <img alt="KTransformers" src="./doc/asset/K-KTransformers.png" width=55%>
+    <img alt="KTransformers" src="./doc/asset/K-Ktransformers-blackback.png" width=55%>
   </picture>
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
