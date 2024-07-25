@@ -120,7 +120,7 @@ Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://loc
 
 <p align="center">
   <picture>
-    <img alt="Web UI" src="./doc/assets/website.png" width=50%>
+    <img alt="Web UI" src="./doc/assets/website.png" width=80%>
   </picture>
 </p>
 
