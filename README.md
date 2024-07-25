@@ -127,6 +127,13 @@ More information about the RESTful API server can be found [here](doc/en/api/ser
 <h2 id="tutorial">📃 Brief Injection Tutorial</h2>
 At the heart of KTransformers is a user-friendly, template-based injection framework. 
 This allows researchers to easily replace original torch modules with optimized variants. It also simplifies the process of combining multiple optimizations, allowing the exploration of their synergistic effects. 
+
+<p align="center">
+  <picture>
+    <img alt="Inject-Struction" src="./doc/asset/InjectStruction.png" width=50%>
+  </picture>
+</p>
+
 <br/><br/>
 Given that vLLM already serves as a great framework for large-scale deployment optimizations, KTransformers is particularly focused on local deployments that are constrained by limited resources. We pay special attention to heterogeneous computing opportunities, such as GPU/CPU offloading of quantized models. For example, we support the efficient [Llamafile](https://github.com/Mozilla-Ocho/llamafile/tree/main) and [Marlin](https://github.com/IST-DASLab/marlin) kernels for CPU and GPU, respectively. More details can be found [here](doc/en/operators/llamafile.md).
 

@@ -4,7 +4,7 @@ DeepSeek-(Code)-V2 is a series of strong mixture-of-experts (MoE) models, featur
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="https://XXXX.png" width=55%>
+    <img alt="DeepSeek-Coder-V2 Score" src="../asset/BigCodeBench.png" width=80%>
   </picture>
 </p>
 
@@ -24,7 +24,7 @@ The following figure provides a brief overview of DeepSeek-V2 architecture. At t
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek on KTransformers" src="https://XXXX.png" width=55%>
+    <img alt="DeepSeek on KTransformers" src="../asset/DeepSeek-on-KTransformers.PNG" width=55%>
   </picture>
 </p>
 
@@ -51,7 +51,7 @@ In the current version of KTransformers, we utilize Marlin for GPU kernels and l
 
 <p align="center">
   <picture>
-    <img alt="CPUInfer Performance" src="https://XXXX.png" width=55%>
+    <img alt="CPUInfer Performance" src="../asset/cpuinfer.png" width=55%>
   </picture>
 </p>
 
@@ -63,6 +63,11 @@ Moreover, as an extensible framework, KTransformers is set to support more advan
 To implement the above optimizations in KTransformers, users need to write a YAML file containing the optimized rules. 
 KTransformers will iterate through all sub-modules of the model, match rules specified in the YAML rule file, and replace them with advanced modules as specified.
 
+<p align="center">
+  <picture>
+    <img alt="Inject-Struction" src="./doc/asset/InjectStruction.png" width=50%>
+  </picture>
+</p>
 
 Specifically, the following rules are used:
 
