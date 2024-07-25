@@ -43,7 +43,8 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
   <!-- <img alt="Tabby integration" src="https://XXXX.png" width=55%> -->
 
   http://video.approaching-ai.com/ktransformers-tabby.mp4
-  
+
+
 </p>
 
 
