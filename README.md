@@ -24,7 +24,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <h3>GPT-4-level Local VSCode Copilot on a Desktop with only 24GB VRAM</h3>
 <p align="center">
 
-  https://github.com/user-attachments/assets/ea785e74-6927-496e-bcf6-994dd8e0e014
+  https://github.com/user-attachments/assets/3f85780e-aa53-4d2f-91b2-5585c8dade85
 
 </p>
 
@@ -32,7 +32,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="./doc/asset/BigCodeBench.png" width=55%>
+    <img alt="DeepSeek-Coder-V2 Score" src="./doc/asset/BigCodeBench.png" width=80%>
   </picture>
 </p>
 
