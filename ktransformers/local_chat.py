@@ -50,7 +50,6 @@ def local_chat(
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
-    use_generate: bool = False,
     cpu_infer: int = Config().cpu_infer
 ):
     torch.set_grad_enabled(False)
@@ -110,10 +109,7 @@ def local_chat(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
         torch.set_default_dtype(torch.bfloat16) # TODO: Remove this, replace dtype using config
-        if use_generate: # does not optimized by cuda graph
-            generated = model.generate(input_tensor.cuda(), max_new_tokens=max_new_tokens, streamer=TextStreamer(tokenizer, skip_prompt=True), cache_implementation="static")#
-        else:
-            generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
+        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
 
 if __name__ == "__main__":
     fire.Fire(local_chat)
