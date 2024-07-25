@@ -102,7 +102,7 @@ def local_chat(
         if content.isdigit():
             content = "Please write a piece of quicksort code in C++." * int(content)
         elif content == "":
-            content = "Please write a piece of quicksort code in C++." * 2500
+            content = "Please write a piece of quicksort code in C++." * 5000
         messages = [{"role": "user", "content": content}]
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
@@ -111,9 +111,7 @@ def local_chat(
         if use_generate: # does not optimized by cuda graph
             generated = model.generate(input_tensor.cuda(), max_new_tokens=max_new_tokens, streamer=TextStreamer(tokenizer, skip_prompt=True), cache_implementation="static")#
         else:
-            #generated = model.generate(input_tensor.cuda(), max_new_tokens=10000, streamer=TextStreamer(tokenizer, skip_prompt=True), cache_implementation="static")#
             generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
-        #print(generated.numel())
 
 if __name__ == "__main__":
     fire.Fire(local_chat)

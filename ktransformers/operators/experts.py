@@ -350,9 +350,9 @@ class MLPExpertsTorch(MLPExpertsBase):
         if w is None: w = self.load_weights(device=device)[self.key]
 
         if isinstance(w, dict):
-            self.gate = w["gate"].to(device)
-            self.up = w["up"].to(device)
-            self.down = w["down"].to(device)
+            self.gate = w["gate"].to(device=device, dtype=self.dtype)
+            self.up = w["up"].to(device=device, dtype=self.dtype)
+            self.down = w["down"].to(device=device, dtype=self.dtype)
 
     def unload(self):
         if self.gate is not None:
@@ -369,7 +369,7 @@ class MLPExpertsTorch(MLPExpertsBase):
         )
         org_dtype = hidden_states_cpu.dtype
         hidden_states_cpu = hidden_states_cpu.to(self.gate.dtype)
-
+        routing_weights_cpu = routing_weights_cpu.to(self.gate.dtype)
         # One hot encode the selected experts to create an expert mask
         # this will be used to easily index which expert is going to be sollicitated
         expert_mask = torch.nn.functional.one_hot(selected_experts_cpu, num_classes=self.expert_num).permute(2, 1, 0)

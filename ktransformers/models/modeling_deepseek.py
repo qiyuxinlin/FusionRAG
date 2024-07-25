@@ -691,13 +691,18 @@ class DeepseekV2Attention(nn.Module):
 
         self.is_causal = True
 
-        self.q_a_proj = nn.Linear(
-            self.hidden_size, config.q_lora_rank, bias=config.attention_bias
-        )
-        self.q_a_layernorm = DeepseekV2RMSNorm(config.q_lora_rank)
-        self.q_b_proj = nn.Linear(
-            config.q_lora_rank, self.num_heads * self.q_head_dim, bias=False
-        )
+        if self.q_lora_rank is None:
+            self.q_proj = nn.Linear(
+                self.hidden_size, self.num_heads * self.q_head_dim, bias=False
+            )
+        else:
+            self.q_a_proj = nn.Linear(
+                self.hidden_size, config.q_lora_rank, bias=config.attention_bias
+            )
+            self.q_a_layernorm = DeepseekV2RMSNorm(config.q_lora_rank)
+            self.q_b_proj = nn.Linear(
+                config.q_lora_rank, self.num_heads * self.q_head_dim, bias=False
+            )
 
         self.kv_a_proj_with_mqa = nn.Linear(
             self.hidden_size,
@@ -797,7 +802,10 @@ class DeepseekV2Attention(nn.Module):
             )
         bsz, q_len, _ = hidden_states.size()
 
-        q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
+        if self.q_lora_rank is None:
+            q = self.q_proj(hidden_states)
+        else:
+            q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
         q = q.view(bsz, q_len, self.num_heads, self.q_head_dim).transpose(1, 2)
         q_nope, q_pe = torch.split(
             q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1

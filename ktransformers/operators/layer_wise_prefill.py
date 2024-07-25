@@ -528,15 +528,19 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = 1, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshod: int | None = None, # if None, no per-layer prefill
     ) -> Union[Tuple, BaseModelOutputWithPast]:
-        per_layer_prefill_flag = False
         if per_layer_prefill_intput_threshod is None: per_layer_prefill_intput_threshod = self.per_layer_prefill_intput_threshod
+        per_layer_prefill_flag = False
         seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
         if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
             per_layer_prefill_flag = True
-            for layer in self.layers:
+            self.load_layer_to_t(self.layers[0], InferenceState.UNLOAD)
+            for layer in self.layers[1:]:
                 self.load_layer_to(layer,  InferenceState.UNLOAD)
+            torch.cuda.empty_cache()
+            # self.layers = nn.ModuleList(self.layers[:1])
+            # torch.cuda.empty_cache()
         else:
             pass
         output_attentions = (
@@ -596,9 +600,12 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
             inputs_embeds = self.embed_tokens(input_ids)
             input_ids = input_ids.to(org_device)
 
-        causal_mask = self._update_causal_mask(
-            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
-        )
+        # @@@@@@@@@@@@@@@@
+        # causal_mask = self._update_causal_mask(
+        #     attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
+        # )
+        causal_mask = None
+
 
         # embed positions
         hidden_states = inputs_embeds
@@ -609,6 +616,10 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
+
+        t_gpu = 0
+        t_cpu = 0
+        t_f = 0
 
         for decoder_layer in self.layers:
             if output_hidden_states:
@@ -626,10 +637,12 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
                     cache_position,
                 )
             else:
+                t3 = time.time()
                 if per_layer_prefill_flag:
                     # print(f"to gpu")
                     self.load_layer_to(decoder_layer, InferenceState.PREFILL)
                     torch.cuda.empty_cache()
+                t4 = time.time()
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=causal_mask,
@@ -639,10 +652,15 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
                     use_cache=use_cache,
                     cache_position=cache_position,
                 )
+                t5 = time.time()
                 if per_layer_prefill_flag:
                     # print(f"to cpu")
                     self.load_layer_to(decoder_layer,  InferenceState.UNLOAD)
                     torch.cuda.empty_cache()
+                t6 = time.time()
+            t_gpu += t4-t3
+            t_cpu += t6-t5
+            t_f += t5-t4
 
             hidden_states = layer_outputs[0]
 
@@ -655,11 +673,15 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         hidden_states = self.norm(hidden_states)
 
         if per_layer_prefill_flag:
+            t6 = time.time()
             # print(f"restore")
             per_layer_prefill_flag = False
             for layer in self.layers:
                 self.load_layer_to(layer, InferenceState.GENERATE)
             torch.cuda.empty_cache()
+            t7 = time.time()
+
+            print(f"total time: {t7-t3}, \n layer num{len(self.layers)}, gpu time: {t_gpu}, cpu time: {t_cpu}, forward time: {t_f}, restore time: {t7-t6}")
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -686,6 +708,55 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         )
 
 
+    def load_layer_to_t(self, layer: DeepseekV2DecoderLayer, target: InferenceState):
+        start_time = time.perf_counter()
+        assert isinstance(layer, DeepseekV2DecoderLayer), "module should be nn.ModuleList of decoder layers"
+        print(f"Assertion check: {time.perf_counter() - start_time:.6f} seconds")
+
+        start_time = time.perf_counter()
+        device = "cpu" if target == InferenceState.UNLOAD else "cuda"
+        print(f"Device setup: {time.perf_counter() - start_time:.6f} seconds")
+
+        start_time = time.perf_counter()
+        layer.self_attn.to(device)
+        print(f"Move self_attn to {device}: {time.perf_counter() - start_time:.6f} seconds")
+
+        start_time = time.perf_counter()
+        if isinstance(layer.mlp, DeepseekV2MoE):
+            layer.mlp.gate.to(device)
+            print(f"Move MoE gate to {device}: {time.perf_counter() - start_time:.6f} seconds")
+
+            start_time = time.perf_counter()
+            layer.mlp.experts.set_inference_mode(target)
+            print(f"Set MoE experts inference mode: {time.perf_counter() - start_time:.6f} seconds")
+
+            start_time = time.perf_counter()
+            layer.mlp.shared_experts.gate_proj.set_inference_mode(target)
+            layer.mlp.shared_experts.up_proj.set_inference_mode(target)
+            layer.mlp.shared_experts.down_proj.set_inference_mode(target)
+            print(f"Set shared experts inference mode: {time.perf_counter() - start_time:.6f} seconds")
+
+            start_time = time.perf_counter()
+            layer.mlp.shared_experts.act_fn.to(device)
+            print(f"Move shared experts activation function to {device}: {time.perf_counter() - start_time:.6f} seconds")
+        else:
+            start_time = time.perf_counter()
+            layer.mlp.gate_proj.set_inference_mode(target)
+            layer.mlp.up_proj.set_inference_mode(target)
+            layer.mlp.down_proj.set_inference_mode(target)
+            print(f"Set MLP inference mode: {time.perf_counter() - start_time:.6f} seconds")
+
+            start_time = time.perf_counter()
+            layer.mlp.act_fn.to(device)
+            print(f"Move MLP activation function to {device}: {time.perf_counter() - start_time:.6f} seconds")
+
+        start_time = time.perf_counter()
+        layer.input_layernorm.to(device)
+        print(f"Move input layer norm to {device}: {time.perf_counter() - start_time:.6f} seconds")
+
+        start_time = time.perf_counter()
+        layer.post_attention_layernorm.to(device)
+        print(f"Move post-attention layer norm to {device}: {time.perf_counter() - start_time:.6f} seconds")
 
     def load_layer_to(self,  layer: DeepseekV2DecoderLayer, target: InferenceState):
         assert isinstance(layer, DeepseekV2DecoderLayer), "module should be nn.ModuleList of decoder layers"
@@ -696,7 +767,7 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         # TODO Support DFS to auto use {to, set_inference_mode} according to the module type
 
         # attn
-        layer.self_attn.to(device)
+        layer.self_attn.to(device) #
 
         # mlp
         if isinstance(layer.mlp, DeepseekV2MoE):
