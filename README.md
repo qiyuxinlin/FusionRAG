@@ -27,7 +27,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
     <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="./doc/asset/ktransformers_vs_llama.cpp.mp4" width=55%>
   </picture> -->
   <video width=55% controls>
-    <source src="./doc/asset/ktransformers_vs_llama.cpp.mp4" type="video/mp4">
+    <source src="https://www.bilibili.com/video/BV1WW421d75u/?share_source=copy_web&vd_source=90b8e1d1b788bd3060d9e2f555f43e2f" type="video/mp4">
   </video>
 </p>
 
