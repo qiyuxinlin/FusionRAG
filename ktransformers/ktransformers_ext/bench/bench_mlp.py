@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : chenht2022
+Date         : 2024-07-16 10:43:18
+Version      : 1.0.0
+LastEditors  : chenht2022 
+LastEditTime : 2024-07-25 10:32:55
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import os, sys
 import time
 sys.path.append(os.path.dirname(__file__) + '/../build')
