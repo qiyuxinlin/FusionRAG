@@ -26,9 +26,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
   <!-- <picture>
     <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="./doc/asset/ktransformers_vs_llama.cpp.mp4" width=55%>
   </picture> -->
-  <video width=55% controls>
-    <source src="./doc/asset/ktransformers_vs_llama.cpp.mp4" type="video/mp4">
-  </video>
+  https://user-images.githubusercontent.com/1991296/224442907-7693d4be-acaa-4e01-8b4f-add84093ffff.mp4
 </p>
 
 - **Local 236B DeepSeek-Coder-V2:** Running its Q4_K_M version using only 21GB VRAM and 136GB DRAM, attainable on a local desktop machine, which scores even better than GPT4-0613 in [BigCodeBench](https://huggingface.co/blog/leaderboard-bigcodebench).
