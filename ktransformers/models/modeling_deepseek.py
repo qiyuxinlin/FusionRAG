@@ -376,7 +376,6 @@ class DeepseekV2MLP(nn.Module):
         down_proj = self.down_proj(act)
         return down_proj
 
-
 class MoEGate(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -419,7 +418,7 @@ class MoEGate(nn.Module):
             )
 
         ### select top-k experts
-        if self.topk_method == "gready":
+        if self.topk_method == "greedy":
             topk_weight, topk_idx = torch.topk(
                 scores, k=self.top_k, dim=-1, sorted=False
             )
