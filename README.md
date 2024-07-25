@@ -45,9 +45,9 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <!-- <img alt="Tabby integration" src="https://XXXX.png" width=55%> -->
-  <video width=55% controls>
-    <source src="./doc/asset/202407251009.mp4" type="video/mp4">
-  </video>
+
+  https://github.com/user-attachments/assets/e6e27cb3-8372-44e6-8f1f-34402eae56c1
+  
 </p>
 
 
