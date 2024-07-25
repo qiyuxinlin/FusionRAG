@@ -32,7 +32,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="https://XXXX.png" width=55%>
+    <img alt="DeepSeek-Coder-V2 Score" src="./doc/asset/BigCodeBench.png" width=55%>
   </picture>
 </p>
 
