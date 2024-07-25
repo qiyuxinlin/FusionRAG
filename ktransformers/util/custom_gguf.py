@@ -9,8 +9,6 @@ import os
 from enum import IntEnum
 import torch
 import KCudaOps
-import cupy as cp
-import time
 # copied from llama.cpp/gguf-py/gguf/constants.py to avoid dependence of gguf
 class GGMLQuantizationType(IntEnum):
     F32     = 0
