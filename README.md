@@ -69,9 +69,9 @@ Requirements:
   conda activate {your_env_name} 
   ```
 
-- PyTorch 2.3.0 and above
+- Packaging, pytorch 2.3.0 and above
   ```sh
-  pip install torch
+  pip install packaging torch
   ```
 
 Install KTransformers
@@ -90,29 +90,40 @@ Install KTransformers
   ```
 
 <h3>Local Chat</h3>
-After installation, we provide a simple command-line local chat Python script that you can run for testing:
+After installation, we provide a simple command-line local chat Python script that you can run for testing.
+
+  > Note that we use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models like [DeepSeek-Coder-V2-Instruct](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite/tree/main), [Qwen2-57B-A14B](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct), etc. You can replace it with any other model that you want to test. (Weights can be downloaded from [Qwen2-57B-A14B-gguf](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/tree/main), [
+    DeepSeek-Coder-V2-Instruct-gguf](https://huggingface.co/LoneStriker/DeepSeek-Coder-V2-Instruct-GGUF/tree/main))
 
 ```shell
-python -m  ktransformers.local_chat.py --model_path deepseek-ai/DeepSeek-V2-Chat --gguf_path /path/to/DeepSeek-V2-Chat.q4_k_m.gguf/
+# Download mzwing/DeepSeek-V2-Lite-Chat-GGUF from huggingface
+mkdir DeepSeek-V2-Lite-Chat-GGUF
+cd DeepSeek-V2-Lite-Chat-GGUF
+
+wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf?download=true -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
+
+# Start local chat
+python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
 ```
 
 It features the following arguments:
 
-- model_path (required): name (such as "deepseek-ai/DeepSeek-V2-Chat" which will auto downloaded from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Instruct)) or local path of transformers will use to initialize the model.  Attention: <strong>No safetensors</strong> are required in the directory.
-- gguf_path (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/LoneStriker/DeepSeek-Coder-V2-Instruct-GGUF/tree/main) (we only support q4_k_m just now)
-- optimize_rule_path (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules.There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
-- max_new_tokens: Int (default=1000). Max new tokens to generate.
-- cpu_infer: Int (default=10). The number of CPUs used for inference, should ideally be set to the (total number of cores - 2).
+- -\-model_path (required): name (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will auto downloaded configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that dir path to initialize the model.  
+  >Note: <strong>.safetensors</strong> file are not required in the directory, we only need these config files to build model and tokenizer.
+- -\-gguf_path (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
+- -\-optimize_rule_path (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
+- -\-max_new_tokens: Int (default=1000). Max new tokens to generate.
+- -\-cpu_infer: Int (default=10). The number of CPUs used for inference, should ideally be set to the (total number of cores - 2).
 
 <h3>RESTful API and Web UI</h3>
 Start without website:
 
 ```sh
-ktransformers --model_path deepseek-ai/DeepSeek-V2-Chat --gguf_path /path/to/DeepSeek-V2-Chat.q4_k_m.gguf/ --port 10002
+ktransformers --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf --port 10002
 ```
 Start with website:
 ```sh
-ktransformers --model_path deepseek-ai/DeepSeek-V2-Chat --gguf_path /path/to/DeepSeek-V2-Chat.q4_k_m.gguf/  --port 10002 --web True
+ktransformers --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf  --port 10002 --web True
 ```
 Or you want to start server with transformers, the model_path should include safetensors
 ```bash
