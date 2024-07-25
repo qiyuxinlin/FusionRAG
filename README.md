@@ -93,7 +93,7 @@ Install KTransformers
 After installation, we provide a simple command-line local chat Python script that you can run for testing:
 
 ```shell
-python -m  ktransformers.local_chat.py --model_path deepseek-ai/DeepSeek-V2-Chat --gguf_path /path/to/DeepSeek-V2-Chat.q4_k_m.gguf/
+python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Chat --gguf_path /path/to/DeepSeek-V2-Chat.q4_k_m.gguf/
 ```
 
 It features the following arguments:
