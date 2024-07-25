@@ -121,7 +121,11 @@ ktransformers --type transformers --model_path /mnt/data/model/Qwen2-0.5B-Instru
 
 Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://localhost:10002/web/index.html#/chat) :
 
-<img src="doc/assets/website.png" alt="Server架构">
+<p align="center">
+  <picture>
+    <img alt="Web UI" src="./doc/assets/website.png" width=80%>
+  </picture>
+</p>
 
 More information about the RESTful API server can be found [here](doc/en/api/server/server.md). You can also find an example of integrating with Tabby [here](doc/en/api/server/tabby.md).
 
@@ -171,7 +175,7 @@ Each rule in the YAML file has two parts: `match` and `replace`. The `match` par
 
 You can find example rule templates for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models, in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory. These templates are used to power the `local_chat.py` demo.
 
-A detailed description of the injection using DeepSeek-V2 as an example is given [here](doc/en/deepsee-v2-injection.md).
+A detailed description of the injection using DeepSeek-V2 as an example is given [here](doc/en/deepseek-v2-injection.md).
 
 <h2 id="ack">Acknowledgment and Contributors</h2>
 
