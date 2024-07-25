@@ -1,3 +1,12 @@
+/**
+ * @Description  :
+ * @Author       : chenht2022
+ * @Date         : 2024-07-17 12:25:51
+ * @Version      : 1.0.0
+ * @LastEditors  : chenht2022
+ * @LastEditTime : 2024-07-25 10:33:44
+ * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+ **/
 #include "task_queue.h"
 
 TaskQueue::TaskQueue() {
@@ -21,7 +30,8 @@ void TaskQueue::enqueue(std::function<void()> task) {
 }
 
 void TaskQueue::sync() {
-    while (!sync_flag.load(std::memory_order_seq_cst));
+    while (!sync_flag.load(std::memory_order_seq_cst))
+        ;
 }
 
 void TaskQueue::processTasks() {

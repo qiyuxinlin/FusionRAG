@@ -1,3 +1,12 @@
+/**
+ * @Description  :
+ * @Author       : chenht2022
+ * @Date         : 2024-07-22 02:03:05
+ * @Version      : 1.0.0
+ * @LastEditors  : chenht2022 
+ * @LastEditTime : 2024-07-25 10:33:34
+ * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+ **/
 #include "backend.h"
 
 Backend::Backend(int thread_num) {
