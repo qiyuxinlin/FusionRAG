@@ -1,8 +1,8 @@
 <div align="center">
-  <h1>KTransformers</h1>
+  <!-- <h1>KTransformers</h1> -->
   <p align="center">
   <picture>
-    <img alt="KTransformers" src="https://XXXX.png" width=55%>
+    <img alt="KTransformers" src="./doc/assets/KTransformers.png" width=55%>
   </picture>
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
@@ -23,16 +23,16 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <h2 id="show-cases">🔥 Show Cases</h2>
 <h3>GPT-4-level Local VSCode Copilot on a Desktop with only 24GB VRAM</h3>
 <p align="center">
-  <picture>
-    <img alt="KTransformers V.S. llama.cpp on DeepSeek-Coder-V2" src="https://XXXX.png" width=55%>
-  </picture>
+
+  https://github.com/user-attachments/assets/3f85780e-aa53-4d2f-91b2-5585c8dade85
+
 </p>
 
 - **Local 236B DeepSeek-Coder-V2:** Running its Q4_K_M version using only 21GB VRAM and 136GB DRAM, attainable on a local desktop machine, which scores even better than GPT4-0613 in [BigCodeBench](https://huggingface.co/blog/leaderboard-bigcodebench).
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="https://XXXX.png" width=55%>
+    <img alt="DeepSeek-Coder-V2 Score" src="./doc/assets/BigCodeBench.png" width=80%>
   </picture>
 </p>
 
@@ -40,9 +40,10 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 - **VSCode Integration:** Wrapped into an OpenAI and Ollama compatible API for seamless integration as a backend for [Tabby](https://github.com/TabbyML/tabby) and various other frontends.
 
 <p align="center">
-  <picture>
-    <img alt="Tabby integration" src="https://XXXX.png" width=55%>
-  </picture>
+  <!-- <img alt="Tabby integration" src="https://XXXX.png" width=55%> -->
+
+  https://github.com/user-attachments/assets/e6e27cb3-8372-44e6-8f1f-34402eae56c1
+  
 </p>
 
 
@@ -125,7 +126,14 @@ More information about the RESTful API server can be found [here](doc/en/api/ser
 <h2 id="tutorial">📃 Brief Injection Tutorial</h2>
 At the heart of KTransformers is a user-friendly, template-based injection framework. 
 This allows researchers to easily replace original torch modules with optimized variants. It also simplifies the process of combining multiple optimizations, allowing the exploration of their synergistic effects. 
-<br/><br/>
+
+</br>
+<p align="center">
+  <picture>
+    <img alt="Inject-Struction" src="./doc/assets/InjectStruction.png" width=50%>
+  </picture>
+</p>
+
 Given that vLLM already serves as a great framework for large-scale deployment optimizations, KTransformers is particularly focused on local deployments that are constrained by limited resources. We pay special attention to heterogeneous computing opportunities, such as GPU/CPU offloading of quantized models. For example, we support the efficient <a herf="https://github.com/Mozilla-Ocho/llamafile/tree/main">Llamafile</a> and <a herf="https://github.com/IST-DASLab/marlin">Marlin</a> kernels for CPU and GPU, respectively. More details can be found <a herf="doc/en/operators/llamafile.md">here</a>.
 
 <h3>Example Usage</h3>
