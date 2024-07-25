@@ -6,8 +6,11 @@ from ktransformers.server.exceptions import not_implemented
 from ktransformers.server.schemas.assistants.messages import MessageCreate, MessageObject, MessageModify
 from ktransformers.server.crud.assistants.messages import MessageDatabaseManager
 from ktransformers.server.schemas.base import DeleteResponse, ObjectID, Order
-from ktransformers.server.backend.context_manager import get_thread_context_manager, TContext
-
+from ktransformers.server.backend.interfaces.transformers import TransformersThreadContext
+from ktransformers.server.backend.interfaces.ktransformers import KTransformersThreadContext
+from ktransformers.server.backend.interfaces.exllamav2 import ExllamaThreadContext
+# from ktransformers.server.backend.context_manager import TContext
+from ktransformers.server.utils.create_interface import  get_thread_context_manager
 router = APIRouter()
 message_manager = MessageDatabaseManager()
 
@@ -16,7 +19,7 @@ message_manager = MessageDatabaseManager()
 async def create_message(thread_id: str, msg: MessageCreate):
     message = message_manager.db_create_message(
         thread_id, msg, MessageObject.Status.in_progress)
-    ctx: Optional[TContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
+    ctx: Optional[TransformersThreadContext | KTransformersThreadContext | ExllamaThreadContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         ctx.put_user_message(message)
     return message
@@ -47,7 +50,7 @@ async def modify_message(thread_id: ObjectID, message_id: ObjectID, msg: Message
 
 @router.delete("/{thread_id}/messages/{message_id}", tags=['openai'], response_model=DeleteResponse)
 async def delete_message(thread_id: ObjectID, message_id: ObjectID):
-    ctx: Optional[TContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
+    ctx: Optional[TransformersThreadContext | KTransformersThreadContext | ExllamaThreadContext] = await get_thread_context_manager().get_context_by_thread_id(thread_id)
     if ctx is not None:
         ctx.delete_user_message(message_id)
     message_manager.db_delete_message_by_id(thread_id, message_id)
