@@ -1,4 +1,4 @@
-# Tutorial: Heteragouse and Local DeepSeek-V2 Inference
+# Tutorial: Heterogeneous and Local DeepSeek-V2 Inference
 
 DeepSeek-(Code)-V2 is a series of strong mixture-of-experts (MoE) models, featuring a total of 236 billion parameters, with 21 billion parameters activated per token. This model has demonstrated remarkable reasoning capabilities across various benchmarks, positioning it as one of the SOTA open models and nearly comparable in performance to GPT-4. 
 
@@ -67,8 +67,8 @@ KTransformers will iterate through all sub-modules of the model, match rules spe
 Specifically, the following rules are used:
 
 - Replace the Attention module with our [optimized MLA Operator](#mla).
-- Replace routed experts with CPUInfer kernels that use Llamafile.
-- Replace all Linear modules not belonging to attention with Marlin kernels.
+- Replace routed experts with [CPUInfer kernels](#experts) that use Llamafile.
+- Replace all Linear modules not belonging to attention with [Marlin](#linear) kernels.
 
 
 
@@ -87,7 +87,7 @@ The YAML rule is listed below.
 As we can see, each rule in the YAML file has two parts: `match` and `replace`. 
 The match part specifies which module should be replaced, and the replace part specifies the module to be injected into the model along with the initialization keywords. 
 
-<h3 id="mla">Routed Experts </h3>
+<h3 id="experts">Routed Experts </h3>
 
 For routed experts, the module we inject is a wrapper of CPUInfer, and we should pass some keywords to it. 
 In KTransformers, some modules can work either on CPU or on GPU. KTransformersMLPExpert is one of them. All these special modules have a `device` keyword describing which device the module should be initialized on. 
