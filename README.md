@@ -113,7 +113,7 @@ cd DeepSeek-V2-Lite-Chat-GGUF
 wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf?download=true -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
 
 # Start local chat
-python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
+python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat-Q4_K_M-dir/
 ```
 
 It features the following arguments:
