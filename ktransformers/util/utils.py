@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : Azure-Tang, Boxing Zhang
+Date         : 2024-07-26 05:48:53
+Version      : 1.0.0
+LastEditors  : Azure 
+LastEditTime : 2024-07-26 13:27:12
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import torch
 from torch import nn
 import itertools
@@ -114,7 +125,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
             logits_warper = (
                 model._get_logits_warper(generation_config,device=inputs.device) if generation_config.do_sample else None
             )
-        except: # transformers==4.41
+        except: 
             logits_warper = (
                 model._get_logits_warper(generation_config) if generation_config.do_sample else None
             )

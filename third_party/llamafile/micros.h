@@ -1,3 +1,8 @@
+// Adapted from
+// https://github.com/Mozilla-Ocho/llamafile/blob/0.8.8/llamafile/micros.h
+// Copyrigth 2024 Mozilla Foundation.
+// Copyright(c) 2024 by KVCache.AI, All Rights Reserved.
+
 // -*- mode:c++;indent-tabs-mode:nil;c-basic-offset:4;coding:utf-8 -*-
 // vi: set et ft=cpp ts=4 sts=4 sw=4 fenc=utf-8 :vi
 #pragma once

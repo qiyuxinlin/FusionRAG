@@ -1,9 +1,11 @@
 <div align="center">
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
+  
   <picture>
-    <img alt="KTransformers" src="./doc/assets/KTransformers.png" width=55%>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6" width=50%>
   </picture>
+  
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
   <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a> | <a href="#tutorial">📃 Tutorial</a></strong>
@@ -32,7 +34,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="./doc/assets/BigCodeBench.png" width=80%>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/81efb94f-f859-4413-b6e0-d986508ad667" width=80%>
   </picture>
 </p>
 
@@ -50,6 +52,14 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <strong>More advanced features will coming soon, so stay tuned!</strong>
 
 <h2 id="quick-start">🚀 Quick Start</h2>
+<h3 id="supported-model"> Supported Model</h3>
+
+| Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
+| ----  | ---- | ---- | ---- | ---- |
+| DeepSeek-V2-q4_k_m | 133G | 24GB | 136GB | 256GB |
+| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8GB | 34GB | 64GB |
+| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3GB | 13GB | 16GB |
+
 <h3>Install</h3>
 Requirements:
 
@@ -78,7 +88,7 @@ Install KTransformers
 
 - Install ktransformers with [pip package](http://):
   ```sh
-  pip install ktransformers-0.1.0.tar.gz
+  pip install ktransformers-0.1.0.tar.gz --verbose
   ```
   or from source (If you want to run with website, please [compile the website](./doc/en/api/server/website.md) first after git clone the repo.):
   ```sh
@@ -103,7 +113,7 @@ cd DeepSeek-V2-Lite-Chat-GGUF
 wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf?download=true -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
 
 # Start local chat
-python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
+python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat-Q4_K_M-dir/
 ```
 
 It features the following arguments:
@@ -134,7 +144,7 @@ Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://loc
 
 <p align="center">
   <picture>
-    <img alt="Web UI" src="./doc/assets/website.png" width=80%>
+    <img alt="Web UI" src="https://github.com/user-attachments/assets/a8eca392-e948-4706-ba9c-743142d8a464" width=80%>
   </picture>
 </p>
 
@@ -148,7 +158,7 @@ This allows researchers to easily replace original torch modules with optimized 
 </br>
 <p align="center">
   <picture>
-    <img alt="Inject-Struction" src="./doc/assets/InjectStruction.png" width=50%>
+    <img alt="Inject-Struction" src="https://github.com/user-attachments/assets/b922180e-3e73-4b62-b5a0-5ac98d7052c5" width=50%>
   </picture>
 </p>
 
