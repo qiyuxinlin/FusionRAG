@@ -54,9 +54,9 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 | Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
 | ----  | ---- | ---- | ---- | ---- |
-|  |  |  |  |  |
-|  |  |  |  |  |
-|  |  |  |  |  |
+| DeepSeek-V2-q4_k_m | 133G | 24GB | 136GB | 256GB |
+| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8GB | 34GB | 64GB |
+| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3GB | 13GB | 16GB |
 
 <h3>Install</h3>
 Requirements:
