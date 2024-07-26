@@ -2,12 +2,6 @@
 # https://github.com/huggingface/transformers/blob/v4.41.2/src/transformers/cache_utils.py
 # Copyright 2018- The Hugging Face team. All rights reserved.
 # Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
-'''
-Description  :  
-Author       : Boxin Zhang
-Version      : 0.1.0
-Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
-'''
 import torch
 import transformers
 from transformers import Cache, PretrainedConfig
