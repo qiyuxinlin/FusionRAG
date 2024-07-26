@@ -1,5 +1,10 @@
 [build-system]
-requires = ["setuptools", "torch == 2.4.0"]
+requires = [
+  "setuptools",
+  "torch == 2.4.0", 
+  "ninja",
+  "packaging"
+  ]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -18,6 +23,7 @@ dependencies = [
   "wheel",
   "colorlog",
   "build",
+  "packaging",
   "fire"
 ]
 requires-python = ">=3.10"
