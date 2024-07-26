@@ -95,7 +95,7 @@ After installation, we provide a simple command-line local chat Python script th
   > Note that we use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models like [DeepSeek-Coder-V2-Instruct](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite/tree/main), [Qwen2-57B-A14B](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct), etc. You can replace it with any other model that you want to test. 
 
 <details>
-  <summary>Click To Show how to run other Suported Models</summary>
+  <summary>Click To Show how to run other Supported Models</summary>
 
 
 * Qwen2-57B
@@ -151,12 +151,12 @@ python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Ch
 
 It features the following arguments:
 
-- -\-model_path (required): name (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will auto downloaded configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that dir path to initialize the model.  
-  >Note: <strong>.safetensors</strong> file are not required in the directory, we only need these config files to build model and tokenizer.
-- -\-gguf_path (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
-- -\-optimize_rule_path (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
-- -\-max_new_tokens: Int (default=1000). Max new tokens to generate.
-- -\-cpu_infer: Int (default=10). The number of CPUs used for inference, should ideally be set to the (total number of cores - 2).
+- `--model_path` (required): Name of the model (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will automatically download configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that path to initialize the model.  
+  >Note: <strong>.safetensors</strong> files are not required in the directory. We only need config files to build model and tokenizer.
+- `--gguf_path` (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
+- `--optimize_rule_path` (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
+- `--max_new_tokens`: Int (default=1000). Maximum number of new tokens to generate.
+- `--cpu_infer`: Int (default=10). The number of CPUs used for inference. Should ideally be set to the (total number of cores - 2).
 
 <h3>RESTful API and Web UI</h3>
 Start without website:
@@ -173,7 +173,7 @@ Or you want to start server with transformers, the model_path should include saf
 ktransformers --type transformers --model_path /mnt/data/model/Qwen2-0.5B-Instruct --port 10002 --web True
 ```
 
-Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://localhost:10002/web/index.html#/chat) :
+Access website with url [http://localhost:10002/web/index.html#/chat](http://localhost:10002/web/index.html#/chat) :
 
 <p align="center">
   <picture>
