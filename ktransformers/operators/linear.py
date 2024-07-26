@@ -13,7 +13,7 @@ Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 
 import torch
 from torch import nn
-import KCudaOps 
+import KTransformersOps 
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.util.utils import InferenceState
 from ktransformers.ktransformers_ext.operators.custom_marlin.quantize.utils.marlin_utils import (
@@ -216,7 +216,7 @@ class QuantizedLinearMarlin(QuantizedLinearBase):
         orig_dtype = x.dtype
         x = x.reshape(-1, x.shape[-1])
         marlin_s = self.marlin_s.to(x.dtype)
-        x = KCudaOps.gptq_marlin_gemm(
+        x = KTransformersOps.gptq_marlin_gemm(
             x,
             self.marlin_q_w,
             marlin_s,

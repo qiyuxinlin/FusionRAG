@@ -20,7 +20,7 @@ from typing import Sequence
 import os
 from enum import IntEnum
 import torch
-import KCudaOps
+import KTransformersOps
 
 class GGMLQuantizationType(IntEnum):
     F32     = 0
@@ -452,9 +452,9 @@ def dequantize_q4_k_gpu(data, device:str ="cuda"):
     data = np.frombuffer(data, dtype=data.dtype)
     device = torch.device(device)
     # TODO: this and from_numpy in other functions will cause a warning saying that numpy is not writable, 
-    # the best way to fix this is transfer ptr to KCudaOps instead of Tensor.
+    # the best way to fix this is transfer ptr to KTransformersOps instead of Tensor.
     data = torch.from_numpy(data)
-    return KCudaOps.dequantize_q4_k(data, 144, device)
+    return KTransformersOps.dequantize_q4_k(data, 144, device)
 
 def dequantize_q5_k(data):
     # C implementation
@@ -571,7 +571,7 @@ def dequantize_q6_k_gpu(data: np.ndarray, device:str = "cuda"):
     num_blocks = len(data) // block_size
     data = np.frombuffer(data, dtype=data.dtype)
     data = torch.from_numpy(data)
-    return KCudaOps.dequantize_q6_k(data, 210, device)
+    return KTransformersOps.dequantize_q6_k(data, 210, device)
 
 def dequantize_q8_0(data):
     # C struct definition
@@ -589,7 +589,7 @@ def dequantize_q8_0_gpu(data, device:str = "cuda"):
     device = torch.device(device)
     data = np.frombuffer(data, dtype=data.dtype)
     data = torch.from_numpy(data)
-    return KCudaOps.dequantize_q8_0(data, 34, device)
+    return KTransformersOps.dequantize_q8_0(data, 34, device)
 
 
 def dequantize_f32(data):

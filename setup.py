@@ -148,11 +148,11 @@ class CMakeBuild(BuildExtension):
         )
 
 
-qlib_files = glob.glob("KCudaOps.*.so")
+qlib_files = glob.glob("KTransformersOps.*.so")
 if not qlib_files:
     setup(
         ext_modules=[
-            CUDAExtension('KCudaOps', [
+            CUDAExtension('KTransformersOps', [
                 'ktransformers/ktransformers_ext/cuda/custom_gguf/dequant.cu',
                 'ktransformers/ktransformers_ext/cuda/binding.cpp',
                 'ktransformers/ktransformers_ext/cuda/gptq_marlin/gptq_marlin.cu',
@@ -164,7 +164,7 @@ else:
     qlib_file = os.path.join(Path.cwd(), qlib_files[0]) 
     setup(
         ext_modules=[
-            CopyExtension('KCudaOps',"", qlib_file),
+            CopyExtension('KTransformersOps',"", qlib_file),
             CMakeExtension("cpuinfer_ext")],
         cmdclass={"build_ext": CMakeBuild},
     )
