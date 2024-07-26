@@ -9,9 +9,9 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from ktransformers.server.config.config import Config
-from ktransformers.server.backend.context_manager import get_interface, BackendInterface
+from ktransformers.server.utils.create_interface import get_interface
 from ktransformers.server.schemas.assistants.streaming import check_link_response
-
+from ktransformers.server.backend.base import BackendInterfaceBase
 router = APIRouter(prefix='/api')
 
 
@@ -56,7 +56,7 @@ class OllamaGenerationResponse(BaseModel):
 async def generate(request: Request, input: OllamaGenerateCompletionRequest):
     id = str(uuid4())
 
-    interface: BackendInterface = get_interface()
+    interface: BackendInterfaceBase = get_interface()
     print(f'COMPLETION INPUT:----\n{input.prompt}\n----')
 
     config = Config()

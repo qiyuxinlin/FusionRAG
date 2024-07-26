@@ -3,7 +3,7 @@ from time import time
 from uuid import uuid4
 from fastapi import APIRouter
 from fastapi.requests import Request
-from ktransformers.server.backend.context_manager import get_interface,BackendInterface
+from ktransformers.server.utils.create_interface import get_interface
 from ktransformers.server.schemas.assistants.streaming import stream_response
 from ktransformers.server.schemas.legacy.completions import CompletionCreate,CompletionObject
 
@@ -13,7 +13,7 @@ router = APIRouter()
 async def create_completion(request:Request,create:CompletionCreate):
     id = str(uuid4())
 
-    interface:BackendInterface = get_interface()
+    interface = get_interface()
     print(f'COMPLETION INPUT:----\n{create.prompt}\n----')
 
    

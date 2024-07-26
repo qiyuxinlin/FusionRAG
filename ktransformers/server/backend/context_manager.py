@@ -1,39 +1,27 @@
 from asyncio import Lock
 from typing import Dict, Optional
 
-from ktransformers.server.backend.base import ThreadContext
+from ktransformers.server.backend.base import ThreadContext, BackendInterfaceBase
 from ktransformers.server.schemas.assistants.runs import RunObject
 from ktransformers.server.schemas.base import ObjectID
 from ktransformers.server.config.log import logger
-from ktransformers.server.config.config import Config
+from ktransformers.server.backend.interfaces.transformers import TransformersThreadContext
+from ktransformers.server.backend.interfaces.ktransformers import KTransformersThreadContext
+from ktransformers.server.backend.interfaces.exllamav2 import ExllamaThreadContext
 
-conf = Config()
-
-logger.warn(f'Backend Type {conf.backend_type}')
-
-if conf.backend_type=='transformers':
-    from .interfaces.transformers import TransformersThreadContext as TContext, TransformersInterface as BackendInterface
-elif conf.backend_type == 'exllamav2':
-    from .interfaces.exllamav2 import ExllamaThreadContext as TContext, ExllamaInterface as BackendInterface
-elif conf.backend_type == 'ktransformers':
-    from .interfaces.ktransformers import KTransformersThreadContext as TContext, KTransformersInterface as BackendInterface
-else:
-    raise NotImplementedError(f'{conf.backend_type} not implemented')
-
-class globalInterface:
-    interface:BackendInterface   
-def get_interface()->BackendInterface:
-    return globalInterface.interface
-
+from ktransformers.server.backend.interfaces.exllamav2 import ExllamaInterface
+from ktransformers.server.backend.interfaces.transformers import TransformersInterface
+from ktransformers.server.backend.interfaces.ktransformers import KTransformersInterface
 class ThreadContextManager:
     lock: Lock
     threads_context: Dict[ObjectID, ThreadContext]
-
-    def __init__(self) -> None:
+    interface: BackendInterfaceBase
+    
+    def __init__(self,interface) -> None:
         logger.debug(f"Creating Context Manager")
         self.lock = Lock()
         self.threads_context = {}
-
+        self.interface = interface
         pass
 
     async def get_context_by_run_object(self, run: RunObject) -> ThreadContext:
@@ -41,7 +29,14 @@ class ThreadContextManager:
             logger.debug(f"keys {self.threads_context.keys()}")
             if run.thread_id not in self.threads_context:
                 logger.debug(f"new inference context {run.thread_id}")
-                new_context = TContext(run,get_interface())
+                if isinstance(self.interface, ExllamaInterface):
+                    new_context = ExllamaThreadContext(run, self.interface)
+                elif isinstance(self.interface, KTransformersInterface):
+                    new_context = KTransformersThreadContext(run, self.interface)
+                elif isinstance(self.interface, TransformersInterface):
+                    new_context = TransformersThreadContext(run, self.interface)
+                else:
+                    raise NotImplementedError
                 self.threads_context[run.thread_id] = new_context
                 # self.threads_context[run.thread_id] = ExllamaInferenceContext(run)
             re = self.threads_context[run.thread_id]
@@ -57,9 +52,3 @@ class ThreadContextManager:
                 logger.debug(f'no context for thread {thread_id}')
                 return None
             
-            
-context_manager: ThreadContextManager = ThreadContextManager()
-
-
-def get_thread_context_manager() -> ThreadContextManager:
-    return context_manager

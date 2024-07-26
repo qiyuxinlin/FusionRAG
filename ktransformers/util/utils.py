@@ -111,7 +111,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
             do_sample=True, top_k=5, top_p=0.85, temperature=0.1 # change this to modify generate config
         )
         logits_warper = (
-            model._get_logits_warper(generation_config) if generation_config.do_sample else None
+            model._get_logits_warper(generation_config,device=inputs.device) if generation_config.do_sample else None
         )
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
         if generation_config.do_sample:

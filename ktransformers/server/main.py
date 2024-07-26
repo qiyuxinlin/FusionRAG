@@ -7,7 +7,7 @@ import argparse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from ktransformers.server.config.config import Config
-from ktransformers.server.backend.context_manager import globalInterface,BackendInterface
+from ktransformers.server.utils.create_interface import  create_interface
 from ktransformers.server.backend.args import default_args
 from fastapi.openapi.utils import get_openapi
 
@@ -131,7 +131,7 @@ def main():
     
     app = create_app()
     custom_openapi(app)
-    globalInterface.interface = BackendInterface(default_args)
+    create_interface(config=cfg, default_args=default_args)
     run_api(app=app,
             host=args.host,
             port=args.port,
