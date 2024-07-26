@@ -13,5 +13,5 @@ node_modules
 */third_party/*
 .DS_Store
 compile_commands.json
-*egg-info/*
+*.egg-info*
 *dist/

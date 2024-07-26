@@ -8,4 +8,4 @@ prune ktransformers.egg-info
 prune third_party/llama.cpp/models
 graft ktransformers/website/dist
 global-exclude __pycache__
-include KCudaOps.*.so
+include KTransformersOps.*.so
