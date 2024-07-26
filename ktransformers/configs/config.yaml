@@ -24,8 +24,8 @@ model:
   type: ktransformers
 
   name: DeepSeek-Coder-V2-Instruct
-  path: /mnt/data/model/DeepSeek-Coder-V2-Instruct/
-  gguf_path: /mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH/
+  path: /mnt/data/models/DeepSeek-Coder-V2-Instruct-Config/
+  gguf_path: /mnt/data/models/DeepSeek-Coder-V2-Instruct-GGUF/q4_k_m/
 
   device: cuda:0
 
