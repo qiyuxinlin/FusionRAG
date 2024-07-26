@@ -1,10 +1,7 @@
 <div align="center">
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
-  <picture>
-    <img alt="KTransformers" src="https://github.com/user-attachments/assets/66ac188b-a00a-4eab-b86d-01151fc463a7" width=55%>
-  </picture>
-
+    
   ![ktransformers](https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6)
 
   </p>
