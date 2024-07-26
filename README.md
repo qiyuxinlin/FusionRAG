@@ -2,7 +2,9 @@
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
   
-  ![ktransformers](https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6)
+  <picture>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6" width=50%>
+  </picture>
   
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
@@ -50,6 +52,14 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <strong>More advanced features will coming soon, so stay tuned!</strong>
 
 <h2 id="quick-start">🚀 Quick Start</h2>
+<h3 id="supported-model"> Supported Model</h3>
+
+| Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
+| ----  | ---- | ---- | ---- | ---- |
+| DeepSeek-V2-q4_k_m | 133G | 24GB | 136GB | 256GB |
+| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8GB | 34GB | 64GB |
+| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3GB | 13GB | 16GB |
+
 <h3>Install</h3>
 Requirements:
 
