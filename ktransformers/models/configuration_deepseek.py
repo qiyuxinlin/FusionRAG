@@ -1,3 +1,7 @@
+# Adapted from
+# https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat-0628/blob/main/configuration_deepseek.py
+# Copyright 2023 DeepSeek-AI and The HuggingFace Inc. team. All rights reserved.
+# Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 

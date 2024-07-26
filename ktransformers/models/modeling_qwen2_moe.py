@@ -1,6 +1,14 @@
 # coding=utf-8
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+''' 
+# Adapted from
+# https://github.com/huggingface/transformers/blob/v4.42.3/src/transformers/models/qwen2_moe/modeling_qwen2_moe.py
 # Copyright 2024 The Qwen team, Alibaba Group and the HuggingFace Inc. team. All rights reserved.
-#
+# Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+# 
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
 # and OPT implementations in this library. It has been modified from its
 # original forms to accommodate minor architectural differences compared

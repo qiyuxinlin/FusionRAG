@@ -3,10 +3,10 @@ from time import time
 from uuid import uuid4
 from fastapi import APIRouter
 from fastapi.requests import Request
-from ktransformers.server.backend.context_manager import get_interface ,BackendInterface
+from ktransformers.server.utils.create_interface import get_interface
 from ktransformers.server.schemas.assistants.streaming import chat_stream_response
 from ktransformers.server.schemas.endpoints.chat import ChatCompletionCreate,ChatCompletionChunk,ChatCompletionObject
-
+from ktransformers.server.backend.base import BackendInterfaceBase
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ router = APIRouter()
 async def chat_completion(request:Request,create:ChatCompletionCreate):
     id = str(uuid4())
 
-    interface:BackendInterface = get_interface()
+    interface: BackendInterfaceBase = get_interface()
     # input_ids = interface.format_and_tokenize_input_ids(id,messages=create.get_tokenizer_messages())
 
     input_message = [json.loads(m.model_dump_json()) for m in create.messages]

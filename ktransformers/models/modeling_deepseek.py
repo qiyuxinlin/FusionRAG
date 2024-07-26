@@ -1,8 +1,14 @@
 # coding=utf-8
-#
-# Copyright 2024 Shaoyuan Chen
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+'''
+# Adapted from
+# https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat-0628/blob/main/modeling_deepseek.py
 # Copyright 2023 DeepSeek-AI and The HuggingFace Inc. team. All rights reserved.
-#
+# Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+# 
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
 # and OPT implementations in this library. It has been modified from its
 # original forms to accommodate minor architectural differences compared
@@ -1227,9 +1233,7 @@ class DeepseekV2DecoderLayer(nn.Module):
                 "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
             )
         residual = hidden_states
-
         hidden_states = self.input_layernorm(hidden_states)
-
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,

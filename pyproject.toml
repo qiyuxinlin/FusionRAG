@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ktransformers"
 version = "0.1.0"
 dependencies = [
-  "transformers == 4.41.2",
+  "transformers == 4.43.2",
   "fastapi >= 0.111.0",
   "langchain >= 0.2.0",
   "blessed >= 1.20.0",

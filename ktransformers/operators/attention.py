@@ -1,3 +1,9 @@
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import torch
 from torch import nn
 import warnings
@@ -51,7 +57,6 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         **kwargs
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
-
         if self.q_lora_rank is None:
             q = self.q_proj(hidden_states)
         else:
@@ -170,8 +175,8 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         attn_output = None
         cur_idx = 0
         while cur_idx < q_len:
-            if attention_mask:
-                chunk_mask = attention_mask[:, :, cur_idx:min(cur_idx + chunck_size, q_len), ...],
+            if attention_mask is not None:
+                chunk_mask = attention_mask[:, :, cur_idx:min(cur_idx + chunck_size, q_len), ...]
             else:
                 chunk_mask = None
 

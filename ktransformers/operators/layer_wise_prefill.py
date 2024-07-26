@@ -5,8 +5,8 @@ Description  :
 Author       : Azure
 Date         : 2024-07-25 11:25:24
 Version      : 1.0.0
-LastEditors  : Azure 
-LastEditTime : 2024-07-25 12:30:07
+LastEditors  : linchen
+LastEditTime : 2024-07-26 03:33:44
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -569,7 +569,6 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         causal_mask = self._update_causal_mask(
             attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
-
 
         # embed positions
         hidden_states = inputs_embeds
