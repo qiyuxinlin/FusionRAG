@@ -1,7 +1,7 @@
 [build-system]
 requires = [
   "setuptools",
-  "torch == 2.4.0", 
+  "torch == 2.3.1", 
   "ninja",
   "packaging"
   ]
@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 name = "ktransformers"
 version = "0.1.0"
 dependencies = [
-  "torch == 2.4.0",
+  "torch >= 2.3.0,<=2.3.1",
   "transformers == 4.43.2",
   "fastapi >= 0.111.0",
   "langchain >= 0.2.0",
