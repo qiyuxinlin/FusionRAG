@@ -1,10 +1,8 @@
 <div align="center">
   <!-- <h1>KTransformers</h1> -->
-  <p align="center">
-    
-  ![ktransformers](https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6)
+  
+   ![ktransformers](https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6)
 
-  </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
   <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a> | <a href="#tutorial">📃 Tutorial</a></strong>
 </div>
