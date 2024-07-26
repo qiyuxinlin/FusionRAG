@@ -84,18 +84,20 @@ Requirements:
   pip install packaging torch
   ```
 
-Install KTransformers
+Install KTransformers 
 
-- Install ktransformers with [pip package](http://):
-  ```sh
-  pip install ktransformers-0.1.0.tar.gz --verbose
-  ```
-  or from source (If you want to run with website, please [compile the website](./doc/en/api/server/website.md) first after git clone the repo.):
+
+  Install from source code:
   ```sh
   git clone https://github.com/kvcache-ai/ktransformers.git
   cd ktransformers
   git submodule init
   git submodule update
+  ```
+  [Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```pip install .```
+  
+  Install ktransformers with source.
+  ```
   pip install .
   ```
 
