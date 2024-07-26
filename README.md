@@ -2,7 +2,7 @@
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
   <picture>
-    <img alt="KTransformers" src="./doc/assets/KTransformers.png" width=55%>
+    <img alt="KTransformers" src="https://github.com/user-attachments/assets/66ac188b-a00a-4eab-b86d-01151fc463a7" width=55%>
   </picture>
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
@@ -32,7 +32,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="./doc/assets/BigCodeBench.png" width=80%>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/81efb94f-f859-4413-b6e0-d986508ad667" width=80%>
   </picture>
 </p>
 
@@ -134,7 +134,7 @@ Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://loc
 
 <p align="center">
   <picture>
-    <img alt="Web UI" src="./doc/assets/website.png" width=80%>
+    <img alt="Web UI" src="https://github.com/user-attachments/assets/a8eca392-e948-4706-ba9c-743142d8a464" width=80%>
   </picture>
 </p>
 
@@ -148,7 +148,7 @@ This allows researchers to easily replace original torch modules with optimized 
 </br>
 <p align="center">
   <picture>
-    <img alt="Inject-Struction" src="./doc/assets/InjectStruction.png" width=50%>
+    <img alt="Inject-Struction" src="https://github.com/user-attachments/assets/b922180e-3e73-4b62-b5a0-5ac98d7052c5" width=50%>
   </picture>
 </p>
 
