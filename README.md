@@ -2,7 +2,9 @@
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
   
-  ![ktransformers](https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6)
+  <picture>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6" width=50%>
+  </picture>
   
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
