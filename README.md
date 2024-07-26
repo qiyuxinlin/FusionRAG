@@ -50,6 +50,14 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <strong>More advanced features will coming soon, so stay tuned!</strong>
 
 <h2 id="quick-start">🚀 Quick Start</h2>
+<h3 id="supported-model"> Supported Model</h3>
+
+| Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
+| ----  | ---- | ---- | ---- | ---- |
+|  |  |  |  |  |
+|  |  |  |  |  |
+|  |  |  |  |  |
+
 <h3>Install</h3>
 Requirements:
 
