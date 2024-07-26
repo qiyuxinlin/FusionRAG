@@ -1,3 +1,8 @@
+// Adapted from
+// https://github.com/Mozilla-Ocho/llamafile
+// Copyrigth 2024 Mozilla Foundation.
+// Copyright(c) 2024 by KVCache.AI, All Rights Reserved.
+
 #pragma once
 
 inline int rand32(void) {
@@ -19,35 +24,35 @@ inline int hamming(int x, int y) {
     return popcount(x ^ y);
 }
 
-inline float float01(unsigned x) { // (0,1)
+inline float float01(unsigned x) {  // (0,1)
     return 1.f / 8388608 * ((x >> 9) + .5f);
 }
 
-inline float numba(void) { // (-10,10)
+inline float numba(void) {  // (-10,10)
     return float01(rand32()) * 2.f - 1.f;
 }
 
 template <typename T>
-void randomize(T *A, int n) {
+void randomize(T* A, int n) {
     for (int i = 0; i < n; ++i)
         A[i] = numba();
 }
 
 template <typename T>
-void randomize(int m, int n, T *A, int lda) {
+void randomize(int m, int n, T* A, int lda) {
     for (int j = 0; j < n; ++j)
         for (int i = 0; i < m; ++i)
             A[lda * j + i] = numba();
 }
 
 template <typename T, typename U>
-void broadcast(T *A, int n, U x) {
+void broadcast(T* A, int n, U x) {
     for (int i = 0; i < n; ++i)
         A[i] = x;
 }
 
 template <typename T, typename U>
-void broadcast(int m, int n, T *A, int lda, U x) {
+void broadcast(int m, int n, T* A, int lda, U x) {
     for (int j = 0; j < n; ++j)
         for (int i = 0; i < m; ++i)
             A[lda * j + i] = x;

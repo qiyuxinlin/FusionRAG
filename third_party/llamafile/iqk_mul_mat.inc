@@ -1,3 +1,8 @@
+// Adapted from
+// https://github.com/Mozilla-Ocho/llamafile
+// Copyrigth 2024 Iwan Kawrakow.
+// Copyright(c) 2024 by KVCache.AI, All Rights Reserved.
+
 // -*- mode:c++;indent-tabs-mode:nil;c-basic-offset:4;coding:utf-8 -*-
 // vi: set et ft=cpp fenc=utf-8 :vi
 //
