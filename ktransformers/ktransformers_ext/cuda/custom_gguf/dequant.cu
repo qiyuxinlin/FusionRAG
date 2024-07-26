@@ -1,8 +1,16 @@
+/*
+ * @Description  :  
+ * @Author       : Azure-Tang, Boxing Zhang
+ * @Date         : 2024-07-25 13:38:30
+ * @Version      : 1.0.0
+ * @LastEditors  : Azure 
+ * @LastEditTime : 2024-07-26 11:58:50
+ * Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+ */
 #include <cuda_runtime.h>
 #include <torch/library.h>
 #include <torch/extension.h>
 #include <torch/torch.h>
-#include <cuda_runtime.h>
 #include <cstdint>
 
 __global__ void dequantize_q8_0_kernel(float* output, const float* scales, const int8_t* qs, int num_blocks, int blk_size) {

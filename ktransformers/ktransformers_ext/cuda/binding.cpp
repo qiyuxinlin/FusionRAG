@@ -1,3 +1,13 @@
+/**
+ * @Description  :  
+ * @Author       : Azure-Tang
+ * @Date         : 2024-07-25 13:38:30
+ * @Version      : 1.0.0
+ * @LastEditors  : Azure 
+ * @LastEditTime : 2024-07-26 08:36:03
+ * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+**/
+
 #include "custom_gguf/ops.h"
 #include "gptq_marlin/ops.h"
 // Python bindings
@@ -8,7 +18,7 @@
 #include <torch/torch.h>
 // namespace py = pybind11;
 
-PYBIND11_MODULE(KCudaOps, m) {
+PYBIND11_MODULE(KTransformersOps, m) {
       m.def("dequantize_q8_0", &dequantize_q8_0, "Function to dequantize q8_0 data.",
             py::arg("data"), py::arg("blk_size"), py::arg("device"));
       m.def("dequantize_q6_k", &dequantize_q6_k, "Function to dequantize q6_k data.",
