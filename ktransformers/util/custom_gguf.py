@@ -1,3 +1,15 @@
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : Azure-Tang, Boxing Zhang, chenht2022
+Date         : 2024-07-26 08:48:54
+Version      : 1.0.0
+LastEditors  : Azure 
+LastEditTime : 2024-07-26 09:28:25
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
+# copied from llama.cpp/gguf-py/gguf/constants.py to satisfy dependence of gguf
 # GGUF specification
 # https://github.com/ggerganov/ggml/blob/master/docs/gguf.md
 import struct
@@ -9,7 +21,6 @@ import os
 from enum import IntEnum
 import torch
 import KCudaOps
-# copied from llama.cpp/gguf-py/gguf/constants.py to satisfy dependence of gguf
 
 class GGMLQuantizationType(IntEnum):
     F32     = 0
