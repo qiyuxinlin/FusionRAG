@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-22 10:21:04
+LastEditTime : 2024-07-26 12:08:13
 
 The MIT License (MIT)
 Copyright (c) 2024  by Approach.AI
@@ -30,10 +30,77 @@ import sys
 import re
 import subprocess
 import glob
+import platform
 from pathlib import Path
+from packaging.version import parse
+import torch.version
+from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 from setuptools import setup, Extension
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+import torch
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME, ROCM_HOME, CppExtension
 
+
+class PlatformInfo:
+    PACKAGE_NAME = "ktransformers"
+    def get_cuda_bare_metal_version(self, cuda_dir):
+        raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
+        output = raw_output.split()
+        release_idx = output.index("release") + 1
+        bare_metal_version = parse(output[release_idx].split(",")[0])
+        cuda_version = f"{bare_metal_version.major}{bare_metal_version.minor}"
+        return cuda_version
+    
+    def get_cuda_version_of_torch(self,):
+        torch_cuda_version = parse(torch.version.cuda)
+        cuda_version = f"{torch_cuda_version.major}{torch_cuda_version.minor}"
+        return cuda_version
+        
+    def get_platform(self,):
+        """
+        Returns the platform name as used in wheel filenames.
+        """
+        if sys.platform.startswith("linux"):
+            return f'linux_{platform.uname().machine}'
+        else:
+            raise ValueError("Unsupported platform: {}".format(sys.platform))
+        
+    def get_cpu_instruct(self,):
+        if sys.platform.startswith("linux"):
+            with open('/proc/cpuinfo', 'r') as cpu_f:
+                cpuinfo = cpu_f.read()
+            
+            flags_line = [line for line in cpuinfo.split('\n') if line.startswith('flags')][0]
+            flags = flags_line.split(':')[1].strip().split(' ')
+            for flag in flags:
+                if 'avx512' in flag:
+                    return 'avx512'
+            for flag in flags:
+                if 'avx2' in flag:
+                    return 'avx2'
+            raise ValueError("Unsupported cpu Instructions: {}".format(flags_line))
+    
+    def get_torch_version(self,):
+        torch_version_raw = parse(torch.__version__)
+        torch_version = f"{torch_version_raw.major}{torch_version_raw.minor}"
+        return torch_version
+    
+
+class BuildWheelsCommand(_bdist_wheel):
+    def get_wheel_name(self,):
+        platform_info = PlatformInfo()
+        python_version = f"cp{sys.version_info.major}{sys.version_info.minor}"
+        wheel_filename = f"{PlatformInfo.PACKAGE_NAME}-{self.distribution.get_version()}+cu{platform_info.get_cuda_bare_metal_version(CUDA_HOME)}torch{platform_info.get_torch_version()}+{platform_info.get_cpu_instruct()}-{python_version}-{python_version}-{platform_info.get_platform()}.whl"
+        return wheel_filename
+        
+    
+    def run(self):
+        super().run()
+        impl_tag, abi_tag, plat_tag = self.get_tag()
+        archive_basename = f"{self.wheel_dist_name}-{impl_tag}-{abi_tag}-{plat_tag}"
+        wheel_path = os.path.join(self.dist_dir, archive_basename + ".whl")
+        wheel_name_with_platform = os.path.join(self.dist_dir, self.get_wheel_name())
+        os.rename(wheel_path, wheel_name_with_platform)        
+        
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
@@ -158,7 +225,7 @@ if not qlib_files:
                 'ktransformers/ktransformers_ext/cuda/gptq_marlin/gptq_marlin.cu',
       ]),
             CMakeExtension("cpuinfer_ext")],
-        cmdclass={"build_ext": CMakeBuild}
+        cmdclass={"bdist_wheel": BuildWheelsCommand, "build_ext": CMakeBuild}
     )
 else:
     qlib_file = os.path.join(Path.cwd(), qlib_files[0]) 
