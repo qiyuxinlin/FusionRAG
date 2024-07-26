@@ -61,9 +61,9 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 | DeepSeek-V2-Lite-q4_k_m | 9.7G | 3G | 13G | 16G |
 
 <h3>Install</h3>
-Requirements:
+Some preparation:
 
-- CUDA 12.1 and above, if you didn't install yet, you may install from [here](https://developer.nvidia.com/cuda-downloads).
+- CUDA 12.1 and above, if you didn't have it yet, you may install from [here](https://developer.nvidia.com/cuda-downloads).
 
   <!-- ```
   export PATH=/usr/local/cuda/bin:$PATH
@@ -79,8 +79,6 @@ Requirements:
   ```sh
   conda create --name ktransformers python=3.11
   conda activate ktransformers
-  # Install pytorch
-  pip install packaging torch
   ```
 
 Install KTransformers from source：
