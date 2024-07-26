@@ -1,3 +1,4 @@
+torch == 2.4.0
 transformers == 4.43.2
 fastapi >= 0.111.0
 langchain >= 0.2.0
@@ -10,4 +11,3 @@ ninja
 wheel
 colorlog
 fire
-flash-attn
