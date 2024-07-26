@@ -1,9 +1,9 @@
 <div align="center">
   <!-- <h1>KTransformers</h1> -->
   <p align="center">
-  <picture>
-    <img alt="KTransformers" src="./doc/assets/KTransformers.png" width=55%>
-  </picture>
+  
+  ![ktransformers](https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6)
+  
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
   <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a> | <a href="#tutorial">📃 Tutorial</a></strong>
@@ -32,7 +32,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="./doc/assets/BigCodeBench.png" width=80%>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/81efb94f-f859-4413-b6e0-d986508ad667" width=80%>
   </picture>
 </p>
 
@@ -78,7 +78,7 @@ Install KTransformers
 
 - Install ktransformers with [pip package](http://):
   ```sh
-  pip install ktransformers-0.1.0.tar.gz
+  pip install ktransformers-0.1.0.tar.gz --verbose
   ```
   or from source (If you want to run with website, please [compile the website](./doc/en/api/server/website.md) first after git clone the repo.):
   ```sh
@@ -134,7 +134,7 @@ Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://loc
 
 <p align="center">
   <picture>
-    <img alt="Web UI" src="./doc/assets/website.png" width=80%>
+    <img alt="Web UI" src="https://github.com/user-attachments/assets/a8eca392-e948-4706-ba9c-743142d8a464" width=80%>
   </picture>
 </p>
 
@@ -148,7 +148,7 @@ This allows researchers to easily replace original torch modules with optimized 
 </br>
 <p align="center">
   <picture>
-    <img alt="Inject-Struction" src="./doc/assets/InjectStruction.png" width=50%>
+    <img alt="Inject-Struction" src="https://github.com/user-attachments/assets/b922180e-3e73-4b62-b5a0-5ac98d7052c5" width=50%>
   </picture>
 </p>
 
