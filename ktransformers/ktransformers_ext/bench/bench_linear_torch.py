@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : chenht2022
+Date         : 2024-07-25 10:31:59
+Version      : 1.0.0
+LastEditors  : chenht2022 
+LastEditTime : 2024-07-25 10:32:48
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import os, sys
 import time
 import torch

@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import itertools
 import time
+import enum
 from ktransformers.util.custom_gguf import translate_name_to_gguf
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.operators import base_operator
@@ -42,7 +43,7 @@ def load_cur_state_dict(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         if translated_key in gguf_loader.tensor_file_map:
             target_dtype = torch.get_default_dtype()
             device = "cpu" if "embd" in translated_key else "cuda"
-            weights = gguf_loader.load_gguf_tensor(translated_key).to(device = device, dtype = target_dtype)
+            weights = gguf_loader.load_gguf_tensor(translated_key, device = device).to(dtype = target_dtype)
             set_param(module, name, weights)
             del weights
         else:
@@ -104,7 +105,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to("cuda")
         logits = model(
             inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
-        )[0].clone()
+        )[0][:,-1,:].unsqueeze(0).clone()
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
             do_sample=True, top_k=5, top_p=0.85, temperature=0.1 # change this to modify generate config
@@ -166,3 +167,9 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
     print(f"eval rate:            {tokens_per_second} tokens/s")
 
     return tokens
+
+class InferenceState(enum.Enum):
+    UNLOAD = 0
+    PREFILL = 1
+    GENERATE = 2
+    RESTORE = 3

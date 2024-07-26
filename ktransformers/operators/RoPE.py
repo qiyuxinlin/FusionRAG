@@ -2,6 +2,7 @@ from torch import nn
 from ktransformers.models.modeling_deepseek import DeepseekV2YarnRotaryEmbedding, DeepseekV2RotaryEmbedding
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.util.custom_gguf import GGUFLoader
+from ktransformers.util.utils import InferenceState
 from transformers.configuration_utils import PretrainedConfig
 # Copied from transformers.models.mixtral.modeling_mixtral.MixtralRotaryEmbedding with Mixtral->Qwen2Moe
 class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
@@ -22,7 +23,7 @@ class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
             self.orig_module.max_position_embeddings,
             self.orig_module.base,
             self.device)
-
+    
 class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
     def __init__(self,
                  key: str,
@@ -55,3 +56,4 @@ class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
             self.orig_module.beta_slow,
             self.orig_module.mscale,
             self.orig_module.mscale_all_dim)
+    
