@@ -1,3 +1,9 @@
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 from typing import Mapping, List
 import torch
 import yaml

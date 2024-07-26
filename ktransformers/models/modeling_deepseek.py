@@ -1,8 +1,14 @@
 # coding=utf-8
-#
-# Copyright 2024 Shaoyuan Chen
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+'''
+# Adapted from
+# https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat-0628/blob/main/modeling_deepseek.py
 # Copyright 2023 DeepSeek-AI and The HuggingFace Inc. team. All rights reserved.
-#
+# Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+# 
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
 # and OPT implementations in this library. It has been modified from its
 # original forms to accommodate minor architectural differences compared
