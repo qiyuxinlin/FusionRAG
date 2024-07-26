@@ -1,3 +1,7 @@
+// Adapted from
+// https://github.com/vllm-project/vllm/tree/main/csrc/quantization/gptq_marlin
+// Copyrigth 2024 The vLLM team.
+// Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 #pragma once
 
 #include <torch/all.h>

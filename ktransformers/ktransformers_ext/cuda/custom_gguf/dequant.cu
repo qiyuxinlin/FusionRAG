@@ -1,3 +1,12 @@
+/*
+ * @Description  :  
+ * @Author       : Azure-Tang, Boxing Zhang
+ * @Date         : 2024-07-25 13:38:30
+ * @Version      : 1.0.0
+ * @LastEditors  : Azure 
+ * @LastEditTime : 2024-07-26 08:37:33
+ * Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+ */
 #include <cuda_runtime.h>
 #include <torch/library.h>
 #include <torch/extension.h>

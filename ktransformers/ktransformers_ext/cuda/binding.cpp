@@ -1,3 +1,13 @@
+/**
+ * @Description  :  
+ * @Author       : Azure-Tang
+ * @Date         : 2024-07-25 13:38:30
+ * @Version      : 1.0.0
+ * @LastEditors  : Azure 
+ * @LastEditTime : 2024-07-26 08:36:03
+ * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+**/
+
 #include "custom_gguf/ops.h"
 #include "gptq_marlin/ops.h"
 // Python bindings

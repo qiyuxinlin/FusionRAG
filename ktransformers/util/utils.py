@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : Azure-Tang, Boxing Zhang
+Date         : 2024-07-26 05:48:53
+Version      : 1.0.0
+LastEditors  : Azure 
+LastEditTime : 2024-07-26 08:41:58
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import torch
 from torch import nn
 import itertools

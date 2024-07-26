@@ -9,7 +9,8 @@ import os
 from enum import IntEnum
 import torch
 import KCudaOps
-# copied from llama.cpp/gguf-py/gguf/constants.py to avoid dependence of gguf
+# copied from llama.cpp/gguf-py/gguf/constants.py to satisfy dependence of gguf
+
 class GGMLQuantizationType(IntEnum):
     F32     = 0
     F16     = 1
