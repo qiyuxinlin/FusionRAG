@@ -16,7 +16,9 @@ cd ktransformers/ktransformers_ext/build
 cmake ..
 cmake --build . --config Release
 
-echo "Installing ktransformers gpu kernel, this may take about half an hour, please wait"
+echo "Installing ktransformers gpu kernel, this may take for a while, please wait"
+sleep 3
+
 cd ../cuda
 python setup.py install
 cd ../../..
