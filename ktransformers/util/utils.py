@@ -2,11 +2,8 @@
 # coding=utf-8
 '''
 Description  :  
-Author       : Azure-Tang, Boxing Zhang
-Date         : 2024-07-26 05:48:53
-Version      : 1.0.0
-LastEditors  : Azure 
-LastEditTime : 2024-07-26 13:27:12
+Author       : Boxin Zhang, Azure-Tang
+Version      : 0.1.0
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 import torch
