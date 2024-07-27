@@ -30,7 +30,7 @@ The following figure provides a brief overview of DeepSeek-V2 architecture. At t
 
 To truly capitalize on the benefits of MLA, we have implemented an optimized version for inference. According to its original paper, we absorb the decompression matrices directly into the q_proj and out_proj weights. Consequently, the compressed representation does not need to be decompressed to compute the attention. This adjustment significantly reduces the KV cache size and increases the arithmetic intensity of this operator, which greatly optimizes the utilization of GPU computational power.
 
-## Arithmetic Intensity Guided Offloading
+### Arithmetic Intensity Guided Offloading
 
 Storing all 236 billion parameters of a model in GPU VRAM is clearly impractical for local users. Therefore, we strategically store only the most computationally intensive parameters on the GPU. For instance, after our optimizations, the MLA operator, which contains 128 heads with a shared compressed key-value representation, shows an arithmetic intensity of 512. This makes it the most intensive operator, particularly during smaller inference batch sizes. Hence, it is allocated to the GPU to leverage the power of tensor cores.
 
@@ -41,7 +41,7 @@ On the other hand, as shown in Figure 1, each transformer block in DeepSeek-V2 i
 Following this principle of arranging all operators by their arithmetic intensity and placing the most intensive ones in the GPU as much as possible, we prioritize positioning the MoE parameters and word embeddings computations on the CPU side to utilize its larger memory capacity. Meanwhile, the remaining parameters, including shared experts, projections in the attention module, and MLA, are stored in the GPU VRAM. As these parameters are accessed by every token, their placement on the GPU maximizes the benefits of high memory bandwidth. This configuration leads to approximately 20.7 GB of VRAM usage and 136GB DRAM memory requests if the Q4_K_M version is used, which is feasible even on a local desktop. Additionally, the placement can be adjusted according to the actual configuration, adhering to the same principle.
 
 
-## Advanced Quantization Kernels
+### Advanced Quantization Kernels
 
 The original DeepSeek-V2 model stores its parameters in BF16 format, consuming approximately 470GB of raw storage. This exceeds the RAM capacity available on mainstream desktop computers. To address this, we leverage the well-established GGUF community's quantized weights to simplify the process for users.
 However, quantized data types are not typically supported by highly-optimized BLAS packages. As a result, the original HuggingFace Transformers' Torch implementation must dequantize these tensors to supported data types before processing, which introduces unnecessary computational overhead and increases memory traffic. To overcome this, we have incorporated advanced kernels that operate directly on quantized data types, thereby optimizing inference performance.
@@ -107,9 +107,11 @@ In the original implementation of Transformers, MoE is implemented using `nn.Mod
     class: ktransformers.operators.experts.KTransformersMLPExpert     # custom MoE Kernel with expert parallelism
     device: "cpu"   # device to load this module on initialization
     kwargs:
-      gpu_mlp_type: "MLPExpertsTorch"
-      cpu_mlp_type: "MLPCPUExperts"
-      out_device: "cuda:0"
+      prefill_device: "cuda"
+      prefill_mlp_type: "MLPExpertsTorch"
+      generate_device: "cpu"
+      generate_mlp_type:  "MLPCPUExperts"
+      out_device: "cuda"
   recursive: False # don't recursively inject submodules of this module
 ```
 
@@ -135,11 +137,13 @@ We also need to transfer some keywords similar to the injection of experts. Here
   replace:
     class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
     kwargs:
-      gpu_linear_type: "QuantizedLinearMarlin"
-      cpu_linear_type: "QuantizedLinearTorch"
+      generate_device: "cuda"
+      prefill_device: "cuda"
+      generate_op: "QuantizedLinearMarlin"
+      prefill_op: "QuantizedLinearTorch"
 ```
 
-### Pre-compute Buffers
+<h3 id="Pre-compute Buffers">Pre-compute Buffers </h3>
 
 The original model is initialized on the meta device. The rotary embedding module pre-computes some buffers when initializing, which has no effect and doesn't compute anything when using the meta device. Therefore, we need to compute the buffers when loading the model. For convenience, we inject the rotary embedding module with our custom module, which performs pre-computations when loading. Here is the YAML rule:
 
