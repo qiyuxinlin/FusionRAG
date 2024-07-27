@@ -197,11 +197,11 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         config: PretrainedConfig,
         orig_module: nn.Module,
         device: str = "cuda",
-        per_layer_prefill_intput_threshod: int = 30000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshold: int = 30000, # if None, no per-layer prefill
         **kwargs,
     ):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
-        self.per_layer_prefill_intput_threshod = per_layer_prefill_intput_threshod
+        self.per_layer_prefill_intput_threshold = per_layer_prefill_intput_threshold
 
     @add_start_docstrings_to_model_forward(QWEN2MOE_INPUTS_DOCSTRING)
     def forward(
@@ -217,14 +217,14 @@ class Qwen2MoeModelPerLayerPrefill(BaseInjectedModule):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = None, # if None or 0, close per-layer prefill
+        per_layer_prefill_intput_threshold: int | None = None, # if None or 0, close per-layer prefill
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         # print(f'Total length of input_ids: {input_ids.size(1)}, {input_ids.size()}')
 
-        if per_layer_prefill_intput_threshod is None: per_layer_prefill_intput_threshod = self.per_layer_prefill_intput_threshod
+        if per_layer_prefill_intput_threshold is None: per_layer_prefill_intput_threshold = self.per_layer_prefill_intput_threshold
         per_layer_prefill_flag = False
         seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
-        if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
+        if per_layer_prefill_intput_threshold and per_layer_prefill_intput_threshold < seq_lenth:
             per_layer_prefill_flag = True
             for layer in self.layers:
                 self.load_layer_to(layer, InferenceState.UNLOAD)
@@ -477,11 +477,11 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         config: PretrainedConfig,
         orig_module: nn.Module,
         device: str = "cuda",
-        per_layer_prefill_intput_threshod: int = 30000, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshold: int = 30000, # if None, no per-layer prefill
         **kwargs,
     ):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
-        self.per_layer_prefill_intput_threshod = per_layer_prefill_intput_threshod
+        self.per_layer_prefill_intput_threshold = per_layer_prefill_intput_threshold
 
     @add_start_docstrings_to_model_forward(DeepseekV2_INPUTS_DOCSTRING)
     def forward(
@@ -496,12 +496,12 @@ class DeepseekV2ModelPerLayerPrefill(BaseInjectedModule):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        per_layer_prefill_intput_threshod: int | None = None, # if None, no per-layer prefill
+        per_layer_prefill_intput_threshold: int | None = None, # if None, no per-layer prefill
     ) -> Union[Tuple, BaseModelOutputWithPast]:
-        if per_layer_prefill_intput_threshod is None: per_layer_prefill_intput_threshod = self.per_layer_prefill_intput_threshod
+        if per_layer_prefill_intput_threshold is None: per_layer_prefill_intput_threshold = self.per_layer_prefill_intput_threshold
         per_layer_prefill_flag = False
         seq_lenth = inputs_embeds.size(1) if inputs_embeds is not None else input_ids.size(1)
-        if per_layer_prefill_intput_threshod and per_layer_prefill_intput_threshod < seq_lenth:
+        if per_layer_prefill_intput_threshold and per_layer_prefill_intput_threshold < seq_lenth:
             per_layer_prefill_flag = True
             for layer in self.layers:
                 self.load_layer_to(layer,  InferenceState.UNLOAD)
