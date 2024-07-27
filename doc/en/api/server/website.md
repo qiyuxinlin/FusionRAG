@@ -6,7 +6,7 @@ This document provides the necessary steps to set up and run the web service for
 
 ### 1.1. Compiling the Web Code
 
-Before you can compile the web code, make sure you have **npm** installed.
+Before you can compile the web code, make sure you have installed [Node.js](https://nodejs.org) version 18.3 or higher
 
 Once npm is installed, navigate to the `ktransformers/website` directory:
 
