@@ -112,7 +112,7 @@ class MLPCPUExperts(MLPExpertsBase):
         self.n_routed_experts = n_routed_experts
         self.out_device = out_device
 
-    def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = True):
+    def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = False):
         if device:
             assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
         if w is None: w = self.load_weights()[self.key]

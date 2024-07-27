@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-27 01:19:24
+LastEditTime : 2024-07-27 04:31:03
 '''
 import os
 import shutil
@@ -216,7 +216,7 @@ setup(
     long_description_content_type="text/markdown",
     cmdclass={"build_ext": CMakeBuild},
     install_requires = [
-        "torch >= 2.3.0,<=2.3.1",
+        "torch >= 2.3.0",
         "transformers == 4.43.2",
         "fastapi >= 0.111.0",
         "langchain >= 0.2.0",
