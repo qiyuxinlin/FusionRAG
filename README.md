@@ -125,7 +125,7 @@ python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Ch
 
 
 <details>
-  <summary>Click To Show how to run other Supported Models</summary>
+  <summary>Click To Show how to run other examples</summary>
 
 
 * Qwen2-57B
