@@ -81,7 +81,7 @@ Some preparation:
   conda activate ktransformers
   ```
 
-  Install from source code:
+  Download source code:
   ```sh
   git clone https://github.com/kvcache-ai/ktransformers.git
   cd ktransformers
@@ -99,6 +99,8 @@ We provide a simple command-line local chat Python script that you can run for t
 ```sh
 bash install.sh
 ```
+
+Notice: If you want to run Qwen2, please install Flash Attention ```pip install flash_attn```
 
 <details>
   <summary>Click To Show how to run other Supported Models</summary>
@@ -179,11 +181,11 @@ pip install . --no-build-isolation
 Start without website:
 
 ```sh
-ktransformers --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf --port 10002
+ktransformers --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat-GGUF --port 10002
 ```
 Start with website:
 ```sh
-ktransformers --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf  --port 10002 --web True
+ktransformers --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat-GGUF  --port 10002 --web True
 ```
 Or you want to start server with transformers, the model_path should include safetensors
 ```bash
@@ -252,4 +254,4 @@ A detailed description of the injection using DeepSeek-V2 as an example is given
 
 The development of KTransformer is based on the flexible and versatile framework provided by Transformers. We also benefit from advanced kernels such as GGUF/GGML, Llamafile, and Marlin. We are planning to contribute back to the community by upstreaming our modifications.
 
-KTransformer is actively maintained and developed by contributors from the <a href="https://madsys.cs.tsinghua.edu.cn/">MADSys group</a> at Tsinghua University and members from <a href="http://approching.ai/">Approaching.AI</a>. We welcome new contributors to join us in making KTransformer faster and easier to use.
+KTransformer is actively maintained and developed by contributors from the <a href="https://madsys.cs.tsinghua.edu.cn/">MADSys group</a> at Tsinghua University and members from <a href="http://approaching.ai/">Approaching.AI</a>. We welcome new contributors to join us in making KTransformer faster and easier to use.
