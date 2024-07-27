@@ -155,19 +155,6 @@ The original model is initialized on the meta device. The rotary embedding modul
     class: ktransformers.operators.RoPE.YarnRotaryEmbedding
 ```
 
-<h3 id="Layer-wise Prefill">Layer-wise Prefill(optional) </h3>
-
-For long prompts, the Arithmetic Intensity during prefilling differs from that during decoding. Most computations become compute-intensive. It's worthwhile to transfer each layer to the GPU, compute, and then transfer the activations back to the CPU during prefilling if the VRAM is insufficient to hold all parameters. To accomplish this, we have implemented a module containing a forward function that achieves this goal. All we need to do is inject it into the model, replacing the entire model. The keyword declares the threshold for the prompt length required for employing layer-wise prefill. Here is the YAML rule:
-
-```yaml
-- match:
-    name: "^model$"
-  replace:
-    class: "ktransformers.operators.layer_wise_prefill.DeepseekV2ModelPerLayerPrefill"
-    kwargs:
-      per_layer_prefill_intput_threshold: 10000 # you can change the threshold, 0 means close layer wise prefill
-```
-
 ## Wrap Your Custom Module
 
 We have implemented some modules, but you may need to inject your custom module using KTransformers. 
