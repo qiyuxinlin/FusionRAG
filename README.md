@@ -174,7 +174,8 @@ It features the following arguments:
   
 Install ktransformers with source.
 ```
-pip install .
+pip install -r requirements-local_chat.txt
+pip install . --no-build-isolation
 ```
 
 Start without website:
