@@ -81,7 +81,7 @@ Some preparation:
   conda activate ktransformers
   ```
 
-  Install from source code:
+  Download source code:
   ```sh
   git clone https://github.com/kvcache-ai/ktransformers.git
   cd ktransformers
