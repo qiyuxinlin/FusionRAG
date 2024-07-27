@@ -73,7 +73,7 @@ Some preparation:
 - Linux-x86_64 with gcc, g++ and cmake
   ```sh
   sudo apt-get update
-  sudo apt-get install gcc g++ cmake
+  sudo apt-get install gcc g++ cmake ninja-build
   ```
 - We recommend using [Conda](https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh) to create a virtual environment with Python=3.11 to run our program.
   ```sh
@@ -254,7 +254,9 @@ Below is an example of a YAML template for replacing all original Linear modules
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
+    device: "cpu"   # which devices to load this module when initializing
     kwargs:
+      generate_device: "cuda"
       generate_linear_type: "QuantizedLinearMarlin"
 ```
 
