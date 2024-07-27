@@ -81,12 +81,26 @@ Some preparation:
   conda activate ktransformers
   ```
 
-Install KTransformers from source：
-<!-- (If you want to run with website, please [compile the website](./doc/en/api/server/website.md) first after git clone the repo.): -->
+- Packaging, pytorch 2.3.0 and above
+  ```sh
+  pip install packaging torch
+  ```
+
+Install KTransformers 
+
+
+  Install from source code:
   ```sh
   git clone https://github.com/kvcache-ai/ktransformers.git
   cd ktransformers
-  ./install.sh # Run our install shell scripts
+  git submodule init
+  git submodule update
+  ```
+  [Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```pip install .```
+  
+  Install ktransformers with source.
+  ```
+  pip install .
   ```
 
 <h3>Local Chat</h3>

@@ -6,34 +6,95 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-22 10:21:04
-
-The MIT License (MIT)
-Copyright (c) 2024  by Approach.AI
-Permission is hereby granted, free of charge, to any person obtaining a copy of this
-software and associated documentation files (the “Software”), to deal in the Software
-without restriction, including without limitation the rights to use, copy, modify, 
-merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all copies
-or substantial portions of the Software. The Software is provided “as is”, without warranty
-of any kind, express or implied, including but not limited to the warranties of merchantability,
-fitness for a particular purpose and noninfringement. In no event shall the authors or
-copyright holders be liable for any claim, damages or other liability, whether in an
-action of contract, tort or otherwise, arising from, out of or in connection with the
-software or the use or other dealings in the Software.
-
+LastEditTime : 2024-07-27 00:29:46
 '''
 import os
 import shutil
 import sys
 import re
+import ast
 import subprocess
-import glob
+import platform
+import io
 from pathlib import Path
+from packaging.version import parse
+import torch.version
+from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 from setuptools import setup, Extension
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+import torch
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
 
+ROOT_DIR = os.path.dirname(__file__)
+class VersionInfo:
+    THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+    PACKAGE_NAME = "ktransformers"
+    def get_cuda_bare_metal_version(self, cuda_dir):
+        raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
+        output = raw_output.split()
+        release_idx = output.index("release") + 1
+        bare_metal_version = parse(output[release_idx].split(",")[0])
+        cuda_version = f"{bare_metal_version.major}{bare_metal_version.minor}"
+        return cuda_version
+    
+    def get_cuda_version_of_torch(self,):
+        torch_cuda_version = parse(torch.version.cuda)
+        cuda_version = f"{torch_cuda_version.major}{torch_cuda_version.minor}"
+        return cuda_version
+        
+    def get_platform(self,):
+        """
+        Returns the platform name as used in wheel filenames.
+        """
+        if sys.platform.startswith("linux"):
+            return f'linux_{platform.uname().machine}'
+        else:
+            raise ValueError("Unsupported platform: {}".format(sys.platform))
+        
+    def get_cpu_instruct(self,):
+        if sys.platform.startswith("linux"):
+            with open('/proc/cpuinfo', 'r') as cpu_f:
+                cpuinfo = cpu_f.read()
+            
+            flags_line = [line for line in cpuinfo.split('\n') if line.startswith('flags')][0]
+            flags = flags_line.split(':')[1].strip().split(' ')
+            for flag in flags:
+                if 'avx512' in flag:
+                    return 'avx512'
+            for flag in flags:
+                if 'avx2' in flag:
+                    return 'avx2'
+            raise ValueError("Unsupported cpu Instructions: {}".format(flags_line))
+    
+    def get_torch_version(self,):
+        torch_version_raw = parse(torch.__version__)
+        torch_version = f"{torch_version_raw.major}{torch_version_raw.minor}"
+        return torch_version
+    
+    def get_package_version(self,):
+        version_file = os.path.join(Path(VersionInfo.THIS_DIR), VersionInfo.PACKAGE_NAME, "__init__.py")
+        with open(version_file, "r", encoding="utf-8") as f:
+            version_match = re.search(r"^__version__\s*=\s*(.*)$", f.read(), re.MULTILINE)
+        public_version = ast.literal_eval(version_match.group(1))
+        package_version = f"{str(public_version)}+cu{self.get_cuda_bare_metal_version(CUDA_HOME)}torch{self.get_torch_version()}{self.get_cpu_instruct()}"
+        return package_version
+    
+
+class BuildWheelsCommand(_bdist_wheel):
+    def get_wheel_name(self,):
+        version_info = VersionInfo()
+        python_version = f"cp{sys.version_info.major}{sys.version_info.minor}"
+        wheel_filename = f"{VersionInfo.PACKAGE_NAME}-{version_info.get_package_version()}-{python_version}-{python_version}-{version_info.get_platform()}.whl"
+        return wheel_filename
+        
+    
+    def run(self):
+        super().run()
+        impl_tag, abi_tag, plat_tag = self.get_tag()
+        archive_basename = f"{self.wheel_dist_name}-{impl_tag}-{abi_tag}-{plat_tag}"
+        wheel_path = os.path.join(self.dist_dir, archive_basename + ".whl")
+        wheel_name_with_platform = os.path.join(self.dist_dir, self.get_wheel_name())
+        os.rename(wheel_path, wheel_name_with_platform)        
+        
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
@@ -84,19 +145,12 @@ class CMakeBuild(BuildExtension):
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
         ]
         build_args = []
-        # Adding CMake arguments set as environment variable
-        # (needed e.g. to build for ARM OSx on conda-forge)
         if "CMAKE_ARGS" in os.environ:
             cmake_args += [item for item in os.environ["CMAKE_ARGS"].split(" ") if item]
 
         # In this example, we pass in the version to C++. You might not need to.
         cmake_args += [f"-DEXAMPLE_VERSION_INFO={self.distribution.get_version()}"]
         if self.compiler.compiler_type != "msvc":
-            # Using Ninja-build since it a) is available as a wheel and b)
-            # multithreads automatically. MSVC would require all variables be
-            # exported for Ninja to pick it up, which is a little tricky to do.
-            # Users can override the generator with CMAKE_GENERATOR in CMake
-            # 3.15+.
             if not cmake_generator or cmake_generator == "Ninja":
                 try:
                     import ninja
@@ -131,8 +185,6 @@ class CMakeBuild(BuildExtension):
             if archs:
                 cmake_args += ["-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
 
-        # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
-        # across all generators.
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
             if hasattr(self, "parallel") and self.parallel:
                 build_args += [f"-j{self.parallel}"]
@@ -147,24 +199,51 @@ class CMakeBuild(BuildExtension):
             ["cmake", "--build", ".", *build_args], cwd=build_temp, check=True
         )
 
+def read_readme() -> str:
+    p = os.path.join(ROOT_DIR, "README.md")
+    if os.path.isfile(p):
+        return io.open(p, "r", encoding="utf-8").read()
+    else:
+        return ""
 
-qlib_files = glob.glob("KCudaOps.*.so")
-if not qlib_files:
-    setup(
-        ext_modules=[
-            CUDAExtension('KCudaOps', [
+setup(
+    name="ktransformers",
+    version=VersionInfo().get_package_version(),
+    author="KVCache.ai",
+    license="Apache 2.0",
+    description = "A very fast framework that can run LLMs on a weak GPU",
+    long_description=read_readme(),
+    long_description_content_type="text/markdown",
+    cmdclass={"build_ext": CMakeBuild},
+    install_requires = [
+        "torch >= 2.3.0,<=2.3.1",
+        "transformers == 4.43.2",
+        "fastapi >= 0.111.0",
+        "langchain >= 0.2.0",
+        "blessed >= 1.20.0",
+        "accelerate >= 0.31.0",
+        "sentencepiece >= 0.1.97",
+        "setuptools",
+        "ninja",
+        "wheel",
+        "colorlog",
+        "build",
+        "packaging",
+        "fire"
+    ],
+    python_requires=">=3.10",
+    entry_points={
+        "console_scripts": [
+            "ktransformers=ktransformers.server.main:main",
+        ],
+    },
+    packages=["ktransformers"],
+    include_package_data=True,
+    ext_modules=[
+            CUDAExtension('KTransformersOps', [
                 'ktransformers/ktransformers_ext/cuda/custom_gguf/dequant.cu',
                 'ktransformers/ktransformers_ext/cuda/binding.cpp',
                 'ktransformers/ktransformers_ext/cuda/gptq_marlin/gptq_marlin.cu',
       ]),
-            CMakeExtension("cpuinfer_ext")],
-        cmdclass={"build_ext": CMakeBuild}
-    )
-else:
-    qlib_file = os.path.join(Path.cwd(), qlib_files[0]) 
-    setup(
-        ext_modules=[
-            CopyExtension('KCudaOps',"", qlib_file),
-            CMakeExtension("cpuinfer_ext")],
-        cmdclass={"build_ext": CMakeBuild},
-    )
+            CMakeExtension("cpuinfer_ext")]
+)
