@@ -280,6 +280,7 @@ Below is an example of a YAML template for replacing all original Linear modules
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
+    device: "cpu"   # which devices to load this module when initializing
     kwargs:
       generate_device: "cuda"
       generate_linear_type: "QuantizedLinearMarlin"
