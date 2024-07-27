@@ -52,13 +52,6 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <strong>More advanced features will coming soon, so stay tuned!</strong>
 
 <h2 id="quick-start">🚀 Quick Start</h2>
-<h3 id="supported-model"> Supported Model</h3>
-
-| Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
-| ----  | ---- | ---- | ---- | ---- |
-| DeepSeek-V2-q4_k_m | 133G | 24G | 136G | 192G |
-| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8G | 34G | 64G |
-| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3G | 13G | 16G |
 
 <h3>Preparation</h3>
 Some preparation:
@@ -124,6 +117,28 @@ python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Ch
 ```
 
 
+It features the following arguments:
+
+- `--model_path` (required): Name of the model (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will automatically download configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that path to initialize the model.  
+  >Note: <strong>.safetensors</strong> files are not required in the directory. We only need config files to build model and tokenizer.
+- `--gguf_path` (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
+- `--optimize_rule_path` (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
+- `--max_new_tokens`: Int (default=1000). Maximum number of new tokens to generate.
+- `--cpu_infer`: Int (default=10). The number of CPUs used for inference. Should ideally be set to the (total number of cores - 2).
+
+<h3 id="supported-model"> Supported Model</h3>
+
+| Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
+| ----  | ---- | ---- | ---- | ---- |
+| DeepSeek-V2-q4_k_m | 133G | 24G | 136G | 192G |
+| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8G | 34G | 64G |
+| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3G | 13G | 16G |
+
+
+More will come soon. Please let us know which models you are most interested in. 
+
+Be aware that you need to be subject to their corresponding model licenses when using <a herf="https://huggingface.co/deepseek-ai/DeepSeek-V2/blob/main/LICENSE">DeepSeek</a> and <a herf="https://huggingface.co/Qwen/Qwen2-72B-Instruct/blob/main/LICENSE">QWen</a>.
+
 <details>
   <summary>Click To Show how to run other examples</summary>
 
@@ -172,15 +187,6 @@ python ktransformers/local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat-062
 | DeepseekV2-lite | [DeepSeek-V2-Lite-Chat-GGUF-Q4K-M](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) |
 
 </details>
-
-It features the following arguments:
-
-- `--model_path` (required): Name of the model (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will automatically download configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that path to initialize the model.  
-  >Note: <strong>.safetensors</strong> files are not required in the directory. We only need config files to build model and tokenizer.
-- `--gguf_path` (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
-- `--optimize_rule_path` (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
-- `--max_new_tokens`: Int (default=1000). Maximum number of new tokens to generate.
-- `--cpu_infer`: Int (default=10). The number of CPUs used for inference. Should ideally be set to the (total number of cores - 2).
 
 <!-- pin block for jump -->
 <span id='id_666'> 
