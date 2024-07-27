@@ -2,7 +2,7 @@
 # coding=utf-8
 '''
 Description  :  
-Author       : Azure-Tang, Boxing Zhang, chenht2022
+Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-26 08:48:54
 Version      : 1.0.0
 LastEditors  : Azure 

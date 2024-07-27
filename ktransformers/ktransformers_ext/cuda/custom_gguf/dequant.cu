@@ -1,10 +1,12 @@
 /*
  * @Description  :  
- * @Author       : Azure-Tang, Boxing Zhang
+ * @Author       : Azure-Tang, Boxin Zhang
  * @Date         : 2024-07-25 13:38:30
  * @Version      : 1.0.0
  * @LastEditors  : Azure 
  * @LastEditTime : 2024-07-26 11:58:50
+ * Adapted from https://github.com/ggerganov/ggml/blob/fca1caafea7de9fbd7efc733b9818f9cf2da3050/src/ggml-quants.c
+ * Copyright (c) 2023-2024 The ggml authors
  * Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
  */
 #include <cuda_runtime.h>
