@@ -73,12 +73,12 @@ Some preparation:
 - Linux-x86_64 with gcc, g++ and cmake
   ```sh
   sudo apt-get update
-  sudo apt-get install gcc g++ cmake ninja-build
+  sudo apt-get install gcc g++ cmake
   ```
 - We recommend using [Conda](https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh) to create a virtual environment with Python=3.11 to run our program.
   ```sh
   conda create --name ktransformers python=3.11
-  conda activate ktransformers # you may need to run ‘conda init’ and reopen shell first
+  conda activate ktransformers
   ```
 
   Download source code:
@@ -90,71 +90,25 @@ Some preparation:
   ```
 
 <h3>Local Chat</h3>
-We provide a simple command-line local chat Python script that you can run for testing. 
+We provide a simple command-line local chat Python script that you can run for testing.
 
-  > Note that this is a very simple test tool only support one round chat without any memory about last input, if you want to try full ability of the model, you may go to [RESTful API and Web UI](#id_666). We use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models, you can replace it with any other model that you want to test. 
+  > Note that we use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models like [DeepSeek-Coder-V2-Instruct](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite/tree/main), [Qwen2-57B-A14B](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct), etc. You can replace it with any other model that you want to test. 
 
 <h4>Install</h4>
 
 ```sh
 bash install.sh
 ```
-<h4>Run Example</h4>
 
-```shell
-# Begin from root of your cloned repo!
-# Begin from root of your cloned repo!!
-# Begin from root of your cloned repo!!! 
-
-# Download mzwing/DeepSeek-V2-Lite-Chat-GGUF from huggingface
-mkdir DeepSeek-V2-Lite-Chat-GGUF
-cd DeepSeek-V2-Lite-Chat-GGUF
-
-wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
-
-cd .. # Move to repo's root dir
-
-# Start local chat
-python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
-
-# If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
-# GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite
-# python  ktransformers/local_chat.py --model_path ./DeepSeek-V2-Lite --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
-```
-<h4>Run Example</h4>
-
-```shell
-# Begin from root of your cloned repo!
-# Begin from root of your cloned repo!!
-# Begin from root of your cloned repo!!! 
-
-# Download mzwing/DeepSeek-V2-Lite-Chat-GGUF from huggingface
-mkdir DeepSeek-V2-Lite-Chat-GGUF
-cd DeepSeek-V2-Lite-Chat-GGUF
-
-wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
-
-cd .. # Move to repo's root dir
-
-# Start local chat
-python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
-
-# If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
-# GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite
-# python  ktransformers/local_chat.py --model_path ./DeepSeek-V2-Lite --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
-```
-
+Notice: If you want to run Qwen2, please install Flash Attention ```pip install flash_attn```
 
 <details>
   <summary>Click To Show how to run other Supported Models</summary>
 
 
 * Qwen2-57B
-Notice: If you want to run Qwen2, please install Flash Attention ```pip install flash_attn```
 
 ```sh
-pip install flash_attn # For Qwen2
-
 mkdir Qwen2-57B-GGUF && cd Qwen2-57B-GGUF
 
 wget https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/resolve/main/qwen2-57b-a14b-instruct-q4_k_m.gguf?download=true -O qwen2-57b-a14b-instruct-q4_k_m.gguf
@@ -162,10 +116,6 @@ wget https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/resolve/main/qwen2
 cd ..
 
 python ktransformers/local_chat.py --model_name Qwen/Qwen2-57B-A14B-Instruct --gguf_path ./Qwen2-57B-GGUF
-
-# If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
-# GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct
-# python  ktransformers/local_chat.py --model_path ./Qwen2-57B-A14B-Instruct --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
 ```
 
 * DeepseekV2
@@ -179,21 +129,33 @@ wget https://huggingface.co/bartowski/DeepSeek-V2-Chat-0628-GGUF/resolve/main/De
 
 cd ..
 
-python ktransformers/local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat-0628 --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
-
-# If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
-# GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat-0628
-# python  ktransformers/local_chat.py --model_path ./DeepSeek-V2-Chat-0628 --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
+python ktransformers/local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
 ```
 
 | model name | weights download link |
 |----------|----------|
 | Qwen2-57B | [Qwen2-57B-A14B-gguf-Q4K-M](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/tree/main) |
-| DeepseekV2-coder |[DeepSeek-Coder-V2-Instruct-gguf-Q4K-M](https://huggingface.co/LoneStriker/DeepSeek-Coder-V2-Instruct-GGUF/tree/main) |
-| DeepseekV2-chat |[DeepSeek-V2-Chat-gguf-Q4K-M](https://huggingface.co/bullerwins/DeepSeek-V2-Chat-0628-GGUF/tree/main) |
+| DeepseekV2 |[DeepSeek-Coder-V2-Instruct-gguf-Q4K-M](https://huggingface.co/LoneStriker/DeepSeek-Coder-V2-Instruct-GGUF/tree/main) |
 | DeepseekV2-lite | [DeepSeek-V2-Lite-Chat-GGUF-Q4K-M](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) |
 
 </details>
+
+```shell
+# Begin from root of your cloned repo!
+# Begin from root of your cloned repo!!
+# Begin from root of your cloned repo!!! 
+
+# Download mzwing/DeepSeek-V2-Lite-Chat-GGUF from huggingface
+mkdir DeepSeek-V2-Lite-Chat-GGUF
+cd DeepSeek-V2-Lite-Chat-GGUF
+
+wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
+
+cd .. # Move to repo's root dir
+
+# Start local chat
+python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
+```
 
 It features the following arguments:
 
@@ -203,9 +165,6 @@ It features the following arguments:
 - `--optimize_rule_path` (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
 - `--max_new_tokens`: Int (default=1000). Maximum number of new tokens to generate.
 - `--cpu_infer`: Int (default=10). The number of CPUs used for inference. Should ideally be set to the (total number of cores - 2).
-
-<!-- pin block for jump -->
-<span id='id_666'> 
 
 <h3>RESTful API and Web UI</h3>
 
@@ -280,9 +239,7 @@ Below is an example of a YAML template for replacing all original Linear modules
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
-    device: "cpu"   # which devices to load this module when initializing
     kwargs:
-      generate_device: "cuda"
       generate_linear_type: "QuantizedLinearMarlin"
 ```
 
