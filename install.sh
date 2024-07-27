@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e  
 
+# clear build dirs
+rm -rf ktransformers/ktransformers_ext/build
+rm -rf ktransformers/ktransformers_ext/cuda/build
+rm -rf ktransformers/ktransformers_ext/cuda/dist
+rm -rf ktransformers/ktransformers_ext/cuda/*.egg-info
 
 echo "Installing python dependencies from requirements.txt"
 pip install -r requirements-local_chat.txt
