@@ -94,9 +94,10 @@ The match part specifies which module should be replaced, and the replace part s
 
 <h3 id="experts">Routed Experts </h3>
 
-For routed experts, the module we inject is a wrapper of CPUInfer, KTransformersMLPExpert. There are several implementations within a wrapper, and we need to specify keywords to tell the wrapper which implementation we want to use and how we intend to use it. 
-In KTransformers, some models exhibit different behaviors during prefilling and generation. KTransformersMLPExpert is one of them. All these special modules have a `device` keyword describing which device the module should be initialized on. and other keywords. 
-Other keywords specify the behaviors during prefilling and generation and may be differ when using different injection modules. Here, we specify which implementation on which device we want to use during prefilling and generation, and which device the output should be on. Note that we only use these parameters when layer-wise prefilling is enabled; otherwise, prefilling is conducted with the same configuration as generation.
+For routed experts, the module we inject is a wrapper of CPUInfer, KTransformersMLPExpert. There are several implementations within a wrapper, and we need to specify keywords to tell the wrapper which implementation we want to use and how we intend to use it.
+
+In KTransformers, some models exhibit different behaviors during prefilling and generation for better performance. KTransformersMLPExpert is one of them. All these special modules have a `device` keyword describing which device the module should be initialized on. Other keywords specify the behaviors during prefilling and generation and may be differ when using different injection modules. Here, we specify which implementation on which device we want to use during prefilling and generation, and which device the output should be on.
+Note that we only use these parameters when layer-wise prefilling is enabled; otherwise, prefilling is conducted with the same configuration as generation.
 
 In the original implementation of Transformers, MoE is implemented using `nn.ModuleList`. We don't want KTransformers to iterate through all the sub-modules in the list, so we set `recursive: False` in this rule to prevent recursive injection into submodules of the current module. Here is the YAML rule:
 
