@@ -116,7 +116,7 @@ In the original implementation of Transformers, MoE is implemented using `nn.Mod
   recursive: False # don't recursively inject submodules of this module
 ```
 
-If we inject the expert list as a custom module, we can't use the interface in `nn.ModuleList` as default. We need to change the forward function in the FFN module. We have implemented the new module, and the injection can be done by simply adding an injection rule. We can use the `class` instead of `name` to match a module that will be replaced. Here is the YAML rule:
+If we inject the expert list as a custom module, we can't use the interface in `nn.ModuleList` as default. We need to change the forward function in the FFN module. The simplest way is implementing a new module using custom forward function and inject it. We have implemented the new module, and the injection can be done by simply adding an injection rule. We can use the `class` instead of `name` to match a module that will be replaced. Here is the YAML rule:
 
 ```yaml
 - match:
