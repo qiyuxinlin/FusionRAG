@@ -100,6 +100,8 @@ We provide a simple command-line local chat Python script that you can run for t
 bash install.sh
 ```
 
+Notice: If you want to run Qwen2, please install Flash Attention ```pip install flash_attn```
+
 <details>
   <summary>Click To Show how to run other Supported Models</summary>
 
