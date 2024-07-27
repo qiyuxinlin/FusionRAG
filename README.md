@@ -129,7 +129,6 @@ python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Ch
 
 
 * Qwen2-57B
-Notice: If you want to run Qwen2, please install Flash Attention ```pip install flash_attn```
 
 ```sh
 pip install flash_attn # For Qwen2
