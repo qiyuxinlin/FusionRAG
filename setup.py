@@ -6,7 +6,7 @@ Author       : chenxl
 Date         : 2024-07-12 07:25:42
 Version      : 1.0.0
 LastEditors  : chenxl 
-LastEditTime : 2024-07-27 00:29:46
+LastEditTime : 2024-07-27 01:19:24
 '''
 import os
 import shutil
@@ -211,7 +211,7 @@ setup(
     version=VersionInfo().get_package_version(),
     author="KVCache.ai",
     license="Apache 2.0",
-    description = "A very fast framework that can run LLMs on a weak GPU",
+    description = "KTransformers, pronounced as Quick Transformers, is designed to enhance your Transformers experience with advanced kernel optimizations and placement/parallelism strategies.",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     cmdclass={"build_ext": CMakeBuild},

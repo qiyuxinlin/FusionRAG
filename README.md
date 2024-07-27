@@ -60,7 +60,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 | Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8G | 34G | 64G |
 | DeepSeek-V2-Lite-q4_k_m | 9.7G | 3G | 13G | 16G |
 
-<h3>Install</h3>
+<h3>Preparation</h3>
 Some preparation:
 
 - CUDA 12.1 and above, if you didn't have it yet, you may install from [here](https://developer.nvidia.com/cuda-downloads).
@@ -81,14 +81,6 @@ Some preparation:
   conda activate ktransformers
   ```
 
-- Packaging, pytorch 2.3.0 and above
-  ```sh
-  pip install packaging torch
-  ```
-
-Install KTransformers 
-
-
   Install from source code:
   ```sh
   git clone https://github.com/kvcache-ai/ktransformers.git
@@ -96,17 +88,17 @@ Install KTransformers
   git submodule init
   git submodule update
   ```
-  [Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```pip install .```
-  
-  Install ktransformers with source.
-  ```
-  pip install .
-  ```
 
 <h3>Local Chat</h3>
-After installation, we provide a simple command-line local chat Python script that you can run for testing.
+We provide a simple command-line local chat Python script that you can run for testing.
 
   > Note that we use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models like [DeepSeek-Coder-V2-Instruct](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite/tree/main), [Qwen2-57B-A14B](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct), etc. You can replace it with any other model that you want to test. 
+
+<h4>Install</h4>
+
+```sh
+bash install.sh
+```
 
 <details>
   <summary>Click To Show how to run other Supported Models</summary>
@@ -173,6 +165,16 @@ It features the following arguments:
 - `--cpu_infer`: Int (default=10). The number of CPUs used for inference. Should ideally be set to the (total number of cores - 2).
 
 <h3>RESTful API and Web UI</h3>
+
+<h4>Install</h4>
+
+[Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```pip install .```
+  
+Install ktransformers with source.
+```
+pip install .
+```
+
 Start without website:
 
 ```sh
