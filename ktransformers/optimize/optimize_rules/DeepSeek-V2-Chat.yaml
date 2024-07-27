@@ -38,4 +38,4 @@
   replace:
     class: "ktransformers.operators.layer_wise_prefill.DeepseekV2ModelPerLayerPrefill"
     kwargs:
-      per_layer_prefill_intput_threshod: 0 # 0 is close layer wise prefill
+      per_layer_prefill_intput_threshold: 0 # 0 is close layer wise prefill
