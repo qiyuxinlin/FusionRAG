@@ -56,27 +56,29 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 | Model Name | Model Size | VRAM | Minimum DRAM | Recommended DRAM |
 | ----  | ---- | ---- | ---- | ---- |
-| DeepSeek-V2-q4_k_m | 133G | 24GB | 136GB | 256GB |
-| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8GB | 34GB | 64GB |
-| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3GB | 13GB | 16GB |
+| DeepSeek-V2-q4_k_m | 133G | 24G | 136G | 192G |
+| Qwen2-57B-A14B-Instruct-q4_k_m | 33G | 8G | 34G | 64G |
+| DeepSeek-V2-Lite-q4_k_m | 9.7G | 3G | 13G | 16G |
 
 <h3>Install</h3>
-Requirements:
+Some preparation:
 
-- [CUDA](https://developer.nvidia.com/cuda-toolkit-archive) 12.2 and above with setting enviroment
-  ```
+- CUDA 12.1 and above, if you didn't have it yet, you may install from [here](https://developer.nvidia.com/cuda-downloads).
+
+  <!-- ```
   export PATH=/usr/local/cuda/bin:$PATH
   export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
   export CUDA_PATH=/usr/local/cuda
-  ```
+  ``` -->
 - Linux-x86_64 with gcc, g++ and cmake
   ```sh
+  sudo apt-get update
   sudo apt-get install gcc g++ cmake
   ```
 - We recommend using [Conda](https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh) to create a virtual environment with Python=3.11 to run our program.
   ```sh
-  conda create --name {your_env_name} python=3.11
-  conda activate {your_env_name} 
+  conda create --name ktransformers python=3.11
+  conda activate ktransformers
   ```
 
 - Packaging, pytorch 2.3.0 and above
@@ -104,28 +106,71 @@ Install KTransformers
 <h3>Local Chat</h3>
 After installation, we provide a simple command-line local chat Python script that you can run for testing.
 
-  > Note that we use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models like [DeepSeek-Coder-V2-Instruct](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite/tree/main), [Qwen2-57B-A14B](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct), etc. You can replace it with any other model that you want to test. (Weights can be downloaded from [Qwen2-57B-A14B-gguf](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/tree/main), [
-    DeepSeek-Coder-V2-Instruct-gguf](https://huggingface.co/LoneStriker/DeepSeek-Coder-V2-Instruct-GGUF/tree/main))
+  > Note that we use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models like [DeepSeek-Coder-V2-Instruct](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite/tree/main), [Qwen2-57B-A14B](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct), etc. You can replace it with any other model that you want to test. 
+
+<details>
+  <summary>Click To Show how to run other Supported Models</summary>
+
+
+* Qwen2-57B
+
+```sh
+mkdir Qwen2-57B-GGUF && cd Qwen2-57B-GGUF
+
+wget https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/resolve/main/qwen2-57b-a14b-instruct-q4_k_m.gguf?download=true -O qwen2-57b-a14b-instruct-q4_k_m.gguf
+
+cd ..
+
+python ktransformers/local_chat.py --model_name Qwen/Qwen2-57B-A14B-Instruct --gguf_path ./Qwen2-57B-GGUF
+```
+
+* DeepseekV2
+```sh
+mkdir DeepSeek-V2-Chat-0628-GGUF && cd DeepSeek-V2-Chat-0628-GGUF
+# Download weights
+wget https://huggingface.co/bartowski/DeepSeek-V2-Chat-0628-GGUF/resolve/main/DeepSeek-V2-Chat-0628-Q4_K_M/DeepSeek-V2-Chat-0628-Q4_K_M-00001-of-00004.gguf -o DeepSeek-V2-Chat-0628-Q4_K_M-00001-of-00004.gguf
+wget https://huggingface.co/bartowski/DeepSeek-V2-Chat-0628-GGUF/resolve/main/DeepSeek-V2-Chat-0628-Q4_K_M/DeepSeek-V2-Chat-0628-Q4_K_M-00002-of-00004.gguf -o DeepSeek-V2-Chat-0628-Q4_K_M-00002-of-00004.gguf
+wget https://huggingface.co/bartowski/DeepSeek-V2-Chat-0628-GGUF/resolve/main/DeepSeek-V2-Chat-0628-Q4_K_M/DeepSeek-V2-Chat-0628-Q4_K_M-00003-of-00004.gguf -o DeepSeek-V2-Chat-0628-Q4_K_M-00003-of-00004.gguf
+wget https://huggingface.co/bartowski/DeepSeek-V2-Chat-0628-GGUF/resolve/main/DeepSeek-V2-Chat-0628-Q4_K_M/DeepSeek-V2-Chat-0628-Q4_K_M-00004-of-00004.gguf -o DeepSeek-V2-Chat-0628-Q4_K_M-00004-of-00004.gguf
+
+cd ..
+
+python ktransformers/local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
+```
+
+| model name | weights download link |
+|----------|----------|
+| Qwen2-57B | [Qwen2-57B-A14B-gguf-Q4K-M](https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/tree/main) |
+| DeepseekV2 |[DeepSeek-Coder-V2-Instruct-gguf-Q4K-M](https://huggingface.co/LoneStriker/DeepSeek-Coder-V2-Instruct-GGUF/tree/main) |
+| DeepseekV2-lite | [DeepSeek-V2-Lite-Chat-GGUF-Q4K-M](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) |
+
+</details>
 
 ```shell
+# Begin from root of your cloned repo!
+# Begin from root of your cloned repo!!
+# Begin from root of your cloned repo!!! 
+
 # Download mzwing/DeepSeek-V2-Lite-Chat-GGUF from huggingface
 mkdir DeepSeek-V2-Lite-Chat-GGUF
 cd DeepSeek-V2-Lite-Chat-GGUF
 
-wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf?download=true -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
+wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat.Q4_K_M.gguf -O DeepSeek-V2-Lite-Chat.Q4_K_M.gguf
+
+cd .. # Move to repo's root dir
 
 # Start local chat
-python -m  ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path /path/to/DeepSeek-V2-Lite-Chat-Q4_K_M-dir/
+python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
 ```
 
 It features the following arguments:
 
-- -\-model_path (required): name (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will auto downloaded configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that dir path to initialize the model.  
-  >Note: <strong>.safetensors</strong> file are not required in the directory, we only need these config files to build model and tokenizer.
-- -\-gguf_path (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
-- -\-optimize_rule_path (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
-- -\-max_new_tokens: Int (default=1000). Max new tokens to generate.
-- -\-cpu_infer: Int (default=10). The number of CPUs used for inference, should ideally be set to the (total number of cores - 2).
+- `--model_path` (required): Name of the model (such as "deepseek-ai/DeepSeek-V2-Lite-Chat" which will automatically download configs from [Hugging Face](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite)). Or if you already got local files  you may directly use that path to initialize the model.  
+  >Note: <strong>.safetensors</strong> files are not required in the directory. We only need config files to build model and tokenizer.
+- `--gguf_path` (required): Path of a directory containing GGUF files which could that can be downloaded from [Hugging Face](https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/tree/main) (we only support q4_k_m and q8_0 for now, more formats are coming soon).
+- `--optimize_rule_path` (required except for Qwen2Moe and DeepSeek-V2): Path of YAML file containing optimize rules. There are two rule files pre-written in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models.
+- `--max_new_tokens`: Int (default=1000). Maximum number of new tokens to generate.
+- `--cpu_infer`: Int (default=10). The number of CPUs used for inference. Should ideally be set to the (total number of cores - 2).
 
 <h3>RESTful API and Web UI</h3>
 Start without website:
@@ -142,7 +187,7 @@ Or you want to start server with transformers, the model_path should include saf
 ktransformers --type transformers --model_path /mnt/data/model/Qwen2-0.5B-Instruct --port 10002 --web True
 ```
 
-Aceess Website with url [http://localhost:10002/web/index.html#/chat](http://localhost:10002/web/index.html#/chat) :
+Access website with url [http://localhost:10002/web/index.html#/chat](http://localhost:10002/web/index.html#/chat) :
 
 <p align="center">
   <picture>
