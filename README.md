@@ -137,7 +137,7 @@ It features the following arguments:
 
 More will come soon. Please let us know which models you are most interested in. 
 
-Be aware that you need to be subject to their corresponding model licenses when using <a herf="https://huggingface.co/deepseek-ai/DeepSeek-V2/blob/main/LICENSE">DeepSeek</a> and <a herf="https://huggingface.co/Qwen/Qwen2-72B-Instruct/blob/main/LICENSE">QWen</a>.
+Be aware that you need to be subject to their corresponding model licenses when using [DeepSeek](https://huggingface.co/deepseek-ai/DeepSeek-V2/blob/main/LICENSE) and [QWen](https://huggingface.co/Qwen/Qwen2-72B-Instruct/blob/main/LICENSE).
 
 <details>
   <summary>Click To Show how to run other examples</summary>
