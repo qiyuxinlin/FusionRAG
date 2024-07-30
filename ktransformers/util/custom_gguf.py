@@ -5,8 +5,8 @@ Description  :
 Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-26 08:48:54
 Version      : 1.0.0
-LastEditors  : Azure 
-LastEditTime : 2024-07-26 09:28:25
+LastEditors  : kkk1nak0
+LastEditTime : 2024-07-29 12:25:29
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 # copied from llama.cpp/gguf-py/gguf/constants.py to satisfy dependence of gguf
@@ -15,6 +15,7 @@ Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 import struct
 import warnings
 import numpy as np
+import re
 import numpy.typing as npt
 from typing import Sequence
 import os
@@ -634,7 +635,34 @@ GGML_DEQUANTIZE_GPU = {
     "Q6_K": dequantize_q6_k_gpu,
 }
 
+
+def translate_name_to_gguf_mixtral(name):
+    
+    replacement_template = {
+        "w1.weight": "ffn_gate",
+        "w2.weight": "ffn_down",
+        "w3.weight": "ffn_up"
+    }  
+
+    pattern = re.compile(r"model.layers\.(\d+)\.block_sparse_moe\.experts\.(\d+)\.(w\d\.weight)")
+
+    def replace_match(match):
+        blk_id = match.group(1)
+        expert_id = match.group(2)
+        weight_type = match.group(3)
+        if weight_type in replacement_template:
+            return f"blk.{blk_id}.{replacement_template[weight_type]}.{expert_id}.weight"
+        else:
+            return match.group(0)
+
+    new_name = re.sub(pattern, replace_match, name)
+    
+    return new_name
+
 def translate_name_to_gguf(name):
+
+    name = translate_name_to_gguf_mixtral(name)
+
     name = name.replace("lm_head.", "output.")
     name = name.replace("model.embed_tokens.", "token_embd.")
     name = name.replace("model.norm.", "output_norm.")
@@ -671,9 +699,14 @@ def translate_name_to_gguf(name):
     name = name.replace(".mlp.experts.ffn_gate_exps", ".ffn_gate_exps")
     name = name.replace(".mlp.experts.ffn_up_exps", ".ffn_up_exps")
 
+    
+    name = name.replace(".block_sparse_moe.gate.", ".ffn_gate_inp.")
+    name = name.replace(".block_sparse_moe.experts", "")
+    
     return name
 
 if __name__ == '__main__':
     gguf_path = '/mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH'
     loader = GGUFLoader(gguf_path)
     loader.load_gguf_tensor('token_embd.weight')
+
