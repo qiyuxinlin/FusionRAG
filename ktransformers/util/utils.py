@@ -155,7 +155,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
             tokens.append(next_token.int())
             seq_length += 1
             
-            if next_token[0].item() == tokenizer.eos_token_id:
+            if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>':
                 print(stream.end(), end="", flush=True)
                 break
             else:
