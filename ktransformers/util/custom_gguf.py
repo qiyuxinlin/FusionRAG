@@ -289,8 +289,18 @@ class GGUFLoader:
         else:
             values = GGML_DEQUANTIZE[ggml_name](data)
             values = torch.from_numpy(values)
-        
-        return values.view(shape[::-1])
+        values = values.view(shape[::-1])
+        if "attn_q" in name and self.gguf_file_meta['general.architecture'] in ["llama"]:
+            n_head = self.gguf_file_meta['llama.attention.head_count']
+            values = (values.reshape(n_head, values.shape[0] // n_head // 2, 2, *values.shape[1:])
+            .swapaxes(1, 2)
+            .reshape(values.shape))
+        elif "attn_k" in name and self.gguf_file_meta['general.architecture'] in ["llama"]:
+            n_head = self.gguf_file_meta['llama.attention.head_count_kv'] 
+            values = (values.reshape(n_head, values.shape[0] // n_head // 2, 2, *values.shape[1:])
+            .swapaxes(1, 2)
+            .reshape(values.shape))
+        return values
 
 def read_value(f, data_type):
     if data_type == DATA_TYPES["string"]:
@@ -610,7 +620,7 @@ def dequantize_f16_gpu(data, device):
     res = torch.from_numpy(data)
     res_gpu = torch.empty_like(res, device=device)
     res_gpu.copy_(res)
-    return res
+    return res_gpu
 
 GGML_DEQUANTIZE = {
     "F32": dequantize_f32,
@@ -635,6 +645,13 @@ GGML_DEQUANTIZE_GPU = {
 }
 
 def translate_name_to_gguf(name):
+    # internlm add
+    # name = name.replace("model.tok_embeddings.", "token_embd.")
+    # name = name.replace(".attention.wo", ".attn_output")
+    # name = name.replace(".feed_forward.w1", "ffn_gate")
+    # name = name.replace(".feed_forward.w2", "ffn_down")
+    # name = name.replace(".feed_forward.w3", "ffn_up")
+    
     name = name.replace("lm_head.", "output.")
     name = name.replace("model.embed_tokens.", "token_embd.")
     name = name.replace("model.norm.", "output_norm.")
