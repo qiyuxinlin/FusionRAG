@@ -5,6 +5,10 @@ Version      : 0.1.0
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 from torch import nn
+from transformers import ROPE_INIT_FUNCTIONS
+from ktransformers.models.modeling_internlm2 import InternLM2RotaryEmbedding, InternLM2LinearScalingRotaryEmbedding, InternLM2DynamicNTKScalingRotaryEmbedding
+from ktransformers.models.modeling_llama import LlamaRotaryEmbedding, LlamaLinearScalingRotaryEmbedding, LlamaDynamicNTKScalingRotaryEmbedding
+from ktransformers.models.configuration_internlm2 import InternLM2Config
 from ktransformers.models.modeling_deepseek import DeepseekV2YarnRotaryEmbedding, DeepseekV2RotaryEmbedding
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.util.custom_gguf import GGUFLoader
@@ -29,6 +33,33 @@ class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
             self.orig_module.max_position_embeddings,
             self.orig_module.base,
             self.device)
+        
+class RotaryEmbeddingV2(BaseInjectedModule, LlamaRotaryEmbedding):
+    def __init__(self,
+                 key: str,
+                 gguf_loader : GGUFLoader,
+                 config: PretrainedConfig,
+                 orig_module: nn.Module,
+                 device: str = "cuda",
+                 **kwargs):
+        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        self.orig_module.__init__(orig_module.dim,
+            orig_module.max_position_embeddings,
+            orig_module.base,
+            None,
+            config)
+    
+    def load(self):
+        self.orig_module.__init__(self.orig_module.dim,
+            self.orig_module.max_position_embeddings,
+            self.orig_module.base,
+            self.device,
+            self.config)
+        self.orig_module.rope_init_fn = ROPE_INIT_FUNCTIONS[self.orig_module.rope_type]
+
+        inv_freq, self.orig_module.attention_scaling = self.orig_module.rope_init_fn(self.config, self.orig_module.device)
+        self.orig_module.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.orig_module.original_inv_freq = self.orig_module.inv_freq
     
 class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
     def __init__(self,
@@ -62,4 +93,29 @@ class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
             self.orig_module.beta_slow,
             self.orig_module.mscale,
             self.orig_module.mscale_all_dim)
-    
+
+class DynamicNTKScalingRotaryEmbedding(BaseInjectedModule, LlamaDynamicNTKScalingRotaryEmbedding):
+    def __init__(self,
+                 key: str,
+                 gguf_loader : GGUFLoader,
+                 config: PretrainedConfig,
+                 orig_module: nn.Module,
+                 device: str = "cuda",
+                 **kwargs):
+        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        self.orig_module.__init__(orig_module.dim,
+            orig_module.max_position_embeddings,
+            orig_module.base,
+            None,# device
+            orig_module.scaling_factor,
+            orig_module.rope_type,
+            orig_module.config)
+        
+    def load(self):
+        self.orig_module.__init__(self.orig_module.dim,
+            self.orig_module.max_position_embeddings,
+            self.orig_module.base,
+            self.orig_module.device,
+            self.orig_module.scaling_factor,
+            self.orig_module.rope_type,
+            self.orig_module.config)

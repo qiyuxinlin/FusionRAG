@@ -31,18 +31,21 @@ import fire
 from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
+from ktransformers.models.modeling_llama import LlamaForCausalLM
 from ktransformers.util.utils import prefill_and_generate
 from ktransformers.server.config.config import Config
 
 custom_models = {
     "DeepseekV2ForCausalLM": DeepseekV2ForCausalLM,
     "Qwen2MoeForCausalLM": Qwen2MoeForCausalLM,
+    "LlamaForCausalLM": LlamaForCausalLM,
 }
 
 ktransformer_rules_dir = os.path.dirname(os.path.abspath(__file__)) + "/optimize/optimize_rules/"
 default_optimize_rules ={
     "DeepseekV2ForCausalLM": ktransformer_rules_dir + "DeepSeek-V2-Chat.yaml",
     "Qwen2MoeForCausalLM": ktransformer_rules_dir + "Qwen2-57B-A14B-Instruct.yaml",
+    "LlamaForCausalLM": ktransformer_rules_dir + "Internlm2_5-7b-Chat-1m.yaml",
 }
 
 def local_chat(
@@ -55,7 +58,9 @@ def local_chat(
     torch.set_grad_enabled(False)
     
     Config().cpu_infer = cpu_infer
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(
+    "/root/internlm2_5-7b-chat-1m", trust_remote_code=True
+    )
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     torch.set_default_dtype(config.torch_dtype)
 
@@ -64,6 +69,8 @@ def local_chat(
             print("using custom modeling_xxx.py.")
             if "Qwen2Moe" in config.architectures[0]: # Qwen2Moe must use flash_attention_2 to avoid overflow.
                 config._attn_implementation = "flash_attention_2"
+            if "Llama" in config.architectures[0]: 
+                config._attn_implementation = "eager"
             model = custom_models[config.architectures[0]](config)
         else:
             model = AutoModelForCausalLM.from_config(
@@ -89,7 +96,7 @@ def local_chat(
     if model.generation_config.pad_token_id is None:
         model.generation_config.pad_token_id = model.generation_config.eos_token_id
     model.eval()
-
+    model = model.to(torch.float16)
     logging.basicConfig(level=logging.INFO)
 
     system = platform.system()
@@ -108,8 +115,9 @@ def local_chat(
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
-        torch.set_default_dtype(torch.bfloat16) # TODO: Remove this, replace dtype using config
+        torch.set_default_dtype(torch.float16) # TODO: Remove this, replace dtype using config
         generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
 
 if __name__ == "__main__":
-    fire.Fire(local_chat)
+    # fire.Fire(local_chat)
+    local_chat(model_path='/root/llama_chat-1m/', gguf_path='/root/llama_chat-1m/')

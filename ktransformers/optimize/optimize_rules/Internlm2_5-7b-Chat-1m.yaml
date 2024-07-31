@@ -1,0 +1,8 @@
+- match:
+    class: ktransformers.models.modeling_llama.LlamaRotaryEmbedding
+  replace:
+    class: ktransformers.operators.RoPE.RotaryEmbeddingV2
+- match:
+    class: ktransformers.models.modeling_llama.LlamaDynamicNTKScalingRotaryEmbedding
+  replace:
+    class: ktransformers.operators.RoPE.DynamicNTKScalingRotaryEmbedding
