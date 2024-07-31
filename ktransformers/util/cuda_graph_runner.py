@@ -30,14 +30,14 @@ class CUDAGraphRunner:
         #self.graph.enable_debug_mode()
         self.model = model
         inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to("cuda")
-        with torch.cuda.graph(self.graph):
-            logits=model(inputs_embeds=inputs_embeds, 
-                         position_ids=position_ids,
-                         cache_position=cache_position,
-                         past_key_values=past_key_values,
-                         **kwargs)[0]
+        # with torch.cuda.graph(self.graph):
+        logits=model(inputs_embeds=inputs_embeds, 
+                     position_ids=position_ids,
+                     cache_position=cache_position,
+                     past_key_values=past_key_values,
+                     **kwargs)[0]
         past_key_values.change_seq_length(-1)
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         #self.graph.debug_dump("cuda_graph_hooked.dot")
 
         # Save the input and output buffers.
