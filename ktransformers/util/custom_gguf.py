@@ -645,12 +645,6 @@ GGML_DEQUANTIZE_GPU = {
 }
 
 def translate_name_to_gguf(name):
-    # internlm add
-    # name = name.replace("model.tok_embeddings.", "token_embd.")
-    # name = name.replace(".attention.wo", ".attn_output")
-    # name = name.replace(".feed_forward.w1", "ffn_gate")
-    # name = name.replace(".feed_forward.w2", "ffn_down")
-    # name = name.replace(".feed_forward.w3", "ffn_up")
     
     name = name.replace("lm_head.", "output.")
     name = name.replace("model.embed_tokens.", "token_embd.")
