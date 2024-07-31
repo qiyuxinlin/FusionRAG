@@ -6,7 +6,7 @@ Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-26 08:48:54
 Version      : 1.0.0
 LastEditors  : kkk1nak0
-LastEditTime : 2024-07-29 12:25:29
+LastEditTime : 2024-07-31 08:42:03
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 # copied from llama.cpp/gguf-py/gguf/constants.py to satisfy dependence of gguf
@@ -290,8 +290,18 @@ class GGUFLoader:
         else:
             values = GGML_DEQUANTIZE[ggml_name](data)
             values = torch.from_numpy(values)
-        
-        return values.view(shape[::-1])
+        values = values.view(shape[::-1])
+        if "attn_q" in name and self.gguf_file_meta['general.architecture'] in ["llama"]:
+            n_head = self.gguf_file_meta['llama.attention.head_count']
+            values = (values.reshape(n_head, values.shape[0] // n_head // 2, 2, *values.shape[1:])
+            .swapaxes(1, 2)
+            .reshape(values.shape))
+        elif "attn_k" in name and self.gguf_file_meta['general.architecture'] in ["llama"]:
+            n_head = self.gguf_file_meta['llama.attention.head_count_kv'] 
+            values = (values.reshape(n_head, values.shape[0] // n_head // 2, 2, *values.shape[1:])
+            .swapaxes(1, 2)
+            .reshape(values.shape))
+        return values
 
 def read_value(f, data_type):
     if data_type == DATA_TYPES["string"]:

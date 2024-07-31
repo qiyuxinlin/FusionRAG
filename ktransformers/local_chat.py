@@ -31,22 +31,25 @@ import fire
 from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
+from ktransformers.models.modeling_mixtral import MixtralForCausalLM
 from ktransformers.util.utils import prefill_and_generate
 from ktransformers.server.config.config import Config
 
 custom_models = {
     "DeepseekV2ForCausalLM": DeepseekV2ForCausalLM,
     "Qwen2MoeForCausalLM": Qwen2MoeForCausalLM,
+    "MixtralForCausalLM": MixtralForCausalLM,
 }
 
 ktransformer_rules_dir = os.path.dirname(os.path.abspath(__file__)) + "/optimize/optimize_rules/"
 default_optimize_rules ={
     "DeepseekV2ForCausalLM": ktransformer_rules_dir + "DeepSeek-V2-Chat.yaml",
     "Qwen2MoeForCausalLM": ktransformer_rules_dir + "Qwen2-57B-A14B-Instruct.yaml",
+    "MixtralForCausalLM": ktransformer_rules_dir + "Mixtral.yaml",
 }
 
 def local_chat(
-    model_path: str,
+    model_path: str = None,
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,

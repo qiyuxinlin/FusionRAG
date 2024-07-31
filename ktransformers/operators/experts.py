@@ -6,7 +6,7 @@ Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-25 11:25:24
 Version      : 0.1.0
 LastEditors  : kkk1nak0
-LastEditTime : 2024-07-29 16:01:43
+LastEditTime : 2024-07-30 09:58:48
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -84,16 +84,16 @@ class MLPExpertsBase(ABC):
                 up = []
                 down = []
                 for i in range(8):
-                    gate_it = self.gguf_loader.get_mmap_tensor(f"{key}.ffn_gate.{i}.weight")
-                    up_it = self.gguf_loader.get_mmap_tensor(f"{key}.ffn_up.{i}.weight")
-                    down_it = self.gguf_loader.get_mmap_tensor(f"{key}.ffn_down.{i}.weight")
-                    # 将tensor添加到列表中
+                    gatei, upi, downi = f".ffn_gate.{i}.weight", f".ffn_up.{i}.weight", f".ffn_down.{i}.weight"
+                    targets = [gatei, upi, downi]
+                    tensors = self.load_multi(key, targets, device=device)
+                    gate_it, up_it, down_it = tensors[gatei], tensors[upi], tensors[downi]
                     gate.append(gate_it)
                     up.append(up_it)
                     down.append(down_it)
-                gate = np.stack(gate)
-                up = np.stack(up)
-                down = np.stack(down)
+                gate = torch.stack(gate)
+                up = torch.stack(up)
+                down = torch.stack(down)
                 gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate.0.weight"]["ggml_type"]
                 up_type = self.gguf_loader.tensor_info[key + ".ffn_up.0.weight"]["ggml_type"]
                 down_type = self.gguf_loader.tensor_info[key + ".ffn_down.0.weight"]["ggml_type"]
@@ -199,6 +199,7 @@ class MLPCPUExperts(MLPExpertsBase):
 
     def forward(self, input_tensor, expert_ids, weights):
         # generate, capture and run cuda graph
+        # print(expert_ids)
         if input_tensor.size(0)==1:
             #print("capturing experts")
             MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
@@ -252,7 +253,6 @@ class MLPCPUExperts(MLPExpertsBase):
                     gate_it = self.gguf_loader.get_mmap_tensor(f"{key}.ffn_gate.{i}.weight")
                     up_it = self.gguf_loader.get_mmap_tensor(f"{key}.ffn_up.{i}.weight")
                     down_it = self.gguf_loader.get_mmap_tensor(f"{key}.ffn_down.{i}.weight")
-                    # 将tensor添加到列表中
                     gate.append(gate_it)
                     up.append(up_it)
                     down.append(down_it)
@@ -339,7 +339,7 @@ class MLPExpertsMarlin(MLPExpertsBase):
                 gate_type = self.gguf_loader.tensor_info[key + ".ffn_gate_exps.weight"]["ggml_type"]
                 up_type = self.gguf_loader.tensor_info[key + ".ffn_up_exps.weight"]["ggml_type"]
                 down_type = self.gguf_loader.tensor_info[key + ".ffn_down_exps.weight"]["ggml_type"]
-                # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])    
+                # tensors = self.load_multi(key, [".ffn_gate_exps.weight", ".ffn_up_exps.weight", ".ffn_down_exps.weight"])
             res = {key:{"gate": gate, "up": up, "down": down, "gate_type": gate_type, "up_type": up_type, "down_type": down_type}}
         return res
 
@@ -399,6 +399,9 @@ class MLPExpertsTorch(MLPExpertsBase):
             self.down = None
 
     def forward(self, hidden_states_cpu: torch.Tensor, selected_experts_cpu: torch.Tensor, routing_weights_cpu: torch.Tensor) -> torch.Tensor:
+
+        org_device = hidden_states_cpu.device
+        hidden_states_cpu = hidden_states_cpu.to(self.device)
         
         batch_sequence_length, hidden_dim = hidden_states_cpu.size()
 
@@ -428,7 +431,8 @@ class MLPExpertsTorch(MLPExpertsBase):
             # the `top_x` tensor here.
             final_hidden_states.index_add_(0, top_x, current_hidden_states)
 
-        return final_hidden_states.to(org_dtype)
+
+        return final_hidden_states.to(org_dtype, device=org_device)
 
 EXPERTS_MAP = {
     "MLPCPUExperts": MLPCPUExperts,
@@ -726,13 +730,16 @@ class MisrtalMoEBlockInjected(BaseInjectedModule, MixtralSparseMoeBlock):
         """ """
         orig_shape = hidden_states.shape
         batch_size, sequence_length, hidden_dim = hidden_states.shape
+        if self.training and self.jitter_noise > 0:
+            hidden_states *= torch.empty_like(hidden_states).uniform_(1.0 - self.jitter_noise, 1.0 + self.jitter_noise)
         hidden_states = hidden_states.view(-1, hidden_dim)
         # router_logits: (batch * sequence_length, n_experts)
         router_logits = self.gate(hidden_states)
 
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
-
+        routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
+        # we cast back to the input dtype
         routing_weights = routing_weights.to(hidden_states.dtype)
         
         if sequence_length == 1 and hasattr(self.experts.generate_experts, "submit_for_one_decode"):
@@ -744,7 +751,6 @@ class MisrtalMoEBlockInjected(BaseInjectedModule, MixtralSparseMoeBlock):
         hidden_states_expert = hidden_states.to(self.experts.device)  if isinstance(self.experts, MLPExpertsBase) else hidden_states_expert.cpu()
         selected_experts_expert = selected_experts.to(self.experts.device) if isinstance(self.experts, MLPExpertsBase) else selected_experts_expert.cpu()
         routing_weights_expert = routing_weights.to(self.experts.device) if isinstance(self.experts, MLPExpertsBase) else routing_weights_expert.cpu()
-
 
         if isinstance(self.experts, MLPExpertsBase):
             y = (
