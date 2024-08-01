@@ -80,27 +80,25 @@ Some preparation:
   ```
 
 <h3>Installation</h3>
+You can install using Pypi:
 
-1. Use a Docker image, see [documentation for Docker](./doc/en/docker.md) 
-2. You can install using Pypi:
+```
+pip install ktransformers --no-build-isolation
+```
 
+Or download source code and compile:
+ - init source code 
+  ```sh
+  git clone https://github.com/kvcache-ai/ktransformers.git
+  cd ktransformers
+  git submodule init
+  git submodule update
+  ```
+ - [Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```bash install.sh```
+ - Compile and install
    ```
-   pip install ktransformers --no-build-isolation
+   bash install.sh
    ```
-
-3. Or you can download source code and compile:
-   - init source code 
-     ```sh
-     git clone https://github.com/kvcache-ai/ktransformers.git
-     cd ktransformers
-     git submodule init
-     git submodule update
-     ```
-   - [Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```bash install.sh```
-   - Compile and install
-     ```
-     bash install.sh
-     ```
 
 <h3>Local Chat</h3>
 We provide a simple command-line local chat Python script that you can run for testing. 
