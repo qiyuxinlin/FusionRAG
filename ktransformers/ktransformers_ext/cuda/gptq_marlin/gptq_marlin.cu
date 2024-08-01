@@ -18,7 +18,9 @@
 /*
  * Adapted from https://github.com/IST-DASLab/marlin
  */
-
+/*
+ * Adapted from  https://github.com/vllm-project/vllm/tree/main/csrc/quantization/gptq_marlin
+ */
 #include "gptq_marlin.cuh"
 #include "gptq_marlin_dtypes.cuh"
 

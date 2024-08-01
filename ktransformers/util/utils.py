@@ -1,12 +1,22 @@
+#!/usr/bin/env python
+# coding=utf-8
+'''
+Description  :  
+Author       : Boxin Zhang, Azure-Tang
+Version      : 0.1.0
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import torch
 from torch import nn
 import itertools
 import time
+import enum
 from ktransformers.util.custom_gguf import translate_name_to_gguf
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.operators import base_operator
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
+from ktransformers.util.textstream import TextStreamer
 
 def set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')
@@ -40,7 +50,8 @@ def load_cur_state_dict(module: nn.Module, gguf_loader: GGUFLoader, prefix: str 
         print("default loading weights", key, translated_key)
         if translated_key in gguf_loader.tensor_file_map:
             target_dtype = torch.get_default_dtype()
-            weights = torch.tensor(gguf_loader.load_gguf_tensor(translated_key)).to(device="cuda").to(dtype=target_dtype)
+            device = "cpu" if "embd" in translated_key else "cuda"
+            weights = gguf_loader.load_gguf_tensor(translated_key, device = device).to(dtype = target_dtype)
             set_param(module, name, weights)
             del weights
         else:
@@ -56,20 +67,6 @@ def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix='', return_whe
     else:
         module.load()
     
-    """
-    for name, child in module._modules.items():
-        if child is not None:
-            if isinstance(child, base_operator.BaseInjectedModule) and return_when_injected:
-                pass
-            elif isinstance(child, base_operator.BaseInjectedModule):
-                child.load()
-                load_weights(child, gguf_loader, prefix+name+"." if not isinstance(module, base_operator.BaseInjectedModule) else prefix, return_when_injected, True)
-            else:
-                if not isinstance(module, base_operator.BaseInjectedModule) and not only_load_injected:
-                    load_weight_default(child, gguf_loader, prefix+name+".")
-                load_weights(child, gguf_loader, prefix+name+"." if not isinstance(module, base_operator.BaseInjectedModule) else prefix, return_when_injected, only_load_injected)
-    """
-                
 def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
     import os
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -100,6 +97,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         return next_token
 
     with torch.no_grad():
+        stream = TextStreamer(tokenizer)
         past_key_values = StaticCache(
             config = model.config, max_batch_size = 1, max_cache_len = seq_length + max_new_tokens, device = torch_device, dtype = model.dtype
         )
@@ -112,16 +110,22 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         start_time = time.time()
         #custom_stream = torch.cuda.Stream()
 
+        inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to("cuda")
         logits = model(
-            inputs, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
-        )[0].clone()
+            inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
+        )[0][:,-1,:].unsqueeze(0).clone()
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
             do_sample=True, top_k=5, top_p=0.85, temperature=0.1 # change this to modify generate config
         )
-        logits_warper = (
-            model._get_logits_warper(generation_config) if generation_config.do_sample else None
-        )
+        try: # transformers==4.43
+            logits_warper = (
+                model._get_logits_warper(generation_config,device=inputs.device) if generation_config.do_sample else None
+            )
+        except: 
+            logits_warper = (
+                model._get_logits_warper(generation_config) if generation_config.do_sample else None
+            )
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
         if generation_config.do_sample:
             probs = nn.functional.softmax(next_token_scores, dim=-1)
@@ -129,20 +133,20 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         else:
             next_token = torch.argmax(next_token_scores, dim=-1)
         first_token_time = time.time() - start_time
-        print(f"Time to generate first token: {first_token_time} seconds")
-        print(f"Prefill sepeed: {seq_length/first_token_time} tokens/s")
+
+        prefill_count = seq_length
+        prefill_time = first_token_time
+
+        print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, seq_length] = next_token
         tokens.append(next_token)
         inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
         cache_position = torch.tensor([seq_length], device=torch_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
-        temp_token = []
-        #decode_one_tokens = torch.compile(decode_one_tokens)
-        # torch.cuda.synchronize()
+
         cuda_graph_runner = CUDAGraphRunner()
         cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, return_dict=False, use_cache=True)
-        print("finish capture")
         start_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values)
@@ -152,25 +156,30 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
             seq_length += 1
             
             if next_token[0].item() == tokenizer.eos_token_id:
+                print(stream.end(), end="", flush=True)
                 break
-            elif next_token[0].item() in range(3,259):
-                temp_token.append(next_token[0])
             else:
-                if len(temp_token) == 0:
-                    temp_token.append(next_token[0])
-                print(tokenizer.decode(torch.tensor(temp_token), skip_special_tokens=True))
-                temp_token = []
+                print(stream.put(next_token.item()), end="", flush=True)
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
 
     total_time = time.time() - start_time
     tokens_generated = len(tokens)
     tokens_per_second = tokens_generated / total_time
-    print(f"Tokens generated: {tokens_generated}")
-    print(f"Total time for generation: {total_time} seconds.")
-    print(f"Generate sepeed: {tokens_per_second} tokens/s.")
-    # generate_prompts = torch.tensor(tokens).unsqueeze(0)
-    # tokenizer.decode(tokens, skip_special_tokens=True)
-    text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-    print(text)
+
+    print("")
+
+    print(f"prompt eval count:    {prefill_count} token(s)")
+    print(f"prompt eval duration: {prefill_time}s")
+    print(f"prompt eval rate:     {prefill_count/prefill_time} tokens/s")
+    print(f"eval count:           {tokens_generated} token(s)")
+    print(f"eval duration:        {total_time}s")
+    print(f"eval rate:            {tokens_per_second} tokens/s")
+
     return tokens
+
+class InferenceState(enum.Enum):
+    UNLOAD = 0
+    PREFILL = 1
+    GENERATE = 2
+    RESTORE = 3

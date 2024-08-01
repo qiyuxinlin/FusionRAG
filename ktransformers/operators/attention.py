@@ -1,3 +1,9 @@
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+'''
 import torch
 from torch import nn
 import warnings
@@ -51,8 +57,10 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         **kwargs
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
-
-        q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
+        if self.q_lora_rank is None:
+            q = self.q_proj(hidden_states)
+        else:
+            q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
         q = q.view(bsz, q_len, self.num_heads, self.q_head_dim).transpose(1, 2)
         q_nope, q_pe = torch.split(
             q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
@@ -167,9 +175,14 @@ class DeepseekV2AttentionInjected(BaseInjectedModule, DeepseekV2Attention):
         attn_output = None
         cur_idx = 0
         while cur_idx < q_len:
+            if attention_mask is not None:
+                chunk_mask = attention_mask[:, :, cur_idx:min(cur_idx + chunck_size, q_len), ...]
+            else:
+                chunk_mask = None
+
             cur_output, _, _ = self.forward_chunck(
                             hidden_states[:, cur_idx:min(cur_idx + chunck_size, q_len), ...],
-                            attention_mask[:, :, cur_idx:min(cur_idx + chunck_size, q_len), ...],
+                            chunk_mask,
                             position_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
                             past_key_value,
                             output_attentions,

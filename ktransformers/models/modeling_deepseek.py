@@ -1,8 +1,14 @@
 # coding=utf-8
-#
-# Copyright 2024 Shaoyuan Chen
+'''
+Description  :  
+Author       : Boxin Zhang
+Version      : 0.1.0
+'''
+# Adapted from
+# https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat-0628/blob/main/modeling_deepseek.py
 # Copyright 2023 DeepSeek-AI and The HuggingFace Inc. team. All rights reserved.
-#
+# Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+# 
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
 # and OPT implementations in this library. It has been modified from its
 # original forms to accommodate minor architectural differences compared
@@ -376,7 +382,6 @@ class DeepseekV2MLP(nn.Module):
         down_proj = self.down_proj(act)
         return down_proj
 
-
 class MoEGate(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -419,7 +424,7 @@ class MoEGate(nn.Module):
             )
 
         ### select top-k experts
-        if self.topk_method == "gready":
+        if self.topk_method == "greedy":
             topk_weight, topk_idx = torch.topk(
                 scores, k=self.top_k, dim=-1, sorted=False
             )
@@ -691,13 +696,18 @@ class DeepseekV2Attention(nn.Module):
 
         self.is_causal = True
 
-        self.q_a_proj = nn.Linear(
-            self.hidden_size, config.q_lora_rank, bias=config.attention_bias
-        )
-        self.q_a_layernorm = DeepseekV2RMSNorm(config.q_lora_rank)
-        self.q_b_proj = nn.Linear(
-            config.q_lora_rank, self.num_heads * self.q_head_dim, bias=False
-        )
+        if self.q_lora_rank is None:
+            self.q_proj = nn.Linear(
+                self.hidden_size, self.num_heads * self.q_head_dim, bias=False
+            )
+        else:
+            self.q_a_proj = nn.Linear(
+                self.hidden_size, config.q_lora_rank, bias=config.attention_bias
+            )
+            self.q_a_layernorm = DeepseekV2RMSNorm(config.q_lora_rank)
+            self.q_b_proj = nn.Linear(
+                config.q_lora_rank, self.num_heads * self.q_head_dim, bias=False
+            )
 
         self.kv_a_proj_with_mqa = nn.Linear(
             self.hidden_size,
@@ -797,7 +807,10 @@ class DeepseekV2Attention(nn.Module):
             )
         bsz, q_len, _ = hidden_states.size()
 
-        q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
+        if self.q_lora_rank is None:
+            q = self.q_proj(hidden_states)
+        else:
+            q = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states)))
         q = q.view(bsz, q_len, self.num_heads, self.q_head_dim).transpose(1, 2)
         q_nope, q_pe = torch.split(
             q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
@@ -1220,9 +1233,7 @@ class DeepseekV2DecoderLayer(nn.Module):
                 "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
             )
         residual = hidden_states
-
         hidden_states = self.input_layernorm(hidden_states)
-
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
@@ -1730,7 +1741,7 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel):
 
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
-        logits = logits.float()
+        logits = logits[:,-1,:].unsqueeze(0).float()
 
         loss = None
         if labels is not None:

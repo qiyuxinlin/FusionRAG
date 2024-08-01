@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import platform
 import sys
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
@@ -31,6 +32,7 @@ from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
 from ktransformers.util.utils import prefill_and_generate
+from ktransformers.server.config.config import Config
 
 custom_models = {
     "DeepseekV2ForCausalLM": DeepseekV2ForCausalLM,
@@ -44,16 +46,17 @@ default_optimize_rules ={
 }
 
 def local_chat(
-    model_name: str,
+    model_path: str,
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
-    use_generate: bool = False,
+    cpu_infer: int = Config().cpu_infer
 ):
     torch.set_grad_enabled(False)
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    
+    Config().cpu_infer = cpu_infer
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     torch.set_default_dtype(config.torch_dtype)
 
     with torch.device("meta"):
@@ -82,28 +85,31 @@ def local_chat(
         )
     optimize_and_load_gguf(model, optimize_rule_path, gguf_path, config)
 
-    model.generation_config = GenerationConfig.from_pretrained(model_name)
+    model.generation_config = GenerationConfig.from_pretrained(model_path)
     if model.generation_config.pad_token_id is None:
         model.generation_config.pad_token_id = model.generation_config.eos_token_id
     model.eval()
 
     logging.basicConfig(level=logging.INFO)
 
+    system = platform.system()
+    if (system == u'Windows'):
+        os.system('cls')
+    else:
+        os.system('clear')
+
     while True:
         content = input("Chat: ")
+        # if content is num
         if content == "":
-            content = "Please write a piece of quicksort code in C++."
+            content = "Please write a piece of quicksort code in C++." 
+
         messages = [{"role": "user", "content": content}]
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
         torch.set_default_dtype(torch.bfloat16) # TODO: Remove this, replace dtype using config
-        if use_generate: # does not optimized by cuda graph
-            generated = model.generate(input_tensor.cuda(), max_new_tokens=max_new_tokens, streamer=TextStreamer(tokenizer, skip_prompt=True), cache_implementation="static")#
-        else:
-            #generated = model.generate(input_tensor.cuda(), max_new_tokens=10000, streamer=TextStreamer(tokenizer, skip_prompt=True), cache_implementation="static")#
-            generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
-        #print(generated.numel())
+        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
 
 if __name__ == "__main__":
     fire.Fire(local_chat)

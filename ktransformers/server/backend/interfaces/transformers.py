@@ -132,7 +132,7 @@ class TransformersInterface(BackendInterfaceBase):
         self.args = args
         
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
-        self.model = LlamaForCausalLM.from_pretrained(args.model_dir, device_map=args.device,use_safetensors=True)
+        self.model = AutoModelForCausalLM.from_pretrained(args.model_dir, device_map=args.device,use_safetensors=True)
         logger.info(f'{args.model_name} loaded from {args.model_dir} to {args.device}')
         
         self.cache = StaticCache(config=self.model.config, max_batch_size=args.batch_size, max_cache_len=args.cache_lens, device=args.device, dtype=self.model.dtype)
@@ -264,13 +264,17 @@ class TransformersInterface(BackendInterfaceBase):
         self.generated_ids[:,cache_position] = input_ids.to(self.args.device).to(torch.int)
 
         mask = torch.ones((1,self.seq_length)).to(self.args.device)
+        device = input_ids.device
+        if not(type(self) is TransformersInterface):
+            input_ids = input_ids.to("cpu")
+        inputs_embeds = self.model.model.embed_tokens(input_ids).to(device)
         if self.use_static_cache:
             logits = self.model(
-                input_ids=input_ids, cache_position=cache_position, past_key_values=self.cache,return_dict=False, use_cache=True,attention_mask=mask
+                inputs_embeds=inputs_embeds, cache_position=cache_position, past_key_values=self.cache,return_dict=False, use_cache=True,attention_mask=mask
             )[0]
         else:
             logits = self.model(
-                input_ids=input_ids,return_dict=False
+                inputs_embeds=inputs_embeds,return_dict=False
             )[0]
 
 
