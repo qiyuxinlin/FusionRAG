@@ -67,6 +67,8 @@ def local_chat(
             print("using custom modeling_xxx.py.")
             if "Qwen2Moe" in config.architectures[0]: # Qwen2Moe must use flash_attention_2 to avoid overflow.
                 config._attn_implementation = "flash_attention_2"
+            if "Mixtral" in config.architectures[0]: 
+                config._attn_implementation = "flash_attention_2"
             model = custom_models[config.architectures[0]](config)
         else:
             model = AutoModelForCausalLM.from_config(
