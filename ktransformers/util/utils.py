@@ -75,21 +75,21 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
     torch_device = inputs.device
     tokens = []
     
-    def decode_one_tokens(custom_stream, cur_token, position_ids, cache_position, past_key_values):
-    # def decode_one_tokens(cuda_graph_runner, cur_token, position_ids, cache_position, past_key_values):
+    # def decode_one_tokens(custom_stream, cur_token, position_ids, cache_position, past_key_values):
+    def decode_one_tokens(cuda_graph_runner, cur_token, position_ids, cache_position, past_key_values):
           
-        # logits = cuda_graph_runner(cur_token, position_ids, cache_position)
-        # past_key_values.change_seq_length(1)
+        logits = cuda_graph_runner(cur_token, position_ids, cache_position)
+        past_key_values.change_seq_length(1)
         
-        cur_token = model.model.embed_tokens(cur_token.to("cpu")).to("cuda")
-        with torch.cuda.stream(custom_stream):
-            logits=model(inputs_embeds=cur_token, 
-                         position_ids=position_ids,
-                         cache_position=cache_position,
-                         past_key_values=past_key_values,
-                         return_dict=False, use_cache=True)[0]
+        # cur_token = model.model.embed_tokens(cur_token.to("cpu")).to("cuda")
+        # with torch.cuda.stream(custom_stream):
+        #     logits=model(inputs_embeds=cur_token,
+        #                  position_ids=position_ids,
+        #                  cache_position=cache_position,
+        #                  past_key_values=past_key_values,
+        #                  return_dict=False, use_cache=True)[0]
                   
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         #print(logits)
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
         if generation_config.do_sample:
@@ -148,15 +148,15 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
 
-        custom_stream = torch.cuda.Stream()
+        # custom_stream = torch.cuda.Stream()
 
-        # cuda_graph_runner = CUDAGraphRunner()
-        # cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, return_dict=False, use_cache=True)
-        # start_time = time.time()
+        cuda_graph_runner = CUDAGraphRunner()
+        cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, return_dict=False, use_cache=True)
+        start_time = time.time()
         for _ in range(1, max_new_tokens):
 
-            # next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values)
-            next_token = decode_one_tokens(custom_stream, next_token.unsqueeze(0), position_ids, cache_position, past_key_values)
+            next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values)
+            # next_token = decode_one_tokens(custom_stream, next_token.unsqueeze(0), position_ids, cache_position, past_key_values)
             
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
             generated_ids[:, cache_position] = next_token.int()

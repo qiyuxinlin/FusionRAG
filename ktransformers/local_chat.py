@@ -49,7 +49,7 @@ default_optimize_rules ={
 }
 
 def local_chat(
-    model_path: str = None,
+    model_path: str,
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
