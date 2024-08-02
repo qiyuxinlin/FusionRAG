@@ -34,7 +34,7 @@ MOE::MOE(MOEConfig config) {
         s_mem_requests.push_back({(void**)&s_down_output_[i], sizeof(float) * config_.hidden_size});
     }
     s_mem_requests.push_back({(void**)&s_output_fp32_, sizeof(float) * config_.hidden_size});
-    shared_mem_buffer.alloc(s_mem_requests);
+    shared_mem_buffer.alloc(this, s_mem_requests);
 
     std::vector<std::pair<void**, uint64_t>> m_mem_requests;
     m_input_fp32_.resize(config_.group_max_len);
@@ -56,7 +56,7 @@ MOE::MOE(MOEConfig config) {
     for (int i = 0; i < config_.group_max_len; i++) {
         m_mem_requests.push_back({(void**)&m_output_fp32_[i], sizeof(float) * config_.hidden_size});
     }
-    shared_mem_buffer.alloc(m_mem_requests);
+    shared_mem_buffer.alloc(this, m_mem_requests);
 
     m_local_pos_.resize(config_.group_max_len);
     for (int i = 0; i < config_.group_max_len; i++) {
@@ -70,6 +70,10 @@ MOE::MOE(MOEConfig config) {
     m_local_intermediate_fp32_ptr_.resize(config_.expert_num);
     m_local_down_input_ptr_.resize(config_.expert_num);
     m_local_down_output_ptr_.resize(config_.expert_num);
+}
+
+MOE::~MOE() {
+    shared_mem_buffer.dealloc(this);
 }
 
 void MOE::warm_up(Backend* backend) {

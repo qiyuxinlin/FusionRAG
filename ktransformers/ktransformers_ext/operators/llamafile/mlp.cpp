@@ -24,7 +24,11 @@ MLP::MLP(MLPConfig config) {
     mem_requests.push_back({(void**)&intermediate_fp32_, sizeof(float) * config_.group_max_len * config_.intermediate_size});
     mem_requests.push_back({(void**)&down_input_, config_.group_max_len * config_.intermediate_size * ggml_type_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.down_type).vec_dot_type)});
     mem_requests.push_back({(void**)&down_output_, sizeof(float) * config_.group_max_len * config_.hidden_size});
-    shared_mem_buffer.alloc(mem_requests);
+    shared_mem_buffer.alloc(this, mem_requests);
+}
+
+MLP::~MLP() {
+    shared_mem_buffer.dealloc(this);
 }
 
 void MLP::warm_up(Backend* backend) {

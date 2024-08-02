@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <map>
 #include <vector>
 
 class SharedMemBuffer {
@@ -11,12 +12,13 @@ class SharedMemBuffer {
     SharedMemBuffer();
     ~SharedMemBuffer();
 
-    void alloc(std::vector<std::pair<void**, uint64_t>> requests);
+    void alloc(void* object, std::vector<std::pair<void**, uint64_t>> requests);
+    void dealloc(void* object);
 
    private:
     void* buffer_;
     uint64_t size_;
-    std::vector<std::vector<std::pair<void**, uint64_t>>> hist_requests_;
+    std::map<void*, std::vector<std::vector<std::pair<void**, uint64_t>>>> hist_requests_;
 
     void arrange(std::vector<std::pair<void**, uint64_t>> requests);
 };

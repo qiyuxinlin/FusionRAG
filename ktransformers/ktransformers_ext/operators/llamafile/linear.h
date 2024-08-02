@@ -42,6 +42,7 @@ struct LinearConfig {
 class Linear {
    public:
     Linear(LinearConfig);
+    ~Linear();
     void warm_up(Backend* backend);
     void forward_many(int qlen, const void* input, void* output, Backend* backend);
     void forward(int qlen, const void* input, void* output, Backend* backend);

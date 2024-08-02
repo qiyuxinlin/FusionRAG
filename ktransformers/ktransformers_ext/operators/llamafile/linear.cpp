@@ -17,7 +17,11 @@ Linear::Linear(LinearConfig config) {
     mem_requests.push_back({(void**)&input_fp32_, sizeof(float) * config_.group_max_len * config_.input_size});
     mem_requests.push_back({(void**)&proj_input_, config_.group_max_len * config_.input_size * ggml_type_size(ggml_internal_get_type_traits(config_.proj_type).vec_dot_type) / ggml_blck_size(ggml_internal_get_type_traits(config_.proj_type).vec_dot_type)});
     mem_requests.push_back({(void**)&proj_output_, sizeof(float) * config_.group_max_len * config_.output_size});
-    shared_mem_buffer.alloc(mem_requests);
+    shared_mem_buffer.alloc(this, mem_requests);
+}
+
+Linear::~Linear() {
+    shared_mem_buffer.dealloc(this);
 }
 
 void Linear::warm_up(Backend* backend) {

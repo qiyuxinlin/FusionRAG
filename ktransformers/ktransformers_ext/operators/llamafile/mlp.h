@@ -46,6 +46,7 @@ struct MLPConfig {
 class MLP {
    public:
     MLP(MLPConfig);
+    ~MLP();
     void warm_up(Backend* backend);
     void forward_many(int qlen, const void* input, void* output, Backend* backend);
     void forward(int qlen, const void* input, void* output, Backend* backend);

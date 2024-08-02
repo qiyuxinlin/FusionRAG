@@ -12,7 +12,7 @@ SharedMemBuffer::~SharedMemBuffer() {
     }
 }
 
-void SharedMemBuffer::alloc(std::vector<std::pair<void**, uint64_t>> requests) {
+void SharedMemBuffer::alloc(void* object, std::vector<std::pair<void**, uint64_t>> requests) {
     uint64_t size = 0;
     for (auto& request : requests) {
         size += request.second;
@@ -23,12 +23,18 @@ void SharedMemBuffer::alloc(std::vector<std::pair<void**, uint64_t>> requests) {
         }
         buffer_ = malloc(size);
         size_ = size;
-        for (auto& requests : hist_requests_) {
-            arrange(requests);
+        for (auto& obj_requests : hist_requests_) {
+            for (auto& requests : obj_requests.second) {
+                arrange(requests);
+            }
         }
     }
     arrange(requests);
-    hist_requests_.push_back(requests);
+    hist_requests_[object].push_back(requests);
+}
+
+void SharedMemBuffer::dealloc(void* object) {
+    hist_requests_.erase(object);
 }
 
 void SharedMemBuffer::arrange(std::vector<std::pair<void**, uint64_t>> requests) {
