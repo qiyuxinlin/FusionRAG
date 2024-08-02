@@ -3,7 +3,7 @@
  * @Author       : chenht2022
  * @Date         : 2024-07-22 02:03:22
  * @Version      : 1.0.0
- * @LastEditors  : chenht2022 
+ * @LastEditors  : chenht2022
  * @LastEditTime : 2024-07-25 10:34:23
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
@@ -30,9 +30,10 @@ using namespace pybind11::literals;
 class LinearBindings {
    public:
     static void bind_forward(CPUInfer& cpuinfer, Linear* linear, py::args args, py::kwargs kwargs) {
-        auto input = args[0].cast<intptr_t>();
-        auto output = args[1].cast<intptr_t>();
-        cpuinfer.submit(&Linear::forward, linear,
+        int qlen = args[0].cast<int>();
+        auto input = args[1].cast<intptr_t>();
+        auto output = args[2].cast<intptr_t>();
+        cpuinfer.submit(&Linear::forward, linear, qlen,
                         (const void*)input, (void*)output);
     }
 
@@ -59,9 +60,10 @@ class LinearBindings {
 class MLPBindings {
    public:
     static void bind_forward(CPUInfer& cpuinfer, MLP* mlp, py::args args, py::kwargs kwargs) {
-        auto input = args[0].cast<intptr_t>();
-        auto output = args[1].cast<intptr_t>();
-        cpuinfer.submit(&MLP::forward, mlp,
+        int qlen = args[0].cast<int>();
+        auto input = args[1].cast<intptr_t>();
+        auto output = args[2].cast<intptr_t>();
+        cpuinfer.submit(&MLP::forward, mlp, qlen,
                         (const void*)input, (void*)output);
     }
 
@@ -143,8 +145,8 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
     auto linear_module = m.def_submodule("linear");
 
     py::class_<LinearConfig>(linear_module, "LinearConfig")
-        .def(py::init([](int hidden_size, int intermediate_size, int stride, intptr_t proj, int proj_type, int hidden_type) {
-            return LinearConfig(hidden_size, intermediate_size, stride, (void*)proj, (ggml_type)proj_type, (ggml_type)hidden_type);
+        .def(py::init([](int hidden_size, int intermediate_size, int stride, int group_max_len, intptr_t proj, int proj_type, int hidden_type) {
+            return LinearConfig(hidden_size, intermediate_size, stride, group_max_len, (void*)proj, (ggml_type)proj_type, (ggml_type)hidden_type);
         }));
 
     py::class_<Linear>(linear_module, "Linear")
@@ -152,15 +154,15 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
         .def("warm_up", [](Linear& linear) {
             throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
         })
-        .def("forward", [](Linear& linear, intptr_t input, intptr_t output) {
+        .def("forward", [](Linear& linear, int qlen, intptr_t input, intptr_t output) {
             throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
         });
 
     auto mlp_module = m.def_submodule("mlp");
 
     py::class_<MLPConfig>(mlp_module, "MLPConfig")
-        .def(py::init([](int hidden_size, int intermediate_size, int stride, intptr_t gate_proj, intptr_t up_proj, intptr_t down_proj, int gate_type, int up_type, int down_type, int hidden_type) {
-            return MLPConfig(hidden_size, intermediate_size, stride, (void*)gate_proj, (void*)up_proj, (void*)down_proj, (ggml_type)gate_type, (ggml_type)up_type, (ggml_type)down_type, (ggml_type)hidden_type);
+        .def(py::init([](int hidden_size, int intermediate_size, int stride, int group_max_len, intptr_t gate_proj, intptr_t up_proj, intptr_t down_proj, int gate_type, int up_type, int down_type, int hidden_type) {
+            return MLPConfig(hidden_size, intermediate_size, stride, group_max_len, (void*)gate_proj, (void*)up_proj, (void*)down_proj, (ggml_type)gate_type, (ggml_type)up_type, (ggml_type)down_type, (ggml_type)hidden_type);
         }));
 
     py::class_<MLP>(mlp_module, "MLP")
@@ -168,7 +170,7 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
         .def("warm_up", [](MLP& mlp) {
             throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
         })
-        .def("forward", [](MLP& mlp, intptr_t input, intptr_t output) {
+        .def("forward", [](MLP& mlp, int qlen, intptr_t input, intptr_t output) {
             throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
         });
 
@@ -184,7 +186,7 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
         .def("warm_up", [](MOE& moe) {
             throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
         })
-        .def("forward", [](MOE& moe, int k, uint64_t expert_ids, intptr_t weights, intptr_t input, intptr_t output) {
+        .def("forward", [](MOE& moe, int qlen, int k, uint64_t expert_ids, intptr_t weights, intptr_t input, intptr_t output) {
             throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
         });
 

@@ -3,7 +3,7 @@
  * @Author       : chenht2022
  * @Date         : 2024-07-22 02:03:22
  * @Version      : 1.0.0
- * @LastEditors  : chenht2022 
+ * @LastEditors  : chenht2022
  * @LastEditTime : 2024-07-25 10:35:10
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
@@ -22,6 +22,7 @@
 #include "llama.cpp/ggml-quants.h"
 #include "llama.cpp/ggml.h"
 #include "llamafile/sgemm.h"
+#include "shared_mem_buffer.h"
 
 struct MOEConfig {
     int expert_num;
@@ -54,7 +55,6 @@ class MOE {
     void forward(int qlen, int k, const uint64_t* expert_ids, const float* weights, const void* input, void* output, Backend* backend);
 
    private:
-    static void* buffer_;
     MOEConfig config_;
     void* gate_proj_;  // [expert_num * intermediate_size * hidden_size ( /32 if quantized)]
     void* up_proj_;    // [expert_num * intermediate_size * hidden_size ( /32 if quantized)]

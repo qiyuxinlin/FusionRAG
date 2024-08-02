@@ -28,7 +28,7 @@ test_iter = 10000
 def act_fn(x):
     return x / (1.0 + torch.exp(-x))
 
-def mlp(input, gate_proj, up_proj, down_proj):
+def mlp_torch(input, gate_proj, up_proj, down_proj):
     if isinstance(gate_proj, nnq.Linear):
         input_q = torch.quantize_per_tensor(input.to(torch.float32), scale, zero_point, torch.quint8)
         gate_buf = gate_proj(input_q)
@@ -60,7 +60,7 @@ def moe_torch(input, expert_ids, weights, gate_proj, up_proj, down_proj):
         if num_tokens == 0:
             continue
         tokens_for_this_expert = sorted_tokens[start_idx:end_idx]
-        expert_out = mlp(tokens_for_this_expert, gate_proj[i], up_proj[i], down_proj[i])
+        expert_out = mlp_torch(tokens_for_this_expert, gate_proj[i], up_proj[i], down_proj[i])
         outputs.append(expert_out)
         start_idx = end_idx
 
