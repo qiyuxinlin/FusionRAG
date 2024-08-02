@@ -94,7 +94,7 @@ class MLPCPUExperts(MLPExpertsBase):
     expert_ids_cpu:Tensor = None
     weights_cpu:Tensor = None
     output_cpu:Tensor = None
-    output_gpu:Tensor = None
+    output_gpu_map:Tensor = {}
     CPU_INFER = cpuinfer_ext.CPUInfer(Config().cpu_infer)
     def __init__(
         self,
@@ -157,12 +157,14 @@ class MLPCPUExperts(MLPExpertsBase):
         if warmup:
             self.cpu_infer.submit(self.moe.warm_up)
             self.cpu_infer.sync()
-        if MLPCPUExperts.output_gpu == None:
+        if self.out_device not in MLPCPUExperts.output_gpu_map:
+            MLPCPUExperts.output_gpu_map[self.out_device] = torch.empty((self.config.hidden_size), device=self.out_device)
+        if MLPCPUExperts.input_tensor_cpu == None:
             MLPCPUExperts.input_tensor_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
             MLPCPUExperts.expert_ids_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
             MLPCPUExperts.weights_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
             MLPCPUExperts.output_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
-            MLPCPUExperts.output_gpu = torch.empty((self.config.hidden_size), device=self.out_device)
+            # MLPCPUExperts.output_gpu_map[self.out_device] = torch.empty((self.config.hidden_size), device=self.out_device)
 
     def submit_for_one_decode(self, input_tensor, expert_ids, weights):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
@@ -172,9 +174,9 @@ class MLPCPUExperts(MLPExpertsBase):
     
     def sync_for_one_decode(self):
         self.cpu_infer.sync_with_cuda_stream(torch.cuda.current_stream().cuda_stream)
-        MLPCPUExperts.output_gpu.copy_(MLPCPUExperts.output_cpu, non_blocking=True)
+        MLPCPUExperts.output_gpu_map[self.out_device].copy_(MLPCPUExperts.output_cpu, non_blocking=True)
         #print("capturing experts finish")
-        return MLPCPUExperts.output_gpu
+        return MLPCPUExperts.output_gpu_map[self.out_device]
 
     def forward(self, input_tensor, expert_ids, weights):
         # generate, capture and run cuda graph
@@ -185,9 +187,9 @@ class MLPCPUExperts(MLPExpertsBase):
             MLPCPUExperts.weights_cpu.copy_(weights, non_blocking=True)
             self.cpu_infer.submit_with_cuda_stream(torch.cuda.current_stream().cuda_stream, self.moe.forward, 1, expert_ids.size(1), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
             self.cpu_infer.sync_with_cuda_stream(torch.cuda.current_stream().cuda_stream)
-            MLPCPUExperts.output_gpu.copy_(MLPCPUExperts.output_cpu, non_blocking=True)
+            MLPCPUExperts.output_gpu_map.copy_(MLPCPUExperts.output_cpu, non_blocking=True)
             #print("capturing experts finish")
-            return MLPCPUExperts.output_gpu
+            return MLPCPUExperts.output_gpu_map
         else:
             input_tensor = input_tensor.contiguous().cpu()
             expert_ids = expert_ids.contiguous().cpu()
@@ -195,7 +197,8 @@ class MLPCPUExperts(MLPExpertsBase):
             output = torch.empty_like(input_tensor).contiguous()
             self.cpu_infer.submit(self.moe.forward, expert_ids.size(0), expert_ids.size(1), expert_ids.data_ptr(), weights.data_ptr(), input_tensor.data_ptr(), output.data_ptr())
             self.cpu_infer.sync()
-            return output.to(device=object.__getattribute__(self, "device"))
+            return output.to(device=object.__getattribute__(self, "out_device"))
+            # return output.to(device=object.__getattribute__(self, "device"))
     
     def unload(self):
         return
@@ -401,14 +404,14 @@ class KTransformersMLPExpert(BaseInjectedModule, MLPExpertsBase):
                  gguf_loader: GGUFLoader,
                  config: PretrainedConfig,
                  orig_module: nn.Module,
-                 device: str = "cuda",
+                #  device: str = "cuda",
                  prefill_device:str = "cuda",
                  prefill_mlp_type: str | None = "MLPExpertsTorch",
                  generate_device: str = "cpu",
                  generate_mlp_type: str | None = "MLPCPUExperts",
                  **kwargs):
-        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
-        MLPExpertsBase.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, generate_device, **kwargs)
+        MLPExpertsBase.__init__(self, key, gguf_loader, config, orig_module, generate_device, **kwargs)
         if generate_mlp_type is not None:
             self.generate_experts = EXPERTS_MAP[generate_mlp_type](key, gguf_loader, config, len(orig_module), device=generate_device, **kwargs)
         else:

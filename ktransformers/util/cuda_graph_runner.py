@@ -21,6 +21,7 @@ class CUDAGraphRunner:
         position_ids,
         cache_position,
         past_key_values,
+        main_device,
         **kwargs,
     ) -> None:
         assert self.graph is None
@@ -29,7 +30,7 @@ class CUDAGraphRunner:
         self.graph = torch.cuda.CUDAGraph()
         #self.graph.enable_debug_mode()
         self.model = model
-        inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to("cuda")
+        inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to(main_device)
         with torch.cuda.graph(self.graph):
             logits=model(inputs_embeds=inputs_embeds, 
                          position_ids=position_ids,

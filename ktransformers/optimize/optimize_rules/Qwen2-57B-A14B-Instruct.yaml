@@ -21,7 +21,7 @@
     name: "^model\\.layers\\..*\\.mlp\\.experts$"
   replace:
     class: ktransformers.operators.experts.KTransformersMLPExpert     # custom MoE Kernel with expert paralleism
-    device: "cpu"   # which devices to load this module when initializing
+    # device: "cpu"   # which devices to load this module when initializing
     kwargs:
       prefill_device: "cuda"
       prefill_mlp_type: "MLPExpertsTorch"
@@ -32,6 +32,13 @@
 - match:
     name: "^model$"
   replace:
-    class: "ktransformers.operators.layer_wise_prefill.Qwen2MoeModelPerLayerPrefill"
+    class: "ktransformers.operators.layer_wise_prefill.Qwen2MoeModelKTransformers"
     kwargs:
       per_layer_prefill_intput_threshold: 0 # 0 is close layer wise prefill
+- match:
+    name: "^model.embed_tokens"
+  replace:
+    class: "default"
+    kwargs:
+        generate_device: "cpu"
+        prefill_device: "cpu"

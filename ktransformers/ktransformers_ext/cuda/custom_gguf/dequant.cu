@@ -14,6 +14,7 @@
 #include <torch/extension.h>
 #include <torch/torch.h>
 #include <cstdint>
+#include <c10/cuda/CUDAGuard.h>
 
 __global__ void dequantize_q8_0_kernel(float* output, const float* scales, const int8_t* qs, int num_blocks, int blk_size) {
     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -94,6 +95,7 @@ __global__ void dequantize_q6_k_kernel(int8_t* data, float* output, int blk_size
 
 torch::Tensor dequantize_q8_0(torch::Tensor data, int blk_size, torch::Device device) {
     int num_blocks = data.numel() / blk_size;
+    const at::cuda::OptionalCUDAGuard device_guard(device);
     // create gpu
     auto options_scales = torch::TensorOptions().dtype(torch::kFloat32).device(device).memory_format(torch::MemoryFormat::Contiguous);
     auto options_qs = torch::TensorOptions().dtype(torch::kInt8).device(device).memory_format(torch::MemoryFormat::Contiguous);
@@ -128,6 +130,7 @@ torch::Tensor dequantize_q6_k(torch::Tensor data, int blk_size, torch::Device de
     // data.numel%blk_size should be 0, else raise err
     int num_blocks = data.numel() / blk_size;
 
+    const at::cuda::OptionalCUDAGuard device_guard(device);
     auto options = torch::TensorOptions().dtype(torch::kInt8).device(device).memory_format(torch::MemoryFormat::Contiguous);
     auto data_gpu = torch::empty({data.numel()}, options);
 
@@ -147,6 +150,7 @@ torch::Tensor dequantize_q6_k(torch::Tensor data, int blk_size, torch::Device de
 torch::Tensor dequantize_q4_k(torch::Tensor data, int blk_size, torch::Device device) {
     // data.numel%blk_size should be 0, else raise err
     int num_blocks = data.numel() / blk_size;
+    const at::cuda::OptionalCUDAGuard device_guard(device);
 
     auto options = torch::TensorOptions().dtype(torch::kInt8).device(device).memory_format(torch::MemoryFormat::Contiguous);
     auto data_gpu = torch::empty({data.numel()}, options);
