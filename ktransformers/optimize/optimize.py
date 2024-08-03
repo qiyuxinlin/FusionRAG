@@ -15,6 +15,7 @@ from transformers.configuration_utils import PretrainedConfig
 from ktransformers.util.custom_gguf import GGUFLoader, translate_name_to_gguf
 from ktransformers.util.utils import set_module, load_weights
 import itertools
+import copy
 
 def inject(module, local_optimization_dict, model_config:AutoConfig ,gguf_loader:GGUFLoader, prefix=''):
     for name, child in module._modules.items():
@@ -75,10 +76,15 @@ def gen_optimize_config(module: nn.Module, out_data: Mapping, rule_list: List, p
             raise Exception("replace must be in rule")
         if "replace" in rule:
             replace_meta = rule["replace"]
-            out_data[module_name]={"key": translated_name,
-                                "class": replace_meta["class"] if "class" in replace_meta else "default",
-                                # "device": replace_meta["device"] if "device" in replace_meta else default_device,
-                                "kwargs": replace_meta["kwargs"] if "kwargs" in replace_meta else dict()}
+            if module_name not in out_data:
+                out_data[module_name]={"key": translated_name,
+                                    "class": replace_meta["class"] if "class" in replace_meta else "default",
+                                    # "device": replace_meta["device"] if "device" in replace_meta else default_device,
+                                    "kwargs": copy.deepcopy(replace_meta["kwargs"]) if "kwargs" in replace_meta else dict()}
+            else:
+                if out_data[module_name]["class"] == "default":
+                    out_data[module_name]["class"] = replace_meta["class"] if "class" in replace_meta else "default"
+                out_data[module_name]["kwargs"].update(copy.deepcopy(replace_meta["kwargs"]) if "kwargs" in replace_meta else dict())
         if "recursive" in rule:
             recursive = bool(rule["recursive"])
             

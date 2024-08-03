@@ -31,6 +31,7 @@ class CUDAGraphRunner:
         #self.graph.enable_debug_mode()
         self.model = model
         inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to(main_device)
+        # TODO Support cuda graph with multi gpu
         with torch.cuda.graph(self.graph):
             logits=model(inputs_embeds=inputs_embeds, 
                          position_ids=position_ids,
