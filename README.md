@@ -3,12 +3,13 @@
   <p align="center">
   
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/9fa710bf-1389-46b7-b9d2-3f67b98bd7a6" width=50%>
+    <img alt="KTransformers" src="https://github.com/user-attachments/assets/d5a2492f-a415-4456-af99-4ab102f13f8b" width=50%>
+
   </picture>
-  
+
   </p>
   <h3>A Flexible Framework for Experiencing Cutting-edge LLM Inference Optimizations</h3>
-  <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a> | <a href="#tutorial">📃 Tutorial</a></strong>
+  <strong><a href="#show-cases">🔥 Show Cases</a> | <a href="#quick-start">🚀 Quick Start</a> | <a href="#tutorial">📃 Tutorial</a> | <a href="https://github.com/kvcache-ai/ktransformers/discussions">💬  Discussion </a> </strong>
 </div>
 
 
@@ -26,7 +27,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <h3>GPT-4-level Local VSCode Copilot on a Desktop with only 24GB VRAM</h3>
 <p align="center">
 
-  https://github.com/user-attachments/assets/3f85780e-aa53-4d2f-91b2-5585c8dade85
+https://github.com/user-attachments/assets/0b9fa2da-66f0-48eb-b4b9-f0e1f06f8927
 
 </p>
 
@@ -34,7 +35,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 
 <p align="center">
   <picture>
-    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/81efb94f-f859-4413-b6e0-d986508ad667" width=80%>
+    <img alt="DeepSeek-Coder-V2 Score" src="https://github.com/user-attachments/assets/d052924e-8631-44de-aad2-97c54b965693" width=100%>
   </picture>
 </p>
 
@@ -42,10 +43,9 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 - **VSCode Integration:** Wrapped into an OpenAI and Ollama compatible API for seamless integration as a backend for [Tabby](https://github.com/TabbyML/tabby) and various other frontends.
 
 <p align="center">
-  <!-- <img alt="Tabby integration" src="https://XXXX.png" width=55%> -->
 
-  https://github.com/user-attachments/assets/e6e27cb3-8372-44e6-8f1f-34402eae56c1
-  
+https://github.com/user-attachments/assets/4c6a8a38-05aa-497d-8eb1-3a5b3918429c
+
 </p>
 
 
@@ -74,24 +74,37 @@ Some preparation:
   conda activate ktransformers # you may need to run ‘conda init’ and reopen shell first
   ```
 
-  Download source code:
+- Make sure that PyTorch, packaging, ninja is installed
+  ```
+  pip install torch packaging ninja
+  ```
+
+<h3>Installation</h3>
+You can install using Pypi:
+
+```
+pip install ktransformers --no-build-isolation
+```
+
+Or download source code and compile:
+ - init source code 
   ```sh
   git clone https://github.com/kvcache-ai/ktransformers.git
   cd ktransformers
   git submodule init
   git submodule update
   ```
+ - [Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```bash install.sh```
+ - Compile and install
+   ```
+   bash install.sh
+   ```
 
 <h3>Local Chat</h3>
 We provide a simple command-line local chat Python script that you can run for testing. 
 
   > Note that this is a very simple test tool only support one round chat without any memory about last input, if you want to try full ability of the model, you may go to [RESTful API and Web UI](#id_666). We use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models, you can replace it with any other model that you want to test. 
 
-<h4>Install</h4>
-
-```sh
-bash install.sh
-```
 
 <h4>Run Example</h4>
 
@@ -109,11 +122,11 @@ wget https://huggingface.co/mzwing/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepS
 cd .. # Move to repo's root dir
 
 # Start local chat
-python  ktransformers/local_chat.py --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
+python -m ktransformers.local_chat --model_path deepseek-ai/DeepSeek-V2-Lite-Chat --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
 
 # If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
 # GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite
-# python  ktransformers/local_chat.py --model_path ./DeepSeek-V2-Lite --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
+# python  ktransformers.local_chat --model_path ./DeepSeek-V2-Lite --gguf_path ./DeepSeek-V2-Lite-Chat-GGUF
 ```
 
 
@@ -154,7 +167,7 @@ wget https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct-GGUF/resolve/main/qwen2
 
 cd ..
 
-python ktransformers/local_chat.py --model_name Qwen/Qwen2-57B-A14B-Instruct --gguf_path ./Qwen2-57B-GGUF
+python -m ktransformers.local_chat --model_name Qwen/Qwen2-57B-A14B-Instruct --gguf_path ./Qwen2-57B-GGUF
 
 # If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
 # GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Qwen/Qwen2-57B-A14B-Instruct
@@ -172,11 +185,11 @@ wget https://huggingface.co/bartowski/DeepSeek-V2-Chat-0628-GGUF/resolve/main/De
 
 cd ..
 
-python ktransformers/local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat-0628 --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
+python -m ktransformers.local_chat --model_name deepseek-ai/DeepSeek-V2-Chat-0628 --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
 
 # If you see “OSError: We couldn't connect to 'https://huggingface.co' to load this file”, try：
 # GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat-0628
-# python  ktransformers/local_chat.py --model_path ./DeepSeek-V2-Chat-0628 --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
+# python -m ktransformers.local_chat --model_path ./DeepSeek-V2-Chat-0628 --gguf_path ./DeepSeek-V2-Chat-0628-GGUF
 ```
 
 | model name | weights download link |
@@ -193,15 +206,6 @@ python ktransformers/local_chat.py --model_name deepseek-ai/DeepSeek-V2-Chat-062
 
 <h3>RESTful API and Web UI</h3>
 
-<h4>Install</h4>
-
-[Optional] If you want to run with website, please [compile the website](./doc/en/api/server/website.md) before execute ```pip install .```
-  
-Install ktransformers with source.
-```
-pip install -r requirements-local_chat.txt
-pip install . --no-build-isolation
-```
 
 Start without website:
 
@@ -221,7 +225,7 @@ Access website with url [http://localhost:10002/web/index.html#/chat](http://loc
 
 <p align="center">
   <picture>
-    <img alt="Web UI" src="https://github.com/user-attachments/assets/a8eca392-e948-4706-ba9c-743142d8a464" width=80%>
+    <img alt="Web UI" src="https://github.com/user-attachments/assets/615dca9b-a08c-4183-bbd3-ad1362680faf" width=90%>
   </picture>
 </p>
 
@@ -235,7 +239,7 @@ This allows researchers to easily replace original torch modules with optimized 
 </br>
 <p align="center">
   <picture>
-    <img alt="Inject-Struction" src="https://github.com/user-attachments/assets/b922180e-3e73-4b62-b5a0-5ac98d7052c5" width=50%>
+    <img alt="Inject-Struction" src="https://github.com/user-attachments/assets/6b4c1e54-9f6d-45c5-a3fc-8fa45e7d257e" width=65%>
   </picture>
 </p>
 
