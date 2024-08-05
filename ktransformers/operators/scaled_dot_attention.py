@@ -3,8 +3,8 @@ from ktransformers.models.configuration_internlm2 import InternLM2Config
 import sys, os
 
 # sys.path.append(os.path.dirname(__file__) + "/../pcinfer/pcinfer")
-sys.path.append("/root/internlm2_5-7b-chat-1m/pcinfer/pcinfer")
-from pcinfer import PCInfer, PCInferKVCache
+sys.path.append(os.path.dirname(__file__) + "/../ktransformers_ext/cpu_backend")
+from cpuinfer import CPUInfer, CPUInferKVCache
 from flash_attn import flash_attn_func, flash_attn_with_kvcache
 
 
@@ -63,9 +63,9 @@ class DynamicScaledDotAttention:
             self.block_num, device=device, dtype=torch.int32
         ).view(1, -1)
 
-        self.pcinfer = PCInfer(threads_num)
+        self.cpu_infer = CPUInfer(threads_num)
 
-        self.local_thread = PCInferKVCache(
+        self.local_thread = CPUInferKVCache(
             self.layer_num,
             self.kv_head_num,
             self.q_head_num,
@@ -208,10 +208,10 @@ class DynamicScaledDotAttention:
 
         importance_cache_cpu.copy_(importance_cache)
 
-        block_table_cpu = self.prefix_block_table[:,:max_block_num].to("cpu")
+        block_table_cpu = self.prefix_block_table[:, :max_block_num].to("cpu")
         offset_cpu = offset.contiguous().to("cpu")
 
-        self.pcinfer.submit(
+        self.cpu_infer.submit(
             self.local_thread.update_importance(
                 importance_cache_cpu,
                 layer_idx,
@@ -221,7 +221,7 @@ class DynamicScaledDotAttention:
                 width,
             )
         )
-        self.pcinfer.sync()
+        self.cpu_infer.sync()
         importance_cache.zero_()
 
     # key: [bsz, q_len, head_num, head_dim] float16
@@ -256,10 +256,10 @@ class DynamicScaledDotAttention:
         cur_block_num = (
             q_len + past_len[0].item() + self.block_size - 1
         ) // self.block_size
-        block_table_cpu = self.prefix_block_table[:,:cur_block_num].to("cpu")
+        block_table_cpu = self.prefix_block_table[:, :cur_block_num].to("cpu")
         past_len_cpu = past_len.contiguous().to("cpu")
 
-        self.pcinfer.submit(
+        self.cpu_infer.submit(
             self.local_thread.get_and_update_fp16(
                 k_cache_cpu,
                 v_cache_cpu,
@@ -271,7 +271,7 @@ class DynamicScaledDotAttention:
             )
         )
 
-        self.pcinfer.sync()
+        self.cpu_infer.sync()
         k_cache.copy_(k_cache_cpu)
         v_cache.copy_(v_cache_cpu)
 
@@ -279,35 +279,33 @@ class DynamicScaledDotAttention:
 
     def calc_anchor(self, cache_seqlens: int):
         cur_block_num = (cache_seqlens + self.block_size - 1) // self.block_size
-        block_table_cpu = self.prefix_block_table[:,:cur_block_num].to("cpu")
+        block_table_cpu = self.prefix_block_table[:, :cur_block_num].to("cpu")
         cache_seqlens_cpu = torch.tensor(
             [cache_seqlens], device="cpu", dtype=torch.int32
         )
 
-        self.pcinfer.submit(
+        self.cpu_infer.submit(
             self.local_thread.calc_anchor_all_layers(
                 block_table_cpu,
                 cache_seqlens_cpu,
             )
         )
-        self.pcinfer.sync()
+        self.cpu_infer.sync()
 
     def clear_importance(self, cache_seqlens: int):
         cur_block_num = (cache_seqlens + self.block_size - 1) // self.block_size
-        block_table_cpu = self.prefix_block_table[:,:cur_block_num].to("cpu")
+        block_table_cpu = self.prefix_block_table[:, :cur_block_num].to("cpu")
         cache_seqlens_cpu = torch.tensor(
             [cache_seqlens], device="cpu", dtype=torch.int32
         )
 
-        self.pcinfer.submit(
+        self.cpu_infer.submit(
             self.local_thread.clear_importance_all_layers(
                 block_table_cpu,
                 cache_seqlens_cpu,
             )
         )
-        self.pcinfer.sync()
-
-
+        self.cpu_infer.sync()
 
     def apply(
         self,
@@ -364,7 +362,7 @@ class DynamicScaledDotAttention:
         elif mode == "generate":
             output = torch.empty_like(query_states, device="cpu").contiguous()
             lse = torch.empty(
-                (batch_size, q_len, self.q_head_num), device="cpu", dtype = torch.float32
+                (batch_size, q_len, self.q_head_num), device="cpu", dtype=torch.float32
             ).contiguous()
 
             q_in_cpu = query_states.contiguous().to("cpu")
@@ -376,11 +374,11 @@ class DynamicScaledDotAttention:
                 q_len + past_len[0].item() + self.block_size - 1
             ) // self.block_size
             block_table_cpu = (
-                self.prefix_block_table[:,:cur_block_num].contiguous().to("cpu")
+                self.prefix_block_table[:, :cur_block_num].contiguous().to("cpu")
             )
 
             if layer_idx < self.dense_layer_num:
-                self.pcinfer.submit(
+                self.cpu_infer.submit(
                     self.local_thread.attn_with_kvcache(
                         q_in=q_in_cpu,
                         k_in=k_in_cpu,
@@ -393,7 +391,7 @@ class DynamicScaledDotAttention:
                     )
                 )
             else:
-                self.pcinfer.submit(
+                self.cpu_infer.submit(
                     self.local_thread.attn_with_kvcache(
                         q_in=q_in_cpu,
                         k_in=k_in_cpu,
@@ -407,9 +405,7 @@ class DynamicScaledDotAttention:
                         local=self.local_windows_len // self.block_size,
                     )
                 )
-            self.pcinfer.sync()
+            self.cpu_infer.sync()
             output = output.to(device)
-
-    
 
         return output.transpose(1, 2)

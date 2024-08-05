@@ -15,6 +15,7 @@
 import os
 import platform
 import sys
+
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 import torch
@@ -41,25 +42,28 @@ custom_models = {
     "LlamaForCausalLM": LlamaForCausalLM,
 }
 
-ktransformer_rules_dir = os.path.dirname(os.path.abspath(__file__)) + "/optimize/optimize_rules/"
-default_optimize_rules ={
+ktransformer_rules_dir = (
+    os.path.dirname(os.path.abspath(__file__)) + "/optimize/optimize_rules/"
+)
+default_optimize_rules = {
     "DeepseekV2ForCausalLM": ktransformer_rules_dir + "DeepSeek-V2-Chat.yaml",
     "Qwen2MoeForCausalLM": ktransformer_rules_dir + "Qwen2-57B-A14B-Instruct.yaml",
     "LlamaForCausalLM": ktransformer_rules_dir + "Internlm2_5-7b-Chat-1m.yaml",
 }
 
+
 def local_chat(
     model_path: str,
     optimize_rule_path: str = None,
     gguf_path: str = None,
-    max_new_tokens: int = 1000,
-    cpu_infer: int = Config().cpu_infer
+    max_new_tokens: int = 100,
+    cpu_infer: int = Config().cpu_infer,
 ):
     torch.set_grad_enabled(False)
-    
+
     Config().cpu_infer = cpu_infer
     tokenizer = AutoTokenizer.from_pretrained(
-    "/root/internlm2_5-7b-chat-1m", trust_remote_code=True
+        "/home/djw/ltransformer-dev", trust_remote_code=True
     )
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     torch.set_default_dtype(config.torch_dtype)
@@ -67,9 +71,11 @@ def local_chat(
     with torch.device("meta"):
         if config.architectures[0] in custom_models:
             print("using custom modeling_xxx.py.")
-            if "Qwen2Moe" in config.architectures[0]: # Qwen2Moe must use flash_attention_2 to avoid overflow.
+            if (
+                "Qwen2Moe" in config.architectures[0]
+            ):  # Qwen2Moe must use flash_attention_2 to avoid overflow.
                 config._attn_implementation = "flash_attention_2"
-            if "Llama" in config.architectures[0]: 
+            if "Llama" in config.architectures[0]:
                 config._attn_implementation = "eager"
             model = custom_models[config.architectures[0]](config)
         else:
@@ -100,24 +106,32 @@ def local_chat(
     logging.basicConfig(level=logging.INFO)
 
     system = platform.system()
-    if (system == u'Windows'):
-        os.system('cls')
+    if system == "Windows":
+        os.system("cls")
     else:
-        os.system('clear')
+        os.system("clear")
 
     while True:
         content = input("Chat: ")
         # if content is num
         if content == "":
-            content = "Please write a piece of quicksort code in C++." 
+            content = "Please write a piece of quicksort code in C++."
 
         messages = [{"role": "user", "content": content}]
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
-        torch.set_default_dtype(torch.float16) # TODO: Remove this, replace dtype using config
-        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
+        torch.set_default_dtype(
+            torch.float16
+        )  # TODO: Remove this, replace dtype using config
+        generated = prefill_and_generate(
+            model, tokenizer, input_tensor.cuda(), max_new_tokens
+        )
+
 
 if __name__ == "__main__":
     # fire.Fire(local_chat)
-    local_chat(model_path='/root/llama_chat-1m/', gguf_path='/root/llama_chat-1m/')
+    local_chat(
+        model_path="/home/djw/model/internlm2-convert2-llama",
+        gguf_path="/home/djw/model/internlm2-convert2-llama",
+    )
