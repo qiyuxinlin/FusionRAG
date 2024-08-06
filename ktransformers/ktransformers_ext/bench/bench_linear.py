@@ -6,7 +6,7 @@ Author       : chenht2022
 Date         : 2024-07-25 10:31:59
 Version      : 1.0.0
 LastEditors  : chenht2022 
-LastEditTime : 2024-07-25 10:32:51
+LastEditTime : 2024-08-06 10:35:35
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 import os, sys
@@ -78,19 +78,25 @@ def bench_linear(quant_mode: str):
 
         # warm up
         for i in range(warm_up_iter):
-            CPUInfer.submit(linears[i % layer_num].forward, 
-                            qlen, 
-                            input[i % layer_num].data_ptr(), 
-                            output[i % layer_num].data_ptr())
+            CPUInfer.submit(
+                linears[i % layer_num].forward(
+                    qlen, 
+                    input[i % layer_num].data_ptr(), 
+                    output[i % layer_num].data_ptr()
+                )
+            )
             CPUInfer.sync()
 
         # test
         start = time.perf_counter()
         for i in range(test_iter):
-            CPUInfer.submit(linears[i % layer_num].forward, 
-                            qlen, 
-                            input[i % layer_num].data_ptr(), 
-                            output[i % layer_num].data_ptr())
+            CPUInfer.submit(
+                linears[i % layer_num].forward(
+                    qlen, 
+                    input[i % layer_num].data_ptr(), 
+                    output[i % layer_num].data_ptr()
+                )
+            )
             CPUInfer.sync()
         end = time.perf_counter()
         total_time = end - start

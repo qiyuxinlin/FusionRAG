@@ -3,8 +3,8 @@
  * @Author       : chenht2022
  * @Date         : 2024-07-22 02:03:22
  * @Version      : 1.0.0
- * @LastEditors  : chenht2022
- * @LastEditTime : 2024-07-25 10:34:23
+ * @LastEditors  : chenht2022 
+ * @LastEditTime : 2024-08-06 11:00:04
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
 // Python bindings
@@ -12,7 +12,6 @@
 #include <iostream>
 #include <memory>
 #include "cpu_backend/cpuinfer.h"
-#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "llamafile/flags.h"
 #include "operators/llamafile/linear.h"
@@ -26,121 +25,6 @@
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-// Binding functions for the Linear class
-class LinearBindings {
-   public:
-    static void bind_forward(CPUInfer& cpuinfer, Linear* linear, py::args args, py::kwargs kwargs) {
-        int qlen = args[0].cast<int>();
-        auto input = args[1].cast<intptr_t>();
-        auto output = args[2].cast<intptr_t>();
-        cpuinfer.submit(&Linear::forward, linear, qlen,
-                        (const void*)input, (void*)output);
-    }
-
-    static void bind_warm_up(CPUInfer& cpuinfer, Linear* linear, py::args args, py::kwargs kwargs) {
-        cpuinfer.submit(&Linear::warm_up, linear);
-    }
-
-    static void bind_functions(CPUInfer& cpuinfer, py::object func, py::args args, py::kwargs kwargs) {
-        auto linear = func.attr("__self__").cast<Linear*>();
-        std::string func_name = py::str(func.attr("__func__").attr("__name__"));
-
-        if (func_name == "forward") {
-            bind_forward(cpuinfer, linear, args, kwargs);
-        } else if (func_name == "warm_up") {
-            bind_warm_up(cpuinfer, linear, args, kwargs);
-        } else {
-            throw py::value_error("Unsupported function: " +
-                                  std::string(func_name));
-        }
-    }
-};
-
-// Binding functions for the MLP class
-class MLPBindings {
-   public:
-    static void bind_forward(CPUInfer& cpuinfer, MLP* mlp, py::args args, py::kwargs kwargs) {
-        int qlen = args[0].cast<int>();
-        auto input = args[1].cast<intptr_t>();
-        auto output = args[2].cast<intptr_t>();
-        cpuinfer.submit(&MLP::forward, mlp, qlen,
-                        (const void*)input, (void*)output);
-    }
-
-    static void bind_warm_up(CPUInfer& cpuinfer, MLP* mlp, py::args args, py::kwargs kwargs) {
-        cpuinfer.submit(&MLP::warm_up, mlp);
-    }
-
-    static void bind_functions(CPUInfer& cpuinfer, py::object func, py::args args, py::kwargs kwargs) {
-        auto mlp = func.attr("__self__").cast<MLP*>();
-        std::string func_name = py::str(func.attr("__func__").attr("__name__"));
-
-        if (func_name == "forward") {
-            bind_forward(cpuinfer, mlp, args, kwargs);
-        } else if (func_name == "warm_up") {
-            bind_warm_up(cpuinfer, mlp, args, kwargs);
-        } else {
-            throw py::value_error("Unsupported function: " +
-                                  std::string(func_name));
-        }
-    }
-};
-
-// Binding functions for the MOE class
-class MOEBindings {
-   public:
-    static void bind_forward(CPUInfer& cpuinfer, MOE* moe, py::args args, py::kwargs kwargs) {
-        int qlen = args[0].cast<int>();
-        int k = args[1].cast<int>();
-        auto expert_ids = args[2].cast<intptr_t>();
-        auto weights = args[3].cast<intptr_t>();
-        auto input = args[4].cast<intptr_t>();
-        auto output = args[5].cast<intptr_t>();
-        cpuinfer.submit(&MOE::forward, moe,
-                        qlen, k, (const uint64_t*)expert_ids, (const float*)weights, (const void*)input, (void*)output);
-    }
-
-    static void bind_warm_up(CPUInfer& cpuinfer, MOE* moe, py::args args, py::kwargs kwargs) {
-        cpuinfer.submit(&MOE::warm_up, moe);
-    }
-
-    static void bind_functions(CPUInfer& cpuinfer, py::object func, py::args args, py::kwargs kwargs) {
-        auto moe = func.attr("__self__").cast<MOE*>();
-        std::string func_name = py::str(func.attr("__func__").attr("__name__"));
-
-        if (func_name == "forward") {
-            bind_forward(cpuinfer, moe, args, kwargs);
-        } else if (func_name == "warm_up") {
-            bind_warm_up(cpuinfer, moe, args, kwargs);
-        } else {
-            throw py::value_error("Unsupported function: " +
-                                  std::string(func_name));
-        }
-    }
-};
-
-struct MOEForwardArgs {
-    CPUInfer* cpuinfer;
-    MOE* moe;
-    int qlen;
-    int k;
-    uint64_t* expert_ids;
-    float* weights;
-    void* input;
-    void* output;
-};
-
-void submit_moe_forward_with_host_args_ptr(void* host_args_ptr) {
-    MOEForwardArgs* host_args = (MOEForwardArgs*)host_args_ptr;
-    host_args->cpuinfer->submit(&MOE::forward, host_args->moe,
-                                host_args->qlen, host_args->k, host_args->expert_ids, host_args->weights, host_args->input, host_args->output);
-}
-
-void cpuinfer_sync(void* host_args_ptr) {
-    CPUInfer* cpuinfer = (CPUInfer*)host_args_ptr;
-    cpuinfer->sync();
-}
-
 PYBIND11_MODULE(cpuinfer_ext, m) {
     auto linear_module = m.def_submodule("linear");
 
@@ -152,10 +36,18 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
     py::class_<Linear>(linear_module, "Linear")
         .def(py::init<LinearConfig>())
         .def("warm_up", [](Linear& linear) {
-            throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
+            std::function<void(void*)> func = [&linear](void* cpu_infer_ptr) {
+                CPUInfer* cpuinfer = (CPUInfer*)cpu_infer_ptr;
+                cpuinfer->enqueue(&Linear::warm_up, &linear);
+            };
+            return func;
         })
         .def("forward", [](Linear& linear, int qlen, intptr_t input, intptr_t output) {
-            throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
+            std::function<void(void*)> func = [=, &linear](void* cpu_infer_ptr) {
+                CPUInfer* cpuinfer = (CPUInfer*)cpu_infer_ptr;
+                cpuinfer->enqueue(&Linear::forward, &linear, qlen, (const void*)input, (void*)output);
+            };
+            return func;
         });
 
     auto mlp_module = m.def_submodule("mlp");
@@ -168,10 +60,18 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
     py::class_<MLP>(mlp_module, "MLP")
         .def(py::init<MLPConfig>())
         .def("warm_up", [](MLP& mlp) {
-            throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
+            std::function<void(void*)> func = [&mlp](void* cpu_infer_ptr) {
+                CPUInfer* cpuinfer = (CPUInfer*)cpu_infer_ptr;
+                cpuinfer->enqueue(&MLP::warm_up, &mlp);
+            };
+            return func;
         })
         .def("forward", [](MLP& mlp, int qlen, intptr_t input, intptr_t output) {
-            throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
+            std::function<void(void*)> func = [=, &mlp](void* cpu_infer_ptr) {
+                CPUInfer* cpuinfer = (CPUInfer*)cpu_infer_ptr;
+                cpuinfer->enqueue(&MLP::forward, &mlp, qlen, (const void*)input, (void*)output);
+            };
+            return func;
         });
 
     auto moe_module = m.def_submodule("moe");
@@ -184,83 +84,24 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
     py::class_<MOE>(moe_module, "MOE")
         .def(py::init<MOEConfig>())
         .def("warm_up", [](MOE& moe) {
-            throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
+            std::function<void(void*)> func = [&moe](void* cpu_infer_ptr) {
+                CPUInfer* cpuinfer = (CPUInfer*)cpu_infer_ptr;
+                cpuinfer->enqueue(&MOE::warm_up, &moe);
+            };
+            return func;
         })
-        .def("forward", [](MOE& moe, int qlen, int k, uint64_t expert_ids, intptr_t weights, intptr_t input, intptr_t output) {
-            throw std::runtime_error("!!! Doing nothing, please use CPUInfer.submit to call it!!!\n");
+        .def("forward", [](MOE& moe, int qlen, int k, intptr_t expert_ids, intptr_t weights, intptr_t input, intptr_t output) {
+            std::function<void(void*)> func = [=, &moe](void* cpu_infer_ptr) {
+                CPUInfer* cpuinfer = (CPUInfer*)cpu_infer_ptr;
+                cpuinfer->enqueue(&MOE::forward, &moe, qlen, k, (const uint64_t*)expert_ids, (const float*)weights, (const void*)input, (void*)output);
+            };
+            return func;
         });
 
     py::class_<CPUInfer>(m, "CPUInfer")
         .def(py::init<int>())
-        .def("submit",
-             [linear_module, mlp_module, moe_module](CPUInfer& cpuinfer, py::object func, py::args args, py::kwargs kwargs) {
-                 if (py::hasattr(func, "__self__") &&
-                     py::hasattr(func, "__func__")) {
-                     std::string class_name = py::str(func.attr("__self__")
-                                                          .attr("__class__")
-                                                          .attr("__name__"));
-                     if (class_name == "Linear") {
-                         LinearBindings::bind_functions(cpuinfer, func,
-                                                        args, kwargs);
-                     } else if (class_name == "MLP") {
-                         MLPBindings::bind_functions(cpuinfer, func,
-                                                     args, kwargs);
-                     } else if (class_name == "MOE") {
-                         MOEBindings::bind_functions(cpuinfer, func,
-                                                     args, kwargs);
-                     } else {
-                         // handle other classes
-                         throw py::type_error("Unsupported class type: " +
-                                              class_name);
-                     }
-                 } else {
-                     // handle cases where func does not have __self__ or
-                     // __func__
-                     throw py::type_error(
-                         "Invalid function object: missing "
-                         "__self__ or __func__ attribute.");
-                 }
-             })
-        .def("submit_with_cuda_stream",
-             [linear_module, mlp_module, moe_module](CPUInfer& cpuinfer, intptr_t user_cuda_stream, py::object func, py::args args, py::kwargs kwargs) {
-                 if (py::hasattr(func, "__self__") &&
-                     py::hasattr(func, "__func__")) {
-                     std::string class_name = py::str(func.attr("__self__")
-                                                          .attr("__class__")
-                                                          .attr("__name__"));
-                     if (class_name == "MOE") {
-                         std::string func_name = py::str(func.attr("__func__").attr("__name__"));
-                         if (func_name == "forward") {
-                             auto moe = func.attr("__self__").cast<MOE*>();
-                             int qlen = args[0].cast<int>();
-                             int k = args[1].cast<int>();
-                             auto expert_ids = args[2].cast<intptr_t>();
-                             auto weights = args[3].cast<intptr_t>();
-                             auto input = args[4].cast<intptr_t>();
-                             auto output = args[5].cast<intptr_t>();
-                             MOEForwardArgs* moe_forward_args = new MOEForwardArgs{&cpuinfer, moe, qlen, k, (uint64_t*)expert_ids, (float*)weights, (void*)input, (void*)output};
-                             // submit_moe_forward_with_host_args_ptr(moe_forward_args);
-                             cudaLaunchHostFunc((cudaStream_t)user_cuda_stream, (cudaHostFn_t)submit_moe_forward_with_host_args_ptr, moe_forward_args);
-                         } else {
-                             throw py::value_error("Unsupported function: " +
-                                                   std::string(func_name));
-                         }
-                     } else {
-                         // handle other classes
-                         throw py::type_error("Unsupported class type: " +
-                                              class_name);
-                     }
-                 } else {
-                     // handle cases where func does not have __self__ or
-                     // __func__
-                     throw py::type_error(
-                         "Invalid function object: missing "
-                         "__self__ or __func__ attribute.");
-                 }
-             })
-        .def("sync_with_cuda_stream", [](CPUInfer& cpuinfer, intptr_t user_cuda_stream) {
-            // cpuinfer_sync((void*)(&cpuinfer));
-            cudaLaunchHostFunc((cudaStream_t)user_cuda_stream, (cudaHostFn_t)cpuinfer_sync, (void*)(&cpuinfer));
-        })
-        .def("sync", &CPUInfer::sync);
+        .def("submit", &CPUInfer::submit)
+        .def("submit_with_cuda_stream", &CPUInfer::submit_with_cuda_stream)
+        .def("sync", &CPUInfer::sync)
+        .def("sync_with_cuda_stream", &CPUInfer::sync_with_cuda_stream);
 }

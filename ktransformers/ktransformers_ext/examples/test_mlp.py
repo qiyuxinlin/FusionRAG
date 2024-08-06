@@ -6,7 +6,7 @@ Author       : chenht2022
 Date         : 2024-07-25 10:32:05
 Version      : 1.0.0
 LastEditors  : chenht2022 
-LastEditTime : 2024-07-25 10:34:03
+LastEditTime : 2024-08-06 10:37:28
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 import os, sys
@@ -61,7 +61,13 @@ with torch.inference_mode(mode=True):
         output = torch.empty((qlen, hidden_size), dtype=torch.float16).contiguous()
         input = input / 100
 
-        CPUInfer.submit(mlp.forward, qlen, input.data_ptr(), output.data_ptr())
+        CPUInfer.submit(
+            mlp.forward(
+                qlen,
+                input.data_ptr(), 
+                output.data_ptr()
+            )
+        )
         CPUInfer.sync()
         # print('cpuinfer output', output)
 

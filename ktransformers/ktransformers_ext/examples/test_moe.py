@@ -6,7 +6,7 @@ Author       : chenht2022
 Date         : 2024-07-25 10:32:05
 Version      : 1.0.0
 LastEditors  : chenht2022 
-LastEditTime : 2024-07-25 10:34:06
+LastEditTime : 2024-08-06 10:38:05
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 import os, sys
@@ -97,7 +97,16 @@ with torch.inference_mode(mode=True):
         input = input / 100
         
         moe = moes[i % layer_num]
-        CPUInfer.submit(moe.forward, qlen, n_routed_experts, expert_ids.data_ptr(), weights.data_ptr(), input.data_ptr(), output.data_ptr())
+        CPUInfer.submit(
+            moe.forward( 
+                qlen,
+                n_routed_experts, 
+                expert_ids.data_ptr(), 
+                weights.data_ptr(), 
+                input.data_ptr(), 
+                output.data_ptr()
+            )
+        )
         CPUInfer.sync()
         # print('cpuinfer output', output)
 

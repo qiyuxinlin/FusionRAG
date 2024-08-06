@@ -6,7 +6,7 @@ Author       : chenht2022
 Date         : 2024-07-25 10:32:05
 Version      : 1.0.0
 LastEditors  : chenht2022 
-LastEditTime : 2024-07-25 10:33:00
+LastEditTime : 2024-08-06 10:41:28
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 import os, sys
@@ -111,25 +111,31 @@ def bench_moe(quant_mode: str):
 
         # warm up
         for i in range(warm_up_iter):
-            CPUInfer.submit(moes[i % layer_num].forward, 
-                            qlen, 
-                            n_routed_experts, 
-                            expert_ids[i % layer_num].data_ptr(), 
-                            weights[i % layer_num].data_ptr(),
-                            input[i % layer_num].data_ptr(), 
-                            output[i % layer_num].data_ptr())
+            CPUInfer.submit(
+                moes[i % layer_num].forward( 
+                    qlen, 
+                    n_routed_experts, 
+                    expert_ids[i % layer_num].data_ptr(), 
+                    weights[i % layer_num].data_ptr(),
+                    input[i % layer_num].data_ptr(), 
+                    output[i % layer_num].data_ptr()
+                )
+            )
             CPUInfer.sync()
 
         # test
         start = time.perf_counter()
         for i in range(test_iter):
-            CPUInfer.submit(moes[i % layer_num].forward, 
-                            qlen, 
-                            n_routed_experts, 
-                            expert_ids[i % layer_num].data_ptr(), 
-                            weights[i % layer_num].data_ptr(),
-                            input[i % layer_num].data_ptr(), 
-                            output[i % layer_num].data_ptr())
+            CPUInfer.submit(
+                moes[i % layer_num].forward( 
+                    qlen, 
+                    n_routed_experts, 
+                    expert_ids[i % layer_num].data_ptr(), 
+                    weights[i % layer_num].data_ptr(),
+                    input[i % layer_num].data_ptr(), 
+                    output[i % layer_num].data_ptr()
+                )
+            )
             CPUInfer.sync()
         end = time.perf_counter()
         total_time = end - start
