@@ -105,7 +105,7 @@ Some preparation:
 <h3>Local Chat</h3>
 We provide a simple command-line local chat Python script that you can run for testing. 
 
-  > Note that this is a very simple test tool only support one round chat without any memory about last input, if you want to try full ability of the model, you may go to [RESTful API and Web UI](#id_666). We use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we alse support other models, you can replace it with any other model that you want to test. 
+  > Note that this is a very simple test tool only support one round chat without any memory about last input, if you want to try full ability of the model, you may go to [RESTful API and Web UI](#id_666). We use the DeepSeek-V2-Lite-Chat-GGUF model as an example here. But we also support other models, you can replace it with any other model that you want to test. 
 
 
 <h4>Run Example</h4>

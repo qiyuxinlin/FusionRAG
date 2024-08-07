@@ -9,20 +9,8 @@ There are Docker images available for our project：
 
 **Uploading**
 
-## Building docker locally
+## Building docker image locally
  - Download Dockerfile in [there](../../Dockerfile)
- - update CPU_INSTRUCT in Dockerfile with your cpu instruct
-   - FANCY: support AVX512VL, AVX512BW, AVX512DQ, AVX512VNNI
-   - AVX512: support AVX512F
-   - AVX2: support AVX2
-   - NATIVE: detect your cpu instruct
-
- - update TORCH_CUDA_ARCH_LIST in Dockerfile with your gpu architecture
-   - you can see your gpu architecture with
-     ```python
-     import torch
-     torch.cuda.get_arch_list()
-     ```
 
  - finish, execute
    ```bash
