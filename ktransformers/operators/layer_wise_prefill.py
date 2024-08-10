@@ -465,6 +465,7 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
         self.per_layer_prefill_intput_threshold = per_layer_prefill_intput_threshold
         self.transfer_map = transfer_map
+        self.stream_device_map = dict()
 
     @add_start_docstrings_to_model_forward(DeepseekV2_INPUTS_DOCSTRING)
     def forward(
@@ -567,18 +568,17 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
         t_cpu = 0
         t_f = 0
 
-        stream_origin = torch.cuda.current_stream()
-        stream_0 = torch.cuda.Stream("cuda:0")
-        stream_1 = torch.cuda.Stream("cuda:1")
-        torch.cuda.set_stream(stream_0)
-
+        torch.cuda.set_device("cuda:0")
         # for decoder_layer in self.layers:
         for i, decoder_layer in enumerate(self.layers):
-            # print(f"\n@@@@@@@@@ layer:{i} @@@@@@@@@@@@@\n", flush=True)
-            if self.transfer_map is not None and i in self.transfer_map:             
-                stream_1.wait_stream(stream_0)
-                torch.cuda.set_device(self.transfer_map[i])
-                torch.cuda.set_stream(stream_1)
+            if self.transfer_map is not None and i in self.transfer_map: 
+                prev_stream = torch.cuda.current_stream()
+                cur_device = self.transfer_map[i]
+                if cur_device not in self.stream_device_map:
+                    self.stream_device_map[cur_device] = torch.cuda.Stream(cur_device)
+                torch.cuda.set_device(cur_device)
+                self.stream_device_map[cur_device].wait_stream(prev_stream)
+                torch.cuda.set_stream(self.stream_device_map[cur_device])
                 hidden_states = hidden_states.to(self.transfer_map[i], non_blocking = True)
                 causal_mask = causal_mask.to(self.transfer_map[i], non_blocking = True)
                 position_ids = position_ids.to(self.transfer_map[i], non_blocking = True)
@@ -633,10 +633,7 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
                 all_self_attns += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
-        hidden_states.to(device = inputs_embeds.device, non_blocking = True)
-        torch.cuda.set_device("cuda:0")
-        torch.cuda.set_stream(stream_origin)
-        
+
         if per_layer_prefill_flag:
             t6 = time.time()
             # print(f"restore")

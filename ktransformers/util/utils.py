@@ -134,7 +134,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         # )
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
-            do_sample=False
+            # do_sample=False
         )
         try: # transformers==4.43
             logits_warper = (
@@ -154,22 +154,20 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
         prefill_count = seq_length
         prefill_time = first_token_time
-        outs = "@@@@@@@@########"
-        tt = stream.put(next_token.item())
-        outs += tt
-        print(tt, end="", flush=True)
+        print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, seq_length] = next_token
         tokens.append(next_token)
         inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
         cache_position = torch.tensor([seq_length], device=torch_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
+        
         if use_cuda_graph:
             cuda_graph_runner = CUDAGraphRunner()
             cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, torch_device, return_dict=False, use_cache=True)
         else:
             cuda_graph_runner = None
-        print("decoding")
+            
         start_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, use_cuda_graph).to(torch_device)
@@ -182,14 +180,10 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
                 print(stream.end(), end="", flush=True)
                 break
             else:
-                tt = stream.put(next_token.item())
-                print(tt, end="", flush=True)
-                outs += tt
-
+                print(stream.put(next_token.item()), end="", flush=True)
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
         
-        print(outs)
 
     total_time = time.time() - start_time
     tokens_generated = len(tokens)

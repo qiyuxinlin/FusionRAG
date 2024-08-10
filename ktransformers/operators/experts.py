@@ -114,8 +114,6 @@ class MLPCPUExperts(MLPExpertsBase):
         self.out_device = out_device
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = False):
-        #if self.out_device not in MLPCPUExperts.stream_map:
-        #    MLPCPUExperts.stream_map[self.out_device] = torch.cuda.Stream(device=self.out_device)
         with torch.device(self.out_device):
             if device:
                 assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
@@ -161,7 +159,6 @@ class MLPCPUExperts(MLPExpertsBase):
             if warmup:
                 self.cpu_infer.submit(self.moe.warm_up)
                 self.cpu_infer.sync()
-        #with torch.cuda.stream(MLPCPUExperts.stream_map[self.out_device]):
         if self.out_device not in MLPCPUExperts.output_gpu_map:
             MLPCPUExperts.output_gpu_map[self.out_device] = torch.zeros((self.config.hidden_size), device=self.out_device)
         if MLPCPUExperts.input_tensor_cpu == None:
@@ -169,26 +166,16 @@ class MLPCPUExperts(MLPExpertsBase):
             MLPCPUExperts.expert_ids_cpu = torch.zeros((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
             MLPCPUExperts.weights_cpu = torch.zeros((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
             MLPCPUExperts.output_cpu = torch.zeros((self.config.hidden_size), device="cpu", pin_memory=True, dtype=torch.bfloat16)
-            # MLPCPUExperts.output_gpu_map[self.out_device] = torch.empty((self.config.hidden_size), device=self.out_device)
-        
+            
     def submit_for_one_decode(self, input_tensor, expert_ids, weights):
-        #torch.cuda.current_stream(self.out_device).synchronize()
-        #with torch.cuda.stream(MLPCPUExperts.stream_map[self.out_device]):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
         MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
         MLPCPUExperts.weights_cpu.copy_(weights, non_blocking=True)
-        #self.cpu_infer.submit_with_cuda_stream(MLPCPUExperts.stream_map[self.out_device].cuda_stream, self.moe.forward, 1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
         self.cpu_infer.submit_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream, self.moe.forward, 1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
-        #input_tensor.record_stream(MLPCPUExperts.stream_map[self.out_device])
-        #expert_ids.record_stream(MLPCPUExperts.stream_map[self.out_device])
-        #weights.record_stream(MLPCPUExperts.stream_map[self.out_device])
-    
+        
     def sync_for_one_decode(self):
-        #with torch.cuda.stream(MLPCPUExperts.stream_map[self.out_device]):
-        #self.cpu_infer.sync_with_cuda_stream(MLPCPUExperts.stream_map[self.out_device].cuda_stream)
         self.cpu_infer.sync_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream)
         MLPCPUExperts.output_gpu_map[self.out_device].copy_(MLPCPUExperts.output_cpu, non_blocking=True)
-        #torch.cuda.current_stream(self.out_device).wait_stream(MLPCPUExperts.stream_map[self.out_device])
         return MLPCPUExperts.output_gpu_map[self.out_device]
 
     def forward(self, input_tensor, expert_ids, weights):
@@ -603,16 +590,11 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         sequence_length = orig_shape[1]
         topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
-        # print(f"DeepseekV2MoEInjected 2: {hidden_states} \n {topk_idx} \n {topk_weight}")
         if sequence_length == 1 and hasattr(self.experts.generate_experts, "submit_for_one_decode"):
             self.experts.generate_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
             if self.config.n_shared_experts is not None:
                 y_ = self.shared_experts(identity).squeeze(0)
-                # print(f"DeepseekV2MoEInjected 3: {y_}, average: {y_.mean()}")
             y = self.experts.generate_experts.sync_for_one_decode().unsqueeze(0)
-            # time.sleep(2)
-            # torch.cuda.synchronize()
-            # print(f"DeepseekV2MoEInjected 4: {y}, average: {y.mean()}")
             y += y_
             y.resize_(*orig_shape)
             return y

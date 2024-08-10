@@ -93,15 +93,14 @@ def local_chat(
 
     logging.basicConfig(level=logging.INFO)
 
-    # system = platform.system()
-    # if (system == u'Windows'):
-    #     os.system('cls')
-    # else:
-    #     os.system('clear')
+    system = platform.system()
+    if (system == u'Windows'):
+        os.system('cls')
+    else:
+        os.system('clear')
 
     while True:
         content = input("Chat: ")
-        # if content is num
         if content == "":
             content = "Please write a piece of quicksort code in C++." 
 
