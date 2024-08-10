@@ -98,6 +98,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
                         past_key_values=past_key_values,
                         return_dict=False, use_cache=True)[0]
         past_key_values.change_seq_length(1)
+        #torch.cuda.synchronize("cuda:0")
+        #torch.cuda.synchronize("cuda:1")
         torch.cuda.synchronize()
         #print(logits)
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
@@ -126,17 +128,21 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         logits = model(
             inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+        # generation_config, model_kwargs = model._prepare_generation_config(
+        #     None, max_length=max_new_tokens,
+        #     do_sample=True, top_k=5, top_p=0.85, temperature=0.1 # change this to modify generate config
+        # )
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
-            do_sample=True, top_k=5, top_p=0.85, temperature=0.1 # change this to modify generate config
+            do_sample=False
         )
         try: # transformers==4.43
             logits_warper = (
-                model._get_logits_warper(generation_config,device=inputs.device) if generation_config.do_sample else None
+                model._get_logits_warper(generation_config,device=inputs.device)
             )
         except: 
             logits_warper = (
-                model._get_logits_warper(generation_config) if generation_config.do_sample else None
+                model._get_logits_warper(generation_config)
             )
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
         if generation_config.do_sample:
@@ -148,8 +154,10 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
         prefill_count = seq_length
         prefill_time = first_token_time
-
-        print(stream.put(next_token.item()), end="", flush=True)
+        outs = "@@@@@@@@########"
+        tt = stream.put(next_token.item())
+        outs += tt
+        print(tt, end="", flush=True)
         generated_ids[:, seq_length] = next_token
         tokens.append(next_token)
         inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
@@ -161,7 +169,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, torch_device, return_dict=False, use_cache=True)
         else:
             cuda_graph_runner = None
-
+        print("decoding")
         start_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, use_cuda_graph).to(torch_device)
@@ -174,9 +182,14 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
                 print(stream.end(), end="", flush=True)
                 break
             else:
-                print(stream.put(next_token.item()), end="", flush=True)
+                tt = stream.put(next_token.item())
+                print(tt, end="", flush=True)
+                outs += tt
+
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
+        
+        print(outs)
 
     total_time = time.time() - start_time
     tokens_generated = len(tokens)

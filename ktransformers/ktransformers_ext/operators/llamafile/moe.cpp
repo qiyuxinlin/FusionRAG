@@ -3,8 +3,8 @@
  * @Author       : chenht2022
  * @Date         : 2024-07-22 02:03:22
  * @Version      : 1.0.0
- * @LastEditors  : chenht2022 
- * @LastEditTime : 2024-07-25 10:35:07
+ * @LastEditors  : Azure 
+ * @LastEditTime : 2024-08-07 15:22:34
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 **/
 #include "moe.h"
@@ -151,6 +151,15 @@ void MOE::forward_one(int k, const uint64_t* expert_ids, const float* weights, c
             }
         }
     }
+    /*for (int i = 0; i < 6; i++)
+        printf("%ld ", expert_ids[i]);
+    printf("\n");
+    for (int i = 0; i < 6; i++)
+        printf("%f ", weights[i]);
+    printf("\n");
+    for (int i = 0; i < 10; i++)
+        printf("%f ", s_input_fp32_[i]);
+    printf("\n");*/
     int nth = config_.intermediate_size / config_.stride;
     backend->do_work_stealing_job(nth * k, [&](int task_id) {
         int expert_idx = task_id / nth;

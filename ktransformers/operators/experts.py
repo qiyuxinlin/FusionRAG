@@ -6,7 +6,7 @@ Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-25 11:25:24
 Version      : 0.1.0
 LastEditors  : Azure 
-LastEditTime : 2024-07-26 09:27:41
+LastEditTime : 2024-08-08 10:14:06
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -94,7 +94,8 @@ class MLPCPUExperts(MLPExpertsBase):
     expert_ids_cpu:Tensor = None
     weights_cpu:Tensor = None
     output_cpu:Tensor = None
-    output_gpu_map:Tensor = {}
+    output_gpu_map:dict = {} # Manage output tensor buffer on different gpu
+    #stream_map:dict = {} # Manage cuda stream on different gpu
     CPU_INFER = cpuinfer_ext.CPUInfer(Config().cpu_infer)
     def __init__(
         self,
@@ -113,69 +114,81 @@ class MLPCPUExperts(MLPExpertsBase):
         self.out_device = out_device
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = False):
-        if device:
-            assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
-        if w is None: w = self.load_weights()[self.key]
-        self.gate = w["gate"]
-        self.up = w["up"]
-        self.down = w["down"]
-        self.gate_type = w["gate_type"]
-        self.up_type = w["up_type"]
-        self.down_type = w["down_type"]
-        gate_ptr = ctypes.addressof(
-            ctypes.cast(self.gate.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
-        )
-        up_ptr = ctypes.addressof(
-            ctypes.cast(self.up.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
-        )
-        down_ptr = ctypes.addressof(
-            ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
-        )
-        # print(self.gate_qtype, self.up_qtype, self.down_qtype)
-        n_routed_experts = self.n_routed_experts
-        # n_routed_experts = len(self.orig_module)
-        moe_config = MOEConfig(
-            n_routed_experts,
-            self.config.num_experts_per_tok,
-            self.config.hidden_size,
-            self.config.moe_intermediate_size,
-            64,
-            10,
-            1024,
-            gate_ptr,
-            up_ptr,
-            down_ptr,
-            self.gate_type,
-            self.up_type,
-            self.down_type,
-            30, # TODO: get from model.dtype
-        )
-        # print(n_routed_experts, hidden_size, moe_intermediate_size)
-        num_experts_per_tok = self.config.num_experts_per_tok
-        self.moe = MOE(moe_config)
-        self.cpu_infer = MLPCPUExperts.CPU_INFER
-        if warmup:
-            self.cpu_infer.submit(self.moe.warm_up)
-            self.cpu_infer.sync()
+        #if self.out_device not in MLPCPUExperts.stream_map:
+        #    MLPCPUExperts.stream_map[self.out_device] = torch.cuda.Stream(device=self.out_device)
+        with torch.device(self.out_device):
+            if device:
+                assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
+            if w is None: w = self.load_weights()[self.key]
+            self.gate = w["gate"]
+            self.up = w["up"]
+            self.down = w["down"]
+            self.gate_type = w["gate_type"]
+            self.up_type = w["up_type"]
+            self.down_type = w["down_type"]
+            gate_ptr = ctypes.addressof(
+                ctypes.cast(self.gate.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
+            )
+            up_ptr = ctypes.addressof(
+                ctypes.cast(self.up.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
+            )
+            down_ptr = ctypes.addressof(
+                ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
+            )
+            # print(self.gate_qtype, self.up_qtype, self.down_qtype)
+            n_routed_experts = self.n_routed_experts
+            # n_routed_experts = len(self.orig_module)
+            moe_config = MOEConfig(
+                n_routed_experts,
+                self.config.num_experts_per_tok,
+                self.config.hidden_size,
+                self.config.moe_intermediate_size,
+                64,
+                10,
+                1024,
+                gate_ptr,
+                up_ptr,
+                down_ptr,
+                self.gate_type,
+                self.up_type,
+                self.down_type,
+                30, # TODO: get from model.dtype
+            )
+            # print(n_routed_experts, hidden_size, moe_intermediate_size)
+            num_experts_per_tok = self.config.num_experts_per_tok
+            self.moe = MOE(moe_config)
+            self.cpu_infer = MLPCPUExperts.CPU_INFER
+            if warmup:
+                self.cpu_infer.submit(self.moe.warm_up)
+                self.cpu_infer.sync()
+        #with torch.cuda.stream(MLPCPUExperts.stream_map[self.out_device]):
         if self.out_device not in MLPCPUExperts.output_gpu_map:
-            MLPCPUExperts.output_gpu_map[self.out_device] = torch.empty((self.config.hidden_size), device=self.out_device)
+            MLPCPUExperts.output_gpu_map[self.out_device] = torch.zeros((self.config.hidden_size), device=self.out_device)
         if MLPCPUExperts.input_tensor_cpu == None:
-            MLPCPUExperts.input_tensor_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
-            MLPCPUExperts.expert_ids_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
-            MLPCPUExperts.weights_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
-            MLPCPUExperts.output_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
+            MLPCPUExperts.input_tensor_cpu = torch.zeros((self.config.hidden_size), device="cpu", pin_memory=True)
+            MLPCPUExperts.expert_ids_cpu = torch.zeros((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
+            MLPCPUExperts.weights_cpu = torch.zeros((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
+            MLPCPUExperts.output_cpu = torch.zeros((self.config.hidden_size), device="cpu", pin_memory=True, dtype=torch.bfloat16)
             # MLPCPUExperts.output_gpu_map[self.out_device] = torch.empty((self.config.hidden_size), device=self.out_device)
-
+        
     def submit_for_one_decode(self, input_tensor, expert_ids, weights):
+        #torch.cuda.current_stream(self.out_device).synchronize()
+        #with torch.cuda.stream(MLPCPUExperts.stream_map[self.out_device]):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
         MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
         MLPCPUExperts.weights_cpu.copy_(weights, non_blocking=True)
-        self.cpu_infer.submit_with_cuda_stream(torch.cuda.current_stream().cuda_stream, self.moe.forward, 1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
+        #self.cpu_infer.submit_with_cuda_stream(MLPCPUExperts.stream_map[self.out_device].cuda_stream, self.moe.forward, 1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
+        self.cpu_infer.submit_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream, self.moe.forward, 1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
+        #input_tensor.record_stream(MLPCPUExperts.stream_map[self.out_device])
+        #expert_ids.record_stream(MLPCPUExperts.stream_map[self.out_device])
+        #weights.record_stream(MLPCPUExperts.stream_map[self.out_device])
     
     def sync_for_one_decode(self):
-        self.cpu_infer.sync_with_cuda_stream(torch.cuda.current_stream().cuda_stream)
+        #with torch.cuda.stream(MLPCPUExperts.stream_map[self.out_device]):
+        #self.cpu_infer.sync_with_cuda_stream(MLPCPUExperts.stream_map[self.out_device].cuda_stream)
+        self.cpu_infer.sync_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream)
         MLPCPUExperts.output_gpu_map[self.out_device].copy_(MLPCPUExperts.output_cpu, non_blocking=True)
-        #print("capturing experts finish")
+        #torch.cuda.current_stream(self.out_device).wait_stream(MLPCPUExperts.stream_map[self.out_device])
         return MLPCPUExperts.output_gpu_map[self.out_device]
 
     def forward(self, input_tensor, expert_ids, weights):
@@ -199,6 +212,7 @@ class MLPCPUExperts(MLPExpertsBase):
             self.cpu_infer.sync()
             return output.to(device=object.__getattribute__(self, "out_device"))
             # return output.to(device=object.__getattribute__(self, "device"))
+            # return torch.zeros_like(output, device=self.out_device, dtype=torch.bfloat16)
     
     def unload(self):
         return
@@ -581,20 +595,24 @@ class Qwen2MoeSparseMoeBlockInjected(BaseInjectedModule, Qwen2MoeSparseMoeBlock)
 
         return final_hidden_states
 
-
 class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
     def forward(self, hidden_states):
+        # print(f"DeepseekV2MoEInjected 1: {hidden_states}")
         identity = hidden_states
         orig_shape = hidden_states.shape
         sequence_length = orig_shape[1]
         topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
-        
-        if sequence_length == 1:
+        # print(f"DeepseekV2MoEInjected 2: {hidden_states} \n {topk_idx} \n {topk_weight}")
+        if sequence_length == 1 and hasattr(self.experts.generate_experts, "submit_for_one_decode"):
             self.experts.generate_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
             if self.config.n_shared_experts is not None:
                 y_ = self.shared_experts(identity).squeeze(0)
+                # print(f"DeepseekV2MoEInjected 3: {y_}, average: {y_.mean()}")
             y = self.experts.generate_experts.sync_for_one_decode().unsqueeze(0)
+            # time.sleep(2)
+            # torch.cuda.synchronize()
+            # print(f"DeepseekV2MoEInjected 4: {y}, average: {y.mean()}")
             y += y_
             y.resize_(*orig_shape)
             return y

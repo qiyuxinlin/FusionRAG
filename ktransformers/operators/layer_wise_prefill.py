@@ -6,7 +6,7 @@ Author       : Azure-Tang
 Date         : 2024-07-25 11:25:24
 Version      : 1.0.0
 LastEditors  : Azure 
-LastEditTime : 2024-07-26 09:27:48
+LastEditTime : 2024-08-08 10:09:14
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -265,9 +265,9 @@ class Qwen2MoeModelKTransformers(BaseInjectedModule):
         for i, decoder_layer in enumerate(self.layers):
             if self.transfer_map is not None and i in self.transfer_map:
                 hidden_states = hidden_states.to(self.transfer_map[i])
-                causal_mask = causal_mask.to(self.transfer_map[i])
-                position_ids = position_ids.to(self.transfer_map[i])
-                cache_position = cache_position.to(self.transfer_map[i])
+                causal_mask = causal_mask.to(self.transfer_map[i]) if causal_mask is not None else None
+                position_ids = position_ids.to(self.transfer_map[i]) if position_ids is not None else None
+                cache_position = cache_position.to(self.transfer_map[i]) if cache_position is not None else None
                 
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -567,13 +567,22 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
         t_cpu = 0
         t_f = 0
 
+        stream_origin = torch.cuda.current_stream()
+        stream_0 = torch.cuda.Stream("cuda:0")
+        stream_1 = torch.cuda.Stream("cuda:1")
+        torch.cuda.set_stream(stream_0)
+
         # for decoder_layer in self.layers:
         for i, decoder_layer in enumerate(self.layers):
-            if self.transfer_map is not None and i in self.transfer_map:
-                hidden_states = hidden_states.to(self.transfer_map[i])
-                causal_mask = causal_mask.to(self.transfer_map[i])
-                position_ids = position_ids.to(self.transfer_map[i])
-                cache_position = cache_position.to(self.transfer_map[i])
+            # print(f"\n@@@@@@@@@ layer:{i} @@@@@@@@@@@@@\n", flush=True)
+            if self.transfer_map is not None and i in self.transfer_map:             
+                stream_1.wait_stream(stream_0)
+                torch.cuda.set_device(self.transfer_map[i])
+                torch.cuda.set_stream(stream_1)
+                hidden_states = hidden_states.to(self.transfer_map[i], non_blocking = True)
+                causal_mask = causal_mask.to(self.transfer_map[i], non_blocking = True)
+                position_ids = position_ids.to(self.transfer_map[i], non_blocking = True)
+                cache_position = cache_position.to(self.transfer_map[i], non_blocking = True)
 
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -624,7 +633,10 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
                 all_self_attns += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
-
+        hidden_states.to(device = inputs_embeds.device, non_blocking = True)
+        torch.cuda.set_device("cuda:0")
+        torch.cuda.set_stream(stream_origin)
+        
         if per_layer_prefill_flag:
             t6 = time.time()
             # print(f"restore")
