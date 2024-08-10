@@ -157,7 +157,7 @@ class MLPCPUExperts(MLPExpertsBase):
             self.moe = MOE(moe_config)
             self.cpu_infer = MLPCPUExperts.CPU_INFER
             if warmup:
-                self.cpu_infer.submit(self.moe.warm_up)
+                self.cpu_infer.submit(self.moe.warm_up())
                 self.cpu_infer.sync()
         if self.out_device not in MLPCPUExperts.output_gpu_map:
             MLPCPUExperts.output_gpu_map[self.out_device] = torch.zeros((self.config.hidden_size), device=self.out_device)
@@ -171,7 +171,7 @@ class MLPCPUExperts(MLPExpertsBase):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
         MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
         MLPCPUExperts.weights_cpu.copy_(weights, non_blocking=True)
-        self.cpu_infer.submit_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream, self.moe.forward, 1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr())
+        self.cpu_infer.submit_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream, self.moe.forward(1, expert_ids.size(0), MLPCPUExperts.expert_ids_cpu.data_ptr(), MLPCPUExperts.weights_cpu.data_ptr(), MLPCPUExperts.input_tensor_cpu.data_ptr(), MLPCPUExperts.output_cpu.data_ptr()))
         
     def sync_for_one_decode(self):
         self.cpu_infer.sync_with_cuda_stream(torch.cuda.current_stream(self.out_device).cuda_stream)

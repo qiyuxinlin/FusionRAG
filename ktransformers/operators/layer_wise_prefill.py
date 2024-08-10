@@ -176,6 +176,7 @@ class Qwen2MoeModelKTransformers(BaseInjectedModule):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
         self.per_layer_prefill_intput_threshold = per_layer_prefill_intput_threshold
         self.transfer_map = transfer_map
+        self.stream_device_map = dict()
 
     @add_start_docstrings_to_model_forward(QWEN2MOE_INPUTS_DOCSTRING)
     def forward(
@@ -261,13 +262,21 @@ class Qwen2MoeModelKTransformers(BaseInjectedModule):
         all_router_logits = () if output_router_logits else None
         next_decoder_cache = None
 
+        torch.cuda.set_device("cuda:0")
         # for decoder_layer in self.layers:
         for i, decoder_layer in enumerate(self.layers):
-            if self.transfer_map is not None and i in self.transfer_map:
-                hidden_states = hidden_states.to(self.transfer_map[i])
-                causal_mask = causal_mask.to(self.transfer_map[i]) if causal_mask is not None else None
-                position_ids = position_ids.to(self.transfer_map[i]) if position_ids is not None else None
-                cache_position = cache_position.to(self.transfer_map[i]) if cache_position is not None else None
+            if self.transfer_map is not None and i in self.transfer_map: 
+                prev_stream = torch.cuda.current_stream()
+                cur_device = self.transfer_map[i]
+                if cur_device not in self.stream_device_map:
+                    self.stream_device_map[cur_device] = torch.cuda.Stream(cur_device)
+                torch.cuda.set_device(cur_device)
+                self.stream_device_map[cur_device].wait_stream(prev_stream)
+                torch.cuda.set_stream(self.stream_device_map[cur_device])
+                hidden_states = hidden_states.to(self.transfer_map[i], non_blocking = True)
+                causal_mask = causal_mask.to(self.transfer_map[i], non_blocking = True) if causal_mask is not None else None
+                position_ids = position_ids.to(self.transfer_map[i], non_blocking = True) if position_ids is not None else None
+                cache_position = cache_position.to(self.transfer_map[i], non_blocking = True) if cache_position is not None else None
                 
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -580,9 +589,9 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
                 self.stream_device_map[cur_device].wait_stream(prev_stream)
                 torch.cuda.set_stream(self.stream_device_map[cur_device])
                 hidden_states = hidden_states.to(self.transfer_map[i], non_blocking = True)
-                causal_mask = causal_mask.to(self.transfer_map[i], non_blocking = True)
-                position_ids = position_ids.to(self.transfer_map[i], non_blocking = True)
-                cache_position = cache_position.to(self.transfer_map[i], non_blocking = True)
+                causal_mask = causal_mask.to(self.transfer_map[i], non_blocking = True) if causal_mask is not None else None
+                position_ids = position_ids.to(self.transfer_map[i], non_blocking = True) if position_ids is not None else None
+                cache_position = cache_position.to(self.transfer_map[i], non_blocking = True) if cache_position is not None else None
 
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
