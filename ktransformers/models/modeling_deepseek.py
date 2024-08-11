@@ -1232,11 +1232,9 @@ class DeepseekV2DecoderLayer(nn.Module):
             warnings.warn(
                 "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
             )
-        # print(f"DecoderLayer 1: hidden_states: {hidden_states} average: {hidden_states.mean()}")
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         # Self Attention
-        # print(f"DecoderLayer 2.0: hidden_states: {hidden_states} average: {hidden_states.mean()}")
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -1247,16 +1245,13 @@ class DeepseekV2DecoderLayer(nn.Module):
             cache_position=cache_position,
             **kwargs,
         )
-        # print(f"DecoderLayer 2.1: hidden_states: {hidden_states} average: {hidden_states.mean()}")
 
         hidden_states = residual + hidden_states
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        # print(f"DecoderLayer 3: hidden_states: {hidden_states} average: {hidden_states.mean()}")
         hidden_states = self.mlp(hidden_states)
-        # print(f"DecoderLayer 4: hidden_states: {hidden_states} average: {hidden_states.mean()}")
 
         hidden_states = residual + hidden_states
 
