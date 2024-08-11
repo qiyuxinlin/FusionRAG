@@ -1,5 +1,5 @@
 - match:
-    name: "^model\\.layers\\..*\\."
+    name: "^model\\.layers\\..*\\.|^lm_head"
   replace:
     class: "default"
     kwargs:
