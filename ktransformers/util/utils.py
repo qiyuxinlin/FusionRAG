@@ -89,7 +89,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000):
         #                  past_key_values=past_key_values,
         #                  return_dict=False, use_cache=True)[0]
                   
-        # torch.cuda.synchronize()
+        torch.cuda.synchronize()
         #print(logits)
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
         if generation_config.do_sample:
