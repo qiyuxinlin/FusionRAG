@@ -6,7 +6,7 @@ Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-25 11:25:24
 Version      : 0.1.0
 LastEditors  : kkk1nak0
-LastEditTime : 2024-08-11 11:41:18
+LastEditTime : 2024-08-11 12:14:39
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -133,57 +133,59 @@ class MLPCPUExperts(MLPExpertsBase):
         self.out_device = out_device
 
     def load(self, w: dict | nn.Parameter | tuple | None = None, device:str|None = None, warmup:bool = False):
-        if device:
-            assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
-        if w is None: w = self.load_weights()[self.key]
-        self.gate = w["gate"]
-        self.up = w["up"]
-        self.down = w["down"]
-        self.gate_type = w["gate_type"]
-        self.up_type = w["up_type"]
-        self.down_type = w["down_type"]
-        gate_ptr = ctypes.addressof(
-            ctypes.cast(self.gate.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
-        )
-        up_ptr = ctypes.addressof(
-            ctypes.cast(self.up.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
-        )
-        down_ptr = ctypes.addressof(
-            ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
-        )
-        # print(self.gate_qtype, self.up_qtype, self.down_qtype)
-        n_routed_experts = self.n_routed_experts
-        # n_routed_experts = len(self.orig_module)
-        moe_config = MOEConfig(
-            n_routed_experts,
-            self.config.num_experts_per_tok,
-            self.config.hidden_size,
-            self.config.moe_intermediate_size,
-            64,
-            10,
-            1024,
-            gate_ptr,
-            up_ptr,
-            down_ptr,
-            self.gate_type,
-            self.up_type,
-            self.down_type,
-            30, # TODO: get from model.dtype
-        )
-        # print(n_routed_experts, hidden_size, moe_intermediate_size)
-        num_experts_per_tok = self.config.num_experts_per_tok
-        self.moe = MOE(moe_config)
-        self.cpu_infer = MLPCPUExperts.CPU_INFER
-        if warmup:
-            self.cpu_infer.submit(self.moe.warm_up)
-            self.cpu_infer.sync()
-        if MLPCPUExperts.output_gpu == None:
-            MLPCPUExperts.input_tensor_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
-            MLPCPUExperts.expert_ids_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
-            MLPCPUExperts.weights_cpu = torch.empty((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
-            MLPCPUExperts.output_cpu = torch.empty((self.config.hidden_size), device="cpu", pin_memory=True)
-            MLPCPUExperts.output_gpu = torch.empty((self.config.hidden_size), device=self.out_device)
-
+        with torch.device(self.out_device):
+            if device:
+                assert device.lower() == "cpu", "MLPCPUExperts can only be loaded on CPU, Parameter \"device\" can be cpu or None."
+            if w is None: w = self.load_weights()[self.key]
+            self.gate = w["gate"]
+            self.up = w["up"]
+            self.down = w["down"]
+            self.gate_type = w["gate_type"]
+            self.up_type = w["up_type"]
+            self.down_type = w["down_type"]
+            gate_ptr = ctypes.addressof(
+                ctypes.cast(self.gate.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
+            )
+            up_ptr = ctypes.addressof(
+                ctypes.cast(self.up.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
+            )
+            down_ptr = ctypes.addressof(
+                ctypes.cast(self.down.ctypes.data, ctypes.POINTER(ctypes.c_uint64)).contents
+            )
+            # print(self.gate_qtype, self.up_qtype, self.down_qtype)
+            n_routed_experts = self.n_routed_experts
+            # n_routed_experts = len(self.orig_module)
+            moe_config = MOEConfig(
+                n_routed_experts,
+                self.config.num_experts_per_tok,
+                self.config.hidden_size,
+                self.config.moe_intermediate_size,
+                64,
+                10,
+                1024,
+                gate_ptr,
+                up_ptr,
+                down_ptr,
+                self.gate_type,
+                self.up_type,
+                self.down_type,
+                30, # TODO: get from model.dtype
+            )
+            # print(n_routed_experts, hidden_size, moe_intermediate_size)
+            num_experts_per_tok = self.config.num_experts_per_tok
+            self.moe = MOE(moe_config)
+            self.cpu_infer = MLPCPUExperts.CPU_INFER
+            if warmup:
+                self.cpu_infer.submit(self.moe.warm_up())
+                self.cpu_infer.sync()
+        if self.out_device not in MLPCPUExperts.output_gpu_map:
+            MLPCPUExperts.output_gpu_map[self.out_device] = torch.zeros((self.config.hidden_size), device=self.out_device)
+        if MLPCPUExperts.input_tensor_cpu == None:
+            MLPCPUExperts.input_tensor_cpu = torch.zeros((self.config.hidden_size), device="cpu", pin_memory=True)
+            MLPCPUExperts.expert_ids_cpu = torch.zeros((num_experts_per_tok), device="cpu", dtype=torch.long, pin_memory=True)
+            MLPCPUExperts.weights_cpu = torch.zeros((num_experts_per_tok), device="cpu", dtype=torch.float32, pin_memory=True)
+            MLPCPUExperts.output_cpu = torch.zeros((self.config.hidden_size), device="cpu", pin_memory=True, dtype=torch.bfloat16)
+            
     def submit_for_one_decode(self, input_tensor, expert_ids, weights):
         MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
         MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
@@ -722,7 +724,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         )
         return final_out
 
-class MisrtalMoEBlockInjected(BaseInjectedModule, MixtralSparseMoeBlock):
+class MisrtalSparseMoEBlockInjected(BaseInjectedModule, MixtralSparseMoeBlock):
     
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         """ """
