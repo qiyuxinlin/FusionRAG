@@ -50,7 +50,8 @@ def local_chat(
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
-    cpu_infer: int = Config().cpu_infer
+    cpu_infer: int = Config().cpu_infer,
+    use_cuda_graph: bool = True,
 ):
     torch.set_grad_enabled(False)
     
@@ -100,7 +101,6 @@ def local_chat(
 
     while True:
         content = input("Chat: ")
-        # if content is num
         if content == "":
             content = "Please write a piece of quicksort code in C++." 
 
@@ -109,7 +109,7 @@ def local_chat(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
         torch.set_default_dtype(torch.bfloat16) # TODO: Remove this, replace dtype using config
-        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens)
+        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens, use_cuda_graph)
 
 if __name__ == "__main__":
     fire.Fire(local_chat)

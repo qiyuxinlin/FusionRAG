@@ -167,6 +167,7 @@ class GGUFLoader:
         self.tensor_file_map = {}
         self.file_data_map = {}
         self.gguf_file_meta = {}
+        self.tensor_device_map = {}
         
         # Walk through all the .gguf files in the directory
         for root, dirs, files in os.walk(gguf_path):
