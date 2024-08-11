@@ -3,7 +3,6 @@ from setuptools import setup, Extension
 from torch.utils import cpp_extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os
-os.environ['TORCH_USE_CUDA_DSA'] = '1'  # Add this line
 setup(
     name='KTransformersOps',
     ext_modules=[
@@ -19,9 +18,7 @@ setup(
                 'nvcc': [
                     '-O3',
                     '--use_fast_math',
-                    # '-lineinfo',
                     '-Xcompiler', '-fPIC',
-                    # '-D TORCH_USE_CUDA_DSA'  # Add this line
                 ]
             },
         )
