@@ -31,18 +31,21 @@ import fire
 from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
+from ktransformers.models.modeling_mixtral import MixtralForCausalLM
 from ktransformers.util.utils import prefill_and_generate
 from ktransformers.server.config.config import Config
 
 custom_models = {
     "DeepseekV2ForCausalLM": DeepseekV2ForCausalLM,
     "Qwen2MoeForCausalLM": Qwen2MoeForCausalLM,
+    "MixtralForCausalLM": MixtralForCausalLM,
 }
 
 ktransformer_rules_dir = os.path.dirname(os.path.abspath(__file__)) + "/optimize/optimize_rules/"
 default_optimize_rules ={
     "DeepseekV2ForCausalLM": ktransformer_rules_dir + "DeepSeek-V2-Chat.yaml",
     "Qwen2MoeForCausalLM": ktransformer_rules_dir + "Qwen2-57B-A14B-Instruct.yaml",
+    "MixtralForCausalLM": ktransformer_rules_dir + "Mixtral.yaml",
 }
 
 def local_chat(
@@ -64,6 +67,8 @@ def local_chat(
         if config.architectures[0] in custom_models:
             print("using custom modeling_xxx.py.")
             if "Qwen2Moe" in config.architectures[0]: # Qwen2Moe must use flash_attention_2 to avoid overflow.
+                config._attn_implementation = "flash_attention_2"
+            if "Mixtral" in config.architectures[0]: 
                 config._attn_implementation = "flash_attention_2"
             model = custom_models[config.architectures[0]](config)
         else:

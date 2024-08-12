@@ -3,8 +3,8 @@
  * @Author       : Azure-Tang, Boxin Zhang
  * @Date         : 2024-07-25 13:38:30
  * @Version      : 1.0.0
- * @LastEditors  : Azure 
- * @LastEditTime : 2024-07-26 11:58:50
+ * @LastEditors  : kkk1nak0
+ * @LastEditTime : 2024-08-09 07:57:06
  * Adapted from https://github.com/ggerganov/ggml/blob/fca1caafea7de9fbd7efc733b9818f9cf2da3050/src/ggml-quants.c
  * Copyright (c) 2023-2024 The ggml authors
  * Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
@@ -56,6 +56,35 @@ __global__ void dequantize_q4_k_kernel(int8_t* data, float* output, int blk_size
             for (int l = 0; l < 32; ++l) *output_blk++ = d1 * (q[l] & 0xF) - m1;
             for (int l = 0; l < 32; ++l) *output_blk++ = d2 * (q[l]  >> 4) - m2;
             q += 32; is += 2;
+        }
+    }
+}
+
+__global__ void dequantize_q5_k_kernel(int8_t* data, float* output, int blk_size, int num_blocks) {
+    int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    for (auto block_id=global_idx; block_id<num_blocks; block_id+= blockDim.x * gridDim.x){
+        float* __restrict__ output_blk = (float*)(output + block_id * 256);
+
+        const float d   = __half2float(*(reinterpret_cast<half*>(data + block_id * blk_size + 0)));
+        const float min = __half2float(*(reinterpret_cast<half*>(data + block_id * blk_size + 2)));
+
+        const uint8_t * __restrict__ qh = (uint8_t*)(data + block_id * blk_size + 16);
+        const uint8_t * __restrict__ ql = (uint8_t*)(data + block_id * blk_size + 48);
+
+        int is = 0;
+        uint8_t sc, m;
+        uint8_t u1 = 1, u2 = 2;
+        uint8_t* scales = (uint8_t*)(data + block_id * blk_size + 4);
+
+        for (int j = 0; j < 256; j += 64) {
+            get_scale_min_k4(is + 0, scales, &sc, &m);
+            const float d1 = d * sc; const float m1 = min * m;
+            get_scale_min_k4(is + 1, scales, &sc, &m);
+            const float d2 = d * sc; const float m2 = min * m;
+            for (int l = 0; l < 32; ++l) *output_blk++ = d1 * ((ql[l] & 0xF) + (qh[l] & u1 ? 16 : 0)) - m1;
+            for (int l = 0; l < 32; ++l) *output_blk++ = d2 * ((ql[l]  >> 4) + (qh[l] & u2 ? 16 : 0)) - m2;
+            ql += 32; is += 2;
+            u1 <<= 2; u2 <<= 2;
         }
     }
 }
@@ -162,6 +191,25 @@ torch::Tensor dequantize_q4_k(torch::Tensor data, int blk_size, torch::Device de
 
     // Launch kernel
     dequantize_q4_k_kernel<<< 512, 256 >>>(data_gpu.data_ptr<int8_t>(), output.data_ptr<float>(), 256, num_blocks);
+
+    cudaDeviceSynchronize();
+    return output;
+}
+
+
+torch::Tensor dequantize_q5_k(torch::Tensor data, int blk_size, torch::Device device) {
+    int num_blocks = data.numel() / blk_size;
+
+    auto options = torch::TensorOptions().dtype(torch::kInt8).device(device).memory_format(torch::MemoryFormat::Contiguous);
+    auto data_gpu = torch::empty({data.numel()}, options);
+
+    data_gpu.copy_(data, false);
+
+    // Create output tensor
+    auto output = torch::zeros({num_blocks, 256}, torch::dtype(torch::kFloat32).device(device));
+
+    // Launch kernel
+    dequantize_q5_k_kernel<<< 512, 256 >>>(data_gpu.data_ptr<int8_t>(), output.data_ptr<float>(), blk_size, num_blocks);
 
     cudaDeviceSynchronize();
     return output;

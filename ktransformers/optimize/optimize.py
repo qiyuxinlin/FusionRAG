@@ -106,6 +106,14 @@ def gen_optimize_config(module: nn.Module, out_data: Mapping, rule_list: List, p
                 gen_optimize_config(child, out_data, rule_list, child_prefix)
     
 
+def translate_model_config(model_config: PretrainedConfig):
+    # for supporting some special model 
+    if model_config.model_type == "mixtral":
+        model_config.moe_intermediate_size = model_config.intermediate_size
+    
+    return model_config
+
+
 def optimize_and_load_gguf(module: nn.Module, rule_file: str, gguf_path: str, model_config: PretrainedConfig, default_device: str = "cuda:0"):
     with open(rule_file, 'r', encoding='utf-8') as f:
         rule_list = yaml.load(f.read(), Loader=yaml.FullLoader)
@@ -113,6 +121,8 @@ def optimize_and_load_gguf(module: nn.Module, rule_file: str, gguf_path: str, mo
     optimize_config = dict()
     gen_optimize_config(module, optimize_config, rule_list, default_device = default_device)
     
+    model_config = translate_model_config(model_config)
+
     gguf_loader=GGUFLoader(gguf_path)
     with torch.device("meta"):
         inject(module, optimize_config, model_config, gguf_loader)

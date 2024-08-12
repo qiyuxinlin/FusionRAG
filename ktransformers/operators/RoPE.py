@@ -10,6 +10,7 @@ from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.util.utils import InferenceState
 from transformers.configuration_utils import PretrainedConfig
+
 # Copied from transformers.models.mixtral.modeling_mixtral.MixtralRotaryEmbedding with Mixtral->Qwen2Moe
 class RotaryEmbedding(BaseInjectedModule, DeepseekV2RotaryEmbedding):
     def __init__(self,
