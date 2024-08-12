@@ -35,6 +35,7 @@ class CUDAGraphRunner:
         if main_device == "cuda":
             main_device = "cuda:0"
         torch.cuda.set_device(main_device)
+        self.main_device = main_device
         capture_stream = torch.cuda.Stream()
         with torch.cuda.graph(self.graph, stream = capture_stream):
             logits=model(inputs_embeds=inputs_embeds, 
@@ -46,7 +47,7 @@ class CUDAGraphRunner:
             torch.cuda.set_device(main_device)
             torch.cuda.set_stream(capture_stream)
         past_key_values.change_seq_length(-1)
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(self.main_device)
         #self.graph.debug_dump("cuda_graph_hooked.dot")
 
         # Save the input and output buffers.
@@ -74,7 +75,7 @@ class CUDAGraphRunner:
         #print("begin replay")
         #time.sleep(1)
         self.graph.replay()
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(self.main_device)
         # Return the output tensor.
         return self.output_buffers["logits"]
 

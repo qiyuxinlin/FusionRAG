@@ -262,8 +262,6 @@ class Qwen2MoeModelKTransformers(BaseInjectedModule):
         all_router_logits = () if output_router_logits else None
         next_decoder_cache = None
 
-        torch.cuda.set_device("cuda:0")
-        # for decoder_layer in self.layers:
         for i, decoder_layer in enumerate(self.layers):
             if self.transfer_map is not None and i in self.transfer_map: 
                 prev_stream = torch.cuda.current_stream()
@@ -577,8 +575,6 @@ class DeepseekV2ModelKTransformers(BaseInjectedModule):
         t_cpu = 0
         t_f = 0
 
-        torch.cuda.set_device("cuda:0")
-        # for decoder_layer in self.layers:
         for i, decoder_layer in enumerate(self.layers):
             if self.transfer_map is not None and i in self.transfer_map: 
                 prev_stream = torch.cuda.current_stream()
