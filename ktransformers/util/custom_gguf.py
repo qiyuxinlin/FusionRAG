@@ -288,6 +288,9 @@ class GGUFLoader:
 
         if "cuda" in device.lower():
             values = GGML_DEQUANTIZE_GPU[ggml_name](data, device)
+            #values = GGML_DEQUANTIZE[ggml_name](data)
+            #print("load_gguf_tensor")
+            #values = torch.from_numpy(values).to(device = device)
         else:
             values = GGML_DEQUANTIZE[ggml_name](data)
             values = torch.from_numpy(values)

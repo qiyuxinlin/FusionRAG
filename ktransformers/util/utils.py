@@ -91,6 +91,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
     batch_size, seq_length = inputs.shape
     device_map = model.config.gguf_loader.tensor_device_map
     torch_device = get_device('blk.0.self_attn', device_map)
+    torch_device = "cuda:0" if torch_device == "cuda" else torch_device
     inputs = inputs.to(torch_device)
     all_cuda_device = get_all_used_cuda_device(device_map)
 
@@ -134,7 +135,6 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         generated_ids[:, cache_position] = inputs.to(torch_device).to(torch.int)
         past_key_values.cur_idx=cache_position
         start_time = time.time()
-
 
         inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to(torch_device)
         logits = model(

@@ -2,7 +2,6 @@
 from setuptools import setup, Extension
 from torch.utils import cpp_extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
-import os
 setup(
     name='KTransformersOps',
     ext_modules=[
