@@ -119,5 +119,5 @@ void MLP::forward(int qlen, const void* input, void* output, Backend* backend) {
     }
     int forward_len = std::min(qlen, config_.group_max_len);
     forward_many(forward_len, input, output, backend);
-    forward(qlen - forward_len, input + forward_len * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), output + forward_len * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), backend);
+    forward(qlen - forward_len, (uint8_t*)input + forward_len * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), (uint8_t*)output + forward_len * config_.hidden_size * ggml_type_size(config_.hidden_type) / ggml_blck_size(config_.hidden_type), backend);
 }
