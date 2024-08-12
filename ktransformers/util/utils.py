@@ -90,6 +90,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             logits = cuda_graph_runner(cur_token, position_ids, cache_position)
         else:
             # custom_stream = torch.cuda.Stream()
+            torch.cuda.set_device(torch_device)
             inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to(torch_device)
             # with torch.cuda.stream(custom_stream):
             logits=model(inputs_embeds=inputs_embeds,
@@ -108,7 +109,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         else:
             next_token = torch.argmax(next_token_scores, dim=-1)
         return next_token
-
+    
+    torch.cuda.set_device(torch_device)
     with torch.no_grad():
         stream = TextStreamer(tokenizer)
         past_key_values = StaticCache(
