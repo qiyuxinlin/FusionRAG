@@ -19,7 +19,9 @@ import torch
 import sys, os
 from ktransformers.operators.base_operator import BaseInjectedModule
 
-sys.path.append(os.path.dirname(__file__) + "/../ktransformers_ext/build")
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "ktransformers_ext", "build"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "ktransformers_ext", "build", "Release"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "ktransformers_ext", "build", "Debug"))
 import cpuinfer_ext
 from cpuinfer_ext.moe import MOEConfig, MOE
 import ctypes
@@ -201,6 +203,8 @@ class MLPCPUExperts(MLPExpertsBase):
         # generate, capture and run cuda graph
         # print(expert_ids)
         if input_tensor.size(0)==1:
+            # TODO: this branch is unreachable, but the shape of input_tensor([1,hidden_size]) and input_tensor_cpu([hidden_size]) is not compatible
+            #print("capturing experts")
             MLPCPUExperts.input_tensor_cpu.copy_(input_tensor, non_blocking=True)
             MLPCPUExperts.expert_ids_cpu.copy_(expert_ids, non_blocking=True)
             MLPCPUExperts.weights_cpu.copy_(weights, non_blocking=True)
@@ -400,6 +404,8 @@ class MLPExpertsTorch(MLPExpertsBase):
 
         org_device = hidden_states_cpu.device
         hidden_states_cpu = hidden_states_cpu.to(self.device)
+        selected_experts_cpu = selected_experts_cpu.to(self.device)
+        routing_weights_cpu = routing_weights_cpu.to(self.device)
         
         batch_sequence_length, hidden_dim = hidden_states_cpu.size()
 
@@ -629,6 +635,7 @@ class DeepseekV2MoEInjected(BaseInjectedModule, DeepseekV2MoE):
         sequence_length = orig_shape[1]
         topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
+        
         if sequence_length == 1 and hasattr(self.experts.generate_experts, "submit_for_one_decode"):
             self.experts.generate_experts.submit_for_one_decode(hidden_states[0], topk_idx[0], topk_weight[0])
             if self.config.n_shared_experts is not None:

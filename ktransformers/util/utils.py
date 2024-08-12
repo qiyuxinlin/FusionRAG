@@ -45,6 +45,16 @@ def get_device(gguf_module_key:str, device_map:dict):
     else:
         return "cuda"
 
+def get_all_used_cuda_device(device_map:dict):
+    all_device_list = set()
+    for key in device_map:
+        all_device_list.add(device_map[key]["generate_device"]) if "generate_device" in device_map[key] else None
+        all_device_list.add(device_map[key]["prefill_device"]) if "prefill_device" in device_map[key] else None
+    if "cpu" in all_device_list:
+        all_device_list.remove("cpu")
+    all_device_list = list(all_device_list)
+    return all_device_list
+
 def load_cur_state_dict(module: nn.Module, gguf_loader: GGUFLoader, prefix: str = ""):
     prefix = prefix.replace("orig_module.", "")
     persistent_buffers = {k: v for k, v in module._buffers.items() if k not in module._non_persistent_buffers_set}
@@ -81,7 +91,9 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
     batch_size, seq_length = inputs.shape
     device_map = model.config.gguf_loader.tensor_device_map
     torch_device = get_device('blk.0.self_attn', device_map)
+    torch_device = "cuda:0" if torch_device == "cuda" else torch_device
     inputs = inputs.to(torch_device)
+    all_cuda_device = get_all_used_cuda_device(device_map)
 
     tokens = []
     
@@ -90,6 +102,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             logits = cuda_graph_runner(cur_token, position_ids, cache_position)
         else:
             # custom_stream = torch.cuda.Stream()
+            torch.cuda.set_device(torch_device)
             inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to(torch_device)
             # with torch.cuda.stream(custom_stream):
             logits=model(inputs_embeds=inputs_embeds,
@@ -98,8 +111,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
                         past_key_values=past_key_values,
                         return_dict=False, use_cache=True)[0]
         past_key_values.change_seq_length(1)
-        for i in range(torch.cuda.device_count()):
-            torch.cuda.synchronize(f"cuda:{i}")
+        for device in all_cuda_device:
+            torch.cuda.synchronize(device)
         #print(logits)
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
         if generation_config.do_sample:
@@ -108,7 +121,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         else:
             next_token = torch.argmax(next_token_scores, dim=-1)
         return next_token
-
+    
+    torch.cuda.set_device(torch_device)
     with torch.no_grad():
         stream = TextStreamer(tokenizer)
         past_key_values = StaticCache(
@@ -121,7 +135,6 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         generated_ids[:, cache_position] = inputs.to(torch_device).to(torch.int)
         past_key_values.cur_idx=cache_position
         start_time = time.time()
-
 
         inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to(torch_device)
         logits = model(
