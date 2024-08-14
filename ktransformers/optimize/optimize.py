@@ -127,6 +127,6 @@ def optimize_and_load_gguf(module: nn.Module, rule_file: str, gguf_path: str, mo
     with torch.device("meta"):
         inject(module, optimize_config, model_config, gguf_loader)
     load_weights(module, gguf_loader)
-    model_config.gguf_loader = gguf_loader
+    module.gguf_loader = gguf_loader
     del_meta(module)
     torch.cuda.empty_cache()
