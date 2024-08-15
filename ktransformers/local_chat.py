@@ -99,6 +99,20 @@ def local_chat(
 
     while True:
         content = input("Chat: ")
+        if content.startswith('"""'): # prefix """
+            # multi lines input
+            content = content[3:] + "\n"
+            while True:
+                line = input("")
+                if line.endswith('"""'):
+                    # end multi lines input
+                    line = line[:-3]  # suffix """
+                    if line:
+                        content += (line + "\n")
+                    break
+                else:
+                    content += (line + "\n")
+
         if content == "":
             content = "Please write a piece of quicksort code in C++." 
 
