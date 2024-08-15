@@ -276,18 +276,20 @@ Below is an example of a YAML template for replacing all original Linear modules
     name: "^model\\.layers\\..*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
-    class: ktransformers.operators.linear.KTransformersLinear  # optimized Kernel on quantized data types
+    class: ktransformers.operators.linear.KTransformerLinear  # optimized Kernel on quantized data types
     device: "cpu"   # which devices to load this module when initializing
     kwargs:
       generate_device: "cuda"
-      generate_linear_type: "KLinearMarlin"
+      generate_linear_type: "QuantizedLinearMarlin"
 ```
 
 Each rule in the YAML file has two parts: `match` and `replace`. The `match` part specifies which module should be replaced, and the `replace` part specifies the module to be injected into the model along with the initialization keywords.
 
 You can find example rule templates for optimizing DeepSeek-V2 and Qwen2-57B-A14, two SOTA MoE models, in the [ktransformers/optimize/optimize_rules](ktransformers/optimize/optimize_rules) directory. These templates are used to power the `local_chat.py` demo.
 
-A detailed description of the injection using DeepSeek-V2 as an example is given [here](doc/en/deepseek-v2-injection.md).
+A detailed tutorial of the injection and multi-GPU using DeepSeek-V2 as an example is given [here](doc/en/doc/en/injection_tutorial.md).
+
+Note that 
 
 <h2 id="ack">Acknowledgment and Contributors</h2>
 
