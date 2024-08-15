@@ -155,7 +155,7 @@ QWEN2MOE_INPUTS_DOCSTRING = r"""
     "The bare Qwen2MoE Model outputting raw hidden-states without any specific head on top.",
     QWEN2MOE_START_DOCSTRING,
 )
-class Qwen2MoeModelKTransformers(BaseInjectedModule):
+class KQwen2MoeModel(BaseInjectedModule):
     """
     Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`Qwen2MoeDecoderLayer`]
 
@@ -451,7 +451,7 @@ DeepseekV2_INPUTS_DOCSTRING = r"""
 """
 
 
-class DeepseekV2ModelKTransformers(BaseInjectedModule):
+class KDeepseekV2Model(BaseInjectedModule):
     """
     Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`DeepseekV2DecoderLayer`]
 

@@ -45,9 +45,11 @@ class RotaryEmbeddingV2(BaseInjectedModule, LlamaRotaryEmbedding):
                  gguf_loader : GGUFLoader,
                  config: PretrainedConfig,
                  orig_module: nn.Module,
-                 device: str = "cuda",
+                #  device: str = "cuda",
+                 generate_device: str = "cuda",
+                 prefill_device: str = "cuda",
                  **kwargs):
-        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
+        BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, generate_device, **kwargs)
         self.orig_module.__init__(orig_module.dim,
             orig_module.max_position_embeddings,
             orig_module.base,

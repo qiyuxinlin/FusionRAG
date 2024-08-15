@@ -5,8 +5,8 @@ Description  :
 Author       : chenxl
 Date         : 2024-07-27 16:15:27
 Version      : 1.0.0
-LastEditors  : chenxl 
-LastEditTime : 2024-08-08 02:45:15
+LastEditors  : kkk1nak0
+LastEditTime : 2024-08-15 07:45:54
 Adapted from:
 https://github.com/Dao-AILab/flash-attention/blob/v2.6.3/setup.py
 Copyright (c) 2023, Tri Dao.
@@ -299,6 +299,15 @@ setup(
             'ktransformers/ktransformers_ext/cuda/custom_gguf/dequant.cu',
             'ktransformers/ktransformers_ext/cuda/binding.cpp',
             'ktransformers/ktransformers_ext/cuda/gptq_marlin/gptq_marlin.cu'
-        ])
+        ],
+        extra_compile_args={
+                'cxx': ['-O3'],
+                'nvcc': [
+                    '-O3',
+                    '--use_fast_math',
+                    '-Xcompiler', '-fPIC',
+                ]
+            }
+        )
     ]
 )
