@@ -23,12 +23,12 @@
 - match:
     name: "^model\\.layers\\..*\\.block_sparse_moe\\.experts$"
   replace: 
-    class: ktransformers.operators.experts.KTransformersMLPExperts
+    class: ktransformers.operators.experts.KTransformersExperts
     kwargs:
       prefill_device: "cuda"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda"
   recursive: False # don't recursively inject submodules of this module
 
