@@ -6,3 +6,11 @@
     class: ktransformers.models.modeling_llama.LlamaDynamicNTKScalingRotaryEmbedding
   replace:
     class: ktransformers.operators.RoPE.DynamicNTKScalingRotaryEmbedding
+
+- match:
+    name: "^model.embed_tokens"
+  replace:
+    class: "default"
+    kwargs:
+        generate_device: "cpu"
+        prefill_device: "cpu"

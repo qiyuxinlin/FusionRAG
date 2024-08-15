@@ -646,7 +646,11 @@ class CPUInfer:
 
     def submit(self, task):
         fn, args = task
-        self.cpuinfer.submit(fn, *args)
+        self.cpuinfer.submit(fn(*args))
+    
+    def submit_with_cuda_stream(self, current_cuda_stream, task):
+        fn, args = task
+        self.cpuinfer.submit_with_cuda_stream(current_cuda_stream, fn, *args)
 
     def sync(self):
         self.cpuinfer.sync()

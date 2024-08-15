@@ -33,6 +33,7 @@ from ktransformers.optimize.optimize import optimize_and_load_gguf
 from ktransformers.models.modeling_deepseek import DeepseekV2ForCausalLM
 from ktransformers.models.modeling_qwen2_moe import Qwen2MoeForCausalLM
 from ktransformers.models.modeling_llama import LlamaForCausalLM
+from ktransformers.models.modeling_mixtral import MixtralForCausalLM
 from ktransformers.util.utils import prefill_and_generate
 from ktransformers.server.config.config import Config
 
@@ -40,6 +41,7 @@ custom_models = {
     "DeepseekV2ForCausalLM": DeepseekV2ForCausalLM,
     "Qwen2MoeForCausalLM": Qwen2MoeForCausalLM,
     "LlamaForCausalLM": LlamaForCausalLM,
+    "MixtralForCausalLM": MixtralForCausalLM,
 }
 
 ktransformer_rules_dir = (
@@ -49,6 +51,7 @@ default_optimize_rules = {
     "DeepseekV2ForCausalLM": ktransformer_rules_dir + "DeepSeek-V2-Chat.yaml",
     "Qwen2MoeForCausalLM": ktransformer_rules_dir + "Qwen2-57B-A14B-Instruct.yaml",
     "LlamaForCausalLM": ktransformer_rules_dir + "Internlm2_5-7b-Chat-1m.yaml",
+    "MixtralForCausalLM": ktransformer_rules_dir + "Mixtral.yaml",
 }
 
 
@@ -56,8 +59,9 @@ def local_chat(
     model_path: str,
     optimize_rule_path: str = None,
     gguf_path: str = None,
-    max_new_tokens: int = 100,
+    max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
+    use_cuda_graph: bool = True,
 ):
     torch.set_grad_enabled(False)
 
@@ -77,6 +81,8 @@ def local_chat(
                 config._attn_implementation = "flash_attention_2"
             if "Llama" in config.architectures[0]:
                 config._attn_implementation = "eager"
+            if "Mixtral" in config.architectures[0]: 
+                config._attn_implementation = "flash_attention_2"
             model = custom_models[config.architectures[0]](config)
         else:
             model = AutoModelForCausalLM.from_config(
@@ -113,7 +119,6 @@ def local_chat(
 
     while True:
         content = input("Chat: ")
-        # if content is num
         if content == "":
             content = "Please write a piece of quicksort code in C++."
 
@@ -121,17 +126,8 @@ def local_chat(
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
-        torch.set_default_dtype(
-            torch.float16
-        )  # TODO: Remove this, replace dtype using config
-        generated = prefill_and_generate(
-            model, tokenizer, input_tensor.cuda(), max_new_tokens
-        )
-
+        torch.set_default_dtype(torch.bfloat16) # TODO: Remove this, replace dtype using config
+        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens, use_cuda_graph)
 
 if __name__ == "__main__":
-    # fire.Fire(local_chat)
-    local_chat(
-        model_path="/home/djw/model/internlm2-convert2-llama",
-        gguf_path="/home/djw/model/internlm2-convert2-llama",
-    )
+    fire.Fire(local_chat)
