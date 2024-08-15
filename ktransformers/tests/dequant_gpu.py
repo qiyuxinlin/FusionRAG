@@ -6,7 +6,7 @@ current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(current_path+"/../..")
 import numpy as np
 # from ktransformers.operators.linear import KTransformersLinear, KLinearMarlin
-# from ktransformers.operators.experts import KTransformersMLPExperts, KExpertsTorch
+# from ktransformers.operators.experts import KTransformersExperts, KExpertsTorch
 from ktransformers.util.custom_gguf import GGUFLoader
 import torch
 import KTransformersOps

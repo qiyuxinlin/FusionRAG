@@ -65,24 +65,24 @@
 - match:
     name: "^model\\.layers\\.(0|[1-9])\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda:0"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda:0"
   recursive: False # don't recursively inject submodules of this module
 
 - match:
     name: "^model\\.layers\\.([12][0-9])\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda:1"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda:1"
   recursive: False # don't recursively inject submodules of this module
 

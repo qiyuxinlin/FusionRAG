@@ -26,13 +26,13 @@
 - match:
     name: "^model\\.layers\\..*\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     # device: "cpu"   # which devices to load this module when initializing
     kwargs:
       prefill_device: "cuda"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda"
   recursive: False # don't recursively inject submodules of this module
 - match:

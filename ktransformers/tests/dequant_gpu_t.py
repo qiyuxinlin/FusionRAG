@@ -8,7 +8,7 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 import numpy as np
 from ktransformers.operators.linear import KTransformersLinear, KLinearMarlin
-from ktransformers.operators.experts import KTransformersMLPExperts, KExpertsTorch
+from ktransformers.operators.experts import KTransformersExperts, KExpertsTorch
 from ktransformers.util.custom_gguf import GGUFLoader, dequantize_q4_k_gpu, dequantize_q4_k
 import torch
 import KTransformersOps
