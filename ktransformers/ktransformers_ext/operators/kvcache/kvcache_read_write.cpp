@@ -725,8 +725,9 @@ void KVCache::get_and_update_fp16(ggml_fp16_t *k_in, ggml_fp16_t *v_in,
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
 
-    printf("layer %d time of reading and updating KV Cache: %f s\n", layer_id,
-           duration.count());
+    // printf("layer %d time of reading and updating KV Cache: %f s\n",
+    // layer_id,
+    //        duration.count());
 }
 
 void KVCache::update_importance(const ggml_fp16_t *importance, int layer_id,

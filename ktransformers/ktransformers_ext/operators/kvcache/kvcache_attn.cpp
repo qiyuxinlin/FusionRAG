@@ -1,20 +1,687 @@
 #include "kvcache.h"
 
-void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
-                   float *attn_lse, int layer_idx, int q_len, int batch_size,
-                   int max_block_num, int *block_table, int *cache_seqlens,
-                   int pick_block_num, int init_block_num, int local_block_num,
-                   Backend *backend) {
+void KVCache::attn_kvhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
+                          float *attn_lse, int layer_idx,
+                          int generate_token_idx, int q_len, int batch_size,
+                          int max_block_num, int *block_table,
+                          int *cache_seqlens, int pick_block_num,
+                          int init_block_num, int local_block_num,
+                          Backend *backend) {
     // 计时
     auto start = std::chrono::high_resolution_clock::now();
-
     layer_id_ = layer_idx;
     int thread_num = backend->get_thread_num();
     batch_size = batch_size * q_len;
-    // printf("layer idx: %d, q_len: %d, batch_size: %d, max_block_num: %d, "
-    //        "pick_block_num: %d, init_block_num: %d, local_block_num: %d\n",
-    //        layer_idx, q_len, batch_size, max_block_num, pick_block_num,
-    //        init_block_num, local_block_num);
+
+    const uint16_t *q_in_data = const_cast<const uint16_t *>(q_in);
+
+    for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+        // quantize q
+        if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
+            for (int i = 0; i < config_.kv_head_num; i++) {
+                for (int j = 0; j < n_gqa_ * config_.head_dim; j++) {
+                    q_fp32_[batch_idx][i][j] = GGML_FP16_TO_FP32(
+                        q_in_data[batch_idx * config_.kv_head_num * n_gqa_ *
+                                      config_.head_dim +
+                                  i * n_gqa_ * config_.head_dim + j]);
+                }
+            }
+        } else {
+            for (int i = 0; i < config_.kv_head_num; i++) {
+                for (int j = 0; j < n_gqa_ * config_.head_dim; j++) {
+                    q_fp32[j] = GGML_FP16_TO_FP32(
+                        q_in_data[batch_idx * config_.kv_head_num * n_gqa_ *
+                                      config_.head_dim +
+                                  i * n_gqa_ * config_.head_dim + j]);
+                }
+                quantize_row_q8_0(q_fp32.data(), q_q8_0_[batch_idx][i].data(),
+                                  n_gqa_ * config_.head_dim);
+            }
+        }
+
+        // initialize output_fp32_ and attn_lse_
+        for (int i = 0; i < config_.kv_head_num; i++) {
+            for (int j = 0; j < n_gqa_ * config_.head_dim; j++) {
+                output_fp32_[batch_idx][i][j] = 0;
+            }
+            for (int j = 0; j < n_gqa_; j++) {
+                attn_lse_[batch_idx][i][j] = 0;
+            }
+        }
+
+        // clear top_similar_block_
+        while (!top_similar_block_[batch_idx].empty())
+            top_similar_block_[batch_idx].pop();
+    }
+
+    for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+        cache_seqlens_[batch_idx] = cache_seqlens[batch_idx];
+        for (int i = 0; i < max_block_num; i++) {
+            for (int j = 0; j < config_.kv_head_num; j++) {
+                block_table_before_retrieval_kvhead_[batch_idx][i][j] =
+                    block_table[batch_idx * max_block_num + i];
+                block_similar_kv_head_[batch_idx][i][j] = 0;
+            }
+        }
+    }
+
+    int max_block_num_after_retrieval = 0;
+    // printf("%d %d\n", cache_seqlens[0],
+    //        block_table_before_retrieval_kvhead_[0][1][0]);
+
+    if (pick_block_num != -1 &&
+        (generate_token_idx % config_.token_step != 0 ||
+         (layer_idx % config_.layer_step != config_.layer_offset))) {
+        max_block_num_after_retrieval =
+            selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step];
+
+        // printf("max_block_num_after_retrieval: %d\n",
+        //        max_block_num_after_retrieval);
+        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+            for (int i = 0; i < max_block_num_after_retrieval; i++) {
+                for (int j = 0; j < config_.kv_head_num; j++) {
+                    block_table_after_retrieval_kvhead_[batch_idx][i][j] =
+                        selected_blocks_history_kvhead_[(layer_idx -
+                                                         config_.layer_offset) /
+                                                        config_.layer_step]
+                                                       [batch_idx][i][j];
+                    // printf(
+                    //     "block_table_after_retrieval_kvhead_[%d][%d][%d]: "
+                    //     "%d\n",
+                    //     batch_idx, i, j,
+                    //     block_table_after_retrieval_kvhead_[batch_idx][i][j]);
+                }
+            }
+
+            if (cache_seqlens[batch_idx] % config_.block_len == 1) {
+                selected_blocks_num_history_[(layer_idx -
+                                              config_.layer_offset) /
+                                             config_.layer_step] += 1;
+                int x = selected_blocks_num_history_[(layer_idx -
+                                                      config_.layer_offset) /
+                                                     config_.layer_step];
+                for (int i = 0; i < config_.kv_head_num; i++) {
+                    int last_block_idx = block_table_before_retrieval_kvhead_
+                        [batch_idx]
+                        [cache_seqlens[batch_idx] / config_.block_len][i];
+                    selected_blocks_history_kvhead_[(layer_idx -
+                                                     config_.layer_offset) /
+                                                    config_.layer_step]
+                                                   [batch_idx][x - 1][i] =
+                                                       last_block_idx;
+                    block_table_after_retrieval_kvhead_[batch_idx][x - 1][i] =
+                        last_block_idx;
+                }
+            }
+            cache_seqlens_[batch_idx] = std::min(
+                cache_seqlens_[batch_idx],
+                (cache_seqlens_[batch_idx] % config_.block_len) +
+                    (init_block_num + pick_block_num + local_block_num) *
+                        config_.block_len);
+        }
+    } else if (pick_block_num != -1) {
+        max_block_num_after_retrieval =
+            std::min(max_block_num,
+                     init_block_num + pick_block_num + local_block_num + 1);
+        auto start_1 = std::chrono::high_resolution_clock::now();
+
+        backend->do_work_stealing_job(
+            batch_size * max_block_num, nullptr,
+            [&](int task_id) {
+                int batch_id = task_id / max_block_num;
+                int block_id = task_id % max_block_num;
+                int seq_len = cache_seqlens_[batch_id];
+
+                if (block_id < init_block_num ||
+                    block_id >=
+                        (seq_len / config_.block_len) - local_block_num) {
+                    return;
+                }
+                int block_idx =
+                    block_table_before_retrieval_kvhead_[batch_id][block_id][0];
+
+                for (int head_id = 0; head_id < config_.q_head_num; head_id++) {
+                    for (int i = 0; i < config_.head_dim; i++) {
+                        float q_i = 0,
+                              qa_i = std::numeric_limits<float>::lowest();
+                        for (int q_id = 0; q_id < q_len; q_id++) {
+                            q_i += GGML_FP16_TO_FP32(
+                                q_in_data[batch_id * q_len *
+                                              config_.q_head_num *
+                                              config_.head_dim +
+                                          q_id * config_.q_head_num *
+                                              config_.head_dim +
+                                          head_id * config_.head_dim + i]);
+                        }
+                        q_i /= q_len;
+                        for (int anchor_id = 0; anchor_id < config_.anchor_num;
+                             anchor_id++) {
+                            qa_i = std::max(
+                                qa_i,
+                                GGML_FP16_TO_FP32(
+                                    anchor_[layer_idx * config_.max_block_num *
+                                                config_.anchor_num *
+                                                config_.q_head_num *
+                                                config_.head_dim +
+                                            block_idx * config_.anchor_num *
+                                                config_.q_head_num *
+                                                config_.head_dim +
+                                            anchor_id * config_.q_head_num *
+                                                config_.head_dim +
+                                            head_id * config_.head_dim + i]) *
+                                    q_i);
+                            // printf(
+                            //     "layer_idx: %d, block_idx: %d, anchor_id:
+                            //     %d, " "head_id: %d, i: %d\n", layer_idx,
+                            //     block_idx, anchor_id, head_id, i);
+                            // printf("q: %f, a: %f\n", q_i,
+                            //        GGML_FP16_TO_FP32(
+                            //            anchor_[layer_idx][block_idx][anchor_id]
+                            //                   [head_id][i]));
+                        }
+                        block_similar_kv_head_[batch_id][block_id]
+                                              [head_id / n_gqa_] += qa_i;
+                    }
+                }
+                // printf("batch_id: %d, block_id: %d, sim: %f\n", batch_id,
+                //        block_id, sim);
+            },
+            nullptr);
+        auto end_1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff_1 = end_1 - start_1;
+        // printf("layer %d time of calculating similarity: %f s\n", layer_idx,
+        //        diff_1.count());
+        auto start_2 = std::chrono::high_resolution_clock::now();
+
+        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+            int cache_len_after_retrieval = 0;
+            if (cache_seqlens_[batch_idx] / config_.block_len <=
+                init_block_num + pick_block_num + local_block_num) {
+                for (int i = 0; i < max_block_num; i++) {
+                    for (int j = 0; j < config_.kv_head_num; j++) {
+                        block_table_after_retrieval_kvhead_[batch_idx][i][j] =
+                            block_table_before_retrieval_kvhead_[batch_idx][i]
+                                                                [j];
+                    }
+                }
+                continue;
+            }
+            for (int head_id = 0; head_id < config_.kv_head_num; head_id++) {
+
+                for (int block_id = init_block_num;
+                     block_id <
+                     (cache_seqlens_[batch_idx] / config_.block_len) -
+                         local_block_num;
+                     block_id++) {
+
+                    top_similar_block_[batch_idx].push(std::make_pair(
+                        block_similar_kv_head_[batch_idx][block_id][head_id],
+                        block_table_before_retrieval_kvhead_[batch_idx]
+                                                            [block_id]
+                                                            [head_id]));
+                    if (top_similar_block_[batch_idx].size() > pick_block_num) {
+                        top_similar_block_[batch_idx].pop();
+                    }
+                }
+
+                int i = 0;
+                for (; i < init_block_num; i++) {
+                    block_table_after_retrieval_kvhead_[batch_idx][i][head_id] =
+                        block_table_before_retrieval_kvhead_[batch_idx][i]
+                                                            [head_id];
+                }
+                while (!top_similar_block_[batch_idx].empty()) {
+                    block_table_after_retrieval_kvhead_[batch_idx][i][head_id] =
+                        top_similar_block_[batch_idx].top().second;
+                    top_similar_block_[batch_idx].pop();
+                    i++;
+                }
+                for (; i < init_block_num + pick_block_num + local_block_num;
+                     i++) {
+                    block_table_after_retrieval_kvhead_[batch_idx][i][head_id] =
+                        block_table_before_retrieval_kvhead_
+                            [batch_idx]
+                            [(cache_seqlens_[batch_idx] / config_.block_len) -
+                             local_block_num + i - init_block_num -
+                             pick_block_num][head_id];
+                }
+                if (cache_seqlens_[batch_idx] % config_.block_len != 0) {
+                    block_table_after_retrieval_kvhead_[batch_idx][i][head_id] =
+                        block_table_before_retrieval_kvhead_[batch_idx][(
+                            cache_seqlens_[batch_idx] / config_.block_len)]
+                                                            [head_id];
+                    cache_len_after_retrieval =
+                        (cache_seqlens_[batch_idx] % config_.block_len) +
+                        i * config_.block_len;
+                    i++;
+                } else {
+                    cache_len_after_retrieval =
+                        (cache_seqlens_[batch_idx] % config_.block_len) +
+                        i * config_.block_len;
+                }
+                for (int j = 0; j < i; j++) {
+                    selected_blocks_history_kvhead_
+                        [(layer_idx - config_.layer_offset) /
+                         config_.layer_step][batch_idx][j][head_id] =
+                            block_table_after_retrieval_kvhead_[batch_idx][j]
+                                                               [head_id];
+                    // printf(
+                    //     "selected_blocks_history_kvhead_[%d][%d][%d][%d]: "
+                    //     "%d\n",
+                    //     (layer_idx - config_.layer_offset) /
+                    //     config_.layer_step, batch_idx, j, head_id,
+                    //     selected_blocks_history_kvhead_[(layer_idx -
+                    //                                      config_.layer_offset)
+                    //                                      /
+                    //                                     config_.layer_step]
+                    //                                    [batch_idx][j][head_id]);
+                }
+            }
+            cache_seqlens_[batch_idx] = cache_len_after_retrieval;
+            selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step] =
+                (cache_len_after_retrieval + config_.block_len - 1) /
+                config_.block_len;
+        }
+
+        auto end_2 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff_2 = end_2 - start_2;
+    } else {
+        max_block_num_after_retrieval = max_block_num;
+        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+            for (int i = 0; i < max_block_num; i++) {
+                for (int j = 0; j < config_.kv_head_num; j++) {
+                    block_table_after_retrieval_kvhead_[batch_idx][i][j] =
+                        block_table_before_retrieval_kvhead_[batch_idx][i][j];
+                }
+            }
+        }
+    }
+
+    seq_len_ = config_.block_len;
+
+    backend->do_work_stealing_job(
+        batch_size * config_.kv_head_num * max_block_num_after_retrieval,
+        [&](int thread_id) {
+            thread_cur_head_idx_[thread_id].first = -1;
+            thread_cur_head_idx_[thread_id].second = -1;
+        },
+        [&](int task_id) {
+            int batch_id =
+                task_id / (config_.kv_head_num * max_block_num_after_retrieval);
+            int head_id = (task_id % (config_.kv_head_num *
+                                      max_block_num_after_retrieval)) /
+                          max_block_num_after_retrieval;
+            int block_id = task_id % max_block_num_after_retrieval;
+            int thread_id = Backend::thread_local_id;
+            // printf("batch_id: %d, head_id: %d, block_id: %d, thread_id:
+            // %d\n
+            // ",
+            //        batch_id, head_id, block_id, thread_id);
+            // If the block is out of the sequence length, skip it.
+            if (cache_seqlens_[batch_id] / config_.block_len < block_id) {
+                return;
+            }
+            int block_idx =
+                block_table_after_retrieval_kvhead_[batch_id][block_id]
+                                                   [head_id];
+            if (cache_seqlens_[batch_id] / config_.block_len == block_id) {
+                int seq_len = cache_seqlens_[batch_id] % config_.block_len;
+                if (seq_len == 0)
+                    return;
+
+                // printf("seq_len: %d\n", seq_len);
+                // Prepare the attention mask for the last block.
+                int full_blocks = seq_len / 8;
+                int remaining_bits = seq_len % 8;
+                // printf("full_blocks: %d, remaining_bits: %d\n",
+                // full_blocks,
+                //        remaining_bits);
+                // Fill full blocks with 1s
+                for (int i = 0; i < full_blocks; ++i) {
+                    thread_local_attn_mask_[thread_id][i] = 0xFF;
+                }
+                // Fill the remaining bits in the next block
+                if (remaining_bits > 0 && full_blocks < seq_len_ / 8) {
+                    thread_local_attn_mask_[thread_id][full_blocks] =
+                        (1 << remaining_bits) - 1;
+                } else {
+                    thread_local_attn_mask_[thread_id][full_blocks] = 0;
+                }
+
+                for (int i = full_blocks + 1; i < seq_len_ / 8; ++i) {
+                    thread_local_attn_mask_[thread_id][i] = 0;
+                }
+                if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
+                    attn_with_kvcache_one_block(
+                        config_.head_dim,
+                        config_.q_head_num / config_.kv_head_num, GGML_TYPE_F16,
+                        (void *)&q_in_data[batch_id * config_.kv_head_num *
+                                               n_gqa_ * config_.head_dim +
+                                           head_id * n_gqa_ * config_.head_dim],
+                        seq_len_, 0, false,
+                        thread_local_attn_mask_[thread_id].data(),
+                        GGML_TYPE_F16, 0,
+                        k_cache_fp16_[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr, GGML_TYPE_F16, 1,
+                        v_cache_fp16_[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr,
+                        thread_local_attn_score_[thread_id].data(),
+                        thread_local_output_fp32_[thread_id].data(),
+                        thread_local_attn_lse_[thread_id].data(),
+                        thread_local_draft_[thread_id].data(), nullptr,
+                        cos_.data(), sin_.data());
+                } else if (config_.kv_type == ggml_type::GGML_TYPE_Q4_0) {
+                    attn_with_kvcache_one_block(
+                        config_.head_dim,
+                        config_.q_head_num / config_.kv_head_num,
+                        GGML_TYPE_Q8_0, q_q8_0_[batch_id][head_id].data(),
+                        seq_len_, 0, false,
+                        thread_local_attn_mask_[thread_id].data(),
+                        GGML_TYPE_Q4_0, 0,
+                        k_cache_q4[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr, GGML_TYPE_Q4_0, 1,
+                        v_cache_q4[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr,
+                        thread_local_attn_score_[thread_id].data(),
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_attn_lse_[thread_id].data(),
+                        thread_local_draft_[thread_id].data(), nullptr,
+                        cos_.data(), sin_.data());
+                    dequantize_row_q8_0(
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_output_fp32_[thread_id].data(),
+                        n_gqa_ * config_.head_dim);
+                } else if (config_.kv_type == ggml_type::GGML_TYPE_Q8_0) {
+                    attn_with_kvcache_one_block(
+                        config_.head_dim,
+                        config_.q_head_num / config_.kv_head_num,
+                        GGML_TYPE_Q8_0, q_q8_0_[batch_id][head_id].data(),
+                        seq_len_, 0, false,
+                        thread_local_attn_mask_[thread_id].data(),
+                        GGML_TYPE_Q8_0, 0,
+                        k_cache_q8[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr, GGML_TYPE_Q8_0, 1,
+                        v_cache_q8[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr,
+                        thread_local_attn_score_[thread_id].data(),
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_attn_lse_[thread_id].data(),
+                        thread_local_draft_[thread_id].data(), nullptr,
+                        cos_.data(), sin_.data());
+                    dequantize_row_q8_0(
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_output_fp32_[thread_id].data(),
+                        n_gqa_ * config_.head_dim);
+                }
+            } else {
+                if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
+                    attn_with_kvcache_one_block(
+                        config_.head_dim,
+                        config_.q_head_num / config_.kv_head_num, GGML_TYPE_F16,
+                        (void *)&q_in_data[batch_id * config_.kv_head_num *
+                                               n_gqa_ * config_.head_dim +
+                                           head_id * n_gqa_ * config_.head_dim],
+                        seq_len_, 0, true, nullptr, GGML_TYPE_F16, 0,
+                        k_cache_fp16_[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr, GGML_TYPE_F16, 1,
+                        v_cache_fp16_[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr,
+                        thread_local_attn_score_[thread_id].data(),
+                        thread_local_output_fp32_[thread_id].data(),
+                        thread_local_attn_lse_[thread_id].data(),
+                        thread_local_draft_[thread_id].data(), nullptr,
+                        cos_.data(), sin_.data());
+
+                } else if (config_.kv_type == ggml_type::GGML_TYPE_Q4_0) {
+                    attn_with_kvcache_one_block(
+                        config_.head_dim,
+                        config_.q_head_num / config_.kv_head_num,
+                        GGML_TYPE_Q8_0, q_q8_0_[batch_id][head_id].data(),
+                        seq_len_, 0, true, nullptr, GGML_TYPE_Q4_0, 0,
+                        k_cache_q4[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr, GGML_TYPE_Q4_0, 1,
+                        v_cache_q4[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr,
+                        thread_local_attn_score_[thread_id].data(),
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_attn_lse_[thread_id].data(),
+                        thread_local_draft_[thread_id].data(), nullptr,
+                        cos_.data(), sin_.data());
+                    dequantize_row_q8_0(
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_output_fp32_[thread_id].data(),
+                        n_gqa_ * config_.head_dim);
+                } else if (config_.kv_type == ggml_type::GGML_TYPE_Q8_0) {
+                    attn_with_kvcache_one_block(
+                        config_.head_dim,
+                        config_.q_head_num / config_.kv_head_num,
+                        GGML_TYPE_Q8_0, q_q8_0_[batch_id][head_id].data(),
+                        seq_len_, 0, true, nullptr, GGML_TYPE_Q8_0, 0,
+                        k_cache_q8[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr, GGML_TYPE_Q8_0, 1,
+                        v_cache_q8[layer_id_][head_id][block_idx].data(), 0,
+                        nullptr, nullptr,
+                        thread_local_attn_score_[thread_id].data(),
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_attn_lse_[thread_id].data(),
+                        thread_local_draft_[thread_id].data(), nullptr,
+                        cos_.data(), sin_.data());
+                    dequantize_row_q8_0(
+                        thread_local_output_q8_0_[thread_id].data(),
+                        thread_local_output_fp32_[thread_id].data(),
+                        n_gqa_ * config_.head_dim);
+                }
+            }
+            int cur_batch_idx = thread_cur_head_idx_[thread_id].first;
+            int cur_head_id = thread_cur_head_idx_[thread_id].second;
+            if (batch_id == cur_batch_idx && head_id == cur_head_id) {
+                for (int i = 0; i < n_gqa_; i++) {
+                    float new_attn_lse =
+                        thread_local_cur_attn_lse_[thread_id][i] +
+                        std::log(
+                            1.0 +
+                            std::exp(thread_local_attn_lse_[thread_id][i] -
+                                     thread_local_cur_attn_lse_[thread_id][i]));
+                    ggml_vec_scale_f32(
+                        config_.head_dim,
+                        thread_local_cur_output_fp32_[thread_id].data() +
+                            i * config_.head_dim,
+                        std::exp(thread_local_cur_attn_lse_[thread_id][i] -
+                                 new_attn_lse));
+                    ggml_vec_scale_f32(
+                        config_.head_dim,
+                        thread_local_output_fp32_[thread_id].data() +
+                            i * config_.head_dim,
+                        std::exp(thread_local_attn_lse_[thread_id][i] -
+                                 new_attn_lse));
+                    for (int j = 0; j < config_.head_dim; j++) {
+                        thread_local_cur_output_fp32_[thread_id]
+                                                     [i * config_.head_dim +
+                                                      j] +=
+                            thread_local_output_fp32_[thread_id]
+                                                     [i * config_.head_dim + j];
+                    }
+                    thread_local_cur_attn_lse_[thread_id][i] = new_attn_lse;
+                }
+            } else {
+                if (cur_batch_idx != -1) {
+                    mutex_[cur_batch_idx][cur_head_id]->lock();
+                    for (int i = 0; i < n_gqa_; i++) {
+                        if (std::abs(attn_lse_[cur_batch_idx][cur_head_id][i]) <
+                            1e-6) {
+                            attn_lse_[cur_batch_idx][cur_head_id][i] =
+                                thread_local_cur_attn_lse_[thread_id][i];
+                            for (int j = 0; j < config_.head_dim; j++) {
+                                output_fp32_[cur_batch_idx][cur_head_id]
+                                            [i * config_.head_dim + j] =
+                                                thread_local_cur_output_fp32_
+                                                    [thread_id]
+                                                    [i * config_.head_dim + j];
+                            }
+                            // printf("cur_batch_idx: %d, cur_head_id: %d,
+                            // i: %d,  "
+                            //        "output_fp32_[cur_batch_idx][cur_head_id]:
+                            //        %f\n", cur_batch_idx, cur_head_id, i,
+                            //        output_fp32_[cur_batch_idx][cur_head_id]
+                            //                    [i * config_.head_dim]);
+                            continue;
+                        }
+                        float new_attn_lse =
+                            attn_lse_[cur_batch_idx][cur_head_id][i] +
+                            std::log(
+                                1.0 +
+                                std::exp(
+                                    thread_local_cur_attn_lse_[thread_id][i] -
+                                    attn_lse_[cur_batch_idx][cur_head_id][i]));
+                        ggml_vec_scale_f32(
+                            config_.head_dim,
+                            output_fp32_[cur_batch_idx][cur_head_id].data() +
+                                i * config_.head_dim,
+                            std::exp(attn_lse_[cur_batch_idx][cur_head_id][i] -
+                                     new_attn_lse));
+                        ggml_vec_scale_f32(
+                            config_.head_dim,
+                            thread_local_cur_output_fp32_[thread_id].data() +
+                                i * config_.head_dim,
+                            std::exp(thread_local_cur_attn_lse_[thread_id][i] -
+                                     new_attn_lse));
+                        for (int j = 0; j < config_.head_dim; j++) {
+                            output_fp32_[cur_batch_idx][cur_head_id]
+                                        [i * config_.head_dim + j] +=
+                                thread_local_cur_output_fp32_
+                                    [thread_id][i * config_.head_dim + j];
+                        }
+                        attn_lse_[cur_batch_idx][cur_head_id][i] = new_attn_lse;
+                    }
+                    mutex_[cur_batch_idx][cur_head_id]->unlock();
+                }
+                thread_cur_head_idx_[thread_id].first = batch_id;
+                thread_cur_head_idx_[thread_id].second = head_id;
+                // printf("thread_cur_head_idx_[%d]: %d %d\n", thread_id,
+                // batch_id,
+                //        head_id);
+                for (int i = 0; i < n_gqa_; i++) {
+                    thread_local_cur_attn_lse_[thread_id][i] =
+                        thread_local_attn_lse_[thread_id][i];
+                    for (int j = 0; j < config_.head_dim; j++) {
+                        thread_local_cur_output_fp32_
+                            [thread_id][i * config_.head_dim + j] =
+                                thread_local_output_fp32_[thread_id]
+                                                         [i * config_.head_dim +
+                                                          j];
+                    }
+                }
+            }
+        },
+        // Merge the results of the remaining blocks.
+        [&](int thread_id) {
+            int cur_batch_idx = thread_cur_head_idx_[thread_id].first;
+            int cur_head_id = thread_cur_head_idx_[thread_id].second;
+            // printf("cur_batch_idx: %d, cur_head_id: %d, thread_id: %d\n",
+            //        cur_batch_idx, cur_head_id, thread_id);
+            if (cur_head_id != -1) {
+                mutex_[cur_batch_idx][cur_head_id]->lock();
+                for (int i = 0; i < n_gqa_; i++) {
+                    float new_attn_lse;
+                    if (std::abs(attn_lse_[cur_batch_idx][cur_head_id][i]) <
+                        1e-6) {
+                        attn_lse_[cur_batch_idx][cur_head_id][i] =
+                            thread_local_cur_attn_lse_[thread_id][i];
+                        for (int j = 0; j < config_.head_dim; j++) {
+                            output_fp32_[cur_batch_idx][cur_head_id]
+                                        [i * config_.head_dim + j] =
+                                            thread_local_cur_output_fp32_
+                                                [thread_id]
+                                                [i * config_.head_dim + j];
+                        }
+                        // printf("cur_batch_idx: %d, cur_head_id: %d, i:
+                        // %d,  "
+                        //        "output_fp32_[cur_batch_idx][cur_head_id]:
+                        //        %f\n", cur_batch_idx, cur_head_id, i,
+                        //        output_fp32_[cur_batch_idx][cur_head_id]
+                        //                    [i * config_.head_dim]);
+                        continue;
+                    }
+                    new_attn_lse =
+                        attn_lse_[cur_batch_idx][cur_head_id][i] +
+                        std::log(
+                            1.0 +
+                            std::exp(thread_local_cur_attn_lse_[thread_id][i] -
+                                     attn_lse_[cur_batch_idx][cur_head_id][i]));
+                    // printf("new_attn_lse: %f %f %f\n", new_attn_lse,
+                    //        thread_local_cur_attn_lse_[thread_id][i],
+                    //        attn_lse_[cur_batch_idx][cur_head_id][i]);
+                    ggml_vec_scale_f32(
+                        config_.head_dim,
+                        output_fp32_[cur_batch_idx][cur_head_id].data() +
+                            i * config_.head_dim,
+                        std::exp(attn_lse_[cur_batch_idx][cur_head_id][i] -
+                                 new_attn_lse));
+                    ggml_vec_scale_f32(
+                        config_.head_dim,
+                        thread_local_cur_output_fp32_[thread_id].data() +
+                            i * config_.head_dim,
+                        std::exp(thread_local_cur_attn_lse_[thread_id][i] -
+                                 new_attn_lse));
+                    for (int j = 0; j < config_.head_dim; j++) {
+                        output_fp32_[cur_batch_idx][cur_head_id]
+                                    [i * config_.head_dim + j] +=
+                            thread_local_cur_output_fp32_[thread_id]
+                                                         [i * config_.head_dim +
+                                                          j];
+                    }
+                    attn_lse_[cur_batch_idx][cur_head_id][i] = new_attn_lse;
+                }
+                mutex_[cur_batch_idx][cur_head_id]->unlock();
+            }
+        });
+    // move the results to output and attn_lse
+    uint16_t *output_data = reinterpret_cast<uint16_t *>(output);
+    float *attn_lse_data = attn_lse;
+    for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+        for (int i = 0; i < config_.kv_head_num; i++) {
+            for (int j = 0; j < n_gqa_ * config_.head_dim; j++) {
+                output_data[batch_idx * config_.kv_head_num * n_gqa_ *
+                                config_.head_dim +
+                            i * n_gqa_ * config_.head_dim + j] =
+                    GGML_FP32_TO_FP16(output_fp32_[batch_idx][i][j]);
+            }
+            for (int j = 0; j < n_gqa_; j++) {
+                attn_lse_data[batch_idx * config_.kv_head_num * n_gqa_ +
+                              i * n_gqa_ + j] = attn_lse_[batch_idx][i][j];
+            }
+        }
+    }
+
+    // 计时结束
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end - start;
+    printf("layer %d time of computing attention: %f s\n", layer_idx,
+           diff.count());
+}
+void KVCache::attn_qhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
+                         float *attn_lse, int layer_idx, int generate_token_idx,
+                         int q_len, int batch_size, int max_block_num,
+                         int *block_table, int *cache_seqlens,
+                         int pick_block_num, int init_block_num,
+                         int local_block_num, Backend *backend) {}
+void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
+                   float *attn_lse, int layer_idx, int generate_token_idx,
+                   int q_len, int batch_size, int max_block_num,
+                   int *block_table, int *cache_seqlens, int pick_block_num,
+                   int init_block_num, int local_block_num, Backend *backend) {
+    // 计时
+    auto start = std::chrono::high_resolution_clock::now();
+    layer_id_ = layer_idx;
+    int thread_num = backend->get_thread_num();
+    batch_size = batch_size * q_len;
+    // printf("layer idx: %d, q_len: %d, batch_size: %d, max_block_num: %d,
+    // "
+    //        "pick_block_num: %d, init_block_num: %d, local_block_num:
+    //        %d\n", layer_idx, q_len, batch_size, max_block_num,
+    //        pick_block_num, init_block_num, local_block_num);
 
     // if (cache_seqlens != nullptr) {
     //     for (int i = 0; i < batch_size; i++) {
@@ -94,12 +761,55 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
 
     // retrieval kvcache, get the init_block_num block at beginning, top
     // pick_block_num similar and last local_block_num blocks. Each task
-    // calculates the simlarity of a certain block with the query, then push the
-    // block into the priority queue. Finally, the required blocks are pushed
-    // into the block_table_after_retrieval_.
+    // calculates the simlarity of a certain block with the query, then push
+    // the block into the priority queue. Finally, the required blocks are
+    // pushed into the block_table_after_retrieval_.
     int max_block_num_after_retrieval = 0;
     // printf("%d\n", cache_seqlens[0]);
-    if (pick_block_num != -1) {
+
+    // printf("pick_block_num: %d, generate_token_idx: %d, config_.token_step: "
+    //        "%d, layer_idx: %d, "
+    //        "config_.layer_step: %d, config_.layer_offset: %d\n",
+    //        pick_block_num, generate_token_idx, config_.token_step, layer_idx,
+    //        config_.layer_step, config_.layer_offset);
+    // printf("pick_block_num: %d\n", pick_block_num);
+    if (pick_block_num != -1 &&
+        (generate_token_idx % config_.token_step != 0 ||
+         (layer_idx % config_.layer_step != config_.layer_offset))) {
+        max_block_num_after_retrieval =
+            selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step];
+        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+            for (int i = 0; i < max_block_num_after_retrieval; i++) {
+                block_table_after_retrieval_[batch_idx][i] =
+                    selected_blocks_history_[(layer_idx -
+                                              config_.layer_offset) /
+                                             config_.layer_step][batch_idx][i];
+            }
+
+            if (cache_seqlens[batch_idx] % config_.block_len == 1) {
+                selected_blocks_num_history_[(layer_idx -
+                                              config_.layer_offset) /
+                                             config_.layer_step] += 1;
+                int x = selected_blocks_num_history_[(layer_idx -
+                                                      config_.layer_offset) /
+                                                     config_.layer_step];
+                int last_block_idx =
+                    block_table_before_retrieval_[batch_idx]
+                                                 [cache_seqlens[batch_idx] /
+                                                  config_.block_len];
+                selected_blocks_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step][batch_idx][x - 1] =
+                    last_block_idx;
+                block_table_after_retrieval_[batch_idx][x - 1] = last_block_idx;
+            }
+            cache_seqlens_[batch_idx] = std::min(
+                cache_seqlens_[batch_idx],
+                (cache_seqlens_[batch_idx] % config_.block_len) +
+                    (init_block_num + pick_block_num + local_block_num) *
+                        config_.block_len);
+        }
+    } else if (pick_block_num != -1) {
         max_block_num_after_retrieval =
             std::min(max_block_num,
                      init_block_num + pick_block_num + local_block_num + 1);
@@ -268,9 +978,10 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                                                 i]) *
                                         q_i);
                                 // printf(
-                                //     "layer_idx: %d, block_idx: %d, anchor_id:
-                                //     %d, " "head_id: %d, i: %d\n", layer_idx,
-                                //     block_idx, anchor_id, head_id, i);
+                                //     "layer_idx: %d, block_idx: %d,
+                                //     anchor_id: %d, " "head_id: %d, i:
+                                //     %d\n", layer_idx, block_idx,
+                                //     anchor_id, head_id, i);
                                 // printf("q: %f, a: %f\n", q_i,
                                 //        GGML_FP16_TO_FP32(
                                 //            anchor_[layer_idx][block_idx][anchor_id]
@@ -279,7 +990,8 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                             sim += qa_i;
                         }
                     }
-                    // printf("batch_id: %d, block_id: %d, sim: %f\n", batch_id,
+                    // printf("batch_id: %d, block_id: %d, sim: %f\n",
+                    // batch_id,
                     //        block_id, sim);
                     block_similar_[batch_id][block_id] = sim;
                 },
@@ -293,6 +1005,7 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
         auto start_2 = std::chrono::high_resolution_clock::now();
 
         for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+
             if (cache_seqlens_[batch_idx] / config_.block_len <=
                 init_block_num + pick_block_num + local_block_num) {
                 block_table_after_retrieval_[batch_idx].swap(
@@ -334,21 +1047,35 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                 block_table_after_retrieval_[batch_idx][i] =
                     block_table_before_retrieval_[batch_idx][(
                         cache_seqlens_[batch_idx] / config_.block_len)];
+                cache_seqlens_[batch_idx] =
+                    (cache_seqlens_[batch_idx] % config_.block_len) +
+                    i * config_.block_len;
                 i++;
+            } else {
+                cache_seqlens_[batch_idx] =
+                    (cache_seqlens_[batch_idx] % config_.block_len) +
+                    i * config_.block_len;
             }
             // printf("cache_seqlens_[%d]: %d\n", batch_idx,
             //        cache_seqlens_[batch_idx]);
-            cache_seqlens_[batch_idx] =
-                (cache_seqlens_[batch_idx] % config_.block_len) +
-                i * config_.block_len;
 
             // printf("cache_seqlens_[%d]: %d\n", batch_idx,
             //        cache_seqlens_[batch_idx]);
-            // for (int j = 0; j < i; j++) {
-            //     printf("block_table_after_retrieval_[%d][%d]: %d\n",
-            //     batch_idx,
-            //            j, block_table_after_retrieval_[batch_idx][j]);
-            // }
+            for (int j = 0; j < i; j++) {
+                selected_blocks_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step][batch_idx][j] =
+                    block_table_after_retrieval_[batch_idx][j];
+                // printf("block_table_after_retrieval_[%d][%d]: %d\n",
+                // batch_idx,
+                //        j, block_table_after_retrieval_[batch_idx][j]);
+            }
+            selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step] = i;
+            // printf("selected_blocks_num_history_[%d]: %d\n",
+            //        (layer_idx - config_.layer_offset) / config_.layer_step,
+            //        selected_blocks_num_history_[(layer_idx -
+            //                                      config_.layer_offset) /
+            //                                     config_.layer_step]);
         }
 
         auto end_2 = std::chrono::high_resolution_clock::now();
@@ -366,6 +1093,13 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     // output when batch_id or head_id changes.
     seq_len_ = config_.block_len;
 
+    // printf("max_block_num_after_retrieval: %d, cache_seqlens_[%d]: %d\n",
+    //        max_block_num_after_retrieval, 0, cache_seqlens_[0]);
+    // for (int i = 0; i < max_block_num_after_retrieval; i++) {
+    //     printf("block_table_after_retrieval_[%d][%d]: %d\n", 0, i,
+    //            block_table_after_retrieval_[0][i]);
+    // }
+
     // if (true) {
     //     for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
     //         printf("cache_seqlens_[%d]: %d\n", batch_idx,
@@ -378,8 +1112,11 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     //     }
     // }
 
-    // printf("max_block_num_after_retrieval: %d\n",
-    //        max_block_num_after_retrieval);
+    // printf("max_block_num_after_retrieval: %d, cache_seqlens_[batch_id] /
+    // "
+    //        "config_.block_len %d\n",
+    //        max_block_num_after_retrieval,
+    //        cache_seqlens_[0] / config_.block_len);
     backend->do_work_stealing_job(
         batch_size * config_.kv_head_num * max_block_num_after_retrieval,
         [&](int thread_id) {
@@ -394,7 +1131,8 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                           max_block_num_after_retrieval;
             int block_id = task_id % max_block_num_after_retrieval;
             int thread_id = Backend::thread_local_id;
-            // printf("batch_id: %d, head_id: %d, block_id: %d, thread_id: %d\n
+            // printf("batch_id: %d, head_id: %d, block_id: %d, thread_id:
+            // %d\n
             // ",
             //        batch_id, head_id, block_id, thread_id);
             // If the block is out of the sequence length, skip it.
@@ -411,7 +1149,8 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                 // Prepare the attention mask for the last block.
                 int full_blocks = seq_len / 8;
                 int remaining_bits = seq_len % 8;
-                // printf("full_blocks: %d, remaining_bits: %d\n", full_blocks,
+                // printf("full_blocks: %d, remaining_bits: %d\n",
+                // full_blocks,
                 //        remaining_bits);
                 // Fill full blocks with 1s
                 for (int i = 0; i < full_blocks; ++i) {
@@ -429,10 +1168,6 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                     thread_local_attn_mask_[thread_id][i] = 0;
                 }
                 if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
-
-                    // q_in_data[batch_id * config_.kv_head_num * n_gqa_ *
-                    //                      config_.head_dim +
-                    //                  head_id * n_gqa_ * config_.head_dim]
                     attn_with_kvcache_one_block(
                         config_.head_dim,
                         config_.q_head_num / config_.kv_head_num, GGML_TYPE_F16,
@@ -512,6 +1247,7 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                         thread_local_attn_lse_[thread_id].data(),
                         thread_local_draft_[thread_id].data(), nullptr,
                         cos_.data(), sin_.data());
+
                 } else if (config_.kv_type == ggml_type::GGML_TYPE_Q4_0) {
                     attn_with_kvcache_one_block(
                         config_.head_dim,
@@ -598,12 +1334,10 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                                                     [thread_id]
                                                     [i * config_.head_dim + j];
                             }
-                            // printf("cur_batch_idx: %d, cur_head_id: %d, i:
-                            // %d, "
+                            // printf("cur_batch_idx: %d, cur_head_id: %d,
+                            // i: %d,  "
                             //        "output_fp32_[cur_batch_idx][cur_head_id]:
-                            //        "
-                            //        "%f\n ",
-                            //        cur_batch_idx, cur_head_id, i,
+                            //        %f\n", cur_batch_idx, cur_head_id, i,
                             //        output_fp32_[cur_batch_idx][cur_head_id]
                             //                    [i * config_.head_dim]);
                             continue;
@@ -676,7 +1410,8 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                                                 [thread_id]
                                                 [i * config_.head_dim + j];
                         }
-                        // printf("cur_batch_idx: %d, cur_head_id: %d, i: %d,  "
+                        // printf("cur_batch_idx: %d, cur_head_id: %d, i:
+                        // %d,  "
                         //        "output_fp32_[cur_batch_idx][cur_head_id]:
                         //        %f\n", cur_batch_idx, cur_head_id, i,
                         //        output_fp32_[cur_batch_idx][cur_head_id]
@@ -742,18 +1477,17 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     //        diff.count());
 }
 
-void KVCache::attn_with_kvcache(const ggml_fp16_t *q_in,
-                                const ggml_fp16_t *k_in,
-                                const ggml_fp16_t *v_in, ggml_fp16_t *output,
-                                float *attn_lse, int layer_idx, int q_len,
-                                int batch_size, int max_block_num,
-                                int *block_table, int *cache_seqlens, int topk,
-                                int local, Backend *backend) {
+void KVCache::attn_with_kvcache(
+    const ggml_fp16_t *q_in, const ggml_fp16_t *k_in, const ggml_fp16_t *v_in,
+    ggml_fp16_t *output, float *attn_lse, int layer_idx, int generate_token_idx,
+    int q_len, int batch_size, int max_block_num, int *block_table,
+    int *cache_seqlens, int topk, int local, Backend *backend) {
     assert(q_len == 1);
     // 计时
     auto start = std::chrono::high_resolution_clock::now();
 
-    // printf("layer_idx: %d, q_len: %d, batch_size: %d, max_block_num: %d, "
+    // printf("layer_idx: %d, q_len: %d, batch_size: %d, max_block_num: %d,
+    // "
     //        "topk: %d, local: %d\n",
     //        layer_idx, q_len, batch_size, max_block_num, topk, local);
 
@@ -805,8 +1539,8 @@ void KVCache::attn_with_kvcache(const ggml_fp16_t *q_in,
                                     head_id * config_.head_dim + l * 32 + m]);
                     }
                     quantize_row_q4_0(block_fp32.data(), &block, 32);
-                    // printf("block_idx: %d, head_id: %d, pos_in_block: %d\n",
-                    // block_idx,
+                    // printf("block_idx: %d, head_id: %d, pos_in_block:
+                    // %d\n", block_idx,
                     //        head_id, pos_in_block);
                     k_cache_q4[layer_id_][head_id][block_idx]
                               [pos_in_block * config_.head_dim / 32 + l] =
@@ -843,8 +1577,8 @@ void KVCache::attn_with_kvcache(const ggml_fp16_t *q_in,
                                     head_id * config_.head_dim + l * 32 + m]);
                     }
                     quantize_row_q8_0(block_fp32.data(), &block, 32);
-                    // printf("block_idx: %d, head_id: %d, pos_in_block: %d\n",
-                    // block_idx,
+                    // printf("block_idx: %d, head_id: %d, pos_in_block:
+                    // %d\n", block_idx,
                     //        head_id, pos_in_block);
                     k_cache_q8[layer_id_][head_id][block_idx]
                               [pos_in_block * config_.head_dim / 32 + l] =
@@ -876,7 +1610,8 @@ void KVCache::attn_with_kvcache(const ggml_fp16_t *q_in,
         // printf("cache_seqlens[%d]: %d\n", i, cache_seqlens[i]);
     }
 
-    // printf("layer_idx: %d, q_len: %d, batch_size: %d, max_block_num: %d, "
+    // printf("layer_idx: %d, q_len: %d, batch_size: %d, max_block_num: %d,
+    // "
     //        "topk: %d, local: %d\n",
     //        layer_idx, q_len, batch_size, max_block_num, topk, local);
 
@@ -885,8 +1620,16 @@ void KVCache::attn_with_kvcache(const ggml_fp16_t *q_in,
     if (config_.block_len <= 32) {
         init_block_num = 64 / config_.block_len;
     }
-    attn(q_in, output, attn_lse, layer_idx, q_len, batch_size, max_block_num,
-         block_table, cache_seqlens, topk, init_block_num, local, backend);
+
+    if (config_.retrieval_type == RetrievalType::LAYER) {
+        attn(q_in, output, attn_lse, layer_idx, generate_token_idx, q_len,
+             batch_size, max_block_num, block_table, cache_seqlens, topk,
+             init_block_num, local, backend);
+    } else if (config_.retrieval_type == RetrievalType::KVHEAD) {
+        attn_kvhead(q_in, output, attn_lse, layer_idx, generate_token_idx,
+                    q_len, batch_size, max_block_num, block_table,
+                    cache_seqlens, topk, init_block_num, local, backend);
+    }
 
     // 计时结束
     auto end = std::chrono::high_resolution_clock::now();

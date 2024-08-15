@@ -1,9 +1,9 @@
-'''
+"""
 Description  :  
 Author       : Boxin Zhang, Azure-Tang
 Version      : 0.1.0
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
-'''
+"""
 
 import os
 import platform
@@ -49,12 +49,12 @@ default_optimize_rules = {
 
 
 def local_chat(
-    model_path: str,
+    model_path: str = None,
     optimize_rule_path: str = None,
     gguf_path: str = None,
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
-    use_cuda_graph: bool = True,
+    use_cuda_graph: bool = False,
 ):
     torch.set_grad_enabled(False)
 
@@ -62,6 +62,8 @@ def local_chat(
     tokenizer = AutoTokenizer.from_pretrained(
         "/home/djw/ltransformer-dev", trust_remote_code=True
     )
+    model_path = "/home/djw/model/internlm2-convert2-llama"
+    gguf_path = "/home/djw/model/internlm2-convert2-llama/gguf"
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     torch.set_default_dtype(config.torch_dtype)
 
@@ -74,9 +76,9 @@ def local_chat(
                 config._attn_implementation = "flash_attention_2"
             if "Llama" in config.architectures[0]:
                 config._attn_implementation = "eager"
-            if "Mixtral" in config.architectures[0]: 
+            if "Mixtral" in config.architectures[0]:
                 config._attn_implementation = "flash_attention_2"
-            if "Mixtral" in config.architectures[0]: 
+            if "Mixtral" in config.architectures[0]:
                 config._attn_implementation = "flash_attention_2"
             model = custom_models[config.architectures[0]](config)
         else:
@@ -121,8 +123,13 @@ def local_chat(
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
-        torch.set_default_dtype(torch.bfloat16) # TODO: Remove this, replace dtype using config
-        generated = prefill_and_generate(model, tokenizer, input_tensor.cuda(), max_new_tokens, use_cuda_graph)
+        torch.set_default_dtype(
+            torch.bfloat16
+        )  # TODO: Remove this, replace dtype using config
+        generated = prefill_and_generate(
+            model, tokenizer, input_tensor.cuda(), max_new_tokens, use_cuda_graph
+        )
+
 
 if __name__ == "__main__":
     fire.Fire(local_chat)

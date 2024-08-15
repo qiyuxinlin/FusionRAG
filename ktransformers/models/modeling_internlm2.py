@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """PyTorch InternLM2.5 model."""
+import os, sys
+import yaml
+
+sys.path.append(os.path.dirname(__file__))
+
+
 import math
 import queue
 import threading
@@ -79,6 +85,32 @@ def _get_unpad_data(attention_mask):
         cu_seqlens,
         max_seqlen_in_batch,
     )
+
+
+import time
+import functools
+
+
+def model_timing_decorator(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        start_time = time.time()
+
+        result = method(self, *args, **kwargs)
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        if not self.prefill_finished:
+            self.prefill_finished = True
+            self.prefill_time = elapsed_time
+        else:
+            self.generate_time += elapsed_time
+            self.generate_tokens += 1
+
+        return result
+
+    return wrapper
 
 
 class InternLM2RMSNorm(nn.Module):
@@ -325,10 +357,6 @@ class InternLM2Attention(nn.Module):
             else:
                 raise ValueError(f"Unknown RoPE scaling type {scaling_type}")
 
-
-
-
-
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -377,6 +405,16 @@ class InternLM2Attention(nn.Module):
             query_states = query_states[:, :, -1:]
             key_states = key_states[:, :, -1:]
 
+        # if q_len > 1:
+        #     attn_output = torch.empty(
+        #         bsz,
+        #         self.num_heads,
+        #         q_len,
+        #         self.head_dim,
+        #         device=torch.device("cuda"),
+        #         dtype=torch.float16,
+        #     )
+        # else:
         attn_output = InternLM2Model.dynamic_sdp.apply(
             self.layer_idx,
             bsz,
@@ -385,6 +423,7 @@ class InternLM2Attention(nn.Module):
             key_states.transpose(1, 2).to(torch.float16),
             value_states.transpose(1, 2).to(torch.float16),
             mode="prefill" if q_len > 1 else "generate",
+            last_chunk=True if prefill_remaining_len <= chunk_size else False,
         )
 
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
@@ -997,23 +1036,42 @@ class InternLM2Model(InternLM2PreTrainedModel):
     Args:
         config: InternLM2Config
     """
+
     dynamic_sdp = None
     _auto_class = "AutoModel"
 
     def __init__(self, config: InternLM2Config):
         super().__init__(config)
+
+        global chunk_size
+        chunk_size = 20480
+
+        with open(
+            os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "configs",
+                "long_context.yaml",
+            ),
+            "r",
+        ) as file:
+            long_context_config = yaml.safe_load(file.read())
         InternLM2Model.dynamic_sdp = DynamicScaledDotAttention(
-            max_seq_len=25600,
-            block_size=128,
+            max_seq_len=long_context_config["max_seq_len"],
+            block_size=long_context_config["block_size"],
             config=config,
             device=torch.device("cuda"),
-            local_windows_len=4096,
-            topk=96,
-            threads_num=2,
-            anchor_type="DYNAMIC",
-            kv_type="FP16",
-            dense_layer_num=0,
-            anchor_num=1,
+            local_windows_len=long_context_config["local_windows_len"],
+            topk=long_context_config["second_select_num"],
+            threads_num=long_context_config["threads_num"],
+            anchor_type=long_context_config["anchor_type"],
+            kv_type=long_context_config["kv_type"],
+            dense_layer_num=long_context_config["dense_layer_num"],
+            anchor_num=long_context_config["anchor_num"],
+            preselect_block=long_context_config["preselect_block"],
+            block_selection_mode=long_context_config["head_select_mode"],
+            preselect_block_count=long_context_config["preselect_block_count"],
+            layer_step=long_context_config["layer_step"],
+            token_step=long_context_config["token_step"],
         )
 
         self.padding_idx = config.pad_token_id
@@ -1043,6 +1101,7 @@ class InternLM2Model(InternLM2PreTrainedModel):
         self.tok_embeddings = value
 
     @add_start_docstrings_to_model_forward(InternLM2_INPUTS_DOCSTRING)
+    # @model_timing_decorator
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -1079,8 +1138,6 @@ class InternLM2Model(InternLM2PreTrainedModel):
             )
             use_cache = False
 
-
-
         if cache_position is None:
             past_seen_tokens = (
                 past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -1093,80 +1150,71 @@ class InternLM2Model(InternLM2PreTrainedModel):
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
         causal_mask = None
-        chunck_size = 20480
+
         cur_idx = 0
-        _, q_len = input_ids.shape
-        if q_len != 1:
-            q_len = (q_len - cache_position[0]).item()
+        q_len = cache_position.size(0)
+        # q_len = q_len - cache_position[0].item()
+        # print(q_len)
         # generate
         if q_len <= 1:
-            x = input_ids[:,-1:]
-            position_ids = position_ids[:,-1:]
+            x = input_ids[:, -1:]
+            position_ids = position_ids[:, -1:]
             return self.forward_chunk(
-                      x,
-                      causal_mask,
-                      position_ids,
-                      past_key_values,
-                      output_attentions,
-                      use_cache,
-                      cache_position,output_hidden_states,return_dict
-                      )
-        elif q_len <= chunck_size:
-
-            output = self.forward_chunk(
-                      input_ids,
-                      causal_mask,
-                      position_ids,
-                      past_key_values,
-                      output_attentions,
-                      use_cache,
-                      cache_position,output_hidden_states,return_dict
-                      )
-            InternLM2Model.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
-            InternLM2Model.dynamic_sdp.clear_importance(cache_position[-1] + 1)
-            return output
-        cur_idx = 0
-        assert output_attentions == False, "output_attentions is not supported when using chunked attention"
-        attn_output = None
-        # prefill
-        while cur_idx < q_len:
-            chunk_mask = None
-            output_with_past = self.forward_chunk(
-                input_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
-                chunk_mask,
-                position_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
+                x,
+                causal_mask,
+                position_ids,
                 past_key_values,
                 output_attentions,
                 use_cache,
-                cache_position[cur_idx:min(cur_idx + chunck_size, q_len)]
+                cache_position,
+                output_hidden_states,
+                return_dict,
+            )
+        cur_idx = 0
+        assert (
+            output_attentions == False
+        ), "output_attentions is not supported when using chunked attention"
+        attn_output = None
+        # prefill
+        global prefill_remaining_len
+        prefill_remaining_len = q_len
+
+        while cur_idx < q_len:
+            chunk_mask = None
+            print(f"cur_idx: {cur_idx}")
+            output_with_past = self.forward_chunk(
+                input_ids[:, cur_idx : min(cur_idx + chunk_size, q_len)],
+                chunk_mask,
+                position_ids[:, cur_idx : min(cur_idx + chunk_size, q_len)],
+                past_key_values,
+                output_attentions,
+                use_cache,
+                cache_position[cur_idx : min(cur_idx + chunk_size, q_len)],
             )
             cur_output = output_with_past.last_hidden_state
-            cur_idx += chunck_size
+            cur_idx += chunk_size
+            prefill_remaining_len -= chunk_size
             # if attn_output is None:
             attn_output = cur_output
             # else:
             #     attn_output = torch.cat((attn_output, cur_output), dim=-2)
-        
+        # print(q_len, cache_position)
         InternLM2Model.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
         InternLM2Model.dynamic_sdp.clear_importance(cache_position[-1] + 1)
-        return BaseModelOutputWithPast(
-            last_hidden_state=attn_output
-        )
+        return BaseModelOutputWithPast(last_hidden_state=attn_output)
 
-
-
-
-    def forward_chunk(self,
-                      input_ids,
-                      causal_mask,
-                      position_ids,
-                      past_key_values,
-                      output_attentions,
-                      use_cache,
-                      cache_position,
-                      output_hidden_states: Optional[bool] = None,
-                      return_dict: Optional[bool] = None,
-                      ):
+    def forward_chunk(
+        self,
+        input_ids,
+        causal_mask,
+        position_ids,
+        past_key_values,
+        output_attentions,
+        use_cache,
+        cache_position,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ):
 
         output_hidden_states = (
             output_hidden_states
@@ -1183,7 +1231,7 @@ class InternLM2Model(InternLM2PreTrainedModel):
             return_dict if return_dict is not None else self.config.use_return_dict
         )
         hidden_states = self.tok_embeddings(input_ids)
-            
+
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
@@ -1246,7 +1294,6 @@ class InternLM2Model(InternLM2PreTrainedModel):
             attentions=all_self_attns,
         )
 
-        
     def _update_causal_mask(
         self,
         attention_mask: torch.Tensor,
@@ -1349,6 +1396,25 @@ class InternLM2Model(InternLM2PreTrainedModel):
             )  # pylint: disable=E1120
 
         return causal_mask
+
+    def reset_timing(self):
+        """Initialize or reset the timing attributes."""
+        self.generate_tokens = 0
+        self.generate_time = 0
+        self.prefill_finished = False
+        self.prefill_time = 0
+
+    def get_timing_info(self, prompt_length: int | None = None):
+        """Print the timing information."""
+        if prompt_length is None:
+            print(f"Prefill unknown tokens use {self.prefill_time:.2f} seconds")
+        else:
+            print(
+                f"Prefill {prompt_length} tokens use {self.prefill_time:.2f} seconds, TTFT: {prompt_length / self.prefill_time:.2f} tokens/s"
+            )
+        print(
+            f"Generate {self.generate_tokens} tokens use {self.generate_time:.2f} seconds, TPOT: {self.generate_tokens / self.generate_time:.2f} tokens/s"
+        )
 
 
 # Modified from transformers.models.llama.modeling_llama.LlamaForCausalLM
@@ -1643,13 +1709,140 @@ class InternLM2ForCausalLM(InternLM2PreTrainedModel):
         return tokenizer([prompt], return_tensors="pt")
 
     @torch.no_grad()
+    def sample(self, logits, input_ids, generation_config):
+
+        try:  # transformers==4.43
+            logits_warper = (
+                self._get_logits_warper(generation_config, device="cuda")
+                if generation_config.do_sample
+                else None
+            )
+        except:
+            logits_warper = (
+                self._get_logits_warper(generation_config)
+                if generation_config.do_sample
+                else None
+            )
+
+        next_token_scores = logits_warper(input_ids, logits[:, -1, :])
+        if generation_config.do_sample:
+            probs = nn.functional.softmax(next_token_scores, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1).squeeze(1)
+        else:
+            next_token = torch.argmax(next_token_scores, dim=-1)
+        return next_token
+
+    @torch.no_grad()
+    def local_chat(
+        self,
+        tokenizer,
+        query: str,
+        history_path: str | None = None,
+        history_length: int = 0,
+        output_path: str | None = None,
+        use_templete: bool = False,
+        max_new_tokens: int = 128,
+        do_sample: bool = True,
+        temperature: float = 0.8,
+        top_p: float = 0.8,
+        top_k: int = 5,
+        meta_instruction: str = "You are an AI assistant whose name is InternLM (书生·浦语).\n"
+        "- InternLM (书生·浦语) is a conversational language model that is developed by Shanghai AI Laboratory "
+        "(上海人工智能实验室). It is designed to be helpful, honest, and harmless.\n"
+        "- InternLM (书生·浦语) can understand and communicate fluently in the language chosen by the user such "
+        "as English and 中文.",
+        **kwargs,
+    ):
+        input_ids = (
+            torch.tensor(tokenizer.encode(query, add_special_tokens=False))
+            .unsqueeze(0)
+            .cuda()
+        )
+
+        eos_token_id = [
+            tokenizer.eos_token_id,
+            tokenizer.convert_tokens_to_ids(["<|im_end|>"])[0],
+        ]
+        if history_path:
+            self.model.dynamic_sdp.load(history_path, history_length)
+        query_length = input_ids.size(1)
+        seq_length = history_length + query_length
+        position_ids = (
+            torch.arange(history_length, history_length + query_length)
+            .unsqueeze(0)
+            .cuda()
+        )
+        use_cache = True
+        output_attentions = False
+        output_hidden_states = False
+        return_dict = True
+        cache_position = torch.arange(
+            history_length, history_length + query_length
+        ).cuda()
+        outputs = self.model(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            cache_position=cache_position,
+        )
+
+        hidden_states = outputs[0]
+        logits = self.output(hidden_states)
+
+        generation_config, model_kwargs = self._prepare_generation_config(
+            None,
+            max_length=max_new_tokens,
+            do_sample=True,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,  # change this to modify generate config
+        )
+
+        next_token = self.sample(logits, input_ids, generation_config)
+        print(f"seq_length: {seq_length}")
+        seq_length += 1
+        prediction = [next_token[0].item()]
+        for _ in range(1, max_new_tokens):
+            input_ids = torch.cat((input_ids, next_token.unsqueeze(0)), dim=1)
+            cache_position = torch.tensor([seq_length - 1], device="cuda")
+            position_ids = torch.tensor([[seq_length - 1]], device="cuda")
+            outputs = self.model(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                cache_position=cache_position,
+            )
+            hidden_states = outputs[0]
+            logits = self.output(hidden_states)
+            next_token = self.sample(logits, input_ids, generation_config)
+
+            if next_token[0].item() in eos_token_id:
+                break
+
+            prediction.append(next_token[0].item())
+            seq_length += 1
+
+        response = tokenizer.decode(prediction)
+
+        if output_path:
+            self.model.dynamic_sdp.save(output_path, seq_length)
+
+        return response
+
+    @torch.no_grad()
     def chat(
         self,
         tokenizer,
         query: str,
         history: Optional[List[Tuple[str, str]]] = None,
         streamer: Optional[BaseStreamer] = None,
-        max_new_tokens: int = 1024,
+        max_new_tokens: int = 128,
         do_sample: bool = True,
         temperature: float = 0.8,
         top_p: float = 0.8,
@@ -1669,6 +1862,8 @@ class InternLM2ForCausalLM(InternLM2PreTrainedModel):
             tokenizer.eos_token_id,
             tokenizer.convert_tokens_to_ids(["<|im_end|>"])[0],
         ]
+
+        self.model.reset_timing()
         outputs = self.generate(
             **inputs,
             streamer=streamer,
@@ -1679,6 +1874,9 @@ class InternLM2ForCausalLM(InternLM2PreTrainedModel):
             eos_token_id=eos_token_id,
             **kwargs,
         )
+        # self.model.get_timing_info(inputs["input_ids"].size(1))
+        print(inputs["input_ids"].size(1))
+        # self.model.dynamic_sdp.clear_kvcache(inputs["input_ids"].size(1) - 128)
         outputs = outputs[0].cpu().tolist()[len(inputs["input_ids"][0]) :]
         response = tokenizer.decode(outputs, skip_special_tokens=True)
         response = response.split("<|im_end|>")[0]

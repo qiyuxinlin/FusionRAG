@@ -29,7 +29,8 @@
 #include "llamafile/sgemm.h"
 
 #define CHUNK_SIZE 32
-enum AnchorType { FIXED, DYNAMIC, QUEST };
+enum AnchorType { FIXED, DYNAMIC, QUEST, BLOCK_MEAN, BLOCK_MAX };
+enum RetrievalType { LAYER, KVHEAD, QHEAD };
 
 struct KVCacheConfig {
     int layer_num;
@@ -47,12 +48,18 @@ struct KVCacheConfig {
     int max_thread_num;
 
     AnchorType anchor_type;
+    RetrievalType retrieval_type;
+
+    int layer_step;
+    int token_step;
+    int layer_offset;
 
     KVCacheConfig() = default;
     KVCacheConfig(int layer_num, int kv_head_num, int q_head_num, int head_dim,
                   int block_len, int anchor_num, AnchorType anchor_type,
-                  ggml_type kv_type, int max_block_num, int max_batch_size,
-                  int max_thread_num);
+                  ggml_type kv_type, RetrievalType retrieval_type,
+                  int layer_step, int token_step, int layer_offset,
+                  int max_block_num, int max_batch_size, int max_thread_num);
 };
 
 // TODO: 把resize都提出来，单独写一个方法预分配空间， 替换动态resize
@@ -77,9 +84,22 @@ class KVCache {
         cache_total_len_ = cache_total_len;
     }
     void attn(const ggml_fp16_t *q_in, ggml_fp16_t *output, float *attn_lse,
-              int layer_idx, int q_len, int batch_size, int max_block_num,
-              int *block_table, int *cache_seqlens, int pick_block_num,
-              int init_block_num, int local_block_num, Backend *backend);
+              int layer_idx, int generate_token_idx, int q_len, int batch_size,
+              int max_block_num, int *block_table, int *cache_seqlens,
+              int pick_block_num, int init_block_num, int local_block_num,
+              Backend *backend);
+
+    void attn_kvhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
+                     float *attn_lse, int layer_idx, int generate_token_idx,
+                     int q_len, int batch_size, int max_block_num,
+                     int *block_table, int *cache_seqlens, int pick_block_num,
+                     int init_block_num, int local_block_num, Backend *backend);
+
+    void attn_qhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
+                    float *attn_lse, int layer_idx, int generate_token_idx,
+                    int q_len, int batch_size, int max_block_num,
+                    int *block_table, int *cache_seqlens, int pick_block_num,
+                    int init_block_num, int local_block_num, Backend *backend);
 
     void update_one_block_fp16(const ggml_fp16_t *k_in, const ggml_fp16_t *v_in,
                                int layer_id, int block_idx, Backend *backend);
@@ -141,14 +161,20 @@ class KVCache {
     */
     void attn_with_kvcache(const ggml_fp16_t *q_in, const ggml_fp16_t *k_in,
                            const ggml_fp16_t *v_in, ggml_fp16_t *output,
-                           float *attn_lse, int layer_idx, int q_len,
-                           int batch_size, int max_block_num, int *block_table,
+                           float *attn_lse, int layer_idx,
+                           int generate_token_idx, int q_len, int batch_size,
+                           int max_block_num, int *block_table,
                            int *cache_seqlens, int topk, int local,
                            Backend *backend);
 
     void clear_importance_all_layers(int *block_table, int *cache_seqlens,
                                      int batch_size, int max_block_num,
                                      Backend *backend);
+
+    void clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
+                                  int batch_size, int max_block_num,
+                                  Backend *backend);
+
     void get_sincos(ggml_fp16_t *sin, ggml_fp16_t *cos, int seqlen);
 
   private:
@@ -217,12 +243,40 @@ class KVCache {
         std::priority_queue<std::pair<float, int>,
                             std::vector<std::pair<float, int>>, std::greater<>>>
         top_similar_block_;
+
     std::vector<std::vector<float>> block_similar_;
-    std::vector<int> cache_seqlens_; // [batch_size]
+    std::vector<std::vector<std::vector<float>>> block_similar_kv_head_;
+    std::vector<std::vector<std::vector<float>>> block_similar_q_head_;
+
+    std::vector<int> cache_seqlens_;               // [batch_size]
+    std::vector<int> selected_blocks_num_history_; // [layer_num // layer_step]
+
+    std::vector<std::vector<std::vector<int>>> selected_blocks_history_;
+    // [layer_num // layer_step, batch_size, max_block_num]
+
+    std::vector<std::vector<std::vector<std::vector<int>>>>
+        selected_blocks_history_kvhead_; // [layer_num // layer_step,
+                                         // batch_size, max_block_num,
+                                         // kv_head_num]
+
     std::vector<std::vector<int>>
         block_table_before_retrieval_; // [batch_size, max_block_num]
     std::vector<std::vector<int>>
         block_table_after_retrieval_; // [batch_size, pick_block_num]
+
+    std::vector<std::vector<std::vector<int>>>
+        block_table_before_retrieval_qhead_; // [batch_size, max_block_num,
+                                             // q_head_num]
+    std::vector<std::vector<std::vector<int>>>
+        block_table_after_retrieval_qhead_; // [batch_size, pick_block_num,
+                                            // q_head_num]
+
+    std::vector<std::vector<std::vector<int>>>
+        block_table_before_retrieval_kvhead_; // [batch_size, max_block_num,
+                                              // kv_head_num]
+    std::vector<std::vector<std::vector<int>>>
+        block_table_after_retrieval_kvhead_; // [batch_size, pick_block_num,
+                                             // kv_head_num]
 
     std::vector<std::vector<std::unique_ptr<std::mutex>>>
         mutex_; // [batch_size, kv_head_num]
@@ -255,12 +309,11 @@ class KVCache {
     std::vector<std::vector<char>>
         thread_local_draft_; // [thread_num, 2 * n_gqa * block_len + 6 * n_gqa *
                              // head_dim + 2 * block_len * head_dim]
-
     // tmp space
     std::vector<float> q_fp32; // [n_gqa * head_dim]
 };
 
-// 通用的注意力计算函数，可能单独提出来
+// 通用的注意力计算函数
 void attn_with_kvcache_one_block(
     int head_dim, int bsz,
     ggml_type q_type, // GGML data type of `Q`，只支持 fp16 和 q8_0

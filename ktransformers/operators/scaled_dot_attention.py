@@ -8,6 +8,9 @@ from cpuinfer import CPUInfer, CPUInferKVCache
 from flash_attn import flash_attn_func, flash_attn_with_kvcache
 
 
+import math
+
+
 class DynamicScaledDotAttention:
 
     def __init__(
@@ -23,13 +26,42 @@ class DynamicScaledDotAttention:
         kv_type: str = "FP16",
         dense_layer_num: int = 0,
         anchor_num: int = 1,
+        block_selection_mode: str = "SHARED",
+        layer_step: int = 1,
+        token_step: int = 1,
+        preselect_block: bool = False,
+        preselect_block_count: int = 96,
     ):
-        assert anchor_num == 1
-        assert anchor_type == "DYNAMIC"
+        # assert anchor_num == 1
+        # assert anchor_type == "DYNAMIC"
+
+        valid_anchor_types = ["DYNAMIC", "FIXED", "BLOCK_MEAN", "BLOCK_MAX", "QUEST"]
+        assert anchor_type in valid_anchor_types
+        if anchor_type == "QUEST":
+            assert anchor_num == 2
+        elif anchor_type != "FIXED" and anchor_type != "DYNAMIC":
+            assert anchor_num == 1
+
+        valid_kv_types = ["FP16", "FP32", "Q4_0", "Q8_0"]
+        assert kv_type in valid_kv_types
+        if kv_type != "FP16" and kv_type != "FP32":
+            assert block_size % 32 == 0
+
+        valid_block_selection_modes = ["SHARED", "GROUP"]  # individual
+        assert block_selection_mode in valid_block_selection_modes
 
         self.max_seq_len = max_seq_len
         self.block_num = max_seq_len // block_size
         self.block_size = block_size
+        self.anchor_type = anchor_type
+        self.kv_type = kv_type
+        self.anchor_num = anchor_num
+        self.threads_num = threads_num
+        self.layer_step = layer_step
+        self.token_step = token_step
+        self.preselect_block = preselect_block
+        self.preselect_block_count = preselect_block_count
+        self.block_selection_mode = block_selection_mode
 
         # model config
         self.kv_head_num = config.num_key_value_heads
@@ -52,7 +84,7 @@ class DynamicScaledDotAttention:
             device=device,
             dtype=torch.float16,
         )
-
+        # [max_num_block, block_size, head_num]
         self.cache_importance = torch.zeros(
             (self.block_num, block_size, self.q_head_num),
             device=device,
@@ -63,20 +95,37 @@ class DynamicScaledDotAttention:
             self.block_num, device=device, dtype=torch.int32
         ).view(1, -1)
 
-        self.cpu_infer = CPUInfer(threads_num)
+        if preselect_block == True:
+            self.preselect_block_table = torch.zeros(
+                self.layer_num,
+                self.preselect_block_count,
+                device=device,
+                dtype=torch.int32,
+            )
+            self.preselect_block_num = 0  # block_num before preselect
+            self.evict_tokens = 0
 
+        self.cpu_infer = CPUInfer(threads_num)
         self.local_thread = CPUInferKVCache(
             self.layer_num,
             self.kv_head_num,
             self.q_head_num,
             self.head_dim,
             self.block_size,
-            anchor_num=anchor_num,
+            anchor_num=self.anchor_num,
             anchor_type=anchor_type,
-            kv_type=kv_type,
+            kv_type=self.kv_type,
+            retrieval_type=self.block_selection_mode,
+            layer_step=self.layer_step,
+            token_step=self.token_step,
+            layer_offset=self.dense_layer_num % self.layer_step,
             max_batch_size=1,
             max_block_num=self.block_num,
-            max_thread_num=threads_num,
+            max_thread_num=self.threads_num,
+        )
+
+        print(
+            f"local_windows_len: {local_windows_len}, topk: {topk}, dense_layer_num: {dense_layer_num}, kv_type: {self.kv_type}, anchor_type: {self.anchor_type}, preselect_block: {self.preselect_block}, preselect_block_count: {self.preselect_block_count}, token_step: {self.token_step}, layer_step: {self.layer_step}"
         )
 
         self.shape_mask = (
@@ -98,6 +147,8 @@ class DynamicScaledDotAttention:
         self.tril_mask = mask
         self.triu_mask = mask ^ 1
 
+        self.generate_token_idx = 0
+
     def get_attn_score_one_block(
         self,
         batch_idx: int,
@@ -107,6 +158,7 @@ class DynamicScaledDotAttention:
         offset: int,
         width: int,
         mask_mode: str | None = None,
+        use_softmax: bool = True,
     ):
         n_rep = self.q_head_num // self.kv_head_num
         key = key[..., None, :].expand(
@@ -129,10 +181,116 @@ class DynamicScaledDotAttention:
             mask = self.triu_mask
             mask = mask[..., -qk.size(-2) :, -qk.size(-1) :]
             qk = qk * mask
-        qk = torch.sum(qk, dim=-2) / self.block_size
+
+        if use_softmax:
+            qk = torch.nn.functional.softmax(
+                qk / math.sqrt(self.head_dim), dim=-1, dtype=torch.float32
+            ).to(torch.float16)
+        qk = torch.sum(qk, dim=-2)
         importance = self.cache_importance.view(-1, self.q_head_num)
         importance = importance.narrow(0, batch_idx * max_block_num + offset, width)
         importance += qk.transpose(-1, -2)
+
+    def get_preselect_block_table_and_attn_score(
+        self,
+        layer_idx: int,
+        batch_size: int,
+        offset: torch.Tensor,
+        width: int,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        union_with_last_layer: bool = True,
+    ):
+        max_seqs_len = offset.max().item() + width
+        max_block_num = (max_seqs_len + self.block_size - 1) // self.block_size
+
+        for batch_idx in range(batch_size):
+            query_cur = query[batch_idx][-128:]
+            self.get_attn_score_one_block(
+                batch_idx,
+                max_block_num,
+                query_cur,
+                key[batch_idx][: offset[batch_idx].item() + width],
+                0,
+                offset[batch_idx].item() + width,
+                mask_mode=None,
+            )
+
+        if self.preselect_block:
+            self.prefill_block_num = max(
+                0, max_block_num - self.local_windows_len // self.block_size
+            )
+            self.evict_tokens = (
+                max(self.prefill_block_num - self.preselect_block_count, 0)
+                * self.block_size
+            )
+
+            if self.prefill_block_num != 0:
+                importance_cache = self.cache_importance.narrow(
+                    0, 0, self.prefill_block_num * batch_size
+                ).view(
+                    batch_size, self.prefill_block_num, self.block_size, self.q_head_num
+                )
+
+                importance_r = importance_cache[:, 1:, : self.block_size // 4]
+                pad_r = torch.zeros_like(importance_r[:, :1])
+                importance_r = torch.cat((importance_r, pad_r), dim=1)
+                importance_l = importance_cache[:, :-1, -self.block_size // 4 :]
+                pad_l = torch.zeros_like(importance_l[:, :1])
+                importance_l = torch.cat((pad_l, importance_l), dim=1)
+                importance = torch.cat(
+                    (importance_l, importance_cache, importance_r), dim=2
+                )
+                importance = importance.mean(dim=-1)
+                importance = importance.mean(dim=-1)
+                # importance: (batch_size, max_block_num)
+                topk = min(self.preselect_block_count, self.prefill_block_num)
+                values, indices = torch.topk(
+                    importance,
+                    k=topk,
+                    dim=1,
+                )
+
+                self.preselect_block_table[
+                    layer_idx : layer_idx + 1,
+                    :topk,
+                ].copy_(indices)
+
+                if union_with_last_layer and layer_idx == 31:
+                    for tmp_layer_idx in range(self.layer_num - 1):
+                        for i in range(1, min(topk, 6)):
+                            x = self.preselect_block_table[-1, i]
+                            if x not in self.preselect_block_table[tmp_layer_idx]:
+                                self.preselect_block_table[tmp_layer_idx, topk - i] = x
+        if self.anchor_type == "DYNAMIC":
+            importance_cache = self.cache_importance.narrow(
+                0, 0, max_block_num * batch_size
+            ).view(batch_size, max_block_num * self.block_size, self.q_head_num)
+            importance_cache_cpu = torch.empty_like(
+                importance_cache, device="cpu", pin_memory=True
+            )
+
+            importance_cache_cpu.copy_(importance_cache)
+
+            block_table_cpu = self.prefix_block_table[:, :max_block_num].to("cpu")
+            offset_cpu = offset.contiguous().to("cpu")
+
+            self.cpu_infer.submit(
+                self.local_thread.update_importance(
+                    importance_cache_cpu,
+                    layer_idx,
+                    block_table_cpu,
+                    max_block_num,
+                    offset_cpu,
+                    width,
+                )
+            )
+            self.cpu_infer.sync()
+
+        importance_cache = self.cache_importance.narrow(
+            0, 0, max_block_num * batch_size
+        ).view(batch_size, max_block_num * self.block_size, self.q_head_num)
+        importance_cache.zero_()
 
     # key: [bsz, past_len, head_num, head_dim] float16
     # query: [bsz, q_len, q_head_num, head_dim] float16
@@ -166,6 +324,7 @@ class DynamicScaledDotAttention:
                     offset[batch_idx].item() + offset_cur,
                     self.block_size,
                     mask_mode="tril",
+                    use_softmax=False,
                 )
 
                 offset_key = (
@@ -182,6 +341,7 @@ class DynamicScaledDotAttention:
                         offset_key,
                         self.block_size,
                         mask_mode="triu",
+                        use_softmax=False,
                     )
 
                 offset_key = max(0, offset_key + self.block_size)
@@ -197,6 +357,7 @@ class DynamicScaledDotAttention:
                         offset_key,
                         width_key,
                         mask_mode=None,
+                        use_softmax=False,
                     )
 
         importance_cache = self.cache_importance.narrow(
@@ -293,6 +454,7 @@ class DynamicScaledDotAttention:
         self.cpu_infer.sync()
 
     def clear_importance(self, cache_seqlens: int):
+        print(f"clear importance: {cache_seqlens}")
         cur_block_num = (cache_seqlens + self.block_size - 1) // self.block_size
         block_table_cpu = self.prefix_block_table[:, :cur_block_num].to("cpu")
         cache_seqlens_cpu = torch.tensor(
@@ -301,6 +463,21 @@ class DynamicScaledDotAttention:
 
         self.cpu_infer.submit(
             self.local_thread.clear_importance_all_layers(
+                block_table_cpu,
+                cache_seqlens_cpu,
+            )
+        )
+        self.cpu_infer.sync()
+
+    def clear_kvcache(self, cache_seqlens: int):
+        cur_block_num = (cache_seqlens + self.block_size - 1) // self.block_size
+        block_table_cpu = self.prefix_block_table[:, :cur_block_num].to("cpu")
+        cache_seqlens_cpu = torch.tensor(
+            [cache_seqlens], device="cpu", dtype=torch.int32
+        )
+
+        self.cpu_infer.submit(
+            self.local_thread.clear_kvcache_all_layers(
                 block_table_cpu,
                 cache_seqlens_cpu,
             )
@@ -316,7 +493,10 @@ class DynamicScaledDotAttention:
         key_states: torch.Tensor,
         value_states: torch.Tensor,
         mode: str = "prefill",
+        generate_token_idx: int = -1,
+        last_chunk: bool = False,
     ):
+
         # key_states: [bsz, q_len, kv_head_num, head_dim]
         # value_states: [bsz, q_len, kv_head_num, head_dim]
         # query_states: [bsz, q_len, q_head_num, head_dim]
@@ -334,6 +514,11 @@ class DynamicScaledDotAttention:
             [past_len], device=query_states.device, dtype=torch.int32
         )
         device = query_states.device
+        if layer_idx == 0:
+            if q_len == 1:
+                self.generate_token_idx += 1
+            elif last_chunk:
+                self.generate_token_idx = -1
 
         if mode == "prefill":
             key, value = self.swap_in_and_swap_out(
@@ -343,14 +528,16 @@ class DynamicScaledDotAttention:
                 key_states,
                 value_states,
             )
-            self.get_attn_score(
-                layer_idx,
-                bsz,
-                past_len,
-                q_len,
-                query_states,
-                key,
-            )
+
+            if last_chunk and (self.anchor_type == "DYNAMIC" or self.preselect_block):
+                self.get_preselect_block_table_and_attn_score(
+                    layer_idx,
+                    bsz,
+                    past_len,
+                    q_len,
+                    query_states,
+                    key,
+                )
             output = flash_attn_with_kvcache(
                 q=query_states,
                 k_cache=key,
@@ -360,6 +547,7 @@ class DynamicScaledDotAttention:
             )
 
         elif mode == "generate":
+            assert self.generate_token_idx >= 0
             output = torch.empty_like(query_states, device="cpu").contiguous()
             lse = torch.empty(
                 (batch_size, q_len, self.q_head_num), device="cpu", dtype=torch.float32
@@ -369,7 +557,6 @@ class DynamicScaledDotAttention:
             k_in_cpu = key_states.contiguous().to("cpu")
             v_in_cpu = value_states.contiguous().to("cpu")
             cache_seqlens_cpu = past_len.contiguous().to("cpu")
-
             cur_block_num = (
                 q_len + past_len[0].item() + self.block_size - 1
             ) // self.block_size
@@ -391,21 +578,84 @@ class DynamicScaledDotAttention:
                     )
                 )
             else:
-                self.cpu_infer.submit(
-                    self.local_thread.attn_with_kvcache(
-                        q_in=q_in_cpu,
-                        k_in=k_in_cpu,
-                        v_in=v_in_cpu,
-                        output=output,
-                        attn_lse=lse,
-                        layer_idx=layer_idx,
-                        block_table=block_table_cpu,
-                        cache_seqlens=cache_seqlens_cpu,
-                        topk=self.topk,
-                        local=self.local_windows_len // self.block_size,
+                if self.preselect_block:
+                    cache_seqlens_cpu = (
+                        (past_len - self.evict_tokens).contiguous().to("cpu")
                     )
-                )
+                    cur_block_num = (
+                        q_len + past_len[0].item() + self.block_size - 1
+                    ) // self.block_size
+                    block_table = torch.cat(
+                        (
+                            self.preselect_block_table[
+                                layer_idx : layer_idx + 1,
+                                : min(
+                                    self.preselect_block_count, self.prefill_block_num
+                                ),
+                            ],
+                            self.prefix_block_table[
+                                :, self.prefill_block_num : cur_block_num
+                            ],
+                        ),
+                        dim=1,
+                    )
+                    block_table_cpu = block_table.contiguous().to("cpu")
+                    self.cpu_infer.submit(
+                        self.local_thread.attn_with_kvcache(
+                            q_in=q_in_cpu,
+                            k_in=k_in_cpu,
+                            v_in=v_in_cpu,
+                            output=output,
+                            attn_lse=lse,
+                            layer_idx=layer_idx,
+                            generate_token_idx=self.generate_token_idx,
+                            block_table=block_table_cpu,
+                            cache_seqlens=cache_seqlens_cpu,
+                            topk=(
+                                self.topk
+                                if self.topk <= self.preselect_block_count
+                                else None
+                            ),
+                            local=self.local_windows_len // self.block_size,
+                        )
+                    )
+                else:
+                    self.cpu_infer.submit(
+                        self.local_thread.attn_with_kvcache(
+                            q_in=q_in_cpu,
+                            k_in=k_in_cpu,
+                            v_in=v_in_cpu,
+                            output=output,
+                            attn_lse=lse,
+                            layer_idx=layer_idx,
+                            generate_token_idx=self.generate_token_idx,
+                            block_table=block_table_cpu,
+                            cache_seqlens=cache_seqlens_cpu,
+                            topk=self.topk,
+                            local=self.local_windows_len // self.block_size,
+                        )
+                    )
             self.cpu_infer.sync()
             output = output.to(device)
-
         return output.transpose(1, 2)
+
+    def save(self, path: str, length: int):
+        cur_block_num = (length + self.block_size - 1) // self.block_size
+        block_table_cpu = self.prefix_block_table[0, :cur_block_num].to("cpu")
+        cache_seqlens_cpu = torch.tensor([length], device="cpu", dtype=torch.int32)
+        self.cpu_infer.submit(
+            self.local_thread.dump_kvcache(
+                block_table_cpu,
+                cache_seqlens_cpu,
+                path,
+            )
+        )
+        self.cpu_infer.sync()
+
+    def load(self, path: str, length: int):
+        self.cpu_infer.submit(
+            self.local_thread.load_kvcache(
+                path,
+            )
+        )
+        self.cpu_infer.sync()

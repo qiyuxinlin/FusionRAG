@@ -16,6 +16,10 @@ class CPUInferKVCache:
         anchor_num: int = 4,
         anchor_type: str = "FIXED",
         kv_type: str = "Q4_0",
+        retrieval_type: str = "SHARED",
+        layer_step: int = 1,
+        token_step: int = 1,
+        layer_offset: int = 0,
         max_thread_num: int = 32,
         max_batch_size: int = 4,
         max_block_num: int = 512,
@@ -27,17 +31,31 @@ class CPUInferKVCache:
             anchor_type = cpuinfer_ext.kvcache.AnchorType.QUEST
         elif anchor_type == "DYNAMIC":
             anchor_type = cpuinfer_ext.kvcache.AnchorType.DYNAMIC
+        elif anchor_type == "BLOCK_MEAN":
+            anchor_type = cpuinfer_ext.kvcache.AnchorType.BLOCK_MEAN
+        elif anchor_type == "BLOCK_MAX":
+            anchor_type = cpuinfer_ext.kvcache.AnchorType.BLOCK_MAX
         else:
             raise ValueError(f"Unknown anchor type: {anchor_type}")
 
         if kv_type == "FP16":
             kv_type = cpuinfer_ext.kvcache.ggml_type.FP16
         elif kv_type == "FP32":
+            assert False, "FP32 is not supported yet."
             kv_type = cpuinfer_ext.kvcache.ggml_type.FP32
         elif kv_type == "Q4_0":
             kv_type = cpuinfer_ext.kvcache.ggml_type.Q4_0
+        elif kv_type == "Q8_0":
+            kv_type = cpuinfer_ext.kvcache.ggml_type.Q8_0
         else:
             raise ValueError(f"Unknown kv type: {kv_type}")
+
+        if retrieval_type == "SHARED":
+            retrieval_type = cpuinfer_ext.kvcache.RetrievalType.LAYER
+        elif retrieval_type == "INDIVIDUAL":
+            retrieval_type = cpuinfer_ext.kvcache.RetrievalType.QHEAD
+        elif retrieval_type == "GROUP":
+            retrieval_type = cpuinfer_ext.kvcache.RetrievalType.KVHEAD
 
         self.config = cpuinfer_ext.kvcache.KVCacheConfig(
             layer_num,
@@ -48,6 +66,10 @@ class CPUInferKVCache:
             anchor_num,
             anchor_type,
             kv_type,
+            retrieval_type,
+            layer_step,
+            token_step,
+            layer_offset,
             max_block_num,
             max_batch_size,
             max_thread_num,
@@ -104,6 +126,7 @@ class CPUInferKVCache:
         output: torch.Tensor,
         attn_lse: torch.Tensor,
         layer_idx: int,
+        generate_token_idx: int,
         block_table: torch.Tensor | None = None,
         cache_seqlens: torch.Tensor | None = None,
         pick_block_num: int | None = None,
@@ -197,6 +220,7 @@ class CPUInferKVCache:
             output.data_ptr(),
             attn_lse.data_ptr(),
             layer_idx,
+            generate_token_idx,
             q_len,
             batch_size,
             max_block_num,
@@ -465,34 +489,6 @@ class CPUInferKVCache:
             max_block_num,
         )
 
-    # /*
-    # int get_cache_total_len() { return cache_total_len_; }
-    # */
-    # static void bind_get_cache_total_len(TaskQueue &task_queue,
-    #                                      KVCache *kv_cache, py::args args,
-    #                                      py::kwargs kwargs) {
-    #     auto cache_total_len = kv_cache->get_cache_total_len();
-    #     return cache_total_len;
-    # }
-
-    # /*
-    # void get_all_kv_one_layer(int layer_id, ggml_fp16_t *k_in,
-    #                           ggml_fp16_t *v_in, Backend *backend);
-    # */
-    # static void bind_get_all_kv_one_layer(TaskQueue &task_queue,
-    #                                       KVCache *kv_cache, py::args args,
-    #                                       py::kwargs kwargs) {
-    #     auto layer_id = args[0].cast<int>();
-    #     auto k_in = args[1].cast<intptr_t>();
-    #     auto v_in = args[2].cast<intptr_t>();
-    #     auto backend = args[3].cast<Backend *>();
-
-    #     task_queue.enqueue([=]() {
-    #         kv_cache->get_all_kv_one_layer(layer_id, (ggml_fp16_t *)k_in,
-    #                                        (ggml_fp16_t *)v_in, backend);
-    #     });
-    # }
-
     def get_all_kv_one_layer(
         self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int
     ):
@@ -605,6 +601,7 @@ class CPUInferKVCache:
         layer_idx: int,
         block_table: torch.Tensor,
         cache_seqlens: torch.Tensor,
+        generate_token_idx: int = 0,
         topk: int | None = None,
         local: int | None = None,
     ):
@@ -612,10 +609,9 @@ class CPUInferKVCache:
         max_block_num = block_table.size(1)
         q_len = q_in.size(1)
 
-        if topk is None or local is None:
+        if topk is None or local is None or topk + local >= max_block_num:
             topk = -1
             local = -1
-
         return self.kvcache.attn_with_kvcache, (
             q_in.data_ptr(),
             k_in.data_ptr(),
@@ -623,6 +619,7 @@ class CPUInferKVCache:
             output.data_ptr(),
             attn_lse.data_ptr(),
             layer_idx,
+            generate_token_idx,
             q_len,
             batch_size,
             max_block_num,
@@ -647,7 +644,7 @@ class CPUInfer:
     def submit(self, task):
         fn, args = task
         self.cpuinfer.submit(fn(*args))
-    
+
     def submit_with_cuda_stream(self, current_cuda_stream, task):
         fn, args = task
         self.cpuinfer.submit_with_cuda_stream(current_cuda_stream, fn, *args)
