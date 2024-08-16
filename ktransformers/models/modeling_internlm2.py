@@ -25,7 +25,7 @@ import queue
 import threading
 from typing import List, Optional, Tuple, Union
 
-from ktransformers.operators.scaled_dot_attention import DynamicScaledDotAttention
+from ktransformers.operators.dynamic_attention import DynamicScaledDotProductAttention
 
 import torch
 import torch.nn.functional as F
@@ -415,7 +415,7 @@ class InternLM2Attention(nn.Module):
         #         dtype=torch.float16,
         #     )
         # else:
-        attn_output = InternLM2Model.dynamic_sdp.apply(
+        attn_output = InternLM2Model.dynamic_sdpa.apply(
             self.layer_idx,
             bsz,
             position_ids[0][0],
@@ -1037,7 +1037,7 @@ class InternLM2Model(InternLM2PreTrainedModel):
         config: InternLM2Config
     """
 
-    dynamic_sdp = None
+    dynamic_sdpa = None
     _auto_class = "AutoModel"
 
     def __init__(self, config: InternLM2Config):
@@ -1055,7 +1055,7 @@ class InternLM2Model(InternLM2PreTrainedModel):
             "r",
         ) as file:
             long_context_config = yaml.safe_load(file.read())
-        InternLM2Model.dynamic_sdp = DynamicScaledDotAttention(
+        InternLM2Model.dynamic_sdpa = DynamicScaledDotProductAttention(
             max_seq_len=long_context_config["max_seq_len"],
             block_size=long_context_config["block_size"],
             config=config,
@@ -1199,8 +1199,8 @@ class InternLM2Model(InternLM2PreTrainedModel):
             # else:
             #     attn_output = torch.cat((attn_output, cur_output), dim=-2)
         # print(q_len, cache_position)
-        InternLM2Model.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
-        InternLM2Model.dynamic_sdp.clear_importance(cache_position[-1] + 1)
+        InternLM2Model.dynamic_sdpa.calc_anchor(cache_position[-1] + 1)
+        InternLM2Model.dynamic_sdpa.clear_importance(cache_position[-1] + 1)
         return BaseModelOutputWithPast(last_hidden_state=attn_output)
 
     def forward_chunk(
@@ -1764,7 +1764,7 @@ class InternLM2ForCausalLM(InternLM2PreTrainedModel):
             tokenizer.convert_tokens_to_ids(["<|im_end|>"])[0],
         ]
         if history_path:
-            self.model.dynamic_sdp.load(history_path, history_length)
+            self.model.dynamic_sdpa.load(history_path, history_length)
         query_length = input_ids.size(1)
         seq_length = history_length + query_length
         position_ids = (
@@ -1831,7 +1831,7 @@ class InternLM2ForCausalLM(InternLM2PreTrainedModel):
         response = tokenizer.decode(prediction)
 
         if output_path:
-            self.model.dynamic_sdp.save(output_path, seq_length)
+            self.model.dynamic_sdpa.save(output_path, seq_length)
 
         return response
 
@@ -1876,7 +1876,7 @@ class InternLM2ForCausalLM(InternLM2PreTrainedModel):
         )
         # self.model.get_timing_info(inputs["input_ids"].size(1))
         print(inputs["input_ids"].size(1))
-        # self.model.dynamic_sdp.clear_kvcache(inputs["input_ids"].size(1) - 128)
+        # self.model.dynamic_sdpa.clear_kvcache(inputs["input_ids"].size(1) - 128)
         outputs = outputs[0].cpu().tolist()[len(inputs["input_ids"][0]) :]
         response = tokenizer.decode(outputs, skip_special_tokens=True)
         response = response.split("<|im_end|>")[0]

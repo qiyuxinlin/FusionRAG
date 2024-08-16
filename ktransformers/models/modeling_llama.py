@@ -17,7 +17,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from ktransformers.operators.scaled_dot_attention import DynamicScaledDotAttention
+from ktransformers.operators.dynamic_attention import DynamicScaledDotProductAttention
 
 import math
 from typing import List, Optional, Tuple, Union
@@ -365,7 +365,7 @@ class LlamaAttention(nn.Module):
             query_states = query_states[:, :, -1:]
             key_states = key_states[:, :, -1:]
 
-        attn_output = LlamaModel.dynamic_sdp.apply(
+        attn_output = LlamaModel.dynamic_sdpa.apply(
             self.layer_idx,
             bsz,
             position_ids[0][0],
@@ -834,10 +834,10 @@ class LlamaModel(LlamaPreTrainedModel):
     Args:
         config: LlamaConfig
     """
-    dynamic_sdp = None
+    dynamic_sdpa = None
     def __init__(self, config: LlamaConfig):
         super().__init__(config)
-        LlamaModel.dynamic_sdp = DynamicScaledDotAttention(
+        LlamaModel.dynamic_sdpa = DynamicScaledDotProductAttention(
             max_seq_len=25600,
             block_size=128,
             config=config,
@@ -954,8 +954,8 @@ class LlamaModel(LlamaPreTrainedModel):
                       use_cache,
                       cache_position,output_hidden_states,return_dict
                       )
-            LlamaModel.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
-            LlamaModel.dynamic_sdp.clear_importance(cache_position[-1] + 1)
+            LlamaModel.dynamic_sdpa.calc_anchor(cache_position[-1] + 1)
+            LlamaModel.dynamic_sdpa.clear_importance(cache_position[-1] + 1)
             return output
         cur_idx = 0
         assert output_attentions == False, "output_attentions is not supported when using chunked attention"
@@ -979,8 +979,8 @@ class LlamaModel(LlamaPreTrainedModel):
             # else:
             #     attn_output = torch.cat((attn_output, cur_output), dim=-2)
         
-        LlamaModel.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
-        LlamaModel.dynamic_sdp.clear_importance(cache_position[-1] + 1)
+        LlamaModel.dynamic_sdpa.calc_anchor(cache_position[-1] + 1)
+        LlamaModel.dynamic_sdpa.clear_importance(cache_position[-1] + 1)
         return BaseModelOutputWithPast(
             last_hidden_state=attn_output
         )
