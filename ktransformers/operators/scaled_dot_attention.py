@@ -1,5 +1,5 @@
 import torch
-from ktransformers.models.configuration_internlm2 import InternLM2Config
+from transformers import AutoConfig
 import sys, os
 
 # sys.path.append(os.path.dirname(__file__) + "/../pcinfer/pcinfer")
@@ -17,7 +17,7 @@ class DynamicScaledDotProductAttention:
         self,
         max_seq_len: int,
         block_size: int,
-        config: InternLM2Config,
+        config: AutoConfig,
         device: torch.device,
         local_windows_len: int,
         topk: int,

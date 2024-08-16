@@ -7,7 +7,6 @@ Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 from torch import nn
 from transformers import ROPE_INIT_FUNCTIONS
 from ktransformers.models.modeling_llama import LlamaRotaryEmbedding, LlamaLinearScalingRotaryEmbedding, LlamaDynamicNTKScalingRotaryEmbedding
-from ktransformers.models.configuration_internlm2 import InternLM2Config
 from ktransformers.models.modeling_deepseek import DeepseekV2YarnRotaryEmbedding, DeepseekV2RotaryEmbedding
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.util.custom_gguf import GGUFLoader
