@@ -11,7 +11,7 @@ from flash_attn import flash_attn_func, flash_attn_with_kvcache
 import math
 
 
-class DynamicScaledDotAttention:
+class DynamicScaledDotProductAttention:
 
     def __init__(
         self,

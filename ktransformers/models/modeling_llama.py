@@ -17,8 +17,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from ktransformers.operators.scaled_dot_attention import DynamicScaledDotAttention
-
 import math
 from typing import List, Optional, Tuple, Union
 
@@ -27,9 +25,9 @@ import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-from transformers.activations import ACT2FN
 
-from transformers import Cache, DynamicCache, StaticCache
+from transformers.activations import ACT2FN
+from transformers.cache_utils import Cache, DynamicCache, StaticCache
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.modeling_flash_attention_utils import _flash_attention_forward
 from transformers.modeling_outputs import (
@@ -39,7 +37,7 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutputWithPast,
     TokenClassifierOutput,
 )
-from transformers import ROPE_INIT_FUNCTIONS
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 from transformers.modeling_utils import PreTrainedModel
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.utils import (
@@ -95,6 +93,7 @@ class LlamaRotaryEmbedding(nn.Module):
         self.device = device
         self.scaling_factor = scaling_factor
         self.rope_type = rope_type
+        self.config = config
         # TODO (joao): remove the `if` below, only used for BC
         self.rope_kwargs = {}
         if config is None:
@@ -122,7 +121,11 @@ class LlamaRotaryEmbedding(nn.Module):
             self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
+        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
 
+        inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device, **self.rope_kwargs)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.original_inv_freq = self.inv_freq
 
     def _dynamic_frequency_update(self, position_ids, device):
         """
@@ -360,21 +363,25 @@ class LlamaAttention(nn.Module):
         else:
             cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
-        if q_len == 1:
-            position_ids = position_ids[0][-1].unsqueeze(0).unsqueeze(0)
-            query_states = query_states[:, :, -1:]
-            key_states = key_states[:, :, -1:]
 
-        attn_output = LlamaModel.dynamic_sdp.apply(
-            self.layer_idx,
-            bsz,
-            position_ids[0][0],
-            query_states.transpose(1, 2).to(torch.float16),
-            key_states.transpose(1, 2).to(torch.float16),
-            value_states.transpose(1, 2).to(torch.float16),
-            mode="prefill" if q_len > 1 else "generate",
-        )
+        if past_key_value is not None:
+            # sin and cos are specific to RoPE models; cache_position needed for the static cache
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
+        key_states = repeat_kv(key_states, self.num_key_value_groups)
+        value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+
+        if attention_mask is not None:  # no matter the length, we just slice it
+            causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
+            attn_weights = attn_weights + causal_mask
+
+        # upcast attention to fp32
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
+        attn_output = torch.matmul(attn_weights, value_states)
 
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
@@ -834,22 +841,9 @@ class LlamaModel(LlamaPreTrainedModel):
     Args:
         config: LlamaConfig
     """
-    dynamic_sdp = None
+
     def __init__(self, config: LlamaConfig):
         super().__init__(config)
-        LlamaModel.dynamic_sdp = DynamicScaledDotAttention(
-            max_seq_len=25600,
-            block_size=128,
-            config=config,
-            device=torch.device("cuda"),
-            local_windows_len=4096,
-            topk=96,
-            threads_num=2,
-            anchor_type="DYNAMIC",
-            kv_type="FP16",
-            dense_layer_num=0,
-            anchor_num=1,
-        )
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
@@ -902,6 +896,9 @@ class LlamaModel(LlamaPreTrainedModel):
             )
             use_cache = False
 
+        if inputs_embeds is None:
+            inputs_embeds = self.embed_tokens(input_ids)
+
         return_legacy_cache = False
         if (
             use_cache and not isinstance(past_key_values, Cache) and not self.training
@@ -921,106 +918,14 @@ class LlamaModel(LlamaPreTrainedModel):
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
 
-        causal_mask = None
-        chunck_size = 20480
-        cur_idx = 0
-        if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids.to('cpu')).to('cuda')
-        _, q_len, _ = inputs_embeds.shape
-        if q_len != 1:
-            q_len = (q_len - cache_position[0]).item()
-
-        # generate
-        if q_len <= 1:
-            x = inputs_embeds[:,-1:,:]
-            position_ids = position_ids[:,-1:]
-            return self.forward_chunk(
-                      x,
-                      causal_mask,
-                      position_ids,
-                      past_key_values,
-                      output_attentions,
-                      use_cache,
-                      cache_position,output_hidden_states,return_dict
-                      )
-        elif q_len <= chunck_size:
-
-            output = self.forward_chunk(
-                      inputs_embeds,
-                      causal_mask,
-                      position_ids,
-                      past_key_values,
-                      output_attentions,
-                      use_cache,
-                      cache_position,output_hidden_states,return_dict
-                      )
-            LlamaModel.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
-            LlamaModel.dynamic_sdp.clear_importance(cache_position[-1] + 1)
-            return output
-        cur_idx = 0
-        assert output_attentions == False, "output_attentions is not supported when using chunked attention"
-        attn_output = None
-        # prefill
-        while cur_idx < q_len:
-            chunk_mask = None
-            output_with_past = self.forward_chunk(
-                input_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
-                chunk_mask,
-                position_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
-                past_key_values,
-                output_attentions,
-                use_cache,
-                cache_position[cur_idx:min(cur_idx + chunck_size, q_len)]
-            )
-            cur_output = output_with_past.last_hidden_state
-            cur_idx += chunck_size
-            # if attn_output is None:
-            attn_output = cur_output
-            # else:
-            #     attn_output = torch.cat((attn_output, cur_output), dim=-2)
-        
-        LlamaModel.dynamic_sdp.calc_anchor(cache_position[-1] + 1)
-        LlamaModel.dynamic_sdp.clear_importance(cache_position[-1] + 1)
-        return BaseModelOutputWithPast(
-            last_hidden_state=attn_output
+        causal_mask = self._update_causal_mask(
+            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
-    
-    def forward_chunk(self,
-                      inputs_embeds,
-                      causal_mask,
-                      position_ids,
-                      past_key_values,
-                      output_attentions,
-                      use_cache,
-                      cache_position,
-                      output_hidden_states: Optional[bool] = None,
-                      return_dict: Optional[bool] = None,
-                      ):
-
-        output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
-        )
-        return_legacy_cache = False
-        if use_cache and not isinstance(
-            past_key_values, Cache
-        ):  # kept for BC (non `Cache` `past_key_values` inputs)
-            return_legacy_cache = True
-            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
-
         hidden_states = inputs_embeds
 
         # create position embeddings to be shared across the decoder layers
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
-        # decoder layers
-        all_hidden_states = () if output_hidden_states else None
-        all_self_attns = () if output_attentions else None
-        next_decoder_cache = None
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
@@ -1073,17 +978,14 @@ class LlamaModel(LlamaPreTrainedModel):
             next_cache = next_cache.to_legacy_cache()
 
         if not return_dict:
-            return tuple(
-                v
-                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns]
-                if v is not None
-            )
+            return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=next_cache,
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
         )
+
     def _update_causal_mask(
         self,
         attention_mask: torch.Tensor,
