@@ -78,8 +78,7 @@ def local_chat(
                 config._attn_implementation = "eager"
             if "Mixtral" in config.architectures[0]:
                 config._attn_implementation = "flash_attention_2"
-            if "Mixtral" in config.architectures[0]:
-                config._attn_implementation = "flash_attention_2"
+
             model = custom_models[config.architectures[0]](config)
         else:
             model = AutoModelForCausalLM.from_config(
