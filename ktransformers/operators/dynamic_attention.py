@@ -71,6 +71,8 @@ class DynamicScaledDotProductAttention:
 
         self.device = device
         self.local_windows_len = local_windows_len
+        self.local_block_num = self.local_windows_len // self.block_size + 1
+
         self.topk = topk
         self.dense_layer_num = dense_layer_num
         # self.dense_layer_num = 32
@@ -91,9 +93,60 @@ class DynamicScaledDotProductAttention:
             dtype=torch.float16,
         )
 
+        # key_states: [bsz, q_len, kv_head_num, head_dim]
+        # value_states: [bsz, q_len, kv_head_num, head_dim]
+        # query_states: [bsz, q_len, q_head_num, head_dim]
+        self.q_in_cpu = torch.zeros(
+            (1, 1, self.q_head_num, self.head_dim),
+            device="cpu",
+            dtype=torch.float16,
+            pin_memory=True,
+        )
+        self.k_in_cpu = torch.zeros(
+            (1, 1, self.kv_head_num, self.head_dim),
+            device="cpu",
+            dtype=torch.float16,
+            pin_memory=True,
+        )
+        self.v_in_cpu = torch.zeros(
+            (1, 1, self.kv_head_num, self.head_dim),
+            device="cpu",
+            dtype=torch.float16,
+            pin_memory=True,
+        )
+
+        self.cache_seqlens_cpu = torch.empty(
+            (1,), device="cpu", dtype=torch.int32, pin_memory=True
+        )
+
+        self.cache_seqlens_cuda = torch.empty((1,), device=device, dtype=torch.int32)
+
         self.prefix_block_table = torch.arange(
-            self.block_num, device=device, dtype=torch.int32
+            self.block_num, device="cpu", dtype=torch.int32, pin_memory=True
         ).view(1, -1)
+
+        self.block_table_cpu = torch.arange(
+            self.block_num, device="cpu", dtype=torch.int32, pin_memory=True
+        ).view(1, -1)
+
+        # assert (
+        #     self.local_windows_len // self.block_size + 1 + self.preselect_block_count
+        #     <= self.block_num
+        # )
+
+        self.output_cpu = torch.empty(
+            (1, 1, self.q_head_num, self.head_dim),
+            device="cpu",
+            dtype=torch.float16,
+            pin_memory=True,
+        )
+        self.lse_cpu = torch.empty(
+            (1, 1, self.q_head_num), device="cpu", dtype=torch.float32, pin_memory=True
+        )
+
+        self.output_cuda = torch.empty(
+            (1, 1, self.q_head_num, self.head_dim), device=device, dtype=torch.float16
+        )
 
         if preselect_block == True:
             self.preselect_block_table = torch.zeros(
@@ -510,9 +563,7 @@ class DynamicScaledDotProductAttention:
 
         q_len = query_states.size(1)
         batch_size = query_states.size(0)
-        past_len = torch.tensor(
-            [past_len], device=query_states.device, dtype=torch.int32
-        )
+        self.cache_seqlens_cuda.fill_(past_len)
         device = query_states.device
         if layer_idx == 0:
             if q_len == 1:
@@ -523,7 +574,7 @@ class DynamicScaledDotProductAttention:
         if mode == "prefill":
             key, value = self.swap_in_and_swap_out(
                 layer_idx,
-                past_len,
+                self.cache_seqlens_cuda,
                 q_len,
                 key_states,
                 value_states,
@@ -533,7 +584,7 @@ class DynamicScaledDotProductAttention:
                 self.get_preselect_block_table_and_attn_score(
                     layer_idx,
                     bsz,
-                    past_len,
+                    self.cache_seqlens_cuda,
                     q_len,
                     query_states,
                     key,
@@ -542,102 +593,102 @@ class DynamicScaledDotProductAttention:
                 q=query_states,
                 k_cache=key,
                 v_cache=value,
-                cache_seqlens=past_len + q_len,
+                cache_seqlens=self.cache_seqlens_cuda + q_len,
                 causal=True,
             )
+            return output.transpose(1, 2)
 
         elif mode == "generate":
             assert self.generate_token_idx >= 0
-            output = torch.empty_like(query_states, device="cpu").contiguous()
-            lse = torch.empty(
-                (batch_size, q_len, self.q_head_num), device="cpu", dtype=torch.float32
-            ).contiguous()
-
-            q_in_cpu = query_states.contiguous().to("cpu")
-            k_in_cpu = key_states.contiguous().to("cpu")
-            v_in_cpu = value_states.contiguous().to("cpu")
-            cache_seqlens_cpu = past_len.contiguous().to("cpu")
-            cur_block_num = (
-                q_len + past_len[0].item() + self.block_size - 1
-            ) // self.block_size
-            block_table_cpu = (
-                self.prefix_block_table[:, :cur_block_num].contiguous().to("cpu")
-            )
+            self.q_in_cpu.copy_(query_states, non_blocking=True)
+            self.k_in_cpu.copy_(key_states, non_blocking=True)
+            self.v_in_cpu.copy_(value_states, non_blocking=True)
+            self.cache_seqlens_cpu.copy_(self.cache_seqlens_cuda, non_blocking=True)
 
             if layer_idx < self.dense_layer_num:
-                self.cpu_infer.submit(
+                self.block_table_cpu.copy_(self.prefix_block_table, non_blocking=True)
+                torch.cuda.synchronize()
+                self.cpu_infer.submit_with_cuda_stream(
+                    torch.cuda.current_stream("cuda").cuda_stream,
                     self.local_thread.attn_with_kvcache(
-                        q_in=q_in_cpu,
-                        k_in=k_in_cpu,
-                        v_in=v_in_cpu,
-                        output=output,
-                        attn_lse=lse,
+                        q_in=self.q_in_cpu,
+                        k_in=self.k_in_cpu,
+                        v_in=self.v_in_cpu,
+                        output=self.output_cpu,
+                        attn_lse=self.lse_cpu,
                         layer_idx=layer_idx,
-                        block_table=block_table_cpu,
-                        cache_seqlens=cache_seqlens_cpu,
-                    )
+                        block_table=self.block_table_cpu,
+                        cache_seqlens=self.cache_seqlens_cpu,
+                    ),
                 )
             else:
                 if self.preselect_block:
-                    cache_seqlens_cpu = (
-                        (past_len - self.evict_tokens).contiguous().to("cpu")
-                    )
-                    cur_block_num = (
-                        q_len + past_len[0].item() + self.block_size - 1
-                    ) // self.block_size
-                    block_table = torch.cat(
-                        (
+                    self.cache_seqlens_cpu = self.cache_seqlens_cuda - self.evict_tokens
+                    if self.preselect_block_count < self.prefill_block_num:
+                        self.block_table_cpu[:, : self.preselect_block_count].copy_(
                             self.preselect_block_table[
-                                layer_idx : layer_idx + 1,
-                                : min(
-                                    self.preselect_block_count, self.prefill_block_num
-                                ),
-                            ],
+                                layer_idx : layer_idx + 1, : self.preselect_block_count
+                            ]
+                        )
+
+                        self.block_table_cpu[
+                            :,
+                            self.preselect_block_count : self.preselect_block_count
+                            + self.local_block_num,
+                        ].copy_(
                             self.prefix_block_table[
-                                :, self.prefill_block_num : cur_block_num
-                            ],
-                        ),
-                        dim=1,
-                    )
-                    block_table_cpu = block_table.contiguous().to("cpu")
-                    self.cpu_infer.submit(
+                                :,
+                                self.prefill_block_num : self.prefill_block_num
+                                + self.local_block_num,
+                            ]
+                        )
+                    torch.cuda.synchronize()
+                    self.cpu_infer.submit_with_cuda_stream(
+                        torch.cuda.current_stream("cuda").cuda_stream,
                         self.local_thread.attn_with_kvcache(
-                            q_in=q_in_cpu,
-                            k_in=k_in_cpu,
-                            v_in=v_in_cpu,
-                            output=output,
-                            attn_lse=lse,
+                            q_in=self.q_in_cpu,
+                            k_in=self.k_in_cpu,
+                            v_in=self.v_in_cpu,
+                            output=self.output_cpu,
+                            attn_lse=self.lse_cpu,
                             layer_idx=layer_idx,
                             generate_token_idx=self.generate_token_idx,
-                            block_table=block_table_cpu,
-                            cache_seqlens=cache_seqlens_cpu,
+                            block_table=self.block_table_cpu,
+                            cache_seqlens=self.cache_seqlens_cpu,
                             topk=(
                                 self.topk
                                 if self.topk <= self.preselect_block_count
                                 else None
                             ),
                             local=self.local_windows_len // self.block_size,
-                        )
+                        ),
                     )
                 else:
-                    self.cpu_infer.submit(
+                    self.block_table_cpu.copy_(
+                        self.prefix_block_table, non_blocking=True
+                    )
+                    torch.cuda.synchronize()
+                    self.cpu_infer.submit_with_cuda_stream(
+                        torch.cuda.current_stream("cuda").cuda_stream,
                         self.local_thread.attn_with_kvcache(
-                            q_in=q_in_cpu,
-                            k_in=k_in_cpu,
-                            v_in=v_in_cpu,
-                            output=output,
-                            attn_lse=lse,
+                            q_in=self.q_in_cpu,
+                            k_in=self.k_in_cpu,
+                            v_in=self.v_in_cpu,
+                            output=self.output_cpu,
+                            attn_lse=self.lse_cpu,
                             layer_idx=layer_idx,
                             generate_token_idx=self.generate_token_idx,
-                            block_table=block_table_cpu,
-                            cache_seqlens=cache_seqlens_cpu,
+                            block_table=self.block_table_cpu,
+                            cache_seqlens=self.cache_seqlens_cpu,
                             topk=self.topk,
                             local=self.local_windows_len // self.block_size,
-                        )
+                        ),
                     )
-            self.cpu_infer.sync()
-            output = output.to(device)
-        return output.transpose(1, 2)
+            self.cpu_infer.sync_with_cuda_stream(
+                torch.cuda.current_stream("cuda").cuda_stream
+            )
+            self.output_cuda.copy_(self.output_cpu)
+            return self.output_cuda.transpose(1, 2)
 
     def save(self, path: str, length: int):
         cur_block_num = (length + self.block_size - 1) // self.block_size

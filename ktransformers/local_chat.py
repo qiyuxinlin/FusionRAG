@@ -54,7 +54,7 @@ def local_chat(
     gguf_path: str = None,
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
-    use_cuda_graph: bool = False,
+    use_cuda_graph: bool = True,
 ):
     torch.set_grad_enabled(False)
 
