@@ -1,12 +1,12 @@
 chunk_size: 30720
-max_seq_len: 1280
+max_seq_len: 256000
 block_size: 128
 local_windows_len: 4096
 second_select_num: 1000
 threads_num: 64
 anchor_type: DYNAMIC
 kv_type: FP16
-dense_layer_num: 32
+dense_layer_num: 0
 anchor_num: 1
 preselect_block: True
 head_select_mode: SHARED

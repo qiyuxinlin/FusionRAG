@@ -116,7 +116,7 @@ def local_chat(
     while True:
         content = input("Chat: ")
         if content == "":
-            content = "Please write a piece of quicksort code in C++."
+            content = "Please write a piece of quicksort code in C++." * 10000
 
         messages = [{"role": "user", "content": content}]
         input_tensor = tokenizer.apply_chat_template(

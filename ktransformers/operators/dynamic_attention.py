@@ -12,6 +12,7 @@ import math
 
 
 class DynamicScaledDotProductAttention:
+    remaining_length: int
 
     def __init__(
         self,
@@ -31,6 +32,7 @@ class DynamicScaledDotProductAttention:
         token_step: int = 1,
         preselect_block: bool = False,
         preselect_block_count: int = 96,
+        prefill_chunk_size: int = 20480,
     ):
         # assert anchor_num == 1
         # assert anchor_type == "DYNAMIC"
@@ -72,6 +74,7 @@ class DynamicScaledDotProductAttention:
         self.device = device
         self.local_windows_len = local_windows_len
         self.local_block_num = self.local_windows_len // self.block_size + 1
+        self.prefill_chunk_size = prefill_chunk_size
 
         self.topk = topk
         self.dense_layer_num = dense_layer_num
@@ -547,7 +550,6 @@ class DynamicScaledDotProductAttention:
         value_states: torch.Tensor,
         mode: str = "prefill",
         generate_token_idx: int = -1,
-        last_chunk: bool = False,
     ):
 
         # key_states: [bsz, q_len, kv_head_num, head_dim]
@@ -564,6 +566,9 @@ class DynamicScaledDotProductAttention:
         q_len = query_states.size(1)
         batch_size = query_states.size(0)
         self.cache_seqlens_cuda.fill_(past_len)
+        last_chunk = False
+        if self.remaining_length <= self.prefill_chunk_size and q_len != 1:
+            last_chunk = True
         device = query_states.device
         if layer_idx == 0:
             if q_len == 1:
@@ -607,7 +612,6 @@ class DynamicScaledDotProductAttention:
 
             if layer_idx < self.dense_layer_num:
                 self.block_table_cpu.copy_(self.prefix_block_table, non_blocking=True)
-                torch.cuda.synchronize()
                 self.cpu_infer.submit_with_cuda_stream(
                     torch.cuda.current_stream("cuda").cuda_stream,
                     self.local_thread.attn_with_kvcache(
@@ -623,12 +627,13 @@ class DynamicScaledDotProductAttention:
                 )
             else:
                 if self.preselect_block:
-                    self.cache_seqlens_cpu = self.cache_seqlens_cuda - self.evict_tokens
+                    self.cache_seqlens_cpu.copy_(
+                        self.cache_seqlens_cuda - self.evict_tokens, non_blocking=True
+                    )
                     if self.preselect_block_count < self.prefill_block_num:
                         self.block_table_cpu[:, : self.preselect_block_count].copy_(
-                            self.preselect_block_table[
-                                layer_idx : layer_idx + 1, : self.preselect_block_count
-                            ]
+                            self.preselect_block_table[layer_idx : layer_idx + 1],
+                            non_blocking=True,
                         )
 
                         self.block_table_cpu[
@@ -640,9 +645,9 @@ class DynamicScaledDotProductAttention:
                                 :,
                                 self.prefill_block_num : self.prefill_block_num
                                 + self.local_block_num,
-                            ]
+                            ],
+                            non_blocking=True,
                         )
-                    torch.cuda.synchronize()
                     self.cpu_infer.submit_with_cuda_stream(
                         torch.cuda.current_stream("cuda").cuda_stream,
                         self.local_thread.attn_with_kvcache(
@@ -667,7 +672,6 @@ class DynamicScaledDotProductAttention:
                     self.block_table_cpu.copy_(
                         self.prefix_block_table, non_blocking=True
                     )
-                    torch.cuda.synchronize()
                     self.cpu_infer.submit_with_cuda_stream(
                         torch.cuda.current_stream("cuda").cuda_stream,
                         self.local_thread.attn_with_kvcache(
@@ -687,7 +691,7 @@ class DynamicScaledDotProductAttention:
             self.cpu_infer.sync_with_cuda_stream(
                 torch.cuda.current_stream("cuda").cuda_stream
             )
-            self.output_cuda.copy_(self.output_cpu)
+            self.output_cuda.copy_(self.output_cpu, non_blocking=True)
             return self.output_cuda.transpose(1, 2)
 
     def save(self, path: str, length: int):

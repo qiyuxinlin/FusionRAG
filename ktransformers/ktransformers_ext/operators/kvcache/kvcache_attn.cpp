@@ -677,11 +677,10 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     layer_id_ = layer_idx;
     int thread_num = backend->get_thread_num();
     batch_size = batch_size * q_len;
-    // printf("layer idx: %d, q_len: %d, batch_size: %d, max_block_num: %d,
-    // "
-    //        "pick_block_num: %d, init_block_num: %d, local_block_num:
-    //        %d\n", layer_idx, q_len, batch_size, max_block_num,
-    //        pick_block_num, init_block_num, local_block_num);
+    // printf("layer idx: %d, q_len: %d, batch_size: %d, max_block_num: %d, "
+    //        "pick_block_num: %d, init_block_num: %d, local_block_num: %d\n ",
+    //        layer_idx, q_len, batch_size, max_block_num, pick_block_num,
+    //        init_block_num, local_block_num);
 
     // if (cache_seqlens != nullptr) {
     //     for (int i = 0; i < batch_size; i++) {
@@ -803,11 +802,13 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                     last_block_idx;
                 block_table_after_retrieval_[batch_idx][x - 1] = last_block_idx;
             }
-            cache_seqlens_[batch_idx] = std::min(
-                cache_seqlens_[batch_idx],
+            cache_seqlens_[batch_idx] =
                 (cache_seqlens_[batch_idx] % config_.block_len) +
-                    (init_block_num + pick_block_num + local_block_num) *
-                        config_.block_len);
+                selected_blocks_num_history_[(layer_idx -
+                                              config_.layer_offset) /
+                                             config_.layer_step] *
+                    config_.block_len -
+                config_.block_len;
         }
     } else if (pick_block_num != -1) {
         max_block_num_after_retrieval =
@@ -1112,8 +1113,7 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     //     }
     // }
 
-    // printf("max_block_num_after_retrieval: %d, cache_seqlens_[batch_id] /
-    // "
+    // printf("max_block_num_after_retrieval: %d, cache_seqlens_[batch_id] / "
     //        "config_.block_len %d\n",
     //        max_block_num_after_retrieval,
     //        cache_seqlens_[0] / config_.block_len);
@@ -1487,19 +1487,22 @@ void KVCache::attn_with_kvcache(
     auto start = std::chrono::high_resolution_clock::now();
 
     // printf("layer_idx: %d, q_len: %d, batch_size: %d, max_block_num: %d,
-    // "
-    //        "topk: %d, local: %d\n",
+    // topk: "
+    //        "%d, local: %d\n",
     //        layer_idx, q_len, batch_size, max_block_num, topk, local);
 
     layer_id_ = layer_idx;
     int thread_num = backend->get_thread_num();
     k_data_ = const_cast<uint16_t *>(k_in);
     v_data_ = const_cast<uint16_t *>(v_in);
+    // printf("thread_num: %d, k_data_: %p, v_data_: %p\n", thread_num, k_data_,
+    //        v_data_);
     // Each task updates the k cache and v cache of a certain header
+
     backend->do_work_stealing_job(
         batch_size * config_.kv_head_num, nullptr,
         [&](int task_id) {
-            // printf("block_idx: %d, task_id: %d\n", block_idx, task_id);
+            // printf("task_id: %d\n", task_id);
 
             int batch_id = task_id / (config_.kv_head_num);
             int head_id = task_id % config_.kv_head_num;
@@ -1611,8 +1614,8 @@ void KVCache::attn_with_kvcache(
     }
 
     // printf("layer_idx: %d, q_len: %d, batch_size: %d, max_block_num: %d,
-    // "
-    //        "topk: %d, local: %d\n",
+    // topk: "
+    //        "%d, local: %d\n",
     //        layer_idx, q_len, batch_size, max_block_num, topk, local);
 
     // printf("update finished.\n");

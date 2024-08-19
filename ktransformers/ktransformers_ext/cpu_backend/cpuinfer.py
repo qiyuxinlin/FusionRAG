@@ -605,6 +605,7 @@ class CPUInferKVCache:
         topk: int | None = None,
         local: int | None = None,
     ):
+
         batch_size = block_table.size(0)
         max_block_num = block_table.size(1)
         q_len = q_in.size(1)

@@ -985,6 +985,7 @@ class KLlamaModel(BaseInjectedModule):
             preselect_block_count=self.long_context_config["preselect_block_count"],
             layer_step=self.long_context_config["layer_step"],
             token_step=self.long_context_config["token_step"],
+            prefill_chunk_size=self.long_context_config["chunk_size"],
         )
 
     def get_input_embeddings(self):
@@ -1064,7 +1065,7 @@ class KLlamaModel(BaseInjectedModule):
         q_len = cache_position.size(0)
 
         # generate
-        if q_len <= 1:
+        if q_len == 1:
             x = inputs_embeds[:, -1:, :]
             position_ids = position_ids[:, -1:]
             return self.forward_chunk(
@@ -1100,10 +1101,12 @@ class KLlamaModel(BaseInjectedModule):
         ), "output_attentions is not supported when using chunked attention"
         attn_output = None
         # prefill
+        KLlamaModel.dynamic_sdpa.remaining_length = q_len
         while cur_idx < q_len:
+            print(cur_idx)
             chunk_mask = None
             output_with_past = self.forward_chunk(
-                input_ids[:, cur_idx : min(cur_idx + chunck_size, q_len)],
+                inputs_embeds[:, cur_idx : min(cur_idx + chunck_size, q_len)],
                 chunk_mask,
                 position_ids[:, cur_idx : min(cur_idx + chunck_size, q_len)],
                 past_key_values,
@@ -1112,6 +1115,9 @@ class KLlamaModel(BaseInjectedModule):
                 cache_position[cur_idx : min(cur_idx + chunck_size, q_len)],
             )
             cur_output = output_with_past.last_hidden_state
+            KLlamaModel.dynamic_sdpa.remaining_length -= (
+                min(cur_idx + chunck_size, q_len) - cur_idx
+            )
             cur_idx += chunck_size
             # if attn_output is None:
             attn_output = cur_output
