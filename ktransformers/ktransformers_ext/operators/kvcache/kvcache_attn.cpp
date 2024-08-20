@@ -72,53 +72,70 @@ void KVCache::attn_kvhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     if (pick_block_num != -1 &&
         (generate_token_idx % config_.token_step != 0 ||
          (layer_idx % config_.layer_step != config_.layer_offset))) {
-        max_block_num_after_retrieval =
-            selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
-                                         config_.layer_step];
 
-        // printf("max_block_num_after_retrieval: %d\n",
-        //        max_block_num_after_retrieval);
-        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
-            for (int i = 0; i < max_block_num_after_retrieval; i++) {
-                for (int j = 0; j < config_.kv_head_num; j++) {
-                    block_table_after_retrieval_kvhead_[batch_idx][i][j] =
+        if (selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step] == 0) {
+            max_block_num_after_retrieval = max_block_num;
+            for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+                for (int i = 0; i < max_block_num; i++) {
+                    for (int j = 0; j < config_.kv_head_num; j++) {
+                        block_table_after_retrieval_kvhead_[batch_idx][i][j] =
+                            block_table_before_retrieval_kvhead_[batch_idx][i]
+                                                                [j];
+                    }
+                }
+            }
+        } else {
+
+            max_block_num_after_retrieval = selected_blocks_num_history_
+                [(layer_idx - config_.layer_offset) / config_.layer_step];
+
+            // printf("max_block_num_after_retrieval: %d\n",
+            //        max_block_num_after_retrieval);
+            for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+                for (int i = 0; i < max_block_num_after_retrieval; i++) {
+                    for (int j = 0; j < config_.kv_head_num; j++) {
+                        block_table_after_retrieval_kvhead_[batch_idx][i][j] =
+                            selected_blocks_history_kvhead_
+                                [(layer_idx - config_.layer_offset) /
+                                 config_.layer_step][batch_idx][i][j];
+                        // printf(
+                        //     "block_table_after_retrieval_kvhead_[%d][%d][%d]:
+                        //     "
+                        //     "%d\n",
+                        //     batch_idx, i, j,
+                        //     block_table_after_retrieval_kvhead_[batch_idx][i][j]);
+                    }
+                }
+
+                if (cache_seqlens[batch_idx] % config_.block_len == 1) {
+                    selected_blocks_num_history_[(layer_idx -
+                                                  config_.layer_offset) /
+                                                 config_.layer_step] += 1;
+                    int x =
+                        selected_blocks_num_history_[(layer_idx -
+                                                      config_.layer_offset) /
+                                                     config_.layer_step];
+                    for (int i = 0; i < config_.kv_head_num; i++) {
+                        int last_block_idx =
+                            block_table_before_retrieval_kvhead_
+                                [batch_idx][cache_seqlens[batch_idx] /
+                                            config_.block_len][i];
                         selected_blocks_history_kvhead_[(layer_idx -
                                                          config_.layer_offset) /
                                                         config_.layer_step]
-                                                       [batch_idx][i][j];
-                    // printf(
-                    //     "block_table_after_retrieval_kvhead_[%d][%d][%d]: "
-                    //     "%d\n",
-                    //     batch_idx, i, j,
-                    //     block_table_after_retrieval_kvhead_[batch_idx][i][j]);
+                                                       [batch_idx][x - 1][i] =
+                                                           last_block_idx;
+                        block_table_after_retrieval_kvhead_[batch_idx][x - 1]
+                                                           [i] = last_block_idx;
+                    }
                 }
+                cache_seqlens_[batch_idx] = std::min(
+                    cache_seqlens_[batch_idx],
+                    (cache_seqlens_[batch_idx] % config_.block_len) +
+                        (init_block_num + pick_block_num + local_block_num) *
+                            config_.block_len);
             }
-
-            if (cache_seqlens[batch_idx] % config_.block_len == 1) {
-                selected_blocks_num_history_[(layer_idx -
-                                              config_.layer_offset) /
-                                             config_.layer_step] += 1;
-                int x = selected_blocks_num_history_[(layer_idx -
-                                                      config_.layer_offset) /
-                                                     config_.layer_step];
-                for (int i = 0; i < config_.kv_head_num; i++) {
-                    int last_block_idx = block_table_before_retrieval_kvhead_
-                        [batch_idx]
-                        [cache_seqlens[batch_idx] / config_.block_len][i];
-                    selected_blocks_history_kvhead_[(layer_idx -
-                                                     config_.layer_offset) /
-                                                    config_.layer_step]
-                                                   [batch_idx][x - 1][i] =
-                                                       last_block_idx;
-                    block_table_after_retrieval_kvhead_[batch_idx][x - 1][i] =
-                        last_block_idx;
-                }
-            }
-            cache_seqlens_[batch_idx] = std::min(
-                cache_seqlens_[batch_idx],
-                (cache_seqlens_[batch_idx] % config_.block_len) +
-                    (init_block_num + pick_block_num + local_block_num) *
-                        config_.block_len);
         }
     } else if (pick_block_num != -1) {
         max_block_num_after_retrieval =
@@ -198,6 +215,9 @@ void KVCache::attn_kvhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
             int cache_len_after_retrieval = 0;
             if (cache_seqlens_[batch_idx] / config_.block_len <=
                 init_block_num + pick_block_num + local_block_num) {
+                selected_blocks_num_history_[(layer_idx -
+                                              config_.layer_offset) /
+                                             config_.layer_step] = 0;
                 for (int i = 0; i < max_block_num; i++) {
                     for (int j = 0; j < config_.kv_head_num; j++) {
                         block_table_after_retrieval_kvhead_[batch_idx][i][j] =
@@ -288,6 +308,8 @@ void KVCache::attn_kvhead(const ggml_fp16_t *q_in, ggml_fp16_t *output,
         auto end_2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> diff_2 = end_2 - start_2;
     } else {
+        selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                     config_.layer_step] = 0;
         max_block_num_after_retrieval = max_block_num;
         for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
             for (int i = 0; i < max_block_num; i++) {
@@ -775,40 +797,55 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
     if (pick_block_num != -1 &&
         (generate_token_idx % config_.token_step != 0 ||
          (layer_idx % config_.layer_step != config_.layer_offset))) {
-        max_block_num_after_retrieval =
-            selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
-                                         config_.layer_step];
-        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
-            for (int i = 0; i < max_block_num_after_retrieval; i++) {
-                block_table_after_retrieval_[batch_idx][i] =
-                    selected_blocks_history_[(layer_idx -
-                                              config_.layer_offset) /
-                                             config_.layer_step][batch_idx][i];
-            }
 
-            if (cache_seqlens[batch_idx] % config_.block_len == 1) {
-                selected_blocks_num_history_[(layer_idx -
-                                              config_.layer_offset) /
-                                             config_.layer_step] += 1;
-                int x = selected_blocks_num_history_[(layer_idx -
+        if (selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                         config_.layer_step] == 0) {
+            max_block_num_after_retrieval = max_block_num;
+            block_table_after_retrieval_.swap(block_table_before_retrieval_);
+        } else {
+            max_block_num_after_retrieval = selected_blocks_num_history_
+                [(layer_idx - config_.layer_offset) / config_.layer_step];
+            // printf("max_block_num_after_retrieval: %d\n",
+            //        max_block_num_after_retrieval);
+            for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+                for (int i = 0; i < max_block_num_after_retrieval; i++) {
+                    block_table_after_retrieval_[batch_idx][i] =
+                        selected_blocks_history_[(layer_idx -
+                                                  config_.layer_offset) /
+                                                 config_.layer_step][batch_idx]
+                                                [i];
+                    // printf("block_table_after_retrieval_[%d][%d]: %d\n",
+                    // batch_idx,
+                    //        i, block_table_after_retrieval_[batch_idx][i]);
+                }
+
+                if (cache_seqlens[batch_idx] % config_.block_len == 1) {
+                    selected_blocks_num_history_[(layer_idx -
+                                                  config_.layer_offset) /
+                                                 config_.layer_step] += 1;
+                    int x =
+                        selected_blocks_num_history_[(layer_idx -
                                                       config_.layer_offset) /
                                                      config_.layer_step];
-                int last_block_idx =
-                    block_table_before_retrieval_[batch_idx]
-                                                 [cache_seqlens[batch_idx] /
-                                                  config_.block_len];
-                selected_blocks_history_[(layer_idx - config_.layer_offset) /
-                                         config_.layer_step][batch_idx][x - 1] =
-                    last_block_idx;
-                block_table_after_retrieval_[batch_idx][x - 1] = last_block_idx;
-            }
-            cache_seqlens_[batch_idx] =
-                (cache_seqlens_[batch_idx] % config_.block_len) +
-                selected_blocks_num_history_[(layer_idx -
+                    int last_block_idx =
+                        block_table_before_retrieval_[batch_idx]
+                                                     [cache_seqlens[batch_idx] /
+                                                      config_.block_len];
+                    selected_blocks_history_[(layer_idx -
                                               config_.layer_offset) /
-                                             config_.layer_step] *
-                    config_.block_len -
-                config_.block_len;
+                                             config_.layer_step][batch_idx]
+                                            [x - 1] = last_block_idx;
+                    block_table_after_retrieval_[batch_idx][x - 1] =
+                        last_block_idx;
+                }
+                cache_seqlens_[batch_idx] =
+                    (cache_seqlens_[batch_idx] % config_.block_len) +
+                    selected_blocks_num_history_[(layer_idx -
+                                                  config_.layer_offset) /
+                                                 config_.layer_step] *
+                        config_.block_len -
+                    config_.block_len;
+            }
         }
     } else if (pick_block_num != -1) {
         max_block_num_after_retrieval =
@@ -1011,6 +1048,9 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                 init_block_num + pick_block_num + local_block_num) {
                 block_table_after_retrieval_[batch_idx].swap(
                     block_table_before_retrieval_[batch_idx]);
+                selected_blocks_num_history_[(layer_idx -
+                                              config_.layer_offset) /
+                                             config_.layer_step] = 0;
                 continue;
             }
 
@@ -1084,6 +1124,8 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
         // printf("layer %d time of selecting blocks: %f s\n", layer_idx,
         //        diff_2.count());
     } else {
+        selected_blocks_num_history_[(layer_idx - config_.layer_offset) /
+                                     config_.layer_step] = 0;
         max_block_num_after_retrieval = max_block_num;
         block_table_after_retrieval_.swap(block_table_before_retrieval_);
     }
