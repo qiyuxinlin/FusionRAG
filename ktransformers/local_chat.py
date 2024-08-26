@@ -112,7 +112,21 @@ def local_chat(
         os.system("clear")
 
     while True:
-        content = input("Chat or file path: ")
+        content = input("Chat: ")
+        if content.startswith('"""'):  # prefix """
+            # multi lines input
+            content = content[3:] + "\n"
+            while True:
+                line = input("")
+                if line.endswith('"""'):
+                    # end multi lines input
+                    line = line[:-3]  # suffix """
+                    if line:
+                        content += line + "\n"
+                    break
+                else:
+                    content += line + "\n"
+
         if content == "":
             if prompt_file != None:
                 content = open(prompt_file, "r").read()

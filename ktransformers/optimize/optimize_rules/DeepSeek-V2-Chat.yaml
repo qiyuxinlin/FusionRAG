@@ -12,17 +12,6 @@
     kwargs:
       generate_device: "cuda"
       prefill_device: "cuda"
-#- match:
-#    name: "^model\\.layers\\.([1-5][0-9])\\.mlp\\.shared_experts.*$"  # regular expression 
-#    class: torch.nn.Linear  # only match modules matching name and class simultaneously
-#  replace:
-#    class: ktransformers.operators.linear.KTransformersLinear  # optimized Kernel on quantized data types
-#    kwargs:
-#      generate_device: "cpu"
-#      prefill_device: "cuda"
-#      generate_op: "KLinearCPUInfer"
-#      prefill_op: "KLinearTorch"
-#      out_device: "cuda"
 - match:
     name: "^model\\.layers\\.(?!.*self_attn).*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
@@ -44,12 +33,12 @@
 - match:
     name: "^model\\.layers\\..*\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type: "KExpertsCPU"
+      generate_op: "KExpertsCPU"
       out_device: "cuda"
   recursive: False # don't recursively inject submodules of this module
 - match:
@@ -59,14 +48,6 @@
     kwargs:
       generate_device: "cuda"
       prefill_device: "cuda"
-- match:
-    name: "^model$"
-  replace:
-    class: "ktransformers.operators.layer_wise_prefill.KDeepseekV2Model"
-    kwargs:
-      generate_device: "cuda"
-      prefill_device: "cuda"
-      per_layer_prefill_intput_threshold: 0 # 0 is close layer wise prefill
 - match:
     name: "^model.embed_tokens"
   replace:

@@ -116,45 +116,45 @@
 - match:
     name: "^model\\.layers\\.([0-9])\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda:0"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda:0"
   recursive: False # don't recursively inject submodules of this module
 - match:
     name: "^model\\.layers\\.([1][0-9])\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda:1"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda:1"
   recursive: False # don't recursively inject submodules of this module
 - match:
     name: "^model\\.layers\\.([2][0-9])\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda:2"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda:2"
   recursive: False # don't recursively inject submodules of this module
 - match:
     name: "^model\\.layers\\.([345][0-9])\\.mlp\\.experts$"
   replace:
-    class: ktransformers.operators.experts.KTransformersMLPExperts     # custom MoE Kernel with expert paralleism
+    class: ktransformers.operators.experts.KTransformersExperts     # custom MoE Kernel with expert paralleism
     kwargs:
       prefill_device: "cuda:3"
-      prefill_mlp_type: "KExpertsTorch"
+      prefill_op: "KExpertsTorch"
       generate_device: "cpu"
-      generate_mlp_type:  "KExpertsCPU"
+      generate_op:  "KExpertsCPU"
       out_device: "cuda:3"
   recursive: False # don't recursively inject submodules of this module
 
@@ -190,7 +190,7 @@
 - match:
     name: "^model$"
   replace:
-    class: "ktransformers.operators.layer_wise_prefill.KDeepseekV2Model"
+    class: "ktransformers.operators.models.KDeepseekV2Model"
     kwargs:
       per_layer_prefill_intput_threshold: 0 # 0 is close layer wise prefill
       transfer_map: 

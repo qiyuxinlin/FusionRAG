@@ -6,7 +6,7 @@ Author       : Azure-Tang, Boxin Zhang, chenht2022
 Date         : 2024-07-25 11:25:24
 Version      : 0.1.0
 LastEditors  : Azure 
-LastEditTime : 2024-08-14 15:05:41
+LastEditTime : 2024-08-15 02:36:29
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -444,7 +444,7 @@ EXPERTS_MAP = {
     "KExpertsMarlin": KExpertsMarlin,
 }
 
-class KTransformersMLPExperts(BaseInjectedModule, KExpertsBase):
+class KTransformersExperts(BaseInjectedModule, KExpertsBase):
     def __init__(self,
                  key: str,
                  gguf_loader: GGUFLoader,
@@ -452,22 +452,22 @@ class KTransformersMLPExperts(BaseInjectedModule, KExpertsBase):
                  orig_module: nn.Module,
                 #  device: str = "cuda",
                  prefill_device:str = "cuda",
-                 prefill_mlp_type: str | None = "KExpertsTorch",
+                 prefill_op: str | None = "KExpertsTorch",
                  generate_device: str = "cpu",
-                 generate_mlp_type: str | None = "KExpertsCPU",
+                 generate_op: str | None = "KExpertsCPU",
                  **kwargs):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, generate_device, **kwargs)
         KExpertsBase.__init__(self, key, gguf_loader, config, orig_module, generate_device, **kwargs)
-        if generate_mlp_type is not None:
-            self.generate_experts = EXPERTS_MAP[generate_mlp_type](key, gguf_loader, config, len(orig_module), device=generate_device, **kwargs)
+        if generate_op is not None:
+            self.generate_experts = EXPERTS_MAP[generate_op](key, gguf_loader, config, len(orig_module), device=generate_device, **kwargs)
         else:
             self.generate_experts = None
-        if prefill_mlp_type is not None:
-            self.prefill_experts = EXPERTS_MAP[prefill_mlp_type](key, gguf_loader, config, len(orig_module), device=prefill_device, **kwargs)
+        if prefill_op is not None:
+            self.prefill_experts = EXPERTS_MAP[prefill_op](key, gguf_loader, config, len(orig_module), device=prefill_device, **kwargs)
         else:
             self.prefill_experts = None
-        self.gpu_mlp_type = prefill_mlp_type
-        self.cpu_mlp_type = generate_mlp_type
+        self.gpu_mlp_type = prefill_op
+        self.cpu_mlp_type = generate_op
         self.mode = InferenceState.UNLOAD
 
     def load(self, w: dict = None,  mode: InferenceState = None, warmup: bool = True):
