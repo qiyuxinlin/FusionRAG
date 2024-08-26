@@ -34,4 +34,20 @@ web:
   open_cross_domain: True
 
 ext:
-  cpu_infer: 10
+  cpu_infer: 64
+
+long_context:
+  chunk_size: 30720
+  max_seq_len: 256000
+  block_size: 128
+  local_windows_len: 4096
+  second_select_num: 32
+  anchor_type: QUEST
+  kv_type: FP16
+  dense_layer_num: 0
+  anchor_num: 2
+  preselect_block: True
+  head_select_mode: SHARED
+  preselect_block_count: 32
+  layer_step: 1
+  token_step: 100

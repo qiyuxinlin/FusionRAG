@@ -1,5 +1,54 @@
+/**
+ * @Description  :
+ * @Author       : djw
+ * @Date         : 2024-08-26 22:47:06
+ * @Version      : 1.0.0
+ * @LastEditors  : djw
+ * @LastEditTime : 2024-08-26 22:47:06
+ * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+ **/
+
 #include "kvcache.h"
 
+std::string ggml_type_to_string(ggml_type type) {
+    switch (type) {
+    case GGML_TYPE_F32:
+        return "GGML_TYPE_F32";
+    case GGML_TYPE_F16:
+        return "GGML_TYPE_F16";
+    case GGML_TYPE_Q4_0:
+        return "GGML_TYPE_Q4_0";
+    case GGML_TYPE_Q8_0:
+        return "GGML_TYPE_Q8_0";
+    }
+    return "UNDIFINED";
+}
+std::string AnchorTypeToString(AnchorType type) {
+    switch (type) {
+    case AnchorType::DYNAMIC:
+        return "DYNAMIC";
+    case AnchorType::BLOCK_MEAN:
+        return "BLOCK_MEAN";
+    case AnchorType::BLOCK_MAX:
+        return "BLOCK_MAX";
+    case AnchorType::FIXED:
+        return "FIXED";
+    case AnchorType::QUEST:
+        return "QUEST";
+    }
+    return "UNDIFINED";
+}
+std::string RetrievalTypeToString(RetrievalType type) {
+    switch (type) {
+    case RetrievalType::LAYER:
+        return "SHARED";
+    case RetrievalType::KVHEAD:
+        return "SEPARATE";
+    case RetrievalType::QHEAD:
+        return "INDIVIDUAL";
+    }
+    return "UNDIFINED";
+}
 KVCacheConfig::KVCacheConfig(int layer_num, int kv_head_num, int q_head_num,
                              int head_dim, int block_len, int anchor_num,
                              AnchorType anchor_type, ggml_type kv_type,
@@ -16,11 +65,13 @@ KVCacheConfig::KVCacheConfig(int layer_num, int kv_head_num, int q_head_num,
       max_thread_num(max_thread_num) {
     printf(
         "layer_num: %d, kv_head_num: %d, q_head_num: %d, head_dim: %d, "
-        "block_len: %d, anchor_num: %d, anchor_type: %d, kv_type: %d, "
-        "retrieval_type: %d, layer_step: %d, token_step: %d, layer_offset: %d,"
+        "block_len: %d, anchor_num: %d, anchor_type: %s, kv_type: %s, "
+        "retrieval_type: %s, layer_step: %d, token_step: %d, layer_offset: %d,"
         "max_block_num: %d, max_batch_size: %d, max_thread_num: %d\n",
         layer_num, kv_head_num, q_head_num, head_dim, block_len, anchor_num,
-        anchor_type, kv_type, retrieval_type, layer_step, token_step,
+        AnchorTypeToString(anchor_type).c_str(),
+        ggml_type_to_string(kv_type).c_str(),
+        RetrievalTypeToString(retrieval_type).c_str(), layer_step, token_step,
         layer_offset, max_block_num, max_batch_size, max_thread_num);
     assert(q_head_num % kv_head_num == 0);
 }
@@ -95,6 +146,8 @@ void KVCache::BatchResize(int batch_size) {
     q_fp32_.resize(batch_size);
     output_fp32_.resize(batch_size);
     attn_lse_.resize(batch_size);
+    block_lse_.resize(batch_size);
+    attn_sparsity_.resize(batch_size);
 
     if (config_.retrieval_type == RetrievalType::LAYER) {
         block_table_before_retrieval_.resize(batch_size);
@@ -144,6 +197,7 @@ void KVCache::BatchResize(int batch_size) {
     avg_q.resize(batch_size);
     avg_q_fp16.resize(batch_size);
     for (int i = 0; i < batch_size; i++) {
+        attn_sparsity_[i].resize(config_.q_head_num);
         avg_q[i].resize(config_.q_head_num * config_.head_dim);
         avg_q_fp16[i].resize(config_.q_head_num * config_.head_dim);
     }
@@ -251,6 +305,10 @@ void KVCache::BlockResize(int max_block_num) {
                         config_.q_head_num);
                 }
             }
+            block_lse_[i].resize(max_block_num);
+            for (int j = 0; j < max_block_num; j++) {
+                block_lse_[i][j].resize(config_.q_head_num);
+            }
         }
 
         for (int i = 0; i < max_block_num; i++) {
@@ -265,7 +323,7 @@ void KVCache::BlockResize(int max_block_num) {
 void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                                      int batch_size, int max_block_num,
                                      Backend *backend) {
-    // 计时
+    // Timer start
     auto start = std::chrono::high_resolution_clock::now();
 
     // Each task updates the importance of a certain block
@@ -287,7 +345,6 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
 
             std::vector<float> block_fp32(32);
             if (config_.anchor_type == AnchorType::DYNAMIC) {
-                // printf("layer_id: %d, block_idx: %d\n", layer_id, block_idx);
 
                 // clear anchor_
                 for (int anchor_id = 0; anchor_id < 1; anchor_id++) {
@@ -325,36 +382,8 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                         if (top_importances.size() > config_.anchor_num) {
                             top_importances.pop();
                         }
-
-                        // if (block_idx > 0) {
-                        //     top_importances.push(std::make_pair(
-                        //         GGML_FP16_TO_FP32(
-                        //             importance_[layer_id][block_idx - 1][k]
-                        //                        [head_id]),
-                        //         std::make_pair(block_idx - 1, k)));
-                        //     // TODO: change to config_ item
-                        //     if (top_importances.size() > 4) {
-                        //         top_importances.pop();
-                        //     }
-                        // }
-                        // if (block_idx <
-                        //     cache_seqlens[batch_id] / config_.block_len) {
-                        //     top_importances.push(std::make_pair(
-                        //         GGML_FP16_TO_FP32(
-                        //             importance_[layer_id][block_idx + 1][k]
-                        //                        [head_id]),
-                        //         std::make_pair(block_idx + 1, k)));
-                        //     // TODO: change to config_ item
-                        //     if (top_importances.size() > 4) {
-                        //         top_importances.pop();
-                        //     }
-                        // }
                     }
 
-                    // printf("layer_id: %d, block_idx: %d, priority queue size:
-                    // "
-                    //        "%d\n",
-                    //        layer_id, block_idx, top_importances.size());
                     // fill anchor_
 
                     for (int l = 0; l < config_.head_dim; l++) {
@@ -369,21 +398,9 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                     for (int k = 0; k < config_.anchor_num; k++) {
                         int top_indice = top_importances.top().second.second;
                         int top_block_idx = top_importances.top().second.first;
-                        // if (block_idx == 8 && layer_id >= 4 && layer_id <= 7
-                        // &&
-                        //     head_id >= 1 && head_id <= 4) {
-                        //     printf("layer_id: %d, block_idx: %d, head_id: %d,
-                        //     "
-                        //            "k: %d, "
-                        //            "top_indice: %d, importance: %f\n",
-                        //            layer_id, block_idx, head_id, k,
-                        //            top_indice, top_importances.top().first);
-                        // }
 
                         if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
-                            // printf("layer_id: %d, block_idx: %d, k: %d, "
-                            //        "top_indice: %d\n",
-                            //        layer_id, block_idx, k, top_indice);
+
                             for (int l = 0; l < config_.head_dim; l++) {
                                 anchor_[layer_id * config_.max_block_num *
                                             config_.anchor_num *
@@ -500,9 +517,6 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                                 }
                             }
                         }
-                        // printf("layer_id: %d, block_idx: %d, k: %d, "
-                        //        "top_indice: %d\n",
-                        //        layer_id, block_idx, k, top_indice);
                         top_importances.pop();
                     }
                 }
@@ -527,9 +541,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
 
                 // fill anchor_
                 if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
-                    // printf("layer_id: %d, block_idx: %d, k: %d, "
-                    //        "top_indice: %d\n",
-                    //        layer_id, block_idx, k, top_indice);
+
                     for (int head_id = 0; head_id < config_.q_head_num;
                          head_id++) {
                         for (int k = 0; k < config_.block_len; k++) {
@@ -591,9 +603,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
 
                 // fill anchor_
                 if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
-                    // printf("layer_id: %d, block_idx: %d, k: %d, "
-                    //        "top_indice: %d\n",
-                    //        layer_id, block_idx, k, top_indice);
+
                     for (int head_id = 0; head_id < config_.q_head_num;
                          head_id++) {
                         for (int k = 0; k < config_.block_len; k++) {
@@ -652,9 +662,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
 
                 // fill anchor_
                 if (config_.kv_type == ggml_type::GGML_TYPE_F16) {
-                    // printf("layer_id: %d, block_idx: %d, k: %d, "
-                    //        "top_indice: %d\n",
-                    //        layer_id, block_idx, k, top_indice);
+
                     int stride = config_.block_len / config_.anchor_num;
                     for (int head_id = 0; head_id < config_.q_head_num;
                          head_id++) {
@@ -700,7 +708,6 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                 }
 
             } else if (config_.anchor_type == AnchorType::QUEST) {
-                // printf("layer_id: %d, block_idx: %d\n", layer_id, block_idx);
                 // clear anchor_
                 for (int head_id = 0; head_id < config_.q_head_num; head_id++) {
                     for (int l = 0; l < config_.head_dim; l++) {
@@ -813,15 +820,6 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                                 for (int m = 0; m < 32; m++) {
                                     for (int gqa_idx = 0; gqa_idx < n_gqa_;
                                          gqa_idx++) {
-                                        // printf("layer_id: %d, block_idx: %d,
-                                        // "
-                                        //        "head_id: %d, n_gqa: %d,
-                                        //        gqa_idx:
-                                        //        "
-                                        //        "%d, l: %d, m: %d, val: %f\n",
-                                        //        layer_id, block_idx, head_id,
-                                        //        n_gqa_, gqa_idx, l, m,
-                                        //        block_fp32[m]);
 
                                         anchor_[layer_id *
                                                     config_.max_block_num *
@@ -918,15 +916,6 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                                 for (int m = 0; m < 32; m++) {
                                     for (int gqa_idx = 0; gqa_idx < n_gqa_;
                                          gqa_idx++) {
-                                        // printf("layer_id: %d, block_idx: %d,
-                                        // "
-                                        //        "head_id: %d, n_gqa: %d,
-                                        //        gqa_idx:
-                                        //        "
-                                        //        "%d, l: %d, m: %d, val: %f\n",
-                                        //        layer_id, block_idx, head_id,
-                                        //        n_gqa_, gqa_idx, l, m,
-                                        //        block_fp32[m]);
 
                                         anchor_[layer_id *
                                                     config_.max_block_num *
@@ -1015,7 +1004,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
         },
         nullptr);
 
-    // 计时结束
+    // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("time of calc_anchor_all_layers: %f s\n", duration.count());
@@ -1024,7 +1013,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
 void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
                                           int batch_size, int max_block_num,
                                           Backend *backend) {
-    // 计时
+    // Timer start
     auto start = std::chrono::high_resolution_clock::now();
 
     // Each task updates the importance of a certain block
@@ -1045,7 +1034,6 @@ void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
             int block_idx = block_table[batch_id * max_block_num + block_id];
 
             if (config_.anchor_type == AnchorType::DYNAMIC) {
-                // printf("layer_id: %d, block_idx: %d\n", layer_id, block_idx);
 
                 // clear anchor_
                 for (int head_id = 0; head_id < config_.q_head_num; head_id++) {
@@ -1057,7 +1045,7 @@ void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
         },
         nullptr);
 
-    // 计时结束
+    // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("time of clear_importance_all_layers: %f s\n", duration.count());
@@ -1066,7 +1054,7 @@ void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
 void KVCache::clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
                                        int batch_size, int max_block_num,
                                        Backend *backend) {
-    // 计时
+    // Timer start
     auto start = std::chrono::high_resolution_clock::now();
 
     // Each task updates the importance of a certain block
@@ -1110,14 +1098,14 @@ void KVCache::clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
         },
         nullptr);
 
-    // 计时结束
+    // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("time of clear_kvcache_all_layers: %f s\n", duration.count());
 }
 
 void KVCache::get_sincos(ggml_fp16_t *sin, ggml_fp16_t *cos, int seqlen) {
-    // 计时
+    // Timer start
     auto start = std::chrono::high_resolution_clock::now();
 
     const uint16_t *sin_data = const_cast<const uint16_t *>(sin);
@@ -1130,7 +1118,7 @@ void KVCache::get_sincos(ggml_fp16_t *sin, ggml_fp16_t *cos, int seqlen) {
         }
     }
 
-    // 计时结束
+    // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("time of get_sincos: %f s\n", duration.count());

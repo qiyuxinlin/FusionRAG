@@ -54,7 +54,7 @@ class CPUInferKVCache:
             retrieval_type = cpuinfer_ext.kvcache.RetrievalType.LAYER
         elif retrieval_type == "INDIVIDUAL":
             retrieval_type = cpuinfer_ext.kvcache.RetrievalType.QHEAD
-        elif retrieval_type == "GROUP":
+        elif retrieval_type == "SEPARATE":
             retrieval_type = cpuinfer_ext.kvcache.RetrievalType.KVHEAD
 
         self.config = cpuinfer_ext.kvcache.KVCacheConfig(
@@ -111,15 +111,14 @@ class CPUInferKVCache:
             tensor_file_path,
         )
 
-    # q_in: (bsz, q_len, q_head_num, head_dim)
-    # output: (bsz, q_len, q_head_num, head_dim)
-    # attn_lse: (bsz, q_len, q_head_num)
-    # block_table: (bsz, max_block_num)
-
     def update_cache_total_len(self, cache_total_len: int):
         assert cache_total_len > 0, "cache_total_len: {}".format(cache_total_len)
         self.kvcache.update_cache_total_len(cache_total_len)
 
+    # q_in: (bsz, q_len, q_head_num, head_dim)
+    # output: (bsz, q_len, q_head_num, head_dim)
+    # attn_lse: (bsz, q_len, q_head_num)
+    # block_table: (bsz, max_block_num)
     def attn(
         self,
         q_in: torch.Tensor,
@@ -233,7 +232,7 @@ class CPUInferKVCache:
 
     # k_in: (block_len, kv_head_num, head_dim)
     # v_in: (block_len, kv_head_num, head_dim)
-    def update_one_block_fp16(
+    def update_kvcache_one_block_fp16(
         self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int, block_idx: int
     ):
         assert (
@@ -269,7 +268,7 @@ class CPUInferKVCache:
             block_idx,
         )
 
-    def get_one_block_fp16(
+    def get_kvcache_one_block_fp16(
         self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int, block_idx: int
     ):
         assert (
@@ -489,19 +488,10 @@ class CPUInferKVCache:
             max_block_num,
         )
 
-    def get_all_kv_one_layer(
-        self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int
-    ):
-        return self.kvcache.get_all_kv_one_layer, (
-            k_in.data_ptr(),
-            v_in.data_ptr(),
-            layer_id,
-        )
-
     def get_cache_total_len(self):
         return self.kvcache.get_cache_total_len()
 
-    def update_q4(
+    def update_kvcache_q4(
         self,
         k_in: torch.Tensor,
         k_scales: torch.Tensor,
@@ -514,18 +504,29 @@ class CPUInferKVCache:
     ):
         raise NotImplementedError
 
-    def update_fp16(
+    def update_kvcache_fp16(
         self,
         k_in: torch.Tensor,
         v_in: torch.Tensor,
-        layer_id: int,
-        seq_offset: int | None = None,
-        seq_len: int | None = None,
-        block_table: torch.Tensor | None = None,
+        layer_idx,
+        block_table: torch.Tensor,
+        max_block_num,
+        past_len: torch.Tensor,
+        q_len,
     ):
-        raise NotImplementedError
+        batch_size = block_table.size(0)
+        return self.kvcache.get_kvcache_fp16, (
+            k_in.data_ptr(),
+            v_in.data_ptr(),
+            layer_idx,
+            block_table.data_ptr(),
+            batch_size,
+            max_block_num,
+            past_len.data_ptr(),
+            q_len
+        )
 
-    def get_q4(
+    def get_kvcache_q4(
         self,
         k_in: torch.Tensor,
         k_scales: torch.Tensor,
@@ -538,18 +539,28 @@ class CPUInferKVCache:
     ):
         raise NotImplementedError
 
-    def get_fp16(
+    def get_kvcache_fp16(
         self,
         k_in: torch.Tensor,
         v_in: torch.Tensor,
         layer_id: int,
-        seq_offset: int | None = None,
-        seq_len: int | None = None,
-        block_table: torch.Tensor | None = None,
+        layer_idx,
+        block_table: torch.Tensor,
+        max_block_num,
+        past_len: torch.Tensor,
     ):
-        raise NotImplementedError
+        batch_size = block_table.size(0)
+        return self.kvcache.get_kvcache_fp16, (
+            k_in.data_ptr(),
+            v_in.data_ptr(),
+            layer_idx,
+            block_table.data_ptr(),
+            batch_size,
+            max_block_num,
+            past_len.data_ptr(),
+        )
 
-    def get_and_update_fp16(
+    def get_and_update_kvcache_fp16(
         self,
         k_cache_cpu: torch.Tensor,
         v_cache_cpu: torch.Tensor,
@@ -560,7 +571,7 @@ class CPUInferKVCache:
         q_len,
     ):
         batch_size = block_table.size(0)
-        return self.kvcache.get_and_update_fp16, (
+        return self.kvcache.get_and_update_kvcache_fp16, (
             k_cache_cpu.data_ptr(),
             v_cache_cpu.data_ptr(),
             layer_idx,
@@ -589,6 +600,45 @@ class CPUInferKVCache:
             max_block_num,
             offset.data_ptr(),
             width,
+        )
+
+    # attn_sparsity: ((bsz, q_len, q_head_num), dtype = torch.float32)
+    def get_attn_sparsity(
+        self,
+        q_in: torch.Tensor,
+        attn_sparsity: torch.Tensor,
+        layer_idx: int,
+        block_table: torch.Tensor,
+        cache_seqlens: torch.Tensor,
+        block_table_origin: torch.Tensor,
+        cache_seqlens_origin: torch.Tensor,
+        generate_token_idx: int = 0,
+        topk: int | None = None,
+        local: int | None = None,
+    ):
+        batch_size = block_table.size(0)
+        max_block_num = block_table.size(1)
+        max_block_num_origin = block_table_origin.size(1)
+        q_len = q_in.size(1)
+
+        if topk is None or local is None or topk + local >= max_block_num:
+            topk = -1
+            local = -1
+        return self.kvcache.get_attn_sparsity, (
+            q_in.data_ptr(),
+            attn_sparsity.data_ptr(),
+            layer_idx,
+            generate_token_idx,
+            q_len,
+            batch_size,
+            max_block_num,
+            block_table.data_ptr(),
+            cache_seqlens.data_ptr(),
+            block_table_origin.data_ptr(),
+            cache_seqlens_origin.data_ptr(),
+            max_block_num_origin,
+            topk,
+            local,
         )
 
     def attn_with_kvcache(
@@ -630,9 +680,25 @@ class CPUInferKVCache:
             local,
         )
 
+    def get_all_kvcache_one_layer(
+        self, k_in: torch.Tensor, v_in: torch.Tensor, layer_id: int
+    ):
+        return self.kvcache.get_all_kvcache_one_layer, (
+            k_in.data_ptr(),
+            v_in.data_ptr(),
+            layer_id,
+        )
+
     def get_importance(
         self,
         importance: torch.Tensor,
+        block_table: torch.Tensor,
+    ):
+        raise NotImplementedError
+
+    def get_anchor(
+        self,
+        anchor: torch.Tensor,
         block_table: torch.Tensor,
     ):
         raise NotImplementedError

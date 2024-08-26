@@ -963,11 +963,14 @@ class KLlamaModel(BaseInjectedModule):
             os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
                 "configs",
-                "long_context.yaml",
+                "config.yaml",
             ),
             "r",
         ) as file:
-            self.long_context_config = yaml.safe_load(file.read())
+            config_yaml = yaml.safe_load(file.read())
+            self.long_context_config = config_yaml.get("long_context")
+            self.ext_config = config_yaml.get("ext")
+
         KLlamaModel.dynamic_sdpa = DynamicScaledDotProductAttention(
             max_seq_len=self.long_context_config["max_seq_len"],
             block_size=self.long_context_config["block_size"],
@@ -975,7 +978,7 @@ class KLlamaModel(BaseInjectedModule):
             device=torch.device("cuda"),
             local_windows_len=self.long_context_config["local_windows_len"],
             topk=self.long_context_config["second_select_num"],
-            threads_num=self.long_context_config["threads_num"],
+            threads_num=self.ext_config["cpu_infer"],
             anchor_type=self.long_context_config["anchor_type"],
             kv_type=self.long_context_config["kv_type"],
             dense_layer_num=self.long_context_config["dense_layer_num"],
@@ -986,6 +989,7 @@ class KLlamaModel(BaseInjectedModule):
             layer_step=self.long_context_config["layer_step"],
             token_step=self.long_context_config["token_step"],
             prefill_chunk_size=self.long_context_config["chunk_size"],
+            use_attn_sparsity=False,
         )
 
     def get_input_embeddings(self):

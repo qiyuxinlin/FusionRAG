@@ -1,6 +1,16 @@
+/**
+ * @Description  :
+ * @Author       : djw
+ * @Date         : 2024-08-26 22:47:06
+ * @Version      : 1.0.0
+ * @LastEditors  : djw
+ * @LastEditTime : 2024-08-26 22:47:06
+ * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+ **/
+
 #include "kvcache.h"
 void KVCache::load_kvcache(std::string tensor_file_path, Backend *backend) {
-    // 计时
+    // Timer start
     auto start = std::chrono::high_resolution_clock::now();
     std::ifstream ifs_tensor(tensor_file_path, std::ios::binary);
     if (!ifs_tensor) {
@@ -46,14 +56,14 @@ void KVCache::load_kvcache(std::string tensor_file_path, Backend *backend) {
         }
     }
     ifs_tensor.close();
-    // 计时结束
+    // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end - start;
     printf("time of load: %f s\n", diff.count());
 }
 void KVCache::dump_kvcache(int *block_table, int cache_total_len,
                            std::string tensor_file_path, Backend *backend) {
-    // 计时
+    // Timer start
     auto start = std::chrono::high_resolution_clock::now();
     std::ofstream ofs(tensor_file_path, std::ios::binary);
     printf("dump_kvcache: %s\n", tensor_file_path.c_str());
@@ -106,7 +116,7 @@ void KVCache::dump_kvcache(int *block_table, int cache_total_len,
         }
     }
     ofs.close();
-    // 计时结束
+    // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end - start;
     printf("time of dump: %f s\n", diff.count());

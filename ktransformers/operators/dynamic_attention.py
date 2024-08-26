@@ -1,3 +1,15 @@
+#!/usr/bin/env python
+# coding=utf-8
+"""
+Description  :  
+Author       : djw
+Date         : 2024-08-26 23:25:24
+Version      : 1.0.0
+LastEditors  : djw 
+LastEditTime : 2024-08-26 23:25:24
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+"""
+
 import torch
 from transformers import AutoConfig
 import sys, os
@@ -9,6 +21,7 @@ from flash_attn import flash_attn_func, flash_attn_with_kvcache
 
 
 import math
+import json
 
 
 class DynamicScaledDotProductAttention:
@@ -33,6 +46,7 @@ class DynamicScaledDotProductAttention:
         preselect_block: bool = False,
         preselect_block_count: int = 96,
         prefill_chunk_size: int = 20480,
+        use_attn_sparsity: bool = False,
     ):
         # assert anchor_num == 1
         # assert anchor_type == "DYNAMIC"
@@ -49,7 +63,7 @@ class DynamicScaledDotProductAttention:
         if kv_type != "FP16" and kv_type != "FP32":
             assert block_size % 32 == 0
 
-        valid_block_selection_modes = ["SHARED", "GROUP"]  # individual
+        valid_block_selection_modes = ["SHARED", "SEPARATE"]  # individual
         assert block_selection_mode in valid_block_selection_modes
 
         self.max_seq_len = max_seq_len
@@ -64,6 +78,7 @@ class DynamicScaledDotProductAttention:
         self.preselect_block = preselect_block
         self.preselect_block_count = preselect_block_count
         self.block_selection_mode = block_selection_mode
+        self.use_attn_sparsity = use_attn_sparsity
 
         # model config
         self.kv_head_num = config.num_key_value_heads
@@ -149,6 +164,10 @@ class DynamicScaledDotProductAttention:
 
         self.output_cuda = torch.empty(
             (1, 1, self.q_head_num, self.head_dim), device=device, dtype=torch.float16
+        )
+
+        self.attn_sparsity = torch.zeros(
+            (1, 1, self.q_head_num), device="cpu", dtype=torch.float32, pin_memory=True
         )
 
         if preselect_block == True:
@@ -477,7 +496,7 @@ class DynamicScaledDotProductAttention:
         past_len_cpu = past_len.contiguous().to("cpu")
 
         self.cpu_infer.submit(
-            self.local_thread.get_and_update_fp16(
+            self.local_thread.get_and_update_kvcache_fp16(
                 k_cache_cpu,
                 v_cache_cpu,
                 layer_idx,
@@ -539,6 +558,47 @@ class DynamicScaledDotProductAttention:
             )
         )
         self.cpu_infer.sync()
+
+    def get_attn_sparsity(
+        self,
+        q_in: torch.Tensor,
+        layer_idx: int,
+        block_table: torch.Tensor,
+        cache_seqlens: torch.Tensor,
+        block_table_origin: torch.Tensor,
+        cache_seqlens_origin: torch.Tensor,
+        generate_token_idx: int = 0,
+        topk: int | None = None,
+        local: int | None = None,
+        output_path: str = "./attn_sparsity.json",
+    ):
+        self.attn_sparsity.zero_()
+        self.pcinfer.submit(
+            self.local_thread.get_attn_sparsity(
+                q_in,
+                self.attn_sparsity,
+                layer_idx,
+                block_table,
+                cache_seqlens,
+                block_table_origin,
+                cache_seqlens_origin,
+                generate_token_idx,
+                topk,
+                local,
+            )
+        )
+        self.cpu_infer.sync()
+        with open(output_path, "a") as file:
+            for head_idx in range(self.q_head_num):
+                sparsity = self.attn_sparsity[0][0][head_idx].item()
+                json_obj = {
+                    "token_idx": generate_token_idx,
+                    "layer_idx": layer_idx,
+                    "head_idx": head_idx,
+                    "sparsity": sparsity,
+                }
+                json.dump(json_obj, file)
+                file.write("\n")
 
     def apply(
         self,

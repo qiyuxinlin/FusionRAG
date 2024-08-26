@@ -1,10 +1,10 @@
 /**
  * @Description  :
- * @Author       : chenht2022
+ * @Author       : chenht2022, djw
  * @Date         : 2024-07-22 02:03:22
  * @Version      : 1.0.0
- * @LastEditors  : kkk1nak0
- * @LastEditTime : 2024-08-15 07:47:06
+ * @LastEditors  : djw
+ * @LastEditTime : 2024-08-26 22:47:06
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
 // Python bindings
@@ -83,7 +83,7 @@ class KVCacheBindings {
         }
     };
 
-    class GetAllKVOneLayerBindings {
+    class GetAllKVCacheOneLayerBindings {
       public:
         struct Args {
             CPUInfer *cpuinfer;
@@ -94,7 +94,7 @@ class KVCacheBindings {
         };
         static void inner(void *args) {
             Args *args_ = (Args *)args;
-            args_->cpuinfer->enqueue(&KVCache::get_all_kv_one_layer,
+            args_->cpuinfer->enqueue(&KVCache::get_all_kvcache_one_layer,
                                      args_->kv_cache, args_->layer_id,
                                      args_->k_in, args_->v_in);
         }
@@ -107,7 +107,7 @@ class KVCacheBindings {
         }
     };
 
-    class GetAndUpdateFp16Bindings {
+    class GetAndUpdateKVCacheFp16Bindings {
       public:
         struct Args {
             CPUInfer *cpuinfer;
@@ -123,7 +123,84 @@ class KVCacheBindings {
         };
         static void inner(void *args) {
             Args *args_ = (Args *)args;
-            args_->cpuinfer->enqueue(&KVCache::get_and_update_fp16,
+            args_->cpuinfer->enqueue(&KVCache::get_and_update_kvcache_fp16,
+                                     args_->kv_cache, args_->k_in, args_->v_in,
+                                     args_->layer_id, args_->block_table,
+                                     args_->batch_size, args_->max_block_num,
+                                     args_->cache_seqlens, args_->q_len);
+        }
+        static std::pair<intptr_t, intptr_t>
+        cpuinfer_interface(KVCache &kv_cache, intptr_t k_in, intptr_t v_in,
+                           int layer_id, intptr_t block_table, int batch_size,
+                           int max_block_num, intptr_t cache_seqlens,
+                           int q_len) {
+            Args *args = new Args{nullptr,
+                                  &kv_cache,
+                                  (ggml_fp16_t *)k_in,
+                                  (ggml_fp16_t *)v_in,
+                                  layer_id,
+                                  (int *)block_table,
+                                  batch_size,
+                                  max_block_num,
+                                  (int *)cache_seqlens,
+                                  q_len};
+            return std::make_pair((intptr_t)&inner, (intptr_t)args);
+        }
+    };
+    class GetKVCacheFp16Bindings {
+      public:
+        struct Args {
+            CPUInfer *cpuinfer;
+            KVCache *kv_cache;
+            ggml_fp16_t *k_in;
+            ggml_fp16_t *v_in;
+            int layer_id;
+            int *block_table;
+            int batch_size;
+            int max_block_num;
+            int *cache_seqlens;
+        };
+        static void inner(void *args) {
+            Args *args_ = (Args *)args;
+            args_->cpuinfer->enqueue(
+                &KVCache::get_kvcache_fp16, args_->kv_cache, args_->k_in,
+                args_->v_in, args_->layer_id, args_->block_table,
+                args_->batch_size, args_->max_block_num, args_->cache_seqlens);
+        }
+        static std::pair<intptr_t, intptr_t>
+        cpuinfer_interface(KVCache &kv_cache, intptr_t k_in, intptr_t v_in,
+                           int layer_id, intptr_t block_table, int batch_size,
+                           int max_block_num, intptr_t cache_seqlens) {
+            Args *args = new Args{nullptr,
+                                  &kv_cache,
+                                  (ggml_fp16_t *)k_in,
+                                  (ggml_fp16_t *)v_in,
+                                  layer_id,
+                                  (int *)block_table,
+                                  batch_size,
+                                  max_block_num,
+                                  (int *)cache_seqlens};
+            return std::make_pair((intptr_t)&inner, (intptr_t)args);
+        }
+    };
+
+    class UpdateKVCacheFp16Bindings {
+      public:
+        struct Args {
+            CPUInfer *cpuinfer;
+            KVCache *kv_cache;
+            ggml_fp16_t *k_in;
+            ggml_fp16_t *v_in;
+            int layer_id;
+            int *block_table;
+            int batch_size;
+            int max_block_num;
+            int *cache_seqlens;
+            int q_len;
+        };
+        static void inner(void *args) {
+            Args *args_ = (Args *)args;
+            args_->cpuinfer->enqueue(&KVCache::update_kvcache_fp16,
                                      args_->kv_cache, args_->k_in, args_->v_in,
                                      args_->layer_id, args_->block_table,
                                      args_->batch_size, args_->max_block_num,
@@ -584,10 +661,16 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
                  kvcache.update_cache_total_len(cache_total_len);
              })
         .def("attn", &KVCacheBindings::AttnBindings::cpuinfer_interface)
-        .def("get_all_kv_one_layer",
-             &KVCacheBindings::GetAllKVOneLayerBindings::cpuinfer_interface)
-        .def("get_and_update_fp16",
-             &KVCacheBindings::GetAndUpdateFp16Bindings::cpuinfer_interface)
+        .def(
+            "get_all_kvcache_one_layer",
+            &KVCacheBindings::GetAllKVCacheOneLayerBindings::cpuinfer_interface)
+        .def("get_and_update_kvcache_fp16",
+             &KVCacheBindings::GetAndUpdateKVCacheFp16Bindings::
+                 cpuinfer_interface)
+        .def("get_kvcache_fp16",
+             &KVCacheBindings::GetKVCacheFp16Bindings::cpuinfer_interface)
+        .def("update_kvcache_fp16",
+             &KVCacheBindings::UpdateKVCacheFp16Bindings::cpuinfer_interface)
         .def("update_importance",
              &KVCacheBindings::UpdateImportanceBindings::cpuinfer_interface)
         .def("attn_with_kvcache",
