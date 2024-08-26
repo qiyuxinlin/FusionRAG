@@ -55,17 +55,13 @@ def local_chat(
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
     use_cuda_graph: bool = True,
-    prompt_file: str = "/root/ktransformers-dev/long_context_data/16k.txt",
-    mode: str = "long_context"
+    prompt_file: str | None = None,
+    mode: str = "long_context",
 ):
     torch.set_grad_enabled(False)
 
     Config().cpu_infer = cpu_infer
-    tokenizer = AutoTokenizer.from_pretrained(
-        "/root/internlm2_5-7b-chat-1m", trust_remote_code=True
-    )
-    model_path = "/root/llama_chat-1m"
-    gguf_path = "/root/llama_chat-1m"
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     torch.set_default_dtype(config.torch_dtype)
 
@@ -119,11 +115,11 @@ def local_chat(
         content = input("Chat or file path: ")
         if content == "":
             if prompt_file != None:
-                content = open(prompt_file,'r').read()
+                content = open(prompt_file, "r").read()
             else:
-                content = "hello"   
+                content = "Please write a piece of quicksort code in C++."
         elif os.path.isfile(content):
-            content = open(content,'r').read()
+            content = open(content, "r").read()
         messages = [{"role": "user", "content": content}]
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
