@@ -50,7 +50,7 @@ class DynamicScaledDotProductAttention:
     ):
         # assert anchor_num == 1
         # assert anchor_type == "DYNAMIC"
-
+        self.remaining_length = 0
         valid_anchor_types = ["DYNAMIC", "FIXED", "BLOCK_MEAN", "BLOCK_MAX", "QUEST"]
         assert anchor_type in valid_anchor_types
         if anchor_type == "QUEST":
@@ -258,9 +258,10 @@ class DynamicScaledDotProductAttention:
             qk = qk * mask
 
         if use_softmax:
-            qk = torch.nn.functional.softmax(
-                qk / math.sqrt(self.head_dim), dim=-1, dtype=torch.float32
-            ).to(torch.float16)
+            for head_idx in range(self.q_head_num):
+                qk[head_idx] = torch.nn.functional.softmax(
+                    qk[head_idx] / math.sqrt(self.head_dim), dim=-1, dtype=torch.float32
+                ).to(torch.float16)
         qk = torch.sum(qk, dim=-2)
         importance = self.cache_importance.view(-1, self.q_head_num)
         importance = importance.narrow(0, batch_idx * max_block_num + offset, width)

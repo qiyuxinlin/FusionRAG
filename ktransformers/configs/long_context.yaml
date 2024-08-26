@@ -1,5 +1,5 @@
-chunk_size: 30720
-max_seq_len: 256000
+chunk_size: 10240
+max_seq_len: 128000
 block_size: 128
 local_windows_len: 4096
 second_select_num: 1000
