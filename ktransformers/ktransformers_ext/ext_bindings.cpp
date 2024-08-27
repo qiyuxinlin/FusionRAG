@@ -620,7 +620,7 @@ PYBIND11_MODULE(cpuinfer_ext, m) {
     auto kvcache_module = m.def_submodule("kvcache");
 
     py::enum_<AnchorType>(kvcache_module, "AnchorType")
-        .value("FIXED", AnchorType::FIXED)
+        .value("FIXED", AnchorType::FIXED_ANCHOR)
         .value("DYNAMIC", AnchorType::DYNAMIC)
         .value("QUEST", AnchorType::QUEST)
         .value("BLOCK_MAX", AnchorType::BLOCK_MAX)

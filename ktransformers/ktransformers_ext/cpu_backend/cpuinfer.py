@@ -1,7 +1,9 @@
 import torch
 import os, sys
 
-sys.path.append(os.path.dirname(__file__) + "/../build")
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "build"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "build", "Release"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "build", "Debug"))
 import cpuinfer_ext
 
 
@@ -716,8 +718,15 @@ class CPUInfer:
         fn, args = task
         self.cpuinfer.submit_with_cuda_stream(current_cuda_stream, fn(*args))
 
+#    def submit_with_cuda_stream(self, current_cuda_stream, task):
+#        fn, args = task
+#        self.cpuinfer.submit(fn(*args))
+
     def sync(self):
         self.cpuinfer.sync()
 
     def sync_with_cuda_stream(self, current_cuda_stream):
         self.cpuinfer.sync_with_cuda_stream(current_cuda_stream)
+
+#    def sync_with_cuda_stream(self, current_cuda_stream):
+#        self.cpuinfer.sync()

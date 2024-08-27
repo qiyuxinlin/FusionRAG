@@ -8,8 +8,8 @@
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
 
-#ifndef PCINFER_OPERATOR_KVCACHE_H
-#define PCINFER_OPERATOR_KVCACHE_H
+#ifndef CPUINFER_OPERATOR_KVCACHE_H
+#define CPUINFER_OPERATOR_KVCACHE_H
 
 #include <algorithm>
 #include <atomic>
@@ -28,7 +28,6 @@
 #include <random>
 #include <stdexcept>
 #include <thread>
-#include <unistd.h>
 #include <vector>
 
 #include "../../cpu_backend/backend.h"
@@ -62,7 +61,7 @@ std::string ggml_type_to_string(ggml_type type);
  * QUEST, BLOCK_MEAN, or BLOCK_MAX.
  */
 enum AnchorType {
-    FIXED,   /**< A fixed anchor that does not change. */
+    FIXED_ANCHOR,   /**< A fixed anchor that does not change. */
     DYNAMIC, /**< A dynamic anchor that can change over time. */
     QUEST, /**< A special anchor type used for QUEST (Query and Embedding Space
               Transformation). */

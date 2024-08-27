@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(cpuinfer_ext VERSION 0.1.0)
 
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math")
 set(CMAKE_BUILD_TYPE "Release")
@@ -224,5 +225,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE llama)
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE "$ENV{CUDA_PATH}/lib/x64/cudart.lib")#CUDA::cudart
 elseif(UNIX)
+    if(NOT DEFINED ENV{CUDA_HOME} OR "$ENV{CUDA_HOME}" STREQUAL "")
+        # 设置默认值为 /usr/local/cuda
+        set(ENV{CUDA_HOME} "/usr/local/cuda")
+    endif()
     target_link_libraries(${PROJECT_NAME} PRIVATE "$ENV{CUDA_HOME}/lib64/libcudart.so")
 endif()

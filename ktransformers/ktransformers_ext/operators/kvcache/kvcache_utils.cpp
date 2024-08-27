@@ -31,8 +31,8 @@ std::string AnchorTypeToString(AnchorType type) {
         return "BLOCK_MEAN";
     case AnchorType::BLOCK_MAX:
         return "BLOCK_MAX";
-    case AnchorType::FIXED:
-        return "FIXED";
+    case AnchorType::FIXED_ANCHOR:
+        return "FIXED_ANCHOR";
     case AnchorType::QUEST:
         return "QUEST";
     }
@@ -642,7 +642,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
                         }
                     }
                 }
-            } else if (config_.anchor_type == AnchorType::FIXED) {
+            } else if (config_.anchor_type == AnchorType::FIXED_ANCHOR) {
                 // clear anchor_
                 for (int anchor_id = 0; anchor_id < 1; anchor_id++) {
                     for (int head_id = 0; head_id < config_.q_head_num;
@@ -1007,7 +1007,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    printf("time of calc_anchor_all_layers: %f s\n", duration.count());
+//    printf("time of calc_anchor_all_layers: %f s\n", duration.count());
 }
 
 void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
@@ -1048,7 +1048,7 @@ void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    printf("time of clear_importance_all_layers: %f s\n", duration.count());
+//    printf("time of clear_importance_all_layerssssss: %f s\n", duration.count());
 }
 
 void KVCache::clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
@@ -1101,7 +1101,7 @@ void KVCache::clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    printf("time of clear_kvcache_all_layers: %f s\n", duration.count());
+//    printf("time of clear_kvcache_all_layers: %f s\n", duration.count());
 }
 
 void KVCache::get_sincos(ggml_fp16_t *sin, ggml_fp16_t *cos, int seqlen) {

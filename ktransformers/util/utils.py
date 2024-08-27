@@ -190,7 +190,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             tokens.append(next_token.int())
             seq_length += 1
             
-            if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>':
+            if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>' or next_token[0].item() == 92542:
                 print(stream.end(), end="", flush=True)
                 break
             else:
