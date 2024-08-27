@@ -55,7 +55,7 @@ def local_chat(
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
     use_cuda_graph: bool = True,
-    prompt_file: str | None = None,
+    prompt_file: str ="C://Users//Atream//Desktop//1000k.txt",
     mode: str = "normal",
 ):
     torch.set_grad_enabled(False)

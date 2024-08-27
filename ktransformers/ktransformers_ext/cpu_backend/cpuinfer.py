@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # coding=utf-8
-#!/usr/bin/env python
-# coding=utf-8
 """
 Description  : This script defines the `CPUInferKVCache` and `CPUInfer` classes for performing inference 
                with a Key-Value Cache on the CPU. The `CPUInferKVCache` class is responsible for configuring 
