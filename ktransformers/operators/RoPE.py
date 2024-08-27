@@ -90,37 +90,6 @@ class RotaryEmbeddingV2(BaseInjectedModule, LlamaRotaryEmbedding):
             self.orig_module.config,
         )
 
-
-# class RotaryEmbeddingV2(BaseInjectedModule, LlamaRotaryEmbedding):
-#     def __init__(self,
-#                  key: str,
-#                  gguf_loader : GGUFLoader,
-#                  config: PretrainedConfig,
-#                  orig_module: nn.Module,
-#                 #  device: str = "cuda",
-#                  generate_device: str = "cuda",
-#                  prefill_device: str = "cuda",
-#                  **kwargs):
-#         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, generate_device, **kwargs)
-#         self.orig_module.__init__(orig_module.dim,
-#             orig_module.max_position_embeddings,
-#             orig_module.base,
-#             None,
-#             config)
-
-#     def load(self):
-#         self.orig_module.__init__(self.orig_module.dim,
-#             self.orig_module.max_position_embeddings,
-#             self.orig_module.base,
-#             self.device,
-#             self.config)
-#         self.orig_module.rope_init_fn = ROPE_INIT_FUNCTIONS[self.orig_module.rope_type]
-
-#         inv_freq, self.orig_module.attention_scaling = self.orig_module.rope_init_fn(self.config, self.orig_module.device)
-#         self.orig_module.register_buffer("inv_freq", inv_freq, persistent=False)
-#         self.orig_module.original_inv_freq = self.orig_module.inv_freq
-
-
 class YarnRotaryEmbedding(BaseInjectedModule, DeepseekV2YarnRotaryEmbedding):
     def __init__(
         self,

@@ -55,13 +55,10 @@ def local_chat(
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
     use_cuda_graph: bool = True,
-    prompt_file: str = "C://Users//Atream//Documents//WeChat Files//wxid_iucawz208s0612//FileStorage//File//2024-08//1000k.txt",
-    mode: str = "long_context",
+    prompt_file: str | None = None,
+    mode: str = "normal",
 ):
     torch.set_grad_enabled(False)
-
-    model_path = "D:\\models\\internlm2_5-7b-chat-1m-llama"
-    gguf_path = "D:\\models\\internlm2_5-7b-chat-1m-llama-gguf"
 
     Config().cpu_infer = cpu_infer
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
@@ -134,7 +131,7 @@ def local_chat(
             if prompt_file != None:
                 content = open(prompt_file, "r").read()
             else:
-                content = "Please write a piece of quicksort code in C++." * 70000
+                content = "Please write a piece of quicksort code in C++."
         elif os.path.isfile(content):
             content = open(content, "r").read()
         messages = [{"role": "user", "content": content}]

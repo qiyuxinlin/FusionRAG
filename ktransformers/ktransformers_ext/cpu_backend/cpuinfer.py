@@ -1,3 +1,24 @@
+#!/usr/bin/env python
+# coding=utf-8
+#!/usr/bin/env python
+# coding=utf-8
+"""
+Description  : This script defines the `CPUInferKVCache` and `CPUInfer` classes for performing inference 
+               with a Key-Value Cache on the CPU. The `CPUInferKVCache` class is responsible for configuring 
+               and managing key-value caches, updating and retrieving cache data, and handling attention 
+               operations. It supports different cache types (e.g., Q4_0, FP16) and retrieval strategies 
+               (e.g., shared, separate). The `CPUInfer` class handles task submission and synchronization 
+               on the CPU, with optional CUDA stream integration for tasks involving GPU acceleration. 
+               These classes facilitate efficient caching and memory management for deep learning models 
+               that leverage key-value attention mechanisms, particularly on CPU-based systems.
+Author       : djw
+Date         : 2024-08-26 23:25:24
+Version      : 1.0.0
+LastEditors  : djw 
+LastEditTime : 2024-08-26 23:25:24
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
+"""
+
 import torch
 import os, sys
 

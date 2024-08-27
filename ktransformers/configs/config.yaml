@@ -34,11 +34,11 @@ web:
   open_cross_domain: True
 
 ext:
-  cpu_infer: 30
+  cpu_infer: 10
 
 long_context:
-  chunk_size: 2048
-  max_seq_len: 900000
+  chunk_size: 4096
+  max_seq_len: 128000
   block_size: 128
   local_windows_len: 4096
   second_select_num: 32

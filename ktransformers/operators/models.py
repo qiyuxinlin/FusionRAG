@@ -20,6 +20,7 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 from ktransformers.operators.dynamic_attention import DynamicScaledDotProductAttention
+from ktransformers.server.config.config import Config
 import os
 import yaml
 from transformers.activations import ACT2FN
@@ -959,14 +960,10 @@ class KLlamaModel(BaseInjectedModule):
         self.per_layer_prefill_intput_threshold = per_layer_prefill_intput_threshold
         self.transfer_map = transfer_map
         self.stream_device_map = dict()
-        with open(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "configs",
-                "config.yaml",
-            ),
-            "r",
-        ) as file:
+        user_path: str = os.path.expanduser('~')
+        localstore_path: str = os.path.join(user_path,'.ktransformers')
+        config_path: str = os.path.join(localstore_path,Config.CONFIG_FILE_NAME)
+        with open(config_path,"r") as file:
             config_yaml = yaml.safe_load(file.read())
             self.long_context_config = config_yaml.get("long_context")
             self.ext_config = config_yaml.get("ext")

@@ -19,7 +19,7 @@ from ktransformers.util.custom_gguf import GGUFLoader
 from transformers.utils import logging
 from transformers.configuration_utils import PretrainedConfig
 from transformers.cache_utils import Cache
-logger = logging.get_logger(__name__)
+logger = logging.getLogger("attention")
 class KDeepseekV2Attention(BaseInjectedModule, DeepseekV2Attention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
@@ -290,7 +290,8 @@ class KLlamaAttention(BaseInjectedModule):
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
         if position_embeddings is None:
-            logger.warning_once(
+
+            logger.warning(
                 "The attention layers in this model are transitioning from computing the RoPE embeddings internally "
                 "through `position_ids` (2D tensor with the indexes of the tokens), to using externally computed "
                 "`position_embeddings` (Tuple of tensors, containing cos and sin). In v4.45 `position_ids` will be "
