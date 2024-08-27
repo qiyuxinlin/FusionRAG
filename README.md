@@ -37,9 +37,9 @@ https://github.com/user-attachments/assets/a865e5e4-bca3-401e-94b8-af3c080e6c12
 
 * **1M Context InternLM 2.5 7B**: Operates at full bf16 precision, utilizing 24GB VRAM and 150GB DRAM, which is feasible on a local desktop setup. It achieves a 92.88% success rate on the 1M "Needle In a Haystack" test and 100% on the 128K NIAH test.
   
-  ![](https://swcil84qspu.feishu.cn/space/api/box/stream/download/asynccode/?code=N2UxYzYyODZmZTIxM2UxOWNiM2FlYTgzZWQ4MmRhMGZfaVpia3I5UzB5RzRNTm1NQU5xZmZPVmd3UFBNVGJ5SWRfVG9rZW46SnFzdWJGNGZib2ZGb1p4NmlHTGNwRW43bmFiXzE3MjQ2Nzk5OTA6MTcyNDY4MzU5MF9WNA)
+  ![needle 1M.png](/Users/wangjiahao/Desktop/ktransformers-dev/doc/assets/needle%201M.png)
   
-  ![](https://swcil84qspu.feishu.cn/space/api/box/stream/download/asynccode/?code=ZGVlMjNhODQ2OGEyNTkwZTFlMTUxZWI0YjRmMDFjYzRfR0JNbVlSdUw1QmI0TGFnOE4yOWhlb0hxMzg3UzB6bFNfVG9rZW46RHVMNWJjbExMb0xUVnl4UGVTOWNRWmQ5bkZoXzE3MjQ2NzkyMDI6MTcyNDY4MjgwMl9WNA)
+  ![needle 128K.png](/Users/wangjiahao/Desktop/ktransformers-dev/doc/assets/needle%20128K.png)
   
   
   
