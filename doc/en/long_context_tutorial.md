@@ -24,6 +24,7 @@ layer_step: 1 # Select every few layers.
 token_step: 1 # Select every few tokens.
 ```
 ps: By `conda show ktransformers`, you can locate the root directory of ktransformers.
+
 The memory required for different context lengths is shown in the table below:
 
 |     | 4K  | 32K | 64K | 128K | 512K | 1M  |
