@@ -37,9 +37,17 @@ https://github.com/user-attachments/assets/a865e5e4-bca3-401e-94b8-af3c080e6c12
 
 * **1M Context InternLM 2.5 7B**: Operates at full bf16 precision, utilizing 24GB VRAM and 150GB DRAM, which is feasible on a local desktop setup. It achieves a 92.88% success rate on the 1M "Needle In a Haystack" test and 100% on the 128K NIAH test.
   
-  ![needle 1M.png](/Users/wangjiahao/Desktop/ktransformers-dev/doc/assets/needle%201M.png)
+<p align="center">
+  <picture>
+    <img alt="Single Needle Retrieval 128K" src="[https://github.com/user-attachments/assets/d052924e-8631-44de-aad2-97c54b965693](https://github.com/kvcache-ai/ktransformers-dev/blob/wjh-readme/doc/assets/needle%20128K.png)" width=100%>
+  </picture>
+</p>
   
-  ![needle 128K.png](/Users/wangjiahao/Desktop/ktransformers-dev/doc/assets/needle%20128K.png)
+<p align="center">
+  <picture>
+    <img alt="Single Needle Retrieval 1000K" src="[https://github.com/user-attachments/assets/d052924e-8631-44de-aad2-97c54b965693](https://github.com/kvcache-ai/ktransformers-dev/blob/wjh-readme/doc/assets/needle%201M.png)" width=100%>
+  </picture>
+</p>
   
   
   
