@@ -16,7 +16,7 @@ from ktransformers.models.modeling_deepseek import DeepseekV2Attention, apply_ro
 from typing import Optional, Tuple
 from ktransformers.operators.base_operator import BaseInjectedModule
 from ktransformers.util.custom_gguf import GGUFLoader
-from transformers.utils import logging
+import logging
 from transformers.configuration_utils import PretrainedConfig
 from transformers.cache_utils import Cache
 logger = logging.getLogger("attention")
