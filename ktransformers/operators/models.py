@@ -645,13 +645,12 @@ class KDeepseekV2Model(BaseInjectedModule):
             inputs_embeds = self.embed_tokens(input_ids)
             input_ids = input_ids.to(org_device)
 
-        causal_mask = self._update_causal_mask(
-            attention_mask,
-            inputs_embeds,
-            cache_position,
-            past_key_values,
-            output_attentions,
-        )
+        if per_layer_prefill_flag:
+            causal_mask = None
+        else:
+            causal_mask = self._update_causal_mask(
+                attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
+            )
 
         # embed positions
         hidden_states = inputs_embeds
