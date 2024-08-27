@@ -56,7 +56,7 @@ def local_chat(
     cpu_infer: int = Config().cpu_infer,
     use_cuda_graph: bool = True,
     prompt_file: str | None = None,
-    mode: str = "long_context",
+    mode: str = "normal",
 ):
     torch.set_grad_enabled(False)
 
