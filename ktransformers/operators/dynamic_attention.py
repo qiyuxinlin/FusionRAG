@@ -14,7 +14,6 @@ import torch
 from transformers import AutoConfig
 import sys, os
 
-# sys.path.append(os.path.dirname(__file__) + "/../pcinfer/pcinfer")
 sys.path.append(os.path.dirname(__file__) + "/../ktransformers_ext/cpu_backend")
 from cpuinfer import CPUInfer, CPUInferKVCache
 from flash_attn import flash_attn_func, flash_attn_with_kvcache

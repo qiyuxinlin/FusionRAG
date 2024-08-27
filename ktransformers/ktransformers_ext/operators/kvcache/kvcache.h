@@ -8,8 +8,8 @@
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
 
-#ifndef PCINFER_OPERATOR_KVCACHE_H
-#define PCINFER_OPERATOR_KVCACHE_H
+#ifndef CPUINFER_OPERATOR_KVCACHE_H
+#define CPUINFER_OPERATOR_KVCACHE_H
 
 #include <algorithm>
 #include <atomic>
