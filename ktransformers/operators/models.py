@@ -6,7 +6,7 @@ Author       : Azure-Tang
 Date         : 2024-07-25 11:25:24
 Version      : 1.0.0
 LastEditors  : Azure 
-LastEditTime : 2024-08-14 14:53:05
+LastEditTime : 2024-08-27 07:29:04
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 '''
 
@@ -556,10 +556,12 @@ class KDeepseekV2Model(BaseInjectedModule):
             inputs_embeds = self.embed_tokens(input_ids)
             input_ids = input_ids.to(org_device)
 
-
-        causal_mask = self._update_causal_mask(
-            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
-        )
+        if per_layer_prefill_flag:
+            causal_mask = None
+        else:
+            causal_mask = self._update_causal_mask(
+                attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
+            )
 
         # embed positions
         hidden_states = inputs_embeds
