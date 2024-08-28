@@ -5,8 +5,8 @@ Description  :
 Author       : chenxl
 Date         : 2024-07-27 16:15:27
 Version      : 1.0.0
-LastEditors  : chenxl 
-LastEditTime : 2024-08-14 16:36:19
+LastEditors  : kkk1nak0
+LastEditTime : 2024-08-15 07:45:54
 Adapted from:
 https://github.com/Dao-AILab/flash-attention/blob/v2.6.3/setup.py
 Copyright (c) 2023, Tri Dao.
