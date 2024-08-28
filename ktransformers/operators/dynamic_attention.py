@@ -236,70 +236,31 @@ class DynamicScaledDotProductAttention:
         use_softmax: bool = True,
     ):
         n_rep = self.q_head_num // self.kv_head_num
-        try:
-            key_item = key[..., None, :].expand(
-                key.size(0), self.kv_head_num, n_rep, self.head_dim
-            )
-            key_item = key_item.reshape(
-                key.size(0),
-                self.q_head_num,
-                self.head_dim,
-            )
-            qk = torch.einsum(
-                "qhd,khd->hqk", query, key_item
-            )  # (num_attention_heads, len_q, len_k)
-
-            if mask_mode == "tril":
-                mask = self.tril_mask
-                mask = mask[..., -qk.size(-2) :, -qk.size(-1) :]
-                qk = qk * mask
-            elif mask_mode == "triu":
-                mask = self.triu_mask
-                mask = mask[..., -qk.size(-2) :, -qk.size(-1) :]
-                qk = qk * mask
-
-            if use_softmax:
-                for head_idx in range(self.q_head_num):
-                    qk[head_idx] = torch.nn.functional.softmax(
-                        qk[head_idx] / math.sqrt(self.head_dim), dim=-1, dtype=torch.float32
-                    ).to(torch.float16)
-            qk = torch.sum(qk, dim=-2)
-        except:
-            logger.warning(
-                "The computation in this section exceeds the GPU memory capacity and needs to be transferred to the CPU, which may take some time."
-            )
-            key_item = None 
-            torch.cuda.empty_cache()
-            key = key[..., None, :].cpu().expand(
-                key.size(0), self.kv_head_num, n_rep, self.head_dim
-            )
-            key = key.reshape(
-                key.size(0),
-                self.q_head_num,
-                self.head_dim,
-            )
-            qk = torch.einsum(
-                "qhd,khd->hqk", query.cpu(), key
-            )  # (num_attention_heads, len_q, len_k)
-
-            if mask_mode == "tril":
-                mask = self.tril_mask
-                mask = mask[..., -qk.size(-2) :, -qk.size(-1) :]
-                qk = qk * mask
-            elif mask_mode == "triu":
-                mask = self.triu_mask
-                mask = mask[..., -qk.size(-2) :, -qk.size(-1) :]
-                qk = qk * mask
-
-            if use_softmax:
-                for head_idx in range(self.q_head_num):
-                    qk[head_idx] = torch.nn.functional.softmax(
-                        qk[head_idx] / math.sqrt(self.head_dim), dim=-1, dtype=torch.float32
-                    ).to(torch.float16)
-            qk = torch.sum(qk, dim=-2).cuda()
         importance = self.cache_importance.view(-1, self.q_head_num)
         importance = importance.narrow(0, batch_idx * max_block_num + offset, width)
-        importance += qk.transpose(-1, -2)
+        n_gqa_ = self.q_head_num // self.kv_head_num 
+        for head_idx in range(self.q_head_num):
+            key_item = key[..., head_idx // n_gqa_, :].view(key.size(0), -1)
+            qk = torch.einsum(
+                "qd,kd->qk", query[:,head_idx,:], key_item
+            )  # (num_attention_heads, len_q, len_k)
+
+            if mask_mode == "tril":
+                mask = self.tril_mask
+                mask = mask[0, -qk.size(-2) :, -qk.size(-1) :]
+                qk = qk * mask
+            elif mask_mode == "triu":
+                mask = self.triu_mask
+                mask = mask[0, -qk.size(-2) :, -qk.size(-1) :]
+                qk = qk * mask
+
+            if use_softmax:
+                qk = torch.nn.functional.softmax(
+                    qk / math.sqrt(self.head_dim), dim=-1, dtype=torch.float32
+                ).to(torch.float16)
+              
+            qk = torch.sum(qk, dim=-2)
+            importance[...,head_idx] += qk
 
     def get_preselect_block_table_and_attn_score(
         self,
