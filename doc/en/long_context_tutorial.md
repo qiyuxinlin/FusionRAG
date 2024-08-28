@@ -15,10 +15,6 @@ As the demand for longer context windows increases, not only have commercial lar
 | <img title="" src="../assets/internlm_memory.png" alt="internlm_memory" width="882"> | <img src="../assets/SparQ_attention.png" title="" alt="sparQ" width="691"> |
 | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
 
-<div>
-<center>(Left) Space required for the InternLM2.5-7B-Chat-1M model weights and KVCache; (Right) attention sparsity analysis in SparQ.</center>
-</div>
-
 Fortunately, many studies have noticed that attention distribution during the inference phase tends to be **sparse**. For example, the right figure shows SparQ's experimental statistics based on LLaMa 7B, where less than 1% of tokens in a 3k context have relatively high attention scores. Similar conclusions are not only reflected in many other papers, such as H2O, Quest, InfLLM, and SnapKV, but we have also further validated this through long-text experiments with InternLM 2.5-7B-1M. Although the proportion isn't as extreme as 1%, due to the inherent head-focused effect of the softmax operation in attention mechanisms, it is theoretically possible that if we can identify in advance which tokens have high attention scores, scanning less than 5% of the tokens would suffice to essentially replicate the original result.
 
 Thus, the problem narrows down to how to quickly identify these tokens with high attention scores without scanning them all. In the following sections, we will first briefly survey several key related papers, then summarize and propose a general framework we designed and implemented within KTransformers—a highly efficient sparse attention operator for CPUs.
@@ -30,10 +26,6 @@ Thus, the problem narrows down to how to quickly identify these tokens with high
 Based on the aforementioned points, we studied papers from recent years related to sparse selection in KVCache. The earliest of these is the paper H2O, which suggested that the attention distribution during inference is sparse and that only 5% of the KVCache is needed during inference. Following this, a series of works built on H2O's approach by designing more complex methods for selecting tokens that perform better in different scenarios. These methods are quite reasonable for single-word inference. However, as we previously explored in the Mooncake project, **we believe that the future trend is to precompute reusable KVCache as much as possible, and then use it to answer different questions.** This "compute once, use many" approach aims to reduce computational costs. Therefore, with this goal in mind, we prefer not to delete any tokens from the KVCache, or at least not remove a significant portion of them, to ensure that different questions can focus on different parts of the context in the future.
 
 ![InfLLM Framework](../assets/InfLLM_framework.png)
-
-<div>
-<center>InfLLM Algorithm Framework.</center>
-</div>
 
 We further investigated related research, among which InfLLM proposed a very promising framework. Not only does it recognize that attention is sparse, but it also suggests that overly long contexts can cause attention to be dispersed into irrelevant noise, thereby reducing the model's ability to focus on key information. To address this issue, InfLLM introduces an external memory module (Memory Units) to store the context's KVCache. In each computation step, the most relevant semantic information is retrieved from this external memory module to participate in the calculation, thus enhancing the model's ability to handle long-context inference.
 
@@ -58,10 +50,6 @@ During the attention computation stage, the dot product is computed between the 
 
 ![Quest Framework](../assets/Quest_framework.png)
 
-<div>
-<center>Quest Algorithm Flowchart.</center>
-</div>
-
 Compared to InfLLM, Quest does not take heterogeneous architectures into account. Instead, it assumes that all KVCache can still fit into memory, simply leveraging sparse attention to accelerate the inference process. Ultimately, Quest achieves a 7.03x speedup in attention computation and a 2.23x improvement in end-to-end inference latency.
 
 Going further, SnapKV proposes retaining two parts of the tokens during the prefill stage, as shown in the diagram below with the orange and green segments. The difference from InfLLM lies only in the method of selecting the middle tokens. SnapKV selects tokens at the token level rather than the block level, with the score calculation being similar to H2O, i.e., $$softmax(\frac{qk^T}{\sqrt{d_k}})$$. However, when summing across columns, only the rows within the final green window are selected for computation, corresponding to the Local Tokens section in InfLLM. Additionally, SnapKV introduces a pooling operation on top of attention, which the paper explains as ensuring that the recalled tokens retain more complete semantic information.
@@ -70,9 +58,6 @@ This approach in SnapKV involves a one-time selection during the inference phase
 
 ![SnapKV Framework](../assets/SnapKV_framework.png)
 
-<div>
-<center>SnapKV Algorithm Flowchart.</center>
-</div>
 
 Other related papers include PyramidKV, which observed that attention scores exhibit a pyramid-shaped distribution across attention layers. In lower attention layers, attention is widely distributed, while in higher layers, the attention scores for a few key tokens become increasingly prominent. Therefore, PyramidKV allocates more KVCache storage space to lower layers and less space to higher layers.
 
@@ -103,10 +88,6 @@ Based on these insights and inspirations, we developed a general framework for i
 Specifically during the generation phase, we implemented the entire framework as shown in the diagram below.
 
 ![KTransformers long congtext v1](../assets/KTransformers_long_context_v1.png)
-
-<div>
-<center>KTransformers CPU Sparse Attn Framework.</center>
-</div>
 
 We organized the KVCache in units of blocks. Specifically:
 
@@ -142,9 +123,6 @@ However, it should be noted that this method strictly relies on the structure of
 
 ![KTransformers long congtext v2](../assets/KTransformers_long_context_v2.png)
 
-<div>
-<center>KTransformers CPU Sparse Attn Framework V2.</center>
-</div>
 
 Configuration：
 
