@@ -694,6 +694,7 @@ void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
                    int q_len, int batch_size, int max_block_num,
                    int *block_table, int *cache_seqlens, int pick_block_num,
                    int init_block_num, int local_block_num, Backend *backend) {
+
     // Timer start
     auto start = std::chrono::high_resolution_clock::now();
     layer_id_ = layer_idx;

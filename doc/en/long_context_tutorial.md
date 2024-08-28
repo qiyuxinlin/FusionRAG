@@ -309,3 +309,8 @@ The memory required for different context lengths is shown in the table below:
 | DRAM Size (GB) | 0.5 | 4.29 | 8.58 | 17.1 | 68.7 | 145.49 |
 
 Please choose an appropriate max_seq_len based on your DRAM size.
+For example:
+```python
+python local_chat.py --model_path="/data/model/internlm2_5_to_llama_1m"  --gguf_path="/data/model/internlm2_5_to_llama_1m" --max_new_tokens=500 --cpu_infer=10  --use_cuda_graph=True  --mode="long_context" --prompt_file="/path/to/file"
+```
+
