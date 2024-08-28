@@ -22,6 +22,7 @@ from transformers.cache_utils import Cache
 logger = logging.getLogger("attention")
 class KDeepseekV2Attention(BaseInjectedModule, DeepseekV2Attention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
+    attn_mask: Optional[torch.Tensor] = None
 
     def __init__(self,
                  key: str,
@@ -29,10 +30,12 @@ class KDeepseekV2Attention(BaseInjectedModule, DeepseekV2Attention):
                  config: PretrainedConfig,
                  orig_module: nn.Module,
                  device: str = "cuda",
+                 chunck_size: int = 1000,
                  **kwargs):
         BaseInjectedModule.__init__(self, key, gguf_loader, config, orig_module, device, **kwargs)
         self.orig_module.__init__(orig_module.config,
             orig_module.layer_idx)
+        self.chunck_size = chunck_size # TODO, generate chunck_size automatically.
 
     def get_absorbed(self) -> Tuple[torch.Tensor, torch.Tensor]:
         if not (hasattr(self, 'q_absorb') and hasattr(self, 'out_absorb')):
@@ -162,9 +165,8 @@ class KDeepseekV2Attention(BaseInjectedModule, DeepseekV2Attention):
                 "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
             )
         bsz, q_len, _ = hidden_states.size()
-        chunck_size = 256 # TODO, generate chunck_size automatically.
         
-        if q_len <= chunck_size:
+        if q_len <= self.chunck_size:
             return self.forward_chunck(
                             hidden_states,
                             attention_mask,
@@ -181,21 +183,31 @@ class KDeepseekV2Attention(BaseInjectedModule, DeepseekV2Attention):
         cur_idx = 0
         while cur_idx < q_len:
             if attention_mask is not None:
-                chunk_mask = attention_mask[:, :, cur_idx:min(cur_idx + chunck_size, q_len), ...]
+                chunk_mask = attention_mask[:, :, cur_idx:min(cur_idx + self.chunck_size, q_len), ...]
             else:
-                chunk_mask = None
+                # generate chunk_mask automatically.
+                self.attn_mask = \
+                    torch.zeros(1, 1, self.chunck_size, past_key_value.max_cache_len, device=hidden_states.device) \
+                        if self.attn_mask is None \
+                            else self.attn_mask
+                self.attn_mask[:, :, :, cur_idx:min(cur_idx+self.chunck_size, past_key_value.max_cache_len)] = \
+                    -1e+38 * torch.triu(torch.ones(self.chunck_size, self.chunck_size, device=hidden_states.device), diagonal=1)\
+                        [:,:min(self.chunck_size, min(past_key_value.max_cache_len-cur_idx, self.chunck_size))]
+                self.attn_mask[:, :, :, cur_idx+self.chunck_size:] = -1e+38
+                self.attn_mask[:, :, :, :cur_idx] = 0
+                chunck_mask = torch.narrow(self.attn_mask, 2, 0, min(self.chunck_size, q_len-cur_idx))
 
             cur_output, _, _ = self.forward_chunck(
-                            hidden_states[:, cur_idx:min(cur_idx + chunck_size, q_len), ...],
-                            chunk_mask,
-                            position_ids[:, cur_idx:min(cur_idx + chunck_size, q_len)],
+                            hidden_states[:, cur_idx:min(cur_idx + self.chunck_size, q_len), ...],
+                            chunck_mask,
+                            position_ids[:, cur_idx:min(cur_idx + self.chunck_size, q_len)],
                             past_key_value,
                             output_attentions,
                             use_cache,
-                            cache_position[cur_idx:min(cur_idx + chunck_size, q_len)],
+                            cache_position[cur_idx:min(cur_idx + self.chunck_size, q_len)],
                             **kwargs
                         )
-            cur_idx += chunck_size
+            cur_idx += self.chunck_size
             if attn_output is None:
                 attn_output = cur_output
             else:
