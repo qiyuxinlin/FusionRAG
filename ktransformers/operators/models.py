@@ -1053,7 +1053,7 @@ class KLlamaModel(BaseInjectedModule):
             cache_position = torch.arange(
                 past_seen_tokens,
                 past_seen_tokens + inputs_embeds.shape[1],
-                device=inputs_embeds.device,
+                device="cuda",
             )
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
@@ -1062,7 +1062,7 @@ class KLlamaModel(BaseInjectedModule):
         chunck_size = self.long_context_config["chunk_size"]
         cur_idx = 0
         if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids.to("cpu")).to("cuda")
+            inputs_embeds = self.embed_tokens(input_ids.to("cpu"))
         q_len = cache_position.size(0)
 
         # generate
@@ -1081,7 +1081,7 @@ class KLlamaModel(BaseInjectedModule):
                 return_dict,
             )
         elif q_len <= chunck_size:
-
+            inputs_embeds = inputs_embeds.to('cuda')
             output = self.forward_chunk(
                 inputs_embeds,
                 causal_mask,
@@ -1106,8 +1106,12 @@ class KLlamaModel(BaseInjectedModule):
         while cur_idx < q_len:
             print(cur_idx)
             chunk_mask = None
+            if inputs_embeds.device.type == 'cpu':
+                tmp_inputs_embeds = inputs_embeds[:, cur_idx : min(cur_idx + chunck_size, q_len)].to("cuda")
+            else:
+                tmp_inputs_embeds = inputs_embeds[:, cur_idx : min(cur_idx + chunck_size, q_len)]
             output_with_past = self.forward_chunk(
-                inputs_embeds[:, cur_idx : min(cur_idx + chunck_size, q_len)],
+                tmp_inputs_embeds,
                 chunk_mask,
                 position_ids[:, cur_idx : min(cur_idx + chunck_size, q_len)],
                 past_key_values,

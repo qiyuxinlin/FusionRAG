@@ -108,3 +108,6 @@ class Config(metaclass=Singleton):
         self.local_store_configs: dict = cfg.get("local_store",{})
         self.file_upload_dir: str = os.path.join(self.localstore_path,self.local_store_configs.get("file_upload_dir",""))
         self.assistant_store_dir: str = os.path.join(self.localstore_path,self.local_store_configs.get("assistant_store_dir",""))
+
+        #long context config
+        self.long_context_config: dict = cfg.get("long_context",{})

@@ -143,6 +143,10 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         start_time = time.time()
 
         inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to(torch_device)
+        if mode == "long_context":
+            inputs_embeds = model.model.embed_tokens(inputs.to("cpu"))
+        else:
+            inputs_embeds = model.model.embed_tokens(inputs.to("cpu")).to(torch_device)
         logits = model(
             inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
@@ -190,7 +194,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             tokens.append(next_token.int())
             seq_length += 1
             
-            if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>' or next_token[0].item() == 92542:
+            if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>':
                 print(stream.end(), end="", flush=True)
                 break
             else:
