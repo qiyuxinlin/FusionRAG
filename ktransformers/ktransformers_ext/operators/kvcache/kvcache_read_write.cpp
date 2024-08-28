@@ -816,17 +816,18 @@ void KVCache::update_kvcache_fp16(const ggml_fp16_t *k_in,
                                   int q_len, Backend *backend) {
     // Timer start
     auto start = std::chrono::high_resolution_clock::now();
+
+    layer_id_ = layer_id;
     k_data_ = const_cast<uint16_t *>(k_in);
     v_data_ = const_cast<uint16_t *>(v_in);
     // Each task updates the k cache and v cache of a certain header
     backend->do_work_stealing_job(
         batch_size * config_.kv_head_num * q_len, nullptr,
         [&](int task_id) {
-            // printf("block_idx: %d, task_id: %d\n", block_idx, task_id);
-
             int batch_id = task_id / (config_.kv_head_num * q_len);
             int head_id = task_id / q_len % config_.kv_head_num;
             int seq_len = cache_seqlens[batch_id] + task_id % q_len;
+            int q_offset = task_id % q_len;
 
             int block_id = seq_len / config_.block_len;
             int block_idx = block_table[batch_id * max_block_num + block_id];
@@ -839,12 +840,16 @@ void KVCache::update_kvcache_fp16(const ggml_fp16_t *k_in,
                                      k_data_[batch_id *
                                                  (q_len * config_.kv_head_num *
                                                   config_.head_dim) +
+                                             q_offset * config_.kv_head_num *
+                                                 config_.head_dim +
                                              head_id * config_.head_dim + l];
                     v_cache_fp16_[layer_id_][head_id][block_idx]
                                  [l * config_.block_len + pos_in_block] =
                                      v_data_[batch_id *
                                                  (q_len * config_.kv_head_num *
                                                   config_.head_dim) +
+                                             q_offset * config_.kv_head_num *
+                                                 config_.head_dim +
                                              head_id * config_.head_dim + l];
                 }
             } else if (config_.kv_type == ggml_type::GGML_TYPE_Q4_0) {
