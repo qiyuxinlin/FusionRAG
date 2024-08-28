@@ -49,21 +49,26 @@ default_optimize_rules = {
 
 
 def local_chat(
-    model_path: str = None,
+    model_path: str = "/data/model/DeepSeek-Coder-V2-Instruct/",
     optimize_rule_path: str = None,
-    gguf_path: str = None,
+    gguf_path: str = "/data/model/DeepSeek-Coder-V2-GGUF-WJH/",
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
     use_cuda_graph: bool = True,
-    prompt_file: str ="C://Users//Atream//Desktop//1000k.txt",
+    prompt_file = "/root/ktransformers-dev/long_context_data/A_Game_Of_Thrones.txt",
     mode: str = "normal",
 ):
+
+
     torch.set_grad_enabled(False)
 
     Config().cpu_infer = cpu_infer
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
-    torch.set_default_dtype(config.torch_dtype)
+    if mode == 'long_context':
+        torch.set_default_dtype(torch.float16)
+    else:
+        torch.set_default_dtype(config.torch_dtype)
 
     with torch.device("meta"):
         if config.architectures[0] in custom_models:
@@ -102,7 +107,6 @@ def local_chat(
     if model.generation_config.pad_token_id is None:
         model.generation_config.pad_token_id = model.generation_config.eos_token_id
     model.eval()
-    model = model.to(torch.float16)
     logging.basicConfig(level=logging.INFO)
 
     system = platform.system()
