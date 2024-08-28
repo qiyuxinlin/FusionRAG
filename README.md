@@ -36,25 +36,22 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 https://github.com/user-attachments/assets/a865e5e4-bca3-401e-94b8-af3c080e6c12
 
 * **1M Context InternLM 2.5 7B**: Operates at full bf16 precision, utilizing 24GB VRAM and 150GB DRAM, which is feasible on a local desktop setup. It achieves a 92.88% success rate on the 1M "Needle In a Haystack" test and 100% on the 128K NIAH test.
-  
+
 <p align="center">
   <picture>
-    <img alt="Single Needle Retrieval 128K" src="https://github.com/kvcache-ai/ktransformers-dev/blob/wjh-readme/doc/assets/needle%20128K.png" width=100%>
+    <img alt="Single Needle Retrieval 128K" src="./doc/assets/needle_128K.png" width=100%>
   </picture>
 </p>
-  
+
 <p align="center">
   <picture>
-    <img alt="Single Needle Retrieval 1000K" src="https://github.com/kvcache-ai/ktransformers-dev/blob/wjh-readme/doc/assets/needle%201M.png" width=100%>
+    <img alt="Single Needle Retrieval 1000K" src="./doc/assets/needle_1M.png" width=100%>
   </picture>
 </p>
-  
-  
-  
 
 * **Enhanced Speed**: Reaches 16.91 tokens/s for generation with a 1M context using sparse attention, powered by llamafile kernels. This method is over 10 times faster than full attention approach of llama.cpp.
 
-* **Flexible Sparse Attention Framework**: Offers a flexible block sparse attention framework for CPU offloaded decoding. Compatible with SnapKV, Quest, and InfLLm. Further information is available [here](#).
+* **Flexible Sparse Attention Framework**: Offers a flexible block sparse attention framework for CPU offloaded decoding. Compatible with SnapKV, Quest, and InfLLm. Further information is available [here](./doc/en/long_context_tutorial.md).
 
 <div>
 <h3>GPT-4-level Local VSCode Copilot on a Desktop with only 24GB VRAM</h3>

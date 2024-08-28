@@ -12,8 +12,8 @@ Project url: https://github.com/kvcache-ai/ktransformers
 
 As the demand for longer context windows increases, not only have commercial large models like Kimi and Claude/Gemini started supporting increasingly longer context windows, but open-source models have also begun to catch up. Notably, both ChatGLM 4 and InternLM 2.5 have released versions that are under 10 billion parameters but support up to 1 million tokens of context. However, despite the relatively small size of these models, the enormous KVCache required for such ultra-long contexts still prevents local users from practically running these models. As shown in the figure below, while the InternLM2.5-7B-Chat-1M model weights only require 15.49GB of GPU memory, an additional 145.49GB is needed to store the entire 1M-token KVCache, which is clearly beyond the memory capacity of local users. Even when using the KVCache Offload feature of llama.cpp to offload the KVCache to CPU/DRAM, barely making the model runnable, performance remains unacceptable due to the need to fully scan the entire KVCache each time a single token is generated.
 
-| <img title="" src="file:///Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-09-54-49-image.png" alt="" width="882"> | <img src="file:///Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-09-56-19-image.png" title="" alt="" width="691"> |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| <img title="" src="../assets/internlm_memory.png" alt="internlm_memory" width="882"> | <img src="../assets/SparQ_attention.png" title="" alt="sparQ" width="691"> |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
 
 <div>
 <center>(Left) Space required for the InternLM2.5-7B-Chat-1M model weights and KVCache; (Right) attention sparsity analysis in SparQ.</center>
@@ -29,7 +29,7 @@ Thus, the problem narrows down to how to quickly identify these tokens with high
 
 Based on the aforementioned points, we studied papers from recent years related to sparse selection in KVCache. The earliest of these is the paper H2O, which suggested that the attention distribution during inference is sparse and that only 5% of the KVCache is needed during inference. Following this, a series of works built on H2O's approach by designing more complex methods for selecting tokens that perform better in different scenarios. These methods are quite reasonable for single-word inference. However, as we previously explored in the Mooncake project, **we believe that the future trend is to precompute reusable KVCache as much as possible, and then use it to answer different questions.** This "compute once, use many" approach aims to reduce computational costs. Therefore, with this goal in mind, we prefer not to delete any tokens from the KVCache, or at least not remove a significant portion of them, to ensure that different questions can focus on different parts of the context in the future.
 
-![](/Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-10-02-51-image.png)
+![InfLLM Framework](../assets/InfLLM_framework.png)
 
 <div>
 <center>InfLLM Algorithm Framework.</center>
@@ -40,13 +40,7 @@ We further investigated related research, among which InfLLM proposed a very pro
 Specifically, InfLLM organizes the external memory module using semantic blocks composed of neighboring tokens and employs a sliding window mechanism during computation. In each step, it selects only the semantic blocks at the head of the context (Initial Tokens), the blocks near the current token (Local Tokens), and a few blocks with the highest semantic similarity to the current token to participate in the attention calculation. As shown in equation 1, to efficiently retrieve the blocks with the highest similarity, InfLLM selects a few representative tokens whose scores $$r_m
 $$ are the highest within each block. Use Equation 2 to calculate the semantic similarity between the current token and each semantic block.
 
-$$
-r_m = \frac{1}{l_L}\sum^{l_L}{j=1}q{m+j}\cdot{k_m} \tag{1}
-$$
-
-$$
-sim(X,B)=\sum^{l_X}_{i=1}\sum^{r_k}_{j=1}q_{i+l_P}\cdot{k^{B}_{j}}\tag{2}
-$$
+![InfLLM Equation](../assets/InfLLM_equation.jpg)
 
 Compared to the previously mentioned H2O, the differences in InfLLM are as follows:
 
@@ -62,7 +56,7 @@ Similarly, after InfLLM, Quest also manages tokens at the granularity of blocks.
 
 During the attention computation stage, the dot product is computed between the current query vector and the max key and min key of each KVCache block, respectively. Then, for each channel, the maximum value between the two resulting product vectors is selected and summed to serve as the upper bound of the relevance score for that KVCache block, as shown in stage 1 of the diagram. Based on the relevance scores, the top-k KVCache blocks are selected to participate in the attention computation, as illustrated in stage 2 of the diagram.
 
-![](/Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-10-05-24-image.png)
+![Quest Framework](../assets/Quest_framework.png)
 
 <div>
 <center>Quest Algorithm Flowchart.</center>
@@ -74,7 +68,7 @@ Going further, SnapKV proposes retaining two parts of the tokens during the pref
 
 This approach in SnapKV involves a one-time selection during the inference phase, after which only the selected tokens are used for attention computation, while the rest of the KVCache is discarded.
 
-![](/Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-10-06-59-image.png)
+![SnapKV Framework](../assets/SnapKV_framework.png)
 
 <div>
 <center>SnapKV Algorithm Flowchart.</center>
@@ -108,7 +102,7 @@ Based on these insights and inspirations, we developed a general framework for i
 
 Specifically during the generation phase, we implemented the entire framework as shown in the diagram below.
 
-![long_congtext_v1.pic.jpg](../assets/long_congtext_v1.pic.jpg)
+![KTransformers long congtext v1](../assets/KTransformers_long_context_v1.png)
 
 <div>
 <center>KTransformers CPU Sparse Attn Framework.</center>
@@ -146,7 +140,7 @@ To address this issue, we further integrated the method proposed in SnapKV. Befo
 
 However, it should be noted that this method strictly relies on the structure of the Benchmark Prompt and **does not necessarily guarantee optimal performance in other scenarios, such as complex document understanding and generation tasks.** Therefore, we have integrated it into our framework as an optional module. The final framework and configurable parameters are as follows:
 
-![long_context_v2.pic.jpg](../assets/long_context_v2.pic.jpg)
+![KTransformers long congtext v2](../assets/KTransformers_long_context_v2.png)
 
 <div>
 <center>KTransformers CPU Sparse Attn Framework V2.</center>
@@ -224,7 +218,7 @@ def decode_attention(query, key, value):
           # calculate attention
           output = attn(query, kvcache_after_retrieval)
           yield output
-          
+
 # Model prefill, if preselection is required, local_q still needs to be saved.
 local_q, KVCache = model.prefill(input_ids)
 if preselect_block:
@@ -296,21 +290,21 @@ Similarly, when testing the needle-in-a-haystack task on the 1M dataset, we not 
 As shown in the two figures below, using the Single Needle Retrieval dataset as an example, we set llama.cpp to store the KVCache on CPU/DRAM while performing all computations on the GPU. On a 4090D server, we compared the KTransformers CPU Sparse Attn Framework with llama.cpp. While maintaining **100% answer accuracy**, we achieved a 20.6 to 94.1 times prefill speed increase and a **1.2 to 7.1 times inference speed boost**.
 
 | ![long context prefill.png](../assets/long_context_prefill.png) | ![long context generate.png](../assets/long_context_generate.png) |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| --------------------------------------------------------------- | ----------------------------------------------------------------- |
 
 The main reason for the significant gap in prefill speed is that after enabling KVCache offload, llama.cpp performs the attention (attn) computation on the CPU. In long-text scenarios, attention not only requires heavy computation but also takes up the majority of the computation time. In contrast, KTransformers leverages a flexible template injection framework to implement GPU Chunk Prefill layer by layer. Moving forward, we plan to further integrate high-performance sparse prefill methods such as MInference to boost speed even further.
 
 Additionally, as a key focus of this article, the right-hand graph shows that as the prompt length increases, the inference speed of KTransformers remains stable, hovering near a horizontal line. In contrast, llama.cpp slows down as the prompt length increases. By selecting only the most important 16K KVCache blocks to participate in the inference computation, KTransformers maintains a consistent inference speed comparable to llama.cpp when processing a 16K prompt, without any performance degradation (at least on these test datasets).
 
-## How to Experience
+## How to Use
 
-Currently, long context is only supported by our local_chat.py interface, and the integration with the server interface is under development.
+Currently, long context is only supported by our **local_chat.py** interface, and the integration with the server interface is under development.
 
 To facilitate user management, we have uploaded the model config, gguf, and tokenizer to a repo. URL: https://huggingface.co/nilv234/internlm2_5_to_llama_1m/tree/main
 
 By setting the model_path and gguf_path in the local_chat function to **/path/to/repo** and setting the mode to **"long_context"**, you can use the InternLM2.5-7B-Chat-1M model with 1m functionality on a 24G VRAM.
 
-After running local_chat.py for the first time, a config.yaml file will be automatically created under** ~/.ktransformers**. The relevant configurations for long context are as follows:
+After running local_chat.py for the first time, a config.yaml file will be automatically created under ** ~/.ktransformers**. The relevant configurations for long context are as follows:
 
 ```python
 chunk_size: 4096 # prefill chunk size
