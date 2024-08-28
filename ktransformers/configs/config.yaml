@@ -38,7 +38,7 @@ ext:
 
 long_context:
   chunk_size: 4096
-  max_seq_len: 128000
+  max_seq_len: 32000
   block_size: 128
   local_windows_len: 4096
   second_select_num: 32
