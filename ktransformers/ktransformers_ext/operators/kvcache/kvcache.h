@@ -1,9 +1,9 @@
 /**
  * @Description  :
- * @Author       : djw
+ * @Author       : Jianwei Dong
  * @Date         : 2024-08-26 22:47:06
  * @Version      : 1.0.0
- * @LastEditors  : djw
+ * @LastEditors  : Jianwei Dong
  * @LastEditTime : 2024-08-26 22:47:06
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
@@ -61,8 +61,8 @@ std::string ggml_type_to_string(ggml_type type);
  * QUEST, BLOCK_MEAN, or BLOCK_MAX.
  */
 enum AnchorType {
-    FIXED_ANCHOR,   /**< A fixed anchor that does not change. */
-    DYNAMIC, /**< A dynamic anchor that can change over time. */
+    FIXED_ANCHOR, /**< A fixed anchor that does not change. */
+    DYNAMIC,      /**< A dynamic anchor that can change over time. */
     QUEST, /**< A special anchor type used for QUEST (Query and Embedding Space
               Transformation). */
     BLOCK_MEAN, /**< An anchor based on the mean of a block of data. */

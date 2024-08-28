@@ -1,9 +1,9 @@
 /**
  * @Description  :
- * @Author       : djw
+ * @Author       : Jianwei Dong
  * @Date         : 2024-08-26 22:47:06
  * @Version      : 1.0.0
- * @LastEditors  : djw
+ * @LastEditors  : Jianwei Dong
  * @LastEditTime : 2024-08-26 22:47:06
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
@@ -1009,7 +1009,6 @@ void KVCache::get_all_kvcache_one_layer(int layer_id, ggml_fp16_t *k_in,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    printf("layer %d block num %d time of reading all KV Cache: %f s\n",
-           layer_id, block_num_, duration.count());
-    // printf("get_one_block_fp16 duration: %ld\n", duration);
+    // printf("layer %d block num %d time of reading all KV Cache: %f s\n",
+    //        layer_id, block_num_, duration.count());
 }

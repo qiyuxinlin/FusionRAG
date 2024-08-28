@@ -1,9 +1,9 @@
 /**
  * @Description  :
- * @Author       : djw
+ * @Author       : Jianwei Dong
  * @Date         : 2024-08-26 22:47:06
  * @Version      : 1.0.0
- * @LastEditors  : djw
+ * @LastEditors  : Jianwei Dong
  * @LastEditTime : 2024-08-26 22:47:06
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
@@ -1007,7 +1007,7 @@ void KVCache::calc_anchor_all_layers(int *block_table, int *cache_seqlens,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-//    printf("time of calc_anchor_all_layers: %f s\n", duration.count());
+    //    printf("time of calc_anchor_all_layers: %f s\n", duration.count());
 }
 
 void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
@@ -1048,7 +1048,8 @@ void KVCache::clear_importance_all_layers(int *block_table, int *cache_seqlens,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-//    printf("time of clear_importance_all_layerssssss: %f s\n", duration.count());
+    //    printf("time of clear_importance_all_layerssssss: %f s\n",
+    //    duration.count());
 }
 
 void KVCache::clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
@@ -1101,7 +1102,7 @@ void KVCache::clear_kvcache_all_layers(int *block_table, int *cache_seqlens,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-//    printf("time of clear_kvcache_all_layers: %f s\n", duration.count());
+    //    printf("time of clear_kvcache_all_layers: %f s\n", duration.count());
 }
 
 void KVCache::get_sincos(ggml_fp16_t *sin, ggml_fp16_t *cos, int seqlen) {
