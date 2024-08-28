@@ -44,8 +44,8 @@ long_context:
   second_select_num: 32
   anchor_type: DYNAMIC
   kv_type: FP16
-  dense_layer_num: 0
-  anchor_num: 2
+  dense_layer_num: 2
+  anchor_num: 1
   preselect_block: True
   head_select_mode: SHARED
   preselect_block_count: 32
