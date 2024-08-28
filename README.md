@@ -24,6 +24,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <h2 id="Updates">🔥 Updates</h2>
 
 * **Aug 28, 2024**: Support 1M context under the InternLM2.5-7B-Chat-1M model, utilizing 24GB of VRAM and 150GB of DRAM.
+* **Aug 28, 2024**: Decrease DeepseekV2's required DRAM from 20G to 10G.
 * **Aug 15, 2024**: Update detailed [TUTORIAL](doc/en/injection_tutorial.md) for injection and multi-GPU. 
 * **Aug 14, 2024**: Support llamfile as linear backend. 
 * **Aug 12, 2024**: Support multiple GPU; Support new model: mixtral 8\*7B  and 8\*22B; Support q2k, q3k, q5k dequant on gpu.
@@ -196,12 +197,13 @@ It features the following arguments:
 
 | Model Name                     | Model Size | VRAM  | Minimum DRAM    | Recommended DRAM  |
 | ------------------------------ | ---------- | ----- | --------------- | ----------------- |
-| DeepSeek-V2-q4_k_m             | 133G       | 24G   | 136G            | 192G              |
+| DeepSeek-V2-q4_k_m             | 133G       | 10G   | 136G            | 192G              |
 | Qwen2-57B-A14B-Instruct-q4_k_m | 33G        | 8G    | 34G             | 64G               |
 | DeepSeek-V2-Lite-q4_k_m        | 9.7G       | 3G    | 13G             | 16G               |
 | Mixtral-8x7B-q4_k_m            | 25G        | 1.6G  | 51G             | 64G               |
 | Mixtral-8x22B-q4_k_m           | 80G        | 4G    | 86.1G           | 96G               |
 | InternLM2.5-7B-Chat-1M         | 15.5G      | 15.5G | 8G(32K context) | 150G (1M context) |
+
 
 More will come soon. Please let us know which models you are most interested in. 
 
