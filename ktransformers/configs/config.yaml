@@ -42,7 +42,7 @@ long_context:
   block_size: 128
   local_windows_len: 4096
   second_select_num: 32
-  anchor_type: QUEST
+  anchor_type: DYNAMIC
   kv_type: FP16
   dense_layer_num: 0
   anchor_num: 2
