@@ -1104,7 +1104,7 @@ class KLlamaModel(BaseInjectedModule):
         # prefill
         KLlamaModel.dynamic_sdpa.remaining_length = q_len
         while cur_idx < q_len:
-            print(cur_idx)
+            print(f'current prefill length: {cur_idx}')
             chunk_mask = None
             if inputs_embeds.device.type == 'cpu':
                 tmp_inputs_embeds = inputs_embeds[:, cur_idx : min(cur_idx + chunck_size, q_len)].to("cuda")
