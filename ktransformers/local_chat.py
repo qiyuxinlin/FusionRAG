@@ -49,13 +49,13 @@ default_optimize_rules = {
 
 
 def local_chat(
-    model_path: str = "/data/model/DeepSeek-Coder-V2-Instruct/",
+    model_path: str | None = None,
     optimize_rule_path: str = None,
-    gguf_path: str = "/data/model/DeepSeek-Coder-V2-GGUF-WJH/",
+    gguf_path: str | None = None,
     max_new_tokens: int = 1000,
     cpu_infer: int = Config().cpu_infer,
     use_cuda_graph: bool = True,
-    prompt_file = "/root/ktransformers-dev/long_context_data/A_Game_Of_Thrones.txt",
+    prompt_file : str | None = None,
     mode: str = "normal",
 ):
 
@@ -63,6 +63,7 @@ def local_chat(
     torch.set_grad_enabled(False)
 
     Config().cpu_infer = cpu_infer
+
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     if mode == 'long_context':
@@ -142,6 +143,8 @@ def local_chat(
         input_tensor = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
+        assert Config().long_context_config['max_seq_len'] > input_tensor.shape[1] + max_new_tokens, \
+        "please change max_seq_len in  ~/.ktransformers/config.yaml"
         torch.set_default_dtype(
             torch.bfloat16
         )  # TODO: Remove this, replace dtype using config
