@@ -1,10 +1,13 @@
+
 Currently, long context is only supported by our local_chat.py interface, and the integration with the server interface is under development.
 
 To facilitate user management, we have uploaded the model config, gguf, and tokenizer to a repo. URL: https://huggingface.co/nilv234/internlm2_5_to_llama_1m/tree/main
 
 By setting the model_path and gguf_path in the local_chat function to **/path/to/repo** and setting the mode to **"long_context"**, you can use the InternLM2.5-7B-Chat-1M model with 1m functionality on a 24G VRAM.
 
-The specific configuration for long context is located in **ktransformers/config/config.yaml**, and the related configurations for long context are as follows:
+After running local_chat.py for the first time, a config.yaml file will be automatically created under** ~/.ktransformers**. The relevant configurations for long context are as follows:
+
+
 
 ```python
 chunk_size: 4096 # prefill chunk size
