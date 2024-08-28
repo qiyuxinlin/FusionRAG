@@ -1,9 +1,9 @@
 /**
  * @Description  :
- * @Author       : djw
+ * @Author       : Jianwei Dong
  * @Date         : 2024-08-26 22:47:06
  * @Version      : 1.0.0
- * @LastEditors  : djw
+ * @LastEditors  : Jianwei Dong
  * @LastEditTime : 2024-08-26 22:47:06
  * @Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
  **/
@@ -685,7 +685,8 @@ void KVCache::attention_layer_(const uint16_t *q_in_data, ggml_fp16_t *output,
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end - start;
-//     printf("layer %d time of computing attention: %f s\n", layer_id_, diff.count());
+    //     printf("layer %d time of computing attention: %f s\n", layer_id_,
+    //     diff.count());
 }
 
 void KVCache::attn(const ggml_fp16_t *q_in, ggml_fp16_t *output,
@@ -731,7 +732,7 @@ void KVCache::attn_with_kvcache(
     ggml_fp16_t *output, float *attn_lse, int layer_idx, int generate_token_idx,
     int q_len, int batch_size, int max_block_num, int *block_table,
     int *cache_seqlens, int topk, int local, Backend *backend) {
-//    printf("attn_with_kvcache start\n");
+    //    printf("attn_with_kvcache start\n");
     assert(q_len == 1);
     // Timer start
     auto start = std::chrono::high_resolution_clock::now();
@@ -740,7 +741,7 @@ void KVCache::attn_with_kvcache(
 
     update_kvcache_fp16(k_in, v_in, layer_idx, block_table, batch_size,
                         max_block_num, cache_seqlens, q_len, backend);
-//    printf("update finished.\n");
+    //    printf("update finished.\n");
 
     // cache_seqlens memory is modified.
     for (int i = 0; i < batch_size; i++) {
@@ -758,7 +759,8 @@ void KVCache::attn_with_kvcache(
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end - start;
-//     printf("layer %d time of computing attention with kvcache: %f s\n", layer_idx, diff.count());
+    //     printf("layer %d time of computing attention with kvcache: %f s\n",
+    //     layer_idx, diff.count());
 }
 
 void KVCache::quantize_q_(const uint16_t *q_in_data, int batch_size) {
@@ -1179,7 +1181,8 @@ void KVCache::retrieval_kvcache_layer_(const uint16_t *q_in_data,
 
     // Timer end
     auto end = std::chrono::high_resolution_clock::now();
-    //     printf("layer %d time of retrieval kvcache: %f s\n", layer_idx, std::chrono::duration<double>(end - start).count());
+    //     printf("layer %d time of retrieval kvcache: %f s\n", layer_idx,
+    //     std::chrono::duration<double>(end - start).count());
 }
 void KVCache::calculate_sparsity_layer_(const uint16_t *q_in_data,
                                         float *attn_sparsity, int batch_size,

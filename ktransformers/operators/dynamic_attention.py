@@ -2,10 +2,10 @@
 # coding=utf-8
 """
 Description  :  
-Author       : djw
+Author       : Jianwei Dong
 Date         : 2024-08-26 23:25:24
 Version      : 1.0.0
-LastEditors  : djw 
+LastEditors  : Jianwei Dong
 LastEditTime : 2024-08-26 23:25:24
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
 """
@@ -669,7 +669,7 @@ class DynamicScaledDotProductAttention:
             self.k_in_cpu.copy_(key_states, non_blocking=True)
             self.v_in_cpu.copy_(value_states, non_blocking=True)
             self.cache_seqlens_cpu.copy_(self.cache_seqlens_cuda, non_blocking=True)
-#            print(layer_idx)
+            #            print(layer_idx)
             if layer_idx < self.dense_layer_num:
                 self.block_table_cpu.copy_(self.prefix_block_table, non_blocking=True)
                 self.cpu_infer.submit_with_cuda_stream(
@@ -708,7 +708,7 @@ class DynamicScaledDotProductAttention:
                             ],
                             non_blocking=True,
                         )
- #                   print("submit_with_cuda_stream")
+                    #                   print("submit_with_cuda_stream")
                     self.cpu_infer.submit_with_cuda_stream(
                         torch.cuda.current_stream("cuda").cuda_stream,
                         self.local_thread.attn_with_kvcache(
@@ -729,7 +729,7 @@ class DynamicScaledDotProductAttention:
                             local=self.local_windows_len // self.block_size,
                         ),
                     )
-#                    print("submit_with_cuda_stream enqueue\n")
+                #                    print("submit_with_cuda_stream enqueue\n")
                 else:
                     self.block_table_cpu.copy_(
                         self.prefix_block_table, non_blocking=True
@@ -753,7 +753,7 @@ class DynamicScaledDotProductAttention:
             self.cpu_infer.sync_with_cuda_stream(
                 torch.cuda.current_stream("cuda").cuda_stream
             )
-#            print("submit_with_cuda_stream finished\n")
+            #            print("submit_with_cuda_stream finished\n")
             self.output_cuda.copy_(self.output_cpu, non_blocking=True)
             return self.output_cuda.transpose(1, 2)
 
