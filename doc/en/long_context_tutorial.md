@@ -12,7 +12,7 @@ Project url: https://github.com/kvcache-ai/ktransformers
 
 As the demand for longer context windows increases, not only have commercial large models like Kimi and Claude/Gemini started supporting increasingly longer context windows, but open-source models have also begun to catch up. Notably, both ChatGLM 4 and InternLM 2.5 have released versions that are under 10 billion parameters but support up to 1 million tokens of context. However, despite the relatively small size of these models, the enormous KVCache required for such ultra-long contexts still prevents local users from practically running these models. As shown in the figure below, while the InternLM2.5-7B-Chat-1M model weights only require 15.49GB of GPU memory, an additional 145.49GB is needed to store the entire 1M-token KVCache, which is clearly beyond the memory capacity of local users. Even when using the KVCache Offload feature of llama.cpp to offload the KVCache to CPU/DRAM, barely making the model runnable, performance remains unacceptable due to the need to fully scan the entire KVCache each time a single token is generated.
 
-| <img title="" src="file:///Users/wangjiahao/Library/Application%20Support/marktext/images/2024-08-28-09-54-49-image.png" alt="" width="882"> | <img src="file:///Users/wangjiahao/Library/Application%20Support/marktext/images/2024-08-28-09-56-19-image.png" title="" alt="" width="691"> |
+| <img title="" src="file:///Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-09-54-49-image.png" alt="" width="882"> | <img src="file:///Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-09-56-19-image.png" title="" alt="" width="691"> |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 
 <div>
@@ -29,7 +29,7 @@ Thus, the problem narrows down to how to quickly identify these tokens with high
 
 Based on the aforementioned points, we studied papers from recent years related to sparse selection in KVCache. The earliest of these is the paper H2O, which suggested that the attention distribution during inference is sparse and that only 5% of the KVCache is needed during inference. Following this, a series of works built on H2O's approach by designing more complex methods for selecting tokens that perform better in different scenarios. These methods are quite reasonable for single-word inference. However, as we previously explored in the Mooncake project, **we believe that the future trend is to precompute reusable KVCache as much as possible, and then use it to answer different questions.** This "compute once, use many" approach aims to reduce computational costs. Therefore, with this goal in mind, we prefer not to delete any tokens from the KVCache, or at least not remove a significant portion of them, to ensure that different questions can focus on different parts of the context in the future.
 
-![](/Users/wangjiahao/Library/Application%20Support/marktext/images/2024-08-28-10-02-51-image.png)
+![](/Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-10-02-51-image.png)
 
 <div>
 <center>InfLLM Algorithm Framework.</center>
@@ -62,7 +62,7 @@ Similarly, after InfLLM, Quest also manages tokens at the granularity of blocks.
 
 During the attention computation stage, the dot product is computed between the current query vector and the max key and min key of each KVCache block, respectively. Then, for each channel, the maximum value between the two resulting product vectors is selected and summed to serve as the upper bound of the relevance score for that KVCache block, as shown in stage 1 of the diagram. Based on the relevance scores, the top-k KVCache blocks are selected to participate in the attention computation, as illustrated in stage 2 of the diagram.
 
-![](/Users/wangjiahao/Library/Application%20Support/marktext/images/2024-08-28-10-05-24-image.png)
+![](/Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-10-05-24-image.png)
 
 <div>
 <center>Quest Algorithm Flowchart.</center>
@@ -74,7 +74,7 @@ Going further, SnapKV proposes retaining two parts of the tokens during the pref
 
 This approach in SnapKV involves a one-time selection during the inference phase, after which only the selected tokens are used for attention computation, while the rest of the KVCache is discarded.
 
-![](/Users/wangjiahao/Library/Application%20Support/marktext/images/2024-08-28-10-06-59-image.png)
+![](/Users/wangjiahao/Library/Application_Support/marktext/images/2024-08-28-10-06-59-image.png)
 
 <div>
 <center>SnapKV Algorithm Flowchart.</center>
@@ -295,7 +295,7 @@ Similarly, when testing the needle-in-a-haystack task on the 1M dataset, we not 
 
 As shown in the two figures below, using the Single Needle Retrieval dataset as an example, we set llama.cpp to store the KVCache on CPU/DRAM while performing all computations on the GPU. On a 4090D server, we compared the KTransformers CPU Sparse Attn Framework with llama.cpp. While maintaining **100% answer accuracy**, we achieved a 20.6 to 94.1 times prefill speed increase and a **1.2 to 7.1 times inference speed boost**.
 
-| ![long context prefill.png](/Users/wangjiahao/Desktop/ktransformers-dev/doc/assets/long%20context%20prefill.png) | ![long context generate.png](/Users/wangjiahao/Desktop/ktransformers-dev/doc/assets/long%20context%20generate.png) |
+| ![long context prefill.png](../assets/long_context_prefill.png) | ![long context generate.png](../assets/long_context_generate.png) |
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 
 The main reason for the significant gap in prefill speed is that after enabling KVCache offload, llama.cpp performs the attention (attn) computation on the CPU. In long-text scenarios, attention not only requires heavy computation but also takes up the majority of the computation time. In contrast, KTransformers leverages a flexible template injection framework to implement GPU Chunk Prefill layer by layer. Moving forward, we plan to further integrate high-performance sparse prefill methods such as MInference to boost speed even further.
