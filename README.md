@@ -24,7 +24,7 @@ Our vision for KTransformers is to serve as a flexible platform for experimentin
 <h2 id="Updates">🔥 Updates</h2>
 
 * **Aug 28, 2024**: Support 1M context under the InternLM2.5-7B-Chat-1M model, utilizing 24GB of VRAM and 150GB of DRAM.
-* **Aug 28, 2024**: Decrease DeepseekV2's required VRAM from 20G to 11G.
+* **Aug 28, 2024**: Decrease DeepseekV2's required VRAM from 21G to 11G.
 * **Aug 15, 2024**: Update detailed [TUTORIAL](doc/en/injection_tutorial.md) for injection and multi-GPU. 
 * **Aug 14, 2024**: Support llamfile as linear backend. 
 * **Aug 12, 2024**: Support multiple GPU; Support new model: mixtral 8\*7B  and 8\*22B; Support q2k, q3k, q5k dequant on gpu.
