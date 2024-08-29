@@ -5,7 +5,7 @@ Description  :
 Author       : kkk1nak0
 Date         : 2024-08-15 07:34:46
 Version      : 1.0.0
-LastEditors  : kkk1nak0
-LastEditTime : 2024-08-15 07:44:59
+LastEditors  : Azure 
+LastEditTime : 2024-08-29 14:01:00
 '''
-__version__ = "0.1.2"
+__version__ = "0.1.4"
