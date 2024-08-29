@@ -277,7 +277,7 @@ class KLinearCPUInfer(KLinearBase):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         origin_shape = x.shape # [batch_size, q_len, hidden_size]
-        if origin_shape[1] == 1 and self.device != "cpu":
+        if origin_shape[1] == 1 and torch.cuda.is_current_stream_capturing():
             out_device = x.device
             self.input_tensor_cpu.copy_(x, non_blocking=True)
             qlen = origin_shape[1]
