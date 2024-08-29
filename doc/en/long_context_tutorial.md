@@ -39,3 +39,6 @@ For example:
 ```python
 python local_chat.py --model_path="/data/model/internlm2_5_to_llama_1m"  --gguf_path="/data/model/internlm2_5_to_llama_1m" --max_new_tokens=500 --cpu_infer=10  --use_cuda_graph=True  --mode="long_context" --prompt_file="/path/to/file"
 ```
+
+
+If you've already specified the input text via the prompt_file, just press Enter when the terminal displays chat: to begin.
