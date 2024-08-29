@@ -40,7 +40,7 @@
       prefill_device: "cuda:3"
 
 - match:
-    name: "^model\\.layers\\.([0-9])\\.(?!self_attn).*$"  # regular expression 
+    name: "^model\\.layers\\.([0-9])\\.(?!self_attn\\.kv_b_proj).*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformersLinear  # optimized Kernel on quantized data types
@@ -50,7 +50,7 @@
       generate_op: "KLinearMarlin"
       prefill_op: "KLinearTorch"
 - match:
-    name: "^model\\.layers\\.([1][0-9])\\.(?!self_attn).*$"  # regular expression 
+    name: "^model\\.layers\\.([1][0-9])\\.(?!self_attn\\.kv_b_proj).*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformersLinear  # optimized Kernel on quantized data types
@@ -60,7 +60,7 @@
       generate_op: "KLinearMarlin"
       prefill_op: "KLinearTorch"
 - match:
-    name: "^model\\.layers\\.([2][0-9])\\.(?!self_attn).*$"  # regular expression 
+    name: "^model\\.layers\\.([2][0-9])\\.(?!self_attn\\.kv_b_proj).*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformersLinear  # optimized Kernel on quantized data types
@@ -70,7 +70,7 @@
       generate_op: "KLinearMarlin"
       prefill_op: "KLinearTorch"
 - match:
-    name: "^model\\.layers\\.([345][0-9])\\.(?!self_attn).*$"  # regular expression 
+    name: "^model\\.layers\\.([345][0-9])\\.(?!self_attn\\.kv_b_proj).*$"  # regular expression 
     class: torch.nn.Linear  # only match modules matching name and class simultaneously
   replace:
     class: ktransformers.operators.linear.KTransformersLinear  # optimized Kernel on quantized data types
