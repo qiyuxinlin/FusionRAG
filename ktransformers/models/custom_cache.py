@@ -29,7 +29,7 @@ class StaticCache(transformers.StaticCache):
             The default `dtype` to use when initializing the layer.
     """
 
-    def __init__(self, config: PretrainedConfig, max_batch_size: int, max_cache_len: int, device: torch.device| dict, dtype=None) -> None:
+    def __init__(self, config: PretrainedConfig, max_batch_size: int, max_cache_len: int, device: torch.device| dict, dtype=None, passage_len = None) -> None:
         Cache.__init__(self)
         self.max_batch_size = max_batch_size
         self.max_cache_len = config.max_position_embeddings if max_cache_len is None else max_cache_len
@@ -45,7 +45,10 @@ class StaticCache(transformers.StaticCache):
 
         self.key_cache: List[torch.Tensor] = []
         self.value_cache: List[torch.Tensor] = []
+        self.importance_cache: List[torch.Tensor] = []
         cache_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, self.head_dim)
+        if passage_len != None:
+            importance_shape = (config.num_attention_heads, passage_len)
         if config.architectures[0] == "DeepseekV2ForCausalLM":
             # TODO: for deepseek, cache_shape is different whether using Absorbed MLA, check it automatically
             # key_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, config.qk_rope_head_dim + config.qk_nope_head_dim)
@@ -67,11 +70,15 @@ class StaticCache(transformers.StaticCache):
                 target_device = device
             new_layer_key_cache = torch.zeros(key_shape, dtype=self.dtype, device=target_device)
             new_layer_value_cache = torch.zeros(value_shape, dtype=self.dtype, device=target_device)
+            if passage_len != None:
+                new_importance_cache = torch.zeros(importance_shape,dtype=self.dtype, device=target_device)
             torch._dynamo.mark_static_address(new_layer_key_cache)
             torch._dynamo.mark_static_address(new_layer_value_cache)
             self.key_cache.append(new_layer_key_cache)
             self.value_cache.append(new_layer_value_cache)
             self.past_tokens.append(0)
+            if passage_len != None:
+                self.importance_cache.append(new_importance_cache)
 
     def update(
         self,
