@@ -30,7 +30,7 @@ class CUDAGraphRunner:
         self.graph = torch.cuda.CUDAGraph()
         #self.graph.enable_debug_mode()
         self.model = model
-        inputs_embeds = model.model.embed_tokens(cur_token.to("cpu")).to(main_device)
+        inputs_embeds = model.model.embed_tokens(cur_token).to(main_device)
         # torch.cuda.set_device can't set "cuda", must have a index
         if main_device == "cuda":
             main_device = "cuda:0"
@@ -67,7 +67,7 @@ class CUDAGraphRunner:
         cache_position,
     ) -> torch.Tensor:
         # Copy the input tensors to the input buffers.
-        inputs_embeds = self.model.model.embed_tokens(cur_token.to("cpu"))
+        inputs_embeds = self.model.model.embed_tokens(cur_token)
         self.input_buffers["inputs_embeds"].copy_(inputs_embeds)
         self.input_buffers["position_ids"].copy_(position_ids)
         self.input_buffers["cache_position"].copy_(cache_position)

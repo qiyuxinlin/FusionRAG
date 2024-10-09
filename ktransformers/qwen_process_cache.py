@@ -393,8 +393,9 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
 data_name = 'hotpotqa-260-100-10-doc.jsonl'
 # data_name = 'musique-200.jsonl'
 # for rate in [1]:
-#     main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend',data_name=data_name) 
-#     main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
+
     # main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend') 
 for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
+    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend',data_name=data_name) 
+    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
