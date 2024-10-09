@@ -11,6 +11,7 @@ from transformers import (
     GenerationConfig,
     TextStreamer,
 )
+import random
 import torch
 import os
 from rouge import Rouge
@@ -82,7 +83,6 @@ def _rougel_score(prediction, ground_truth):
         return 0.0
     return scores["rouge-l"]["f"]
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTokenizer, topk: int, revert_rope, preprocess):
 
     prompt_config = json.load(open('/mnt/data/benchmark/config/dataset2prompt_few-shot.json'))
@@ -102,26 +102,29 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     query_task = prompt_config['query_prompt'][model_name.split('-')[0]][data_name_prefix]
     local_model_config = json.load(open('/mnt/data/benchmark/config/model_config.json'))
     stop_token_id = local_model_config[model_name.split('-')[0]]['stop_token_id']
-
-    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}"):
-        os.makedirs(f"{cache_path}{data_name.split('.')[0]}")
+    # 存报告
+    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
+        os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
+    # 存数据
     if not os.path.exists(f"{cache_path}data"):
         os.makedirs(f"{cache_path}data")
+    # reprocess 数据
     if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}")
     if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
-    if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-{revert_rope}/{model_name}"):
-        os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-{revert_rope}/{model_name}")
-    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}"):
-        os.makedirs(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}")
-    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}/{model_name}"):
-        os.makedirs(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}/{model_name}")
+    # preprocesss 数据
+    if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"):
+        os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}")
+    
+    csv_path = f"{cache_path}{data_name.split('.')[0]}/{model_name}"
+    reprocess_path = f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"
+    preprocess_path = f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"
     data_file = open(data_path, 'r', encoding='utf-8')
     data = []
     for line in data_file.readlines():
         data.append(json.loads(line))  
-    if data_name_prefix in ['hotpotqa','triviaqa']:
+    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl']:
         data = data[0]
         for i in range(len(data)):
             # 打乱顺序
@@ -208,7 +211,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     context_rank = context_rank if preprocess == True else []
     corpus_lens = corpus_lens if preprocess == True else []
     return batch_data, batch_tokens,question_list, real_answer_list, stop_token_id, \
-        f"{cache_path}data/{data_name.split('.')[0]}/{model_name}", f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-{revert_rope}/{model_name}", \
+        reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
 
 def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3', 
@@ -216,7 +219,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
          data_path='/mnt/data/benchmark/data/',
          cache_path='/mnt/data/processCache/', 
          model_name = 'Mistral-7B-Instruct-v0.3', 
-         max_cache_len= 10000,
+         max_cache_len= 25000,
          rate=0.2,
          dense=2,
          revert_rope=False,
@@ -226,7 +229,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     # prepare data
-    prompt_data, tokens_data, question_list, real_answer_list, stop_token_id, save_path, preporcess_save_path, data_name_prefix, rouge_metrics, context_rank, corpus_lens  = prepare_data(model_name, data_path, data_name, cache_path, tokenizer, topk, revert_rope, preprocess)
+    prompt_data, tokens_data, question_list, real_answer_list, stop_token_id, save_path, preporcess_save_path, csv_path, data_name_prefix, rouge_metrics, context_rank, corpus_lens  = prepare_data(model_name, data_path, data_name, cache_path, tokenizer, topk, revert_rope, preprocess)
    # preprocess preprare topk
 
         
@@ -247,9 +250,9 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
 
     # 生成 preprocess kv cache
     if preprocess:
-        csv_file = f"{cache_path}{data_name.split('.')[0]}-preprocess-topk{topk}/{model_name}/reprocess_method_{reprocess_method}_rate_{rate}_dense_{dense}_topk_{topk}_revert_rope_{revert_rope}.csv"
+        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.csv"
     else:
-        csv_file = f"{cache_path}{data_name.split('.')[0]}/{model_name}/reprocess_method_{reprocess_method}_rate_{rate}_dense_{dense}_topk_{topk}_revert_rope_{revert_rope}.csv"
+        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}.csv"
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Question', 'Real Answer', 'Pred Answer'])
@@ -373,9 +376,9 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
     print(rouge_score/len(tokens_data))
     print(f'em: {normalized_em/len(tokens_data)}')
     if preprocess:
-        file_path = f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}/{model_name}_reprocess_method_{reprocess_method}_rate_{rate}_topk_{topk}_dense{dense}_revert_rope_{revert_rope}.txt"
+        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.txt"
     else:
-        file_path = f"{cache_path}{data_name.split('.')[0]}/{model_name}_reprocess_method_{reprocess_method}_rate_{rate}_topk_{topk}_dense{dense}_revert_rope_{revert_rope}.txt"
+        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}.txt"
     with open(file_path,  'w') as f:
         print(f'num_in_batch: {10}', file=f)
         print(rouge_score/len(tokens_data), file=f)
@@ -389,8 +392,10 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
 #     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache') 
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache') 
+data_name = 'musique-200.jsonl'
 for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-    main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache') 
-    main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache') 
-    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend')
-    main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend')
+    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend',data_name=data_name) 
+    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
+    # main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend') 
+for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+    main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
