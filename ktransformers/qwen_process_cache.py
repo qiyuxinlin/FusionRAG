@@ -3,6 +3,7 @@ from FlagEmbedding import FlagModel
 import faiss
 import shutil
 import numpy as np
+import collections
 # from transformers.models.mistral.modeling_mistral import MistralForCausalLM
 from transformers import (
     AutoTokenizer,
@@ -24,8 +25,32 @@ project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache,load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
 from ktransformers.models.custom_cache import StaticCache
-
-os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+def parse_generation(s):
+    s = s.lstrip('\n').split('\n')[0]
+    if s.startswith("Yes") or s.startswith("yes"):
+        s = "Yes"
+    elif (s.split()[0]).startswith("No") or (s.split()[0]).startswith("no"):
+        s = "No"
+    return s
+def compute_f1(a_pred, a_gold, tokenizer):
+    a_pred = parse_generation(a_pred)
+    gold_toks = tokenizer.encode(normalize_answer(a_gold))[1:]
+    pred_toks = tokenizer.encode(normalize_answer(a_pred))[1:]
+    #gold_toks = tokenizer.encode_chat_completion(ChatCompletionRequest(messages=[UserMessage(content=normalize_answer(a_gold))])).tokens[4:-4]
+    #pred_toks = tokenizer.encode_chat_completion(ChatCompletionRequest(messages=[UserMessage(content=normalize_answer(a_pred))])).tokens[4:-4]
+    #pdb.set_trace()
+    common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
+    num_same = sum(common.values())
+    if len(gold_toks) == 0 or len(pred_toks) == 0:
+        # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
+        return int(gold_toks == pred_toks)
+    if num_same == 0:
+        return 0
+    precision = 1.0 * num_same / len(pred_toks)
+    recall = 1.0 * num_same / len(gold_toks)
+    f1 = (2 * precision * recall) / (precision + recall)
+    return f1
 def _exact_match_score(prediction, ground_truth):
     return normalize_answer(prediction) == normalize_answer(ground_truth)
 def _metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
@@ -88,7 +113,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
 
     prompt_config = json.load(open('/mnt/data/benchmark/config/dataset2prompt_few-shot.json'))
     data_path = data_path+data_name
-    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl']:
+    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl', 'hotpotqa.jsonl', 'triviaqa.jsonl']:
         data_name_prefix = data_name.split('.')[0]
     else:
         data_name_prefix = data_name.split('-')[0]
@@ -103,31 +128,34 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     query_task = prompt_config['query_prompt'][model_name.split('-')[0]][data_name_prefix]
     local_model_config = json.load(open('/mnt/data/benchmark/config/model_config.json'))
     stop_token_id = local_model_config[model_name.split('-')[0]]['stop_token_id']
-
-    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}"):
-        os.makedirs(f"{cache_path}{data_name.split('.')[0]}")
+    # 存报告
+    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
+        os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
+    # 存数据
     if not os.path.exists(f"{cache_path}data"):
         os.makedirs(f"{cache_path}data")
+    # reprocess 数据
     if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}")
     if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
-    if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-{revert_rope}/{model_name}"):
-        os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-{revert_rope}/{model_name}")
-    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}"):
-        os.makedirs(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}")
-    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}/{model_name}"):
-        os.makedirs(f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}/{model_name}")
+    # preprocesss 数据
+    if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"):
+        os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}")
+    
+    csv_path = f"{cache_path}{data_name.split('.')[0]}/{model_name}"
+    reprocess_path = f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"
+    preprocess_path = f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"
     data_file = open(data_path, 'r', encoding='utf-8')
     data = []
     for line in data_file.readlines():
         data.append(json.loads(line))  
-    if data_name_prefix in ['hotpotqa','triviaqa']:
+    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
         data = data[0]
         for i in range(len(data)):
             # 打乱顺序
-            # random.seed(1)
-            # random.shuffle(data[i]['output'][0]['document'])
+            random.seed(1)
+            random.shuffle(data[i]['output'][0]['document'])
             data[i]['passage'] = data[i]['output'][0]['document']
     else:
         if data_name == 'samsum.jsonl':
@@ -135,8 +163,13 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         else:
             split_mark = 'Passage'
         for i in range(len(data)):
-                data[i]['passage'] = re.findall(f'({split_mark} \\d+.*?)(?={split_mark} \\d+|$)', data[i]['context'], re.DOTALL)
-            
+            data[i]['passage'] = re.findall(f'({split_mark} \\d+.*?)(?={split_mark} \\d+|$)', data[i]['context'], re.DOTALL)
+        if data_name == 'musique-140.jsonl':
+            for i in range(len(data)):
+                data[i]['passage'] = re.findall(f'Passage \\d+:\\n(.*?)(?=Passage \\d+:|$)', data[i]['context'], re.DOTALL)
+                data[i]['passage'] = ['\n\n' + text for text in data[i]['passage']]
+                data[i]['passage'][-1] = data[i]['passage'][-1] + '\n'
+
     N = len(data)
     batch_data = []
     batch_tokens = []
@@ -147,12 +180,12 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         query_tokens = torch.tensor(tokenizer.encode(query_prompt, add_special_tokens = False),dtype=torch.int)
         question_list.append(data[query_id]['input'])
         tmp_list = []
-        if data_name_prefix in ['hotpotqa','triviaqa']:
+        if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
             for i in range(len(data[query_id]['output'])):
                 if 'answer' in data[query_id]['output'][i] and \
                     data[query_id]['output'][i]['answer'] not in tmp_list:
                     tmp_list.append(data[query_id]['output'][i]['answer'])
-        elif data_name_prefix in ['2wikimqa','musique','samsum','multi_news']:
+        else:
             for i in range(len(data[query_id]['answers'])):
                 if data[query_id]['answers'][i] not in tmp_list:
                     tmp_list.append(data[query_id]['answers'][i])
@@ -162,10 +195,10 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         passage = [system_prompt]
         passage_tokens = [system_tokens]
         for bn in range(len(query['passage'])):
-            if data_name_prefix in ['hotpotqa','triviaqa']:
+            if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
                 passage.append(f'Passage {index+1}:\n' + query['passage'][index] + '\n') 
                 passage_tokens.append(torch.tensor(tokenizer.encode(f'Passage {index+1}:\n' + query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
-            elif data_name_prefix in ['2wikimqa','musique','samsum','multi_news']:
+            else:
                 passage.append(query['passage'][index] + '\n') 
                 passage_tokens.append(torch.tensor(tokenizer.encode(query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
             index += 1
@@ -185,7 +218,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         for batch in batch_data:
             corpus.extend(batch[1:-1])
             corpus_lens.append(len(batch[1:-1]))
-        path = f"{data_path}{data_name.split('.')[0]}.bin"
+        path = f"{cache_path}data/{data_name.split('.')[0]}.bin"
         if os.path.exists(path):
             index = faiss.read_index(path)
         else:
@@ -209,15 +242,16 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     context_rank = context_rank if preprocess == True else []
     corpus_lens = corpus_lens if preprocess == True else []
     return batch_data, batch_tokens,question_list, real_answer_list, stop_token_id, \
-        f"{cache_path}data/{data_name.split('.')[0]}/{model_name}", f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-{revert_rope}/{model_name}", \
+        reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
 
-def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat', 
+def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
-         cache_path='/mnt/data/processCache/', 
-         model_name = 'Qwen1.5-7B-Chat', 
-         max_cache_len= 10000,
+        #  cache_path='/mnt/data/processCache/', 
+         cache_path='/mnt/data2/wjh/',
+         model_name = 'Qwen2.5-7B-Instruct', 
+         max_cache_len= 32768,
          rate=0.2,
          dense=2,
          revert_rope=False,
@@ -227,18 +261,18 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     # prepare data
-    prompt_data, tokens_data, question_list, real_answer_list, stop_token_id, save_path, preporcess_save_path, data_name_prefix, rouge_metrics, context_rank, corpus_lens  = prepare_data(model_name, data_path, data_name, cache_path, tokenizer, topk, revert_rope, preprocess)
+    prompt_data, tokens_data, question_list, real_answer_list, stop_token_id, save_path, preporcess_save_path, csv_path, data_name_prefix, rouge_metrics, context_rank, corpus_lens  = prepare_data(model_name, data_path, data_name, cache_path, tokenizer, topk, revert_rope, preprocess)
    # preprocess preprare topk
 
         
 
-    # torch.set_default_dtype(config.torch_dtype)
+    torch.set_default_dtype(config.torch_dtype)
     config._attn_implementation = "sdpa"
-    config.torch_dtype="float16"
-    with torch.device("cuda"):
-        with torch.no_grad():
-            model = Qwen2ForCausalLM.from_pretrained(model_path, torch_dtype=torch.float16)
-            # model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
+    # config.torch_dtype="float16"
+    with torch.no_grad():
+        model = Qwen2ForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
+        # model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
+    model = model.to('cuda')
     answer_list = []
     rouge_score = 0
     normalized_em = 0
@@ -248,9 +282,9 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
 
     # 生成 preprocess kv cache
     if preprocess:
-        csv_file = f"{cache_path}{data_name.split('.')[0]}-preprocess-topk{topk}/{model_name}/reprocess_method_{reprocess_method}_rate_{rate}_dense_{dense}_topk_{topk}_revert_rope_{revert_rope}.csv"
+        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.csv"
     else:
-        csv_file = f"{cache_path}{data_name.split('.')[0]}/{model_name}/reprocess_method_{reprocess_method}_rate_{rate}_dense_{dense}_topk_{topk}_revert_rope_{revert_rope}.csv"
+        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}.csv"
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Question', 'Real Answer', 'Pred Answer'])
@@ -258,6 +292,9 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
                 config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype
             )
     for i,iter in enumerate(tokens_data):
+        # if i + 1 != 1:
+        # # if i + 1 != 78:
+        #     continue
         system_len = iter[0].shape[0]
         if rate == 1:
         # # Full Cache Recompute 
@@ -290,8 +327,8 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
                     if os.path.exists(f"{preporcess_save_path}/{i+1}_{chunk_id}_key.pt"):
                         continue
                     corpus_passages = [iter[0]]
-                    system_key_cache = torch.load(f"{save_path}/{1}_{0}_key.pt",weights_only=True)
-                    system_value_cache = torch.load(f"{save_path}/{1}_{0}_value.pt",weights_only=True)
+                    system_key_cache = torch.load(f"{save_path}/{i+1}_{0}_key.pt",weights_only=True)
+                    system_value_cache = torch.load(f"{save_path}/{i+1}_{0}_value.pt",weights_only=True)
                     for layer_idx in range(len(past_key_values.key_cache)):
                         past_key_values.key_cache[layer_idx].narrow(2,0,system_len).copy_(system_key_cache[layer_idx])
                         past_key_values.value_cache[layer_idx].narrow(2,0,system_len).copy_(system_value_cache[layer_idx])
@@ -358,9 +395,7 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
             answer_list.append(' ')
         else:
             answer_list.append(answer)
-        local_em = _metric_max_over_ground_truths(
-            _exact_match_score, answer, real_answer_list[i]
-        )
+        local_em = max([compute_f1(answer, real_answer, tokenizer) for real_answer in real_answer_list[i]])
         normalized_em += local_em
         local_rouge = _metric_max_over_ground_truths(
             rouge_metrics, answer, real_answer_list[i]
@@ -374,13 +409,13 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
     print(rouge_score/len(tokens_data))
     print(f'em: {normalized_em/len(tokens_data)}')
     if preprocess:
-        file_path = f"{cache_path}{data_name.split('.')[0]+f'-preprocess-topk{topk}'}/{model_name}_reprocess_method_{reprocess_method}_rate_{rate}_topk_{topk}_dense{dense}_revert_rope_{revert_rope}.txt"
+        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.txt"
     else:
-        file_path = f"{cache_path}{data_name.split('.')[0]}/{model_name}_reprocess_method_{reprocess_method}_rate_{rate}_topk_{topk}_dense{dense}_revert_rope_{revert_rope}.txt"
+        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}.txt"
     with open(file_path,  'w') as f:
         print(f'num_in_batch: {10}', file=f)
         print(rouge_score/len(tokens_data), file=f)
-        print(f'em: {normalized_em}', file=f)
+        print(f'em: {normalized_em/len(tokens_data)}', file=f)
         
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='processCache') 
@@ -390,12 +425,21 @@ def main(model_path= '/mnt/data/model/Qwen1.5-7B-Chat',
 #     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache') 
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache') 
-data_name = 'hotpotqa-260-100-10-doc.jsonl'
+# data_name = 'hotpotqa-260-100-10-doc.jsonl'
+# for rate in [0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 1]:
+#     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache',data_name=data_name) 
+#     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
+#     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name,topk = 10) 
+for data_name in ['2wikimqa-200.jsonl']:
+    for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+        main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=15)
 # data_name = 'musique-200.jsonl'
-# for rate in [1]:
-
-    # main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend') 
-for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-    main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
-    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='cacheBlend',data_name=data_name) 
-    main(rate = rate, preprocess=False, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
+# for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+#     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache',data_name=data_name) 
+#     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
+#     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name) 
+    # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)  
+# for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+#     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
+# for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+#     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 

@@ -50,7 +50,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.mistral.configuration_mistral import MistralConfig
-
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 if is_flash_attn_2_available():
     from transformers.modeling_flash_attention_utils import _flash_attention_forward
@@ -661,37 +661,43 @@ class MistralSdpaAttention(MistralAttention):
             attn_output = selected_query_sparse_attention(query_states, \
                                                             key_states, value_states, cache_position.unsqueeze(0)[:,None,:].repeat(1, self.num_heads, 1)).to(query_states.dtype)
         else:
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states,
-                key_states,
-                value_states,
-                attn_mask=causal_mask,
-                dropout_p=self.attention_dropout if self.training else 0.0,
-                is_causal=is_causal,
-            )
+            with sdpa_kernel(SDPBackend.EFFICIENT_ATTENTION):
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states,
+                    key_states,
+                    value_states,
+                    attn_mask=causal_mask,
+                    dropout_p=self.attention_dropout if self.training else 0.0,
+                    is_causal=is_causal,
+                )
         if kwargs['reprocess_method'] == 'processCache':
             load_path = kwargs['load_path']
             example_id = kwargs['example_id']
             passages_len = kwargs['passages_len']
             system_len = passages_len[0]
+            history_key_cache = kwargs['history_key_cache']
             if self.layer_idx == self.config.num_hidden_layers - 1:
-
                 # 先不管 question 中提示
-                for context_id, context_len in enumerate(passages_len):
+                import time
+                start_time = time.time()
+                for context_id, context_len in enumerate(passages_len[:-1]):
                     if context_id == 0:
                         continue
+                    
                     past_len = sum(passages_len[:context_id])
-                    context_key = torch.load(f'{load_path}/{example_id}_{context_id}_key.pt',weights_only=True).to(query_states.device)[self.layer_idx]
+                    context_key = history_key_cache[context_id].to(query_states.device)[self.layer_idx]
                     context_key = repeat_kv(context_key, self.num_key_value_groups)
                     context_key = context_key.transpose(-1, -2)
                     attn_weights = torch.matmul(query_states, context_key)
                     attn_weights /= math.sqrt(self.head_dim)
                     attn_weights = nn.functional.softmax(attn_weights, dim = -1, dtype = torch.float16)
                     attn_weights = torch.sum(torch.sum(attn_weights, dim=0),dim=-2)
+                    assert not torch.isinf(attn_weights).any()
+                    assert not torch.isnan(attn_weights).any()
                     assert context_len == attn_weights.shape[1]
                     past_key_value.importance_cache[self.layer_idx].narrow(1,past_len,context_len).copy_(attn_weights)
 
-
+                print(f'importance_time: {time.time() - start_time}')
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.view(bsz, q_len, -1)
 
@@ -951,6 +957,7 @@ class MistralModel(MistralPreTrainedModel):
         load_path: str = '',
         example_id: str = '',
         dense: int = 0,
+        history_key_cache: list = [],
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -1038,6 +1045,7 @@ class MistralModel(MistralPreTrainedModel):
                     load_path=load_path,
                     example_id=example_id,
                     dense=dense,
+                    history_key_cache=history_key_cache,
                 )
 
             hidden_states = layer_outputs[0]
@@ -1219,6 +1227,7 @@ class MistralForCausalLM(MistralPreTrainedModel, GenerationMixin):
         load_path: str = '',
         example_id: str = '',
         dense: int = 0,
+        history_key_cache: list = [],
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1274,6 +1283,7 @@ class MistralForCausalLM(MistralPreTrainedModel, GenerationMixin):
             load_path=load_path,
             example_id=example_id,
             dense=dense,
+            history_key_cache=history_key_cache,
         )
 
         hidden_states = outputs[0]

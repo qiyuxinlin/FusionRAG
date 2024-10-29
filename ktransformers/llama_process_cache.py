@@ -1,4 +1,4 @@
-from models.modeling_mistral import MistralForCausalLM
+from models.modeling_llama import LlamaForCausalLM
 from FlagEmbedding import FlagModel
 import faiss
 import shutil
@@ -12,7 +12,6 @@ from transformers import (
     GenerationConfig,
     TextStreamer,
 )
-import time
 import random
 import torch
 import os
@@ -26,7 +25,15 @@ project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache, load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
 from ktransformers.models.custom_cache import StaticCache
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+def _exact_match_score(prediction, ground_truth):
+    return normalize_answer(prediction) == normalize_answer(ground_truth)
+def _metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
+    scores_for_ground_truths = []
+    for ground_truth in ground_truths:
+        score = metric_fn(prediction, ground_truth)
+        scores_for_ground_truths.append(score)
+    return max(scores_for_ground_truths)
 def parse_generation(s):
     s = s.lstrip('\n').split('\n')[0]
     if s.startswith("Yes") or s.startswith("yes"):
@@ -52,14 +59,6 @@ def compute_f1(a_pred, a_gold, tokenizer):
     recall = 1.0 * num_same / len(gold_toks)
     f1 = (2 * precision * recall) / (precision + recall)
     return f1
-def _exact_match_score(prediction, ground_truth):
-    return normalize_answer(prediction) == normalize_answer(ground_truth)
-def _metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
-    scores_for_ground_truths = []
-    for ground_truth in ground_truths:
-        score = metric_fn(prediction, ground_truth)
-        scores_for_ground_truths.append(score)
-    return max(scores_for_ground_truths)
 def find_group_and_index(sizes, idx):
     """
     找到list中的某个索引属于哪个组及该组中的索引
@@ -85,7 +84,7 @@ def normalize_answer(s):
     def remove_articles(text):
         return re.sub(r'\b(a|an|the)\b', ' ', text)
     def white_space_fix(text):
-        return ' '.join(text.split())
+        return ' '.join(text.replace('\n', ' ').split())
     def remove_punc(text):
         exclude = set(string.punctuation)
         return ''.join(ch for ch in text if ch not in exclude)
@@ -109,16 +108,6 @@ def _rougel_score(prediction, ground_truth):
     except ValueError:  # "Hypothesis is empty."
         return 0.0
     return scores["rouge-l"]["f"]
-def save_list_to_jsonl(data_list, file_path):
-    """
-    保存一个字典的列表为 jsonl 文件。
-    :param data_list: 要保存的字典列表
-    :param file_path: 保存的文件路径
-    """
-    with open(file_path, 'w', encoding='utf-8') as file:
-        for item in data_list:
-            json_line = json.dumps(item, ensure_ascii=False)
-            file.write(json_line + '\n')
 
 def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTokenizer, topk: int, revert_rope, preprocess):
 
@@ -161,7 +150,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     data = []
     for line in data_file.readlines():
         data.append(json.loads(line))  
-    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
+    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
         data = data[0]
         for i in range(len(data)):
             # 打乱顺序
@@ -174,13 +163,13 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         else:
             split_mark = 'Passage'
         for i in range(len(data)):
-                data[i]['passage'] = re.findall(f'({split_mark} \\d+.*?)(?={split_mark} \\d+|$)', data[i]['context'], re.DOTALL)
+            data[i]['passage'] = re.findall(f'({split_mark} \\d+.*?)(?={split_mark} \\d+|$)', data[i]['context'], re.DOTALL)
         if data_name == 'musique-140.jsonl':
             for i in range(len(data)):
                 data[i]['passage'] = re.findall(f'Passage \\d+:\\n(.*?)(?=Passage \\d+:|$)', data[i]['context'], re.DOTALL)
                 data[i]['passage'] = ['\n\n' + text for text in data[i]['passage']]
                 data[i]['passage'][-1] = data[i]['passage'][-1] + '\n'
-
+          
     N = len(data)
     batch_data = []
     batch_tokens = []
@@ -191,7 +180,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         query_tokens = torch.tensor(tokenizer.encode(query_prompt, add_special_tokens = False),dtype=torch.int)
         question_list.append(data[query_id]['input'])
         tmp_list = []
-        if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
+        if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
             for i in range(len(data[query_id]['output'])):
                 if 'answer' in data[query_id]['output'][i] and \
                     data[query_id]['output'][i]['answer'] not in tmp_list:
@@ -206,7 +195,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         passage = [system_prompt]
         passage_tokens = [system_tokens]
         for bn in range(len(query['passage'])):
-            if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
+            if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
                 passage.append(f'Passage {index+1}:\n' + query['passage'][index] + '\n') 
                 passage_tokens.append(torch.tensor(tokenizer.encode(f'Passage {index+1}:\n' + query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
             else:
@@ -256,13 +245,13 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
 
-def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3', 
+def main(model_path= '/mnt/data/model/Llama-3.1-8B-Instruct', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
-        #  cache_path='/mnt/data/processCache/', 
-         cache_path='/mnt/data2/wjh/', 
-         model_name = 'Mistral-7B-Instruct-v0.3', 
-         max_cache_len= 25000,
+         cache_path='/mnt/data/processCache/', 
+        #  cache_path='/mnt/data2/wjh/',
+         model_name = 'Llama-3.1-8B-Instruct', 
+         max_cache_len= 32768,
          rate=0.2,
          dense=2,
          revert_rope=False,
@@ -277,13 +266,13 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
 
         
 
-    # torch.set_default_dtype(config.torch_dtype)
+    torch.set_default_dtype(config.torch_dtype)
     config._attn_implementation = "sdpa"
-
+    # config.torch_dtype="float16"
     with torch.no_grad():
-        model = MistralForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
+        model = LlamaForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
+        # model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
     model = model.to('cuda')
-            # model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
     answer_list = []
     rouge_score = 0
     normalized_em = 0
@@ -310,7 +299,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
         if rate == 1:
         # # Full Cache Recompute 
             inputs = torch.cat(iter).to('cuda').unsqueeze(0)
-            generated_tokens, _ = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50, use_cuda_graph=False)
+            generated_tokens, _ = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50)
         else:
             # Cache Reuse
             # Generate KV Cache and importance
@@ -338,8 +327,8 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                     if os.path.exists(f"{preporcess_save_path}/{i+1}_{chunk_id}_key.pt"):
                         continue
                     corpus_passages = [iter[0]]
-                    system_key_cache = torch.load(f"{save_path}/{1}_{0}_key.pt",weights_only=True)
-                    system_value_cache = torch.load(f"{save_path}/{1}_{0}_value.pt",weights_only=True)
+                    system_key_cache = torch.load(f"{save_path}/{i+1}_{0}_key.pt",weights_only=True)
+                    system_value_cache = torch.load(f"{save_path}/{i+1}_{0}_value.pt",weights_only=True)
                     for layer_idx in range(len(past_key_values.key_cache)):
                         past_key_values.key_cache[layer_idx].narrow(2,0,system_len).copy_(system_key_cache[layer_idx])
                         past_key_values.value_cache[layer_idx].narrow(2,0,system_len).copy_(system_value_cache[layer_idx])
@@ -384,7 +373,6 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                         past_len += corpus_len
                         id += 1
                     corpus_passages.append(chunk)
-                    assert  torch.cat(corpus_passages).shape[0] < max_cache_len
                     prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, 
                                                            corpus_passages, preporcess_save_path, 
                                                            i+1, chunk_id, system_len=system_len, revert_rope=revert_rope)
@@ -395,8 +383,9 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                 load_path = save_path
             generated_tokens = load_kv_and_generate(model, tokenizer, past_key_values, iter, load_path, i+1, 
                                                     max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
-                                                    rate=rate, dense=dense, preprocess=preprocess)
+                                                    rate=rate, dense=dense)
         answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]))
+        answer = answer.split('[/INST]')[0]
         print(model_name,data_name.split('.')[0],rate, topk)
         if data_name_prefix != 'samsum':
             print("question: " + question_list[i])
@@ -409,7 +398,6 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
         else:
             answer_list.append(answer)
         local_em = max([compute_f1(answer, real_answer, tokenizer) for real_answer in real_answer_list[i]])
-
         normalized_em += local_em
         local_rouge = _metric_max_over_ground_truths(
             rouge_metrics, answer, real_answer_list[i]
@@ -439,19 +427,13 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
 #     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache') 
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache') 
-# data_name = 'hotpotqa-train-kilt-filtered-300-10-doc.jsonl'
-# data_name = 'hotpotqa-260-100-10-doc.jsonl'
-# for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-#     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache',data_name=data_name) 
-#     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name)
-
-for data_name in ['musique-200.jsonl']:
-    for rate in [1]:
-        main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name)
-
-    # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name) 
-    # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name) 
+# for data_name in ['hotpotqa-260-100-10-doc.jsonl', 'triviaqa-270-100-10-doc.jsonl', 'musique-200.jsonl']:
+for data_name in [ '2wikimqa-200.jsonl']:
+    for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+        main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=15)
+# main(rate = 0, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name,topk = 15) 
+    # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)  
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-#     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name)
+#     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 

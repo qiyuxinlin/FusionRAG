@@ -116,12 +116,19 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
             inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
         past_len = past_key_values.past_tokens[0]
+        key_cache = []
+        value_cache = []
+        
         if chunk_id == 0:
-            key_cache = torch.stack(past_key_values.key_cache)[:,:,:,:past_len,:]
-            value_cache = torch.stack(past_key_values.value_cache)[:,:,:,:past_len,:]
+            key_cache = [past_key_values.key_cache[i][:,:,:past_len,:] for i in range(len(past_key_values.key_cache))]
+            key_cache = torch.stack(key_cache)
+            value_cache = [past_key_values.value_cache[i][:,:,:past_len,:] for i in range(len(past_key_values.value_cache))]
+            value_cache = torch.stack(value_cache)
         else:
-            key_cache = torch.stack(past_key_values.key_cache)[:,:,:,system_len:system_len + passage_len,:]
-            value_cache = torch.stack(past_key_values.value_cache)[:,:,:,system_len:system_len + passage_len,:]
+            key_cache = [past_key_values.key_cache[i][:,:,system_len:system_len + passage_len,:] for i in range(len(past_key_values.key_cache))]
+            key_cache = torch.stack(key_cache)
+            value_cache = [past_key_values.value_cache[i][:,:,system_len:system_len + passage_len,:] for i in range(len(past_key_values.value_cache))]
+            value_cache = torch.stack(value_cache)
         torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
         torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
         print(f'example_id: {example_id}, chunk_id: {chunk_id}')
@@ -179,8 +186,6 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
             past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
     key_cache = torch.stack(past_key_values.key_cache)[:,:,:,past_len:past_len + passage_len,:]
-    value_cache = torch.stack(past_key_values.value_cache)[:,:,:,past_len:past_len + passage_len,:]
-    # if revert_rope:
     position_ids = torch.full((1, key_cache[0].shape[2]), system_len - past_len, device=torch_device)
     cos, sin = model.model.layers[0].self_attn.rotary_emb(key_cache[0], position_ids)
     # mistral 限定
@@ -188,13 +193,33 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     sin = sin.unsqueeze(1)
     key_cache = (key_cache * cos) + (rotate_half(key_cache) * sin)
     torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
+    key_cache = None
+    torch.cuda.empty_cache()
+    value_cache = torch.stack(past_key_values.value_cache)[:,:,:,past_len:past_len + passage_len,:]
     torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
+    # if revert_rope:
+
+
+    
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False, 
-                          reprocess_method='normal', rate=0, dense=2):
-    # load KV
+                          reprocess_method='normal', rate=0, dense=2, preprocess=False):
+    passages_len = [passage.shape[0] for passage in passages]
+    passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
+    torch.set_printoptions(threshold=50_000)
     torch_device = 'cuda'
+    query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
+    inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(torch_device)
+    seq_length = passages[-1][query_prefix_len:].shape[0]
+    tmp_past_key_values = StaticCache(
+                                    config = model.config, max_batch_size = 1, 
+                                    max_cache_len = seq_length, device = 'cuda', dtype = model.dtype,
+                                    passage_len=torch.cat(passages[:-1]).shape[0],
+                                )
+
+    # load KV
+    
     for layer_idx in range(len(past_key_values.key_cache)):
         past_key_values.past_tokens[layer_idx] = 0
     past_len = 0
@@ -203,7 +228,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     key_cache = []
     value_cache = []
     all_position_ids = [torch.arange(0,system_len).unsqueeze(0).to(torch_device)]
-        
+    
     for chunk_id, passage in enumerate(passages[:-1]):
         passage_len = passage.shape[0]
         
@@ -214,7 +239,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     start_time = time.time()
     for chunk_id, passage in enumerate(passages[:-1]):
         passage_len = passage.shape[0]
-        chunk_key_cache = key_cache[chunk_id].to(torch_device)
+        key_cache[chunk_id] = key_cache[chunk_id].to(torch_device)
+        chunk_key_cache = key_cache[chunk_id]
         chunk_value_cache = value_cache[chunk_id].to(torch_device)
         assert passage_len == chunk_key_cache.shape[3]
         if revert_rope and chunk_id > 1:
@@ -232,134 +258,123 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             past_key_values.key_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_key_cache[layer_idx])
             past_key_values.value_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_value_cache[layer_idx])
             past_key_values.past_tokens[layer_idx] += passage_len
-        past_len += passage_len 
+        past_len += passage_len
+    storage_time = time.time() - start_time 
+    print(f'storage_time: {storage_time}')
+    if rate != 0:
+        if reprocess_method == 'cacheBlend':
+            without_attn_key = past_key_values.key_cache[1].narrow(2,0,past_len).clone()
+            without_attn_value = past_key_values.value_cache[1].narrow(2,0,past_len).clone()
+            inputs = torch.cat(passages[:-1]).to('cuda').unsqueeze(0)
+            # 这里会在终端上多输出一次
+            _, tmp_past_key_value = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1)
+            with_attn_key = tmp_past_key_value.key_cache[1].narrow(2,0,past_len).clone()
+            with_attn_value = tmp_past_key_value.value_cache[1].narrow(2,0,past_len).clone()
+            v_sub_all = without_attn_value - with_attn_value
+            v_sub_all = v_sub_all.squeeze(0)
+            v_sub_all = v_sub_all.transpose(0, 1)
+            v_sum = torch.sum(v_sub_all**2, dim=[1,2])
+            v_sum = v_sum[system_len:]
+            v_need_index = torch.topk(v_sum,int(rate*(past_len - system_len))).indices.to('cpu')
+            v_need_index = v_need_index + system_len
 
-    if reprocess_method == 'cacheBlend':
-        without_attn_key = past_key_values.key_cache[1].narrow(2,0,past_len).clone()
-        without_attn_value = past_key_values.value_cache[1].narrow(2,0,past_len).clone()
-        inputs = torch.cat(passages[:-1]).to('cuda').unsqueeze(0)
-        # 这里会在终端上多输出一次
-        _, tmp_past_key_value = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1)
-        with_attn_key = tmp_past_key_value.key_cache[1].narrow(2,0,past_len).clone()
-        with_attn_value = tmp_past_key_value.value_cache[1].narrow(2,0,past_len).clone()
-        v_sub_all = without_attn_value - with_attn_value
-        v_sub_all = v_sub_all.squeeze(0)
-        v_sub_all = v_sub_all.transpose(0, 1)
-        v_sum = torch.sum(v_sub_all**2, dim=[1,2])
-        v_sum = v_sum[system_len:]
-        v_need_index = torch.topk(v_sum,int(rate*(past_len - system_len))).indices.to('cpu')
-        v_need_index = v_need_index + system_len
-
-        k_sub_all = without_attn_key - with_attn_key
-        k_sub_all = torch.abs(k_sub_all)
-        k_sub_all = k_sub_all.squeeze(0)
-        k_sub_all = k_sub_all.transpose(0, 1)
-        k_sub_all = k_sub_all.reshape(past_len,-1)
-        k_sum = torch.sum(k_sub_all,dim=1)
-        k_sum = k_sum.tolist()
-        k_sum = k_sum[system_len:]
-        k_sum = torch.tensor(k_sum,device=k_sub_all.device)
-        k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
-        k_need_index = k_need_index + system_len
-        k_need_index = v_need_index
-    elif reprocess_method == 'processCache':
-        start_time = time.time()
-        query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
-        inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(torch_device)
-        seq_length = passages[-1][query_prefix_len:].shape[0]
-        passages_len = [passage.shape[0] for passage in passages[:-1]]
-        passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
-        cache_position = torch.arange(0, seq_length, device='cuda')
-        with torch.no_grad():
-            tmp_past_key_values = StaticCache(
-                                config = model.config, max_batch_size = 1, 
-                                max_cache_len = seq_length, device = 'cuda', dtype = model.dtype,
-                                passage_len=torch.cat(passages[:-1]).shape[0]
-                            )
-            inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
-            model(
-                inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
-                cache_position=cache_position,
-                return_dict=False, use_cache=True, reprocess_method=reprocess_method, 
-                passages_len=passages_len, load_path=load_path, example_id=example_id)
-            k_sum = torch.sum(tmp_past_key_values.importance_cache[-1], dim=0)
+            k_sub_all = without_attn_key - with_attn_key
+            k_sub_all = torch.abs(k_sub_all)
+            k_sub_all = k_sub_all.squeeze(0)
+            k_sub_all = k_sub_all.transpose(0, 1)
+            k_sub_all = k_sub_all.reshape(past_len,-1)
+            k_sum = torch.sum(k_sub_all,dim=1)
             k_sum = k_sum.tolist()
             k_sum = k_sum[system_len:]
-            k_sum = torch.tensor(k_sum,device=torch_device)
-            k_need_index = torch.topk(k_sum,int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))).indices.to('cpu')
+            k_sum = torch.tensor(k_sum,device=k_sub_all.device)
+            k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
             k_need_index = k_need_index + system_len
-    else:
-        raise NotImplementedError
-
-    # reprocess kv cache
-    if reprocess_method != 'normal' and rate != 0:
-        if reprocess_method != 'processCache':
-            dense = 0
-        reprocess_inputs = torch.cat(passages[:-1])[k_need_index].unsqueeze(0).to(torch_device)
-        cache_position = k_need_index.to(torch_device)
-        if all_position_ids != []:
-            all_position_ids = torch.cat(all_position_ids,dim = 1).to(torch_device)
-            assert all_position_ids.shape[1] == torch.cat(passages[:-1]).shape[0]
-            all_position_ids = all_position_ids[:, k_need_index]
-        else:
-            all_position_ids = cache_position.unsqueeze(0)
-        with torch.no_grad():
-            inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(torch_device)
-            model(
-            inputs_embeds = inputs_embeds, cache_position=cache_position, position_ids=all_position_ids,
-            past_key_values=past_key_values, return_dict=False, use_cache=True, dense = dense,
-            )
+            k_need_index = v_need_index
+        elif reprocess_method == 'processCache':
+            select_time = time.time()
+            query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
+            inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(torch_device)
+            seq_length = passages[-1][query_prefix_len:].shape[0]
+            cache_position = torch.arange(0, seq_length, device='cuda')
             
-    # prefill question
-    past_len = torch.cat(passages[:-1]).shape[0]
-    inputs = passages[-1].unsqueeze(0).to(torch_device)
-    batch_size, seq_length = inputs.shape
-    cache_position = torch.arange(past_len,past_len + seq_length, device='cuda')
+            with torch.no_grad():
+                inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
+                model(
+                    inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
+                    cache_position=cache_position,
+                    return_dict=False, use_cache=True, reprocess_method=reprocess_method, 
+                    passages_len=passages_len, load_path=load_path, example_id=example_id,
+                    history_key_cache = key_cache)
+                
+                k_sum = torch.sum(tmp_past_key_values.importance_cache[-1], dim=0)
+                k_sum = k_sum.tolist()
+                k_sum = k_sum[system_len:]
+                k_sum = torch.tensor(k_sum,device=torch_device)
+                k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+                k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
+                k_need_index = k_need_index + system_len
+                print(f'select_time: {time.time() - select_time}')
+            
+        else:
+            raise NotImplementedError
+
+        # reprocess kv cache and prefill question
+        k_need_index = torch.sort(k_need_index)[0].tolist()
+        k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
+    else:
+        k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
+    past_len = sum(passages_len)
+
+    batch_size, seq_length = 1, len(k_need_index)
+
     generated_ids = torch.zeros(
-        batch_size, past_len + seq_length + max_new_tokens + 1, dtype=torch.int, device='cuda'
+        batch_size, past_len + max_new_tokens + 1, dtype=torch.int, device='cuda'
     )
-    generated_ids[:, :past_len] = torch.cat(passages[:-1]).unsqueeze(0).to('cuda')
-    generated_ids[:, cache_position] = inputs.to('cuda').to(torch.int)
+    generated_ids[:, :past_len] = torch.cat(passages).unsqueeze(0).to('cuda')
     tokens = []
+
+    if reprocess_method != 'processCache':
+        dense = 0
+    reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(torch_device)
+    cache_position = torch.tensor(k_need_index, device=torch_device)
     with torch.no_grad():
-        stream = TextStreamer(tokenizer)
-        inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
+        inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(torch_device)
         logits = model(
-            inputs_embeds = inputs_embeds, cache_position=cache_position,
-            past_key_values=past_key_values, return_dict=False, use_cache=True
+        inputs_embeds = inputs_embeds, cache_position=cache_position, 
+        past_key_values=past_key_values, return_dict=False, use_cache=True, dense = dense,
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+        first_token_time = time.time() - start_time
+        stream = TextStreamer(tokenizer)
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
-            do_sample=True, top_k=1, temperature=0.01 # change this to modify generate config
+            do_sample=False, top_k=1, temperature=0.01 # change this to modify generate config
         )
         try: # transformers==4.43
             logits_warper = (
-                model._get_logits_warper(generation_config,device=inputs.device)
+                model._get_logits_warper(generation_config,device=reprocess_inputs.device)
             )
         except: 
             logits_warper = (
                 model._get_logits_warper(generation_config)
             )
-        next_token_scores = logits_warper(inputs, logits[:, -1, :])
+        next_token_scores = logits_warper(reprocess_inputs, logits[:, -1, :])
         if generation_config.do_sample:
             probs = nn.functional.softmax(next_token_scores, dim=-1)
             next_token = torch.multinomial(probs, num_samples=1).squeeze(1)
         else:
             next_token = torch.argmax(next_token_scores, dim=-1)
-        first_token_time = time.time() - start_time
-
         prefill_count = seq_length
         prefill_time = first_token_time
         print(stream.put(next_token.item()), end="", flush=True)
-        generated_ids[:, past_len+seq_length] = next_token
+        generated_ids[:, past_len+1] = next_token
         tokens.append(next_token)
         inputs = torch.cat((torch.cat(passages).unsqueeze(0).to(torch_device), next_token.unsqueeze(0)), dim=-1)
-        cache_position = torch.tensor([past_len+seq_length], device=torch_device)
+        cache_position = torch.tensor([past_len], device=torch_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
         
             
-        start_time = time.time()
+        decode_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, generation_config, inputs)
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
@@ -376,7 +391,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             position_ids = cache_position.unsqueeze(0)
         
 
-    total_time = time.time() - start_time
+    total_time = time.time() - decode_time
     tokens_generated = len(tokens)
     tokens_per_second = tokens_generated / total_time
 
@@ -450,11 +465,12 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         else:
             inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
         logits = model(
-            inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
+            inputs_embeds = inputs_embeds, cache_position=cache_position, 
+            past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
         generation_config, model_kwargs = model._prepare_generation_config(
             None, max_length=max_new_tokens,
-            do_sample=True, top_k=1, temperature=0.01 # change this to modify generate config
+            do_sample=False, top_k=1, temperature=0.01 # change this to modify generate config
         )
         try: # transformers==4.43
             logits_warper = (
