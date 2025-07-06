@@ -25,7 +25,7 @@ project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache,load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
 from ktransformers.models.custom_cache import StaticCache
-# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 def parse_generation(s):
     s = s.lstrip('\n').split('\n')[0]
     if s.startswith("Yes") or s.startswith("yes"):
@@ -113,11 +113,11 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
 
     prompt_config = json.load(open('/mnt/data/benchmark/config/dataset2prompt_few-shot.json'))
     data_path = data_path+data_name
-    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl', 'hotpotqa.jsonl', 'triviaqa.jsonl']:
+    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl', 'hotpotqa.jsonl', 'triviaqa.jsonl', 'bamboogle.jsonl']:
         data_name_prefix = data_name.split('.')[0]
     else:
         data_name_prefix = data_name.split('-')[0]
-    if data_name_prefix in ['hotpotqa','triviaqa','2wikimqa','musique']:
+    if data_name_prefix in ['hotpotqa','triviaqa','2wikimqa','musique', 'bamboogle']:
         rouge_metrics = _rouge1_score
         max_tokens_length = 50
     elif data_name_prefix in ['samsum','multi_news']:
@@ -150,8 +150,9 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     data = []
     for line in data_file.readlines():
         data.append(json.loads(line))  
-    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
-        data = data[0]
+    if data_name_prefix in ['hotpotqa','triviaqa', 'bamboogle'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
+        if data_name_prefix in ['hotpotqa','triviaqa']:
+            data = data[0]
         for i in range(len(data)):
             # 打乱顺序
             random.seed(1)
@@ -175,12 +176,14 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     batch_tokens = []
     question_list = []
     real_answer_list = []
+
+    
     for query_id,query in enumerate(data[:N]):
         query_prompt = query_task.format(input=data[query_id]['input'])
         query_tokens = torch.tensor(tokenizer.encode(query_prompt, add_special_tokens = False),dtype=torch.int)
         question_list.append(data[query_id]['input'])
         tmp_list = []
-        if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
+        if data_name_prefix in ['hotpotqa','triviaqa', 'bamboogle'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
             for i in range(len(data[query_id]['output'])):
                 if 'answer' in data[query_id]['output'][i] and \
                     data[query_id]['output'][i]['answer'] not in tmp_list:
@@ -191,13 +194,15 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
                     tmp_list.append(data[query_id]['answers'][i])
         real_answer_list.append(tmp_list)
         index = 0
-
+        
         passage = [system_prompt]
         passage_tokens = [system_tokens]
         for bn in range(len(query['passage'])):
-            if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
+            if data_name_prefix in ['hotpotqa','triviaqa', 'bamboogle'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
                 passage.append(f'Passage {index+1}:\n' + query['passage'][index] + '\n') 
                 passage_tokens.append(torch.tensor(tokenizer.encode(f'Passage {index+1}:\n' + query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
+                # passage.append(tokenizer.apply_chat_template([{'role':'user','content':f'Passage {index+1}:\n' + query['passage'][index] + '\n'}], tokenize=False)[98:])
+                # passage_tokens.append(torch.tensor(tokenizer.encode(tokenizer.apply_chat_template([{'role':'user','content':f'Passage {index+1}:\n' + query['passage'][index] + '\n'}], tokenize=False)[98:])))
             else:
                 passage.append(query['passage'][index] + '\n') 
                 passage_tokens.append(torch.tensor(tokenizer.encode(query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
@@ -248,8 +253,8 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
 def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
-        #  cache_path='/mnt/data/processCache/', 
-         cache_path='/mnt/data2/wjh/',
+         cache_path='/mnt/data/processCache/', 
+        #  cache_path='/mnt/data2/wjh/tmp/',
          model_name = 'Qwen2.5-7B-Instruct', 
          max_cache_len= 32768,
          rate=0.2,
@@ -289,16 +294,23 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
         writer = csv.writer(file)
         writer.writerow(['Question', 'Real Answer', 'Pred Answer'])
     past_key_values = StaticCache(
-                config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype
+                config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype, passage_len=27000,
             )
+    inputs = None
     for i,iter in enumerate(tokens_data):
-        # if i + 1 != 1:
-        # # if i + 1 != 78:
+        # if i + 1 != 2:
+        # # if i + 1 not in [29, 31, 32, 38]:
         #     continue
         system_len = iter[0].shape[0]
         if rate == 1:
         # # Full Cache Recompute 
             inputs = torch.cat(iter).to('cuda').unsqueeze(0)
+            # if inputs == None:
+            #     inputs = torch.cat(iter).to('cuda').unsqueeze(0)
+            # else:
+            #     tmp = torch.cat(iter).to('cuda').unsqueeze(0)
+            #     inputs = torch.cat((inputs, torch.tensor(tokenizer.encode(f"\nAnswer:{real_answer_list[i][0]}<|im_end|>\n")).to('cuda:0').unsqueeze(0)),dim=1)
+            #     inputs = torch.cat((inputs, tmp),dim=1)
             generated_tokens, _ = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50)
         else:
             # Cache Reuse
@@ -404,6 +416,7 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
         with open(csv_file, mode='a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow([question_list[i], real_answer_list[i][0], answer])
+        torch.cuda.empty_cache()
         # break
     # rouge_score = rouge.get_scores(hyps=answer_list, refs=real_answer_list, avg=True)
     print(rouge_score/len(tokens_data))
@@ -430,14 +443,16 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
 #     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache',data_name=data_name) 
 #     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
 #     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name,topk = 10) 
-for data_name in ['2wikimqa-200.jsonl']:
-    for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-        main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=15)
-# data_name = 'musique-200.jsonl'
-# for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-#     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache',data_name=data_name) 
-#     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
-#     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name) 
+# for data_name in ['hotpotqa-254-500-10-doc.jsonl', 'triviaqa-285-500-10-doc.jsonl']:
+# # for data_name in ['triviaqa-282-1000-10-doc.jsonl']:
+#     for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
+#         main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name)
+#         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
+#         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name)
+for data_name in [ 'triviaqa-270-100-10-doc.jsonl']:
+    for rate in[0]:
+        for topk in [5]:
+            main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)  
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 

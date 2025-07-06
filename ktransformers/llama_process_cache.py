@@ -249,7 +249,7 @@ def main(model_path= '/mnt/data/model/Llama-3.1-8B-Instruct',
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
          cache_path='/mnt/data/processCache/', 
-        #  cache_path='/mnt/data2/wjh/',
+        #  cache_path='/mnt/data/wjh/',
          model_name = 'Llama-3.1-8B-Instruct', 
          max_cache_len= 32768,
          rate=0.2,
@@ -289,7 +289,7 @@ def main(model_path= '/mnt/data/model/Llama-3.1-8B-Instruct',
         writer = csv.writer(file)
         writer.writerow(['Question', 'Real Answer', 'Pred Answer'])
     past_key_values = StaticCache(
-                config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype
+                config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype, passage_len=32768,
             )
     for i,iter in enumerate(tokens_data):
         # if i + 1 != 1:
@@ -428,9 +428,11 @@ def main(model_path= '/mnt/data/model/Llama-3.1-8B-Instruct',
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache') 
 # for data_name in ['hotpotqa-260-100-10-doc.jsonl', 'triviaqa-270-100-10-doc.jsonl', 'musique-200.jsonl']:
-for data_name in [ '2wikimqa-200.jsonl']:
-    for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
-        main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=15)
+# for data_name in ['musique-200.jsonl']:
+for data_name in ['triviaqa-270-100-10-doc.jsonl']:
+    for rate in[0,0.05,0.1,0.15,0.2]:
+        for topk in [9]:
+            main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
 # main(rate = 0, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name,topk = 15) 
     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)  
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:

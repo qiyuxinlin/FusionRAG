@@ -278,35 +278,62 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             v_need_index = torch.topk(v_sum,int(rate*(past_len - system_len))).indices.to('cpu')
             v_need_index = v_need_index + system_len
 
-            k_sub_all = without_attn_key - with_attn_key
-            k_sub_all = torch.abs(k_sub_all)
-            k_sub_all = k_sub_all.squeeze(0)
-            k_sub_all = k_sub_all.transpose(0, 1)
-            k_sub_all = k_sub_all.reshape(past_len,-1)
-            k_sum = torch.sum(k_sub_all,dim=1)
-            k_sum = k_sum.tolist()
-            k_sum = k_sum[system_len:]
-            k_sum = torch.tensor(k_sum,device=k_sub_all.device)
-            k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
-            k_need_index = k_need_index + system_len
-            k_need_index = v_need_index
+            # k_sub_all = without_attn_key - with_attn_key
+            # k_sub_all = torch.abs(k_sub_all)
+            # k_sub_all = k_sub_all.squeeze(0)
+            # k_sub_all = k_sub_all.transpose(0, 1)
+            # k_sub_all = k_sub_all.reshape(past_len,-1)
+            # k_sum = torch.sum(k_sub_all,dim=1)
+            # k_sum = k_sum.tolist()
+            # k_sum = k_sum[system_len:]
+            # k_sum = torch.tensor(k_sum,device=k_sub_all.device)
+            # k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
+            # k_need_index = k_need_index + system_len
+            # k_need_index = v_need_index
         elif reprocess_method == 'processCache':
             select_time = time.time()
             query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
             inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(torch_device)
             seq_length = passages[-1][query_prefix_len:].shape[0]
-            cache_position = torch.arange(0, seq_length, device='cuda')
             
+            cache_position = torch.arange(past_len, past_len+seq_length, device='cuda')
             with torch.no_grad():
+                ss_time = time.perf_counter()
                 inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
                 model(
-                    inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
-                    cache_position=cache_position,
-                    return_dict=False, use_cache=True, reprocess_method=reprocess_method, 
-                    passages_len=passages_len, load_path=load_path, example_id=example_id,
-                    history_key_cache = key_cache)
+                    inputs_embeds = inputs_embeds, past_key_values=past_key_values,
+                    cache_position=cache_position, reprocess_method=reprocess_method, 
+                    return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache = key_cache
+                    )
                 
-                k_sum = torch.sum(tmp_past_key_values.importance_cache[-1], dim=0)
+                k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:cache_position[0]]
+            #     end_time = time.perf_counter() - ss_time
+            #     k_sum = k_sum.tolist()
+            #     first_5_percent_indices = []
+            #     for i in range(len(passages_start)-1):
+            #         block_length = passages_start[i + 1] - passages_start[i]
+            #         first_5_percent_length = int(0.05 * block_length)
+            #         first_5_percent_indices.extend(range(passages_start[i], passages_start[i] + first_5_percent_length))
+            #     first_5_percent_indices = torch.Tensor(first_5_percent_indices)
+            #     k_sum = k_sum[system_len:]
+            #     k_sum = torch.tensor(k_sum,device=torch_device)
+            #     k_lens = int((rate-0.05)*(torch.cat(passages[:-1]).shape[0] - system_len))
+            #     k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
+            #     k_need_index = k_need_index + system_len
+            #     k_need_index = torch.cat((k_need_index, first_5_percent_indices)).to(torch.int32)
+            # cache_position = torch.arange(0, seq_length, device='cuda')
+            # with torch.no_grad():
+            #     ss_time = time.perf_counter()
+            #     inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
+            #     model(
+            #         inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
+            #         cache_position=cache_position,
+            #         return_dict=False, use_cache=True, reprocess_method=reprocess_method, 
+            #         passages_len=passages_len, load_path=load_path, example_id=example_id,
+            #         history_key_cache = key_cache)
+                
+                # k_sum = torch.sum(tmp_past_key_values.importance_cache[-1], dim=0)
+                end_time = time.perf_counter() - ss_time
                 k_sum = k_sum.tolist()
                 k_sum = k_sum[system_len:]
                 k_sum = torch.tensor(k_sum,device=torch_device)
@@ -338,11 +365,18 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(torch_device)
     cache_position = torch.tensor(k_need_index, device=torch_device)
     with torch.no_grad():
+        without_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(torch_device)
         logits = model(
         inputs_embeds = inputs_embeds, cache_position=cache_position, 
         past_key_values=past_key_values, return_dict=False, use_cache=True, dense = dense,
         )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+        with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
+        v_sub_all = without_attn_value - with_attn_value
+        v_sub_all = v_sub_all.squeeze(0)
+        v_sub_all = v_sub_all.transpose(0, 1)
+        v_sum = torch.sum(v_sub_all**2, dim=[1,2])   
+        
         first_token_time = time.time() - start_time
         stream = TextStreamer(tokenizer)
         generation_config, model_kwargs = model._prepare_generation_config(
@@ -373,7 +407,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
         
-            
+ 
+        
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, generation_config, inputs)

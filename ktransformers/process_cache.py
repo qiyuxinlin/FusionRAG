@@ -26,7 +26,7 @@ project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache, load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
 from ktransformers.models.custom_cache import StaticCache
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 def parse_generation(s):
     s = s.lstrip('\n').split('\n')[0]
     if s.startswith("Yes") or s.startswith("yes"):
@@ -124,11 +124,11 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
 
     prompt_config = json.load(open('/mnt/data/benchmark/config/dataset2prompt_few-shot.json'))
     data_path = data_path+data_name
-    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl', 'hotpotqa.jsonl', 'triviaqa.jsonl']:
+    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl', 'hotpotqa.jsonl', 'triviaqa.jsonl', 'bamboogle.jsonl']:
         data_name_prefix = data_name.split('.')[0]
     else:
         data_name_prefix = data_name.split('-')[0]
-    if data_name_prefix in ['hotpotqa','triviaqa','2wikimqa','musique']:
+    if data_name_prefix in ['hotpotqa','triviaqa','2wikimqa','musique', 'bamboogle']:
         rouge_metrics = _rouge1_score
         max_tokens_length = 50
     elif data_name_prefix in ['samsum','multi_news']:
@@ -161,8 +161,9 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     data = []
     for line in data_file.readlines():
         data.append(json.loads(line))  
-    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
-        data = data[0]
+    if data_name_prefix in ['hotpotqa','triviaqa', 'bamboogle'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
+        if data_name_prefix in ['hotpotqa','triviaqa']:
+            data = data[0]
         for i in range(len(data)):
             # 打乱顺序
             random.seed(1)
@@ -206,7 +207,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         passage = [system_prompt]
         passage_tokens = [system_tokens]
         for bn in range(len(query['passage'])):
-            if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
+            if data_name_prefix in ['hotpotqa','triviaqa', 'bamboogle'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl', 'triviaqa-200.jsonl']:
                 passage.append(f'Passage {index+1}:\n' + query['passage'][index] + '\n') 
                 passage_tokens.append(torch.tensor(tokenizer.encode(f'Passage {index+1}:\n' + query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
             else:
@@ -259,10 +260,10 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
 def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
-        #  cache_path='/mnt/data/processCache/', 
-         cache_path='/mnt/data2/wjh/', 
+         cache_path='/mnt/data/processCache/', 
+        #  cache_path='/mnt/data2/wjh/', 
          model_name = 'Mistral-7B-Instruct-v0.3', 
-         max_cache_len= 25000,
+         max_cache_len= 32768,
          rate=0.2,
          dense=2,
          revert_rope=False,
@@ -300,12 +301,12 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
         writer = csv.writer(file)
         writer.writerow(['Question', 'Real Answer', 'Pred Answer'])
     past_key_values = StaticCache(
-                config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype
+                config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype, passage_len=32768,
             )
     for i,iter in enumerate(tokens_data):
-        # if i + 1 != 1:
-        # # if i + 1 != 78:
+        # if i + 1 != 2:
         #     continue
+
         system_len = iter[0].shape[0]
         if rate == 1:
         # # Full Cache Recompute 
@@ -445,10 +446,21 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
 #     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache',data_name=data_name) 
 #     main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name)
 
-for data_name in ['musique-200.jsonl']:
-    for rate in [1]:
-        main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name)
+# for data_name in ['hotpotqa-254-500-10-doc.jsonl', 'triviaqa-285-500-10-doc.jsonl']:
+# for data_name in ['hotpotqa-train-kilt-filtered-300-10-doc.jsonl']:
+# for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
+# for data_name in ['triviaqa-270-100-10-doc.jsonl']:
+# for data_name in ['triviaqa-270-100-10-doc.jsonl']:
+for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
 
+    for topk in [8]:
+        for rate in[0.1]:
+        
+            # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
+            # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+            main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+        # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
+        # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name)
     # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name) 
     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name) 
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
