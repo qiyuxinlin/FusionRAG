@@ -707,6 +707,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
         # The q_len > 1 is necessary to match with AttentionMaskConverter.to_causal_4d that does not create a causal mask in case q_len == 1.
         is_causal = True if causal_mask is None and q_len > 1 else False
 
+        
         if query_states.shape != key_states.shape and kwargs['dense'] == 2:
             attn_output = selected_query_sparse_attention(query_states, \
                                                             key_states, value_states, cache_position.unsqueeze(0)[:,None,:].repeat(1, self.num_heads, 1)).to(query_states.dtype)
@@ -728,7 +729,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
             if self.layer_idx == self.config.num_hidden_layers - 1:
                 # 先不管 question 中提示
                 for context_id, context_len in enumerate(passages_len[:-1]):
-                    if context_id == 0:
+                    if context_id <= 1:
                         continue
                     
                     past_len = sum(passages_len[:context_id])
@@ -743,7 +744,16 @@ class Qwen2SdpaAttention(Qwen2Attention):
                     assert not torch.isnan(attn_weights).any()
                     assert context_len == attn_weights.shape[1]
                     past_key_value.importance_cache[self.layer_idx].narrow(1,past_len,context_len).copy_(attn_weights)
-
+        # if kwargs['reprocess_method'] == 'processCache':
+        #     if self.layer_idx == self.config.num_hidden_layers - 1:
+        #         passages_len = kwargs['passages_len']
+        #         system_len = passages_len[0]
+        #         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+        #         attn_weights = attn_weights + causal_mask
+        #         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        #         attn_weights = attn_weights[:,:,:,:cache_position[0]]
+        #         attn_weights = torch.sum(torch.sum(attn_weights, dim=0),dim=-2)
+        #         past_key_value.importance_cache[self.layer_idx].narrow(1,system_len,cache_position[0]).copy_(attn_weights)
 
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.view(bsz, q_len, self.hidden_size)
@@ -1062,48 +1072,26 @@ class Qwen2Model(Qwen2PreTrainedModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
 
-        for decoder_layer in self.layers:
-            if output_hidden_states:
-                all_hidden_states += (hidden_states,)
-
-            if self.gradient_checkpointing and self.training:
-                layer_outputs = self._gradient_checkpointing_func(
-                    decoder_layer.__call__,
-                    hidden_states,
-                    causal_mask,
-                    position_ids,
-                    past_key_values,
-                    output_attentions,
-                    use_cache,
-                    cache_position,
-                )
-            else:
-                layer_outputs = decoder_layer(
-                    hidden_states,
-                    attention_mask=causal_mask,
-                    position_ids=position_ids,
-                    past_key_value=past_key_values,
-                    output_attentions=output_attentions,
-                    use_cache=use_cache,
-                    cache_position=cache_position,
-                    reprocess_method=reprocess_method,
-                    passages_len=passages_len,
-                    load_path=load_path,
-                    example_id=example_id,
-                    dense=dense,
-                    history_key_cache=history_key_cache,
-                )
-
-            hidden_states = layer_outputs[0]
-
-            if use_cache:
-                next_decoder_cache = layer_outputs[2 if output_attentions else 1]
-
-            if output_attentions:
-                all_self_attns += (layer_outputs[1],)
-
-        hidden_states = self.norm(hidden_states)
-
+        chunk_size = 256
+        q_len = hidden_states.shape[1]
+        if q_len > chunk_size:
+            last_length = 0
+            chunk_hidden_states = torch.zeros_like(hidden_states)
+            for lengths in range(chunk_size, q_len, chunk_size):
+                chunk_hidden_states[:, last_length:lengths] = self.forward_chunk(hidden_states[:, last_length:lengths], causal_mask[:,:,last_length:lengths],
+                                   position_ids[:, last_length:lengths], past_key_values, output_attentions, use_cache,
+                                   cache_position[last_length:lengths], reprocess_method, passages_len, load_path, example_id, dense, history_key_cache)
+                last_length = lengths
+            if lengths < q_len:
+                chunk_hidden_states[:, lengths:q_len] = self.forward_chunk(hidden_states[:, lengths:q_len], causal_mask[:,:,lengths:q_len],
+                                   position_ids[:, lengths:q_len], past_key_values, output_attentions, use_cache,
+                                   cache_position[lengths:q_len], reprocess_method, passages_len, load_path, example_id, dense, history_key_cache)
+            hidden_states = self.norm(chunk_hidden_states)
+        else:
+            hidden_states= self.forward_chunk(hidden_states, causal_mask,
+                                   position_ids, past_key_values, output_attentions, use_cache,
+                                   cache_position, reprocess_method, passages_len, load_path, example_id, dense, history_key_cache)
+            hidden_states = self.norm(hidden_states)
         # add hidden states from the last decoder layer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
@@ -1121,6 +1109,28 @@ class Qwen2Model(Qwen2PreTrainedModel):
             attentions=all_self_attns,
         )
 
+    def forward_chunk(self, hidden_states, causal_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, reprocess_method, passages_len, load_path, example_id, dense, history_key_cache):
+        for decoder_layer in self.layers:
+
+            layer_outputs = decoder_layer(
+                hidden_states,
+                attention_mask=causal_mask,
+                position_ids=position_ids,
+                past_key_value=past_key_values,
+                output_attentions=output_attentions,
+                use_cache=use_cache,
+                cache_position=cache_position,
+                reprocess_method=reprocess_method,
+                passages_len=passages_len,
+                load_path=load_path,
+                example_id=example_id,
+                dense=dense,
+                history_key_cache=history_key_cache,
+            )
+
+            hidden_states = layer_outputs[0]
+
+        return hidden_states
     # Copied from transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask
     def _update_causal_mask(
         self,
@@ -1308,6 +1318,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         )
 
         hidden_states = outputs[0]
+        hidden_states = hidden_states[:, -1:, :]
         logits = self.lm_head(hidden_states)
         logits = logits.float()
 

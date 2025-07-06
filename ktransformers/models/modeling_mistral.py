@@ -676,12 +676,15 @@ class MistralSdpaAttention(MistralAttention):
             passages_len = kwargs['passages_len']
             system_len = passages_len[0]
             history_key_cache = kwargs['history_key_cache']
+            # query_states = query_states[:,:,-passages_len[-1]:,:]
             if self.layer_idx == self.config.num_hidden_layers - 1:
                 # 先不管 question 中提示
                 import time
                 start_time = time.time()
                 for context_id, context_len in enumerate(passages_len[:-1]):
-                    if context_id == 0:
+                    # if context_id == 0:
+                    #     continue
+                    if context_id <= 1:
                         continue
                     
                     past_len = sum(passages_len[:context_id])
@@ -696,8 +699,8 @@ class MistralSdpaAttention(MistralAttention):
                     assert not torch.isnan(attn_weights).any()
                     assert context_len == attn_weights.shape[1]
                     past_key_value.importance_cache[self.layer_idx].narrow(1,past_len,context_len).copy_(attn_weights)
+        
 
-                print(f'importance_time: {time.time() - start_time}')
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.view(bsz, q_len, -1)
 
