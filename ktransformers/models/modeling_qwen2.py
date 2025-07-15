@@ -62,7 +62,10 @@ _CHECKPOINT_FOR_DOC = "Qwen/Qwen2-7B-beta"
 _CONFIG_FOR_DOC = "Qwen2Config"
 
 
-
+def create_lower_triangular_matrix(batch_size, num_heads, context_size):
+    # 创建一个下三角掩码矩阵，形状为 (context_size, context_size)
+    lower_triangular_mask = torch.triu(torch.full((context_size , context_size ), -65504.0),diagonal=1)
+    return lower_triangular_mask.to('cuda')
 # triton sparse attn
 @triton.jit
 def selected_query_sparse_attention_fwd_kernel(
@@ -720,6 +723,12 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 dropout_p=self.attention_dropout if self.training else 0.0,
                 is_causal=is_causal,
             )
+        # key_states = key_states.transpose(-1, -2)
+        # attn_weights = torch.matmul(query_states[:,:,-50:, :], key_states)
+        # attn_weights += causal_mask[:,:,-50:,:]#  batch_size, num_heads, context_size, context_size
+        # attn_weights /= math.sqrt(self.head_dim)
+        # attn_weights = nn.functional.softmax(attn_weights, dim = -1, dtype = query_states.dtype)
+        # torch.save(attn_weights, f"./tmp_data/full_attention_layer{self.layer_idx}_score_draft.pt")
         if kwargs['reprocess_method'] == 'processCache':
             load_path = kwargs['load_path']
             example_id = kwargs['example_id']
@@ -1072,7 +1081,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
 
-        chunk_size = 256
+        chunk_size = 32768
         q_len = hidden_states.shape[1]
         if q_len > chunk_size:
             last_length = 0

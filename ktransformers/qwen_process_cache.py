@@ -25,7 +25,7 @@ project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache,load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
 from ktransformers.models.custom_cache import StaticCache
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 def parse_generation(s):
     s = s.lstrip('\n').split('\n')[0]
     if s.startswith("Yes") or s.startswith("yes"):
@@ -254,7 +254,6 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
          cache_path='/mnt/data/processCache/', 
-        #  cache_path='/mnt/data2/wjh/tmp/',
          model_name = 'Qwen2.5-7B-Instruct', 
          max_cache_len= 32768,
          rate=0.2,
@@ -299,7 +298,7 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
     inputs = None
     for i,iter in enumerate(tokens_data):
         # if i + 1 != 2:
-        # # if i + 1 not in [29, 31, 32, 38]:
+        # # # if i + 1 not in [29, 31, 32, 38]:
         #     continue
         system_len = iter[0].shape[0]
         if rate == 1:
@@ -449,10 +448,11 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
 #         main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name)
 #         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
 #         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name)
-for data_name in [ 'triviaqa-270-100-10-doc.jsonl']:
-    for rate in[0]:
-        for topk in [5]:
-            main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+if __name__ == '__main__':
+    for data_name in [ 'musique-200.jsonl']:
+        for rate in[0.05, 0.1, 0.15]:
+            for topk in [10]:
+                main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='frontRow', data_name=data_name, topk=topk)
     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)  
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 

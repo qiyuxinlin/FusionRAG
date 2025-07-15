@@ -25,7 +25,7 @@ model:
 
   name: DeepSeek-Coder-V2-Instruct
   path: /mnt/data/model/DeepSeek-Coder-V2-Instruct/
-  gguf_path: /mnt/data/model/DeepSeek-Coder-V2-GGUF-WJH/
+  gguf_path: /mnt/data/model/DeepSeek-Coder-V2-GGUF
 
   device: cuda:0
 

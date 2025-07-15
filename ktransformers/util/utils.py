@@ -263,13 +263,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     print(f'storage_time: {storage_time}')
     if rate != 0:
         if reprocess_method == 'cacheBlend':
-            without_attn_key = past_key_values.key_cache[1].narrow(2,0,past_len).clone()
-            without_attn_value = past_key_values.value_cache[1].narrow(2,0,past_len).clone()
+            without_attn_key = past_key_values.key_cache[-1].narrow(2,0,past_len).clone()
+            without_attn_value = past_key_values.value_cache[-1].narrow(2,0,past_len).clone()
             inputs = torch.cat(passages[:-1]).to('cuda').unsqueeze(0)
             # 这里会在终端上多输出一次
             _, tmp_past_key_value = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1)
-            with_attn_key = tmp_past_key_value.key_cache[1].narrow(2,0,past_len).clone()
-            with_attn_value = tmp_past_key_value.value_cache[1].narrow(2,0,past_len).clone()
+            with_attn_key = tmp_past_key_value.key_cache[-1].narrow(2,0,past_len).clone()
+            with_attn_value = tmp_past_key_value.value_cache[-1].narrow(2,0,past_len).clone()
             v_sub_all = without_attn_value - with_attn_value
             v_sub_all = v_sub_all.squeeze(0)
             v_sub_all = v_sub_all.transpose(0, 1)
@@ -341,7 +341,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
                 k_need_index = k_need_index + system_len
                 print(f'select_time: {time.time() - select_time}')
-            
+        elif reprocess_method == 'frontRow':
+            k_need_index = []
+            for i in range(len(passages_start[:-1])):
+                k_need_index.extend(range(passages_start[i], passages_start[i] + int(passages_len[i+1]*rate)))
+            k_need_index = torch.tensor(k_need_index)
         else:
             raise NotImplementedError
 
@@ -360,7 +364,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     generated_ids[:, :past_len] = torch.cat(passages).unsqueeze(0).to('cuda')
     tokens = []
 
-    if reprocess_method != 'processCache':
+    if reprocess_method != 'processCache' or reprocess_method != 'frontRow':
         dense = 0
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(torch_device)
     cache_position = torch.tensor(k_need_index, device=torch_device)
