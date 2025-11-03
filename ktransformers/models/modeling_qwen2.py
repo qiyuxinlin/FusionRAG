@@ -753,6 +753,25 @@ class Qwen2SdpaAttention(Qwen2Attention):
                     assert not torch.isnan(attn_weights).any()
                     assert context_len == attn_weights.shape[1]
                     past_key_value.importance_cache[self.layer_idx].narrow(1,past_len,context_len).copy_(attn_weights)
+        elif kwargs["reprocess_method"] == "Cache-Craft" and self.layer_idx == self.config.num_hidden_layers - 1:
+                passages_len = kwargs['passages_len']
+                total_len = sum(passages_len)
+                query_len = passages_len[-1]
+                target_query = query_states[:, :, -query_len:, :]
+                if total_len == query_states.shape[2]:
+                    target_key = key_states[:, :, cache_position, :]
+                elif total_len > query_states.shape[2] and query_len == query_states.shape[2]:
+                    target_key = key_states[:, :, :cache_position[-1]+1, :]
+                head_dim = query_states.shape[-1]
+                scaling_factor = head_dim ** 0.5
+                attention_scores = torch.einsum('bhqd,bhkd->bhqk', target_query, target_key) / scaling_factor
+                mask = causal_mask[:, :, :total_len, :total_len]
+                mask = mask[:, :, -query_len:, :]
+                attention_scores += mask
+                attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)
+                attention_scores = attention_scores[:, :, :, :-query_len]
+                attention_scores = attention_scores.squeeze(0).sum(dim=[2])
+                past_key_value.importance_cache.append(attention_scores)
         # if kwargs['reprocess_method'] == 'processCache':
         #     if self.layer_idx == self.config.num_hidden_layers - 1:
         #         passages_len = kwargs['passages_len']

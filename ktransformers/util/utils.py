@@ -85,7 +85,7 @@ def load_weights(module:nn.Module, gguf_loader:GGUFLoader, prefix=''):
         module.load()
 
 def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
-                          save_path='', example_id = 0, chunk_id = 0, system_len = 0, passage_len = 0
+                          save_path='', example_id = 0, chunk_id = 0, system_len = 0, passage_len = 0, reprocess_method=None
                           ):
     
     import os
@@ -112,13 +112,21 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
 
 
         inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
-        logits = model(
-            inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
-        )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+        if reprocess_method == "Cache-Craft" and chunk_id != 0:
+            passages_len = [system_len, passage_len]
+            logits = model(
+                inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True, reprocess_method=reprocess_method, passages_len=passages_len
+            )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+            cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
+            cachecraft_score = torch.sum(cachecraft_score, dim=0)
+            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
+        else:
+            logits = model(
+                inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
+            )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
         past_len = past_key_values.past_tokens[0]
         key_cache = []
         value_cache = []
-        
         if chunk_id == 0:
             key_cache = [past_key_values.key_cache[i][:,:,:past_len,:] for i in range(len(past_key_values.key_cache))]
             key_cache = torch.stack(key_cache)
@@ -160,7 +168,7 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, passages,
-                          save_path='', example_id = 0, chunk_id=0, system_len=0, revert_rope=False):
+                          save_path='', example_id = 0, chunk_id=0, system_len=0, revert_rope=False, reprocess_method=None):
 
     # load KV
     torch_device = 'cuda'
@@ -169,6 +177,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     # prefill context
     inputs = passages[-1].unsqueeze(0).to(torch_device)
     passage_len = passages[-1].shape[0]
+    passages_len = [passages[i].shape[0] for i in range(len(passages))]
     batch_size, seq_length = inputs.shape
     cache_position = torch.arange(past_len,past_len + seq_length, device='cuda')
     # position_ids = torch.arange(system_len,system_len + seq_length, device='cuda').unsqueeze(0)
@@ -181,10 +190,19 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     with torch.no_grad():
         stream = TextStreamer(tokenizer)
         inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
-        logits = model(
-            inputs_embeds = inputs_embeds, cache_position=cache_position,
-            past_key_values=past_key_values, return_dict=False, use_cache=True
-        )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+        if reprocess_method == "Cache-Craft":
+            logits = model(
+                inputs_embeds = inputs_embeds, cache_position=cache_position,
+                past_key_values=past_key_values, return_dict=False, use_cache=True, reprocess_method=reprocess_method, passages_len=passages_len
+            )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
+            cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
+            cachecraft_score = torch.sum(cachecraft_score, dim=0)
+            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
+        else:
+            logits = model(
+                inputs_embeds = inputs_embeds, cache_position=cache_position,
+                past_key_values=past_key_values, return_dict=False, use_cache=True
+            )[0][:,-1,:].unsqueeze(0).clone().to(torch_device)
     key_cache = torch.stack(past_key_values.key_cache)[:,:,:,past_len:past_len + passage_len,:]
     position_ids = torch.full((1, key_cache[0].shape[2]), system_len - past_len, device=torch_device)
     cos, sin = model.model.layers[0].self_attn.rotary_emb(key_cache[0], position_ids)
@@ -289,7 +307,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # k_sum = torch.tensor(k_sum,device=k_sub_all.device)
             # k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
             # k_need_index = k_need_index + system_len
-            # k_need_index = v_need_index
+            k_need_index = v_need_index
         elif reprocess_method == 'processCache':
             select_time = time.time()
             query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
@@ -307,32 +325,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     )
                 
                 k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:cache_position[0]]
-            #     end_time = time.perf_counter() - ss_time
-            #     k_sum = k_sum.tolist()
-            #     first_5_percent_indices = []
-            #     for i in range(len(passages_start)-1):
-            #         block_length = passages_start[i + 1] - passages_start[i]
-            #         first_5_percent_length = int(0.05 * block_length)
-            #         first_5_percent_indices.extend(range(passages_start[i], passages_start[i] + first_5_percent_length))
-            #     first_5_percent_indices = torch.Tensor(first_5_percent_indices)
-            #     k_sum = k_sum[system_len:]
-            #     k_sum = torch.tensor(k_sum,device=torch_device)
-            #     k_lens = int((rate-0.05)*(torch.cat(passages[:-1]).shape[0] - system_len))
-            #     k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
-            #     k_need_index = k_need_index + system_len
-            #     k_need_index = torch.cat((k_need_index, first_5_percent_indices)).to(torch.int32)
-            # cache_position = torch.arange(0, seq_length, device='cuda')
-            # with torch.no_grad():
-            #     ss_time = time.perf_counter()
-            #     inputs_embeds = model.model.embed_tokens(inputs).to(torch_device)
-            #     model(
-            #         inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
-            #         cache_position=cache_position,
-            #         return_dict=False, use_cache=True, reprocess_method=reprocess_method, 
-            #         passages_len=passages_len, load_path=load_path, example_id=example_id,
-            #         history_key_cache = key_cache)
-                
-                # k_sum = torch.sum(tmp_past_key_values.importance_cache[-1], dim=0)
                 end_time = time.perf_counter() - ss_time
                 k_sum = k_sum.tolist()
                 k_sum = k_sum[system_len:]
@@ -346,6 +338,20 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             for i in range(len(passages_start[:-1])):
                 k_need_index.extend(range(passages_start[i], passages_start[i] + int(passages_len[i+1]*rate)))
             k_need_index = torch.tensor(k_need_index)
+        elif reprocess_method == "Cache-Craft":
+            import os
+            save_prefix_path_list = [f"{load_path}/cachecraftattn_{example_id}_{i}.pt" for i in range(1,len(passages)-1)]
+            chunk_score_list = []
+            for file in save_prefix_path_list:
+                if not os.path.exists(file):
+                    raise FileNotFoundError(f"未找到 cache-craft 文件: {file}")
+                tensor = torch.load(file, weights_only=True, map_location="cpu")
+                chunk_score_list.append(tensor)
+            chunk_score = torch.cat(chunk_score_list, dim=0)
+            assert chunk_score.shape[0] == sum(passages_len[1:-1])
+            k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+            k_need_index = torch.topk(chunk_score, k_lens).indices.to('cpu')
+            k_need_index = k_need_index + system_len
         else:
             raise NotImplementedError
 

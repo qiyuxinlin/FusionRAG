@@ -222,7 +222,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         batch_data.append(passage)
 
     if preprocess == True:
-        bgem3 = FlagModel('/mnt/data/model/bgem3',
+        bgem3 = FlagModel('/mnt/data/models/bge-m3-FP16',
                       query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
                       use_fp16=True)
         corpus = []
@@ -257,7 +257,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
 
-def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3', 
+def main(model_path= '/mnt/data/models/Mistral-7B-Instruct-v0.3', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
          cache_path='/mnt/data/processCache/', 
@@ -315,7 +315,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
             # Cache Reuse
             # Generate KV Cache and importance
             for chunk_id, chunk in enumerate(iter[:-1]):
-                if not os.path.exists(f'{save_path}/{i+1}_{chunk_id}_key.pt'):
+                if not os.path.exists(f'{save_path}/{i+1}_{chunk_id}_key.pt')  or (reprocess_method == "Cache-Craft" and not os.path.exists(f'{save_path}/cachecraftattn_{i+1}_{chunk_id}.pt')):
                     passage_len = chunk.shape[0]
                     if chunk_id == 0:
                         input_tensor = chunk.unsqueeze(0)
@@ -324,7 +324,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                     prefill_and_save_kv_cache(
                     model, tokenizer, past_key_values, input_tensor.cuda(), save_path=save_path, 
                     example_id = i+1, chunk_id = chunk_id, system_len = iter[0].shape[0], 
-                    passage_len=passage_len, 
+                    passage_len=passage_len,  reprocess_method=reprocess_method
                 )
                 if preprocess == True and chunk_id == 0:
                     if not os.path.exists(f"{preporcess_save_path}/{i+1}_{chunk_id}_key.pt"):
@@ -356,7 +356,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                         if corpus_i - 1 == i and c_id == chunk_id:
                             continue
                         corpus_passages.append(tokens_data[corpus_i-1][c_id])
-                        if os.path.exists(f"{save_path}/{corpus_i}_{c_id}_key.pt"):
+                        if os.path.exists(f"{save_path}/{corpus_i}_{c_id}_key.pt") and (reprocess_method == "Cache-Craft" and os.path.exists(f'{save_path}/cachecraftattn_{corpus_i}_{c_id}.pt')):
                             chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_key.pt",weights_only=True)
                             chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_value.pt",weights_only=True)
                         else:
@@ -367,7 +367,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                             chunk_key_cache, chunk_value_cache =  prefill_and_save_kv_cache(
                             model, tokenizer, tmp_past_key_values, input_tensor.cuda(), save_path=save_path, 
                             example_id = corpus_i, chunk_id = c_id, system_len = iter[0].shape[0], 
-                            passage_len=corpus_len,
+                            passage_len=corpus_len, reprocess_method=reprocess_method,
                             )
                         # rope 修正
                         if revert_rope and id > 1:
@@ -387,7 +387,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
                     assert  torch.cat(corpus_passages).shape[0] < max_cache_len
                     prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, 
                                                            corpus_passages, preporcess_save_path, 
-                                                           i+1, chunk_id, system_len=system_len, revert_rope=revert_rope)
+                                                           i+1, chunk_id, system_len=system_len, revert_rope=revert_rope, reprocess_method=reprocess_method)
                     print(f'preprocess batch: {i+1}, context_id: {chunk_id}')
             if preprocess:
                 load_path = preporcess_save_path
@@ -408,7 +408,7 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
             answer_list.append(' ')
         else:
             answer_list.append(answer)
-        local_em = max([compute_f1(answer, real_answer, tokenizer) for real_answer in real_answer_list[i]])
+        local_em = max([_exact_match_score(answer, real_answer) for real_answer in real_answer_list[i]])
 
         normalized_em += local_em
         local_rouge = _metric_max_over_ground_truths(
@@ -450,14 +450,17 @@ def main(model_path= '/mnt/data/model/Mistral-7B-Instruct-v0.3',
 # for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
 # for data_name in ['triviaqa-270-100-10-doc.jsonl']:
 # for data_name in ['triviaqa-270-100-10-doc.jsonl']:
-for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
+for data_name in ['musique-200.jsonl']:
 
-    for topk in [8]:
-        for rate in[0.1]:
-        
-            # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
-            # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
-            main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+    for topk in [2]:
+        for rate in[0.05, 0.1, 0.15]:
+            # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+            main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
+            # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+            main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+
+
+            
         # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
         # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name)
     # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name) 

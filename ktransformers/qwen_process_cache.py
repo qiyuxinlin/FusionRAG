@@ -21,6 +21,7 @@ import json
 import string
 import csv
 import sys
+import time
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache,load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
@@ -215,7 +216,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         batch_data.append(passage)
 
     if preprocess == True:
-        bgem3 = FlagModel('/mnt/data/model/bgem3',
+        bgem3 = FlagModel('/mnt/data/models/bge-m3-FP16',
                       query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
                       use_fp16=True)
         corpus = []
@@ -224,6 +225,7 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
             corpus.extend(batch[1:-1])
             corpus_lens.append(len(batch[1:-1]))
         path = f"{cache_path}data/{data_name.split('.')[0]}.bin"
+        start_time = time.time()
         if os.path.exists(path):
             index = faiss.read_index(path)
         else:
@@ -244,17 +246,19 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         score, idx = index.search(corpus_embeddings, k=topk)
         context_rank = idx
         bgem3 = None
+        duration_time = time.time() - start_time
+        print(f"embedding time: {duration_time}")
     context_rank = context_rank if preprocess == True else []
     corpus_lens = corpus_lens if preprocess == True else []
     return batch_data, batch_tokens,question_list, real_answer_list, stop_token_id, \
         reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
 
-def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct', 
+def main(model_path= '/mnt/data/models/Qwen2.5-14B-Instruct', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
          cache_path='/mnt/data/processCache/', 
-         model_name = 'Qwen2.5-7B-Instruct', 
+         model_name = 'Qwen2.5-14B-Instruct', 
          max_cache_len= 32768,
          rate=0.2,
          dense=2,
@@ -297,9 +301,6 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
             )
     inputs = None
     for i,iter in enumerate(tokens_data):
-        # if i + 1 != 2:
-        # # # if i + 1 not in [29, 31, 32, 38]:
-        #     continue
         system_len = iter[0].shape[0]
         if rate == 1:
         # # Full Cache Recompute 
@@ -315,7 +316,8 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
             # Cache Reuse
             # Generate KV Cache and importance
             for chunk_id, chunk in enumerate(iter[:-1]):
-                if not os.path.exists(f'{save_path}/{i+1}_{chunk_id}_key.pt'):
+                if not os.path.exists(f'{save_path}/{i+1}_{chunk_id}_key.pt') or (reprocess_method == "Cache-Craft" and not os.path.exists(f'{save_path}/cachecraftattn_{i+1}_{chunk_id}.pt')):
+                    preprocess_false_start_time = time.time()
                     passage_len = chunk.shape[0]
                     if chunk_id == 0:
                         input_tensor = chunk.unsqueeze(0)
@@ -324,8 +326,11 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
                     prefill_and_save_kv_cache(
                     model, tokenizer, past_key_values, input_tensor.cuda(), save_path=save_path, 
                     example_id = i+1, chunk_id = chunk_id, system_len = iter[0].shape[0], 
-                    passage_len=passage_len, 
-                )
+                    passage_len=passage_len,  reprocess_method=reprocess_method,
+                    )
+                    preprocess_false_duration_time = time.time() - preprocess_false_start_time
+                    preprocess_all_time += preprocess_false_duration_time
+                preprocess_false_start_time = time.time()
                 if preprocess == True and chunk_id == 0:
                     if not os.path.exists(f"{preporcess_save_path}/{i+1}_{chunk_id}_key.pt"):
                         shutil.copy(f"{save_path}/{i+1}_{chunk_id}_key.pt", f"{preporcess_save_path}/{i+1}_{chunk_id}_key.pt")
@@ -348,7 +353,7 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
                     id = 1
                     # 检查下 context 的 topk 有没有准备好，没有的现场生成
                     for corpus_id in context_rank[sum(corpus_lens[:i])+chunk_id-1]:
-                        corpus_i, c_id =  find_group_and_index(corpus_lens, corpus_id)
+                        corpus_i, c_id = find_group_and_index(corpus_lens, corpus_id)
                         corpus_i += 1
                         c_id += 1
                         corpus_len = tokens_data[corpus_i-1][c_id].shape[0]
@@ -356,7 +361,7 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
                         if corpus_i - 1 == i and c_id == chunk_id:
                             continue
                         corpus_passages.append(tokens_data[corpus_i-1][c_id])
-                        if os.path.exists(f"{save_path}/{corpus_i}_{c_id}_key.pt"):
+                        if os.path.exists(f"{save_path}/{corpus_i}_{c_id}_key.pt") and (reprocess_method == "Cache-Craft" and os.path.exists(f'{save_path}/cachecraftattn_{corpus_i}_{c_id}.pt')):
                             chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_key.pt",weights_only=True)
                             chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_value.pt",weights_only=True)
                         else:
@@ -367,7 +372,7 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
                             chunk_key_cache, chunk_value_cache =  prefill_and_save_kv_cache(
                             model, tokenizer, tmp_past_key_values, input_tensor.cuda(), save_path=save_path, 
                             example_id = corpus_i, chunk_id = c_id, system_len = iter[0].shape[0], 
-                            passage_len=corpus_len,
+                            passage_len=corpus_len, reprocess_method=reprocess_method,
                             )
                         # rope 修正
                         if revert_rope and id > 1:
@@ -384,10 +389,13 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
                         past_len += corpus_len
                         id += 1
                     corpus_passages.append(chunk)
+                    preprocess_start_time = time.time()
                     prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, 
                                                            corpus_passages, preporcess_save_path, 
-                                                           i+1, chunk_id, system_len=system_len, revert_rope=revert_rope)
+                                                           i+1, chunk_id, system_len=system_len, revert_rope=revert_rope, reprocess_method=reprocess_method,)
                     print(f'preprocess batch: {i+1}, context_id: {chunk_id}')
+                    preprocess_false_duration_time = time.time() - preprocess_start_time
+                    preprocess_all_time += preprocess_false_duration_time
             if preprocess:
                 load_path = preporcess_save_path
             else:
@@ -406,7 +414,7 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
             answer_list.append(' ')
         else:
             answer_list.append(answer)
-        local_em = max([compute_f1(answer, real_answer, tokenizer) for real_answer in real_answer_list[i]])
+        local_em = max([_exact_match_score(answer, real_answer) for real_answer in real_answer_list[i]])
         normalized_em += local_em
         local_rouge = _metric_max_over_ground_truths(
             rouge_metrics, answer, real_answer_list[i]
@@ -416,10 +424,13 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
             writer = csv.writer(file)
             writer.writerow([question_list[i], real_answer_list[i][0], answer])
         torch.cuda.empty_cache()
-        # break
+        break
     # rouge_score = rouge.get_scores(hyps=answer_list, refs=real_answer_list, avg=True)
+    # duration_time = time.time() - start_time
+    # print(f"main excuation time: {duration_time}")
     print(rouge_score/len(tokens_data))
     print(f'em: {normalized_em/len(tokens_data)}')
+    print(f"preprocess_all_time: {preprocess_all_time}")
     if preprocess:
         file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.txt"
     else:
@@ -449,10 +460,22 @@ def main(model_path= '/mnt/data/model/Qwen2.5-7B-Instruct',
 #         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
 #         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name)
 if __name__ == '__main__':
-    for data_name in [ 'musique-200.jsonl']:
-        for rate in[0.05, 0.1, 0.15]:
-            for topk in [10]:
-                main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='frontRow', data_name=data_name, topk=topk)
+    for data_name in ['musique-200.jsonl']:
+        for topk in [10]:
+            for rate in[1]:
+                # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+                # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+                main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='FusionRAG', data_name=data_name, topk=topk)
+                # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+        # for rate in[0,0.05,0.1,0.15]:
+        #     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=10)
+    # for data_name in ['triviaqa-270-100-10-doc.jsonl', '2wikimqa-200.jsonl', 'musique-200.jsonl', 'hotpotqa-260-100-10-doc.jsonl',]:
+    #     for rate in[0, 0.05, 0.1, 0.15, 1]:
+    #         for topk in [10]:
+    #             main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+    #             main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+    #             main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+    #             main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
     # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)  
 # for rate in [0,0.05,0.1,0.15,0.2,0.3,0.4,0.5,1]:
 #     main(rate = rate, preprocess=True, revert_rope=False, reprocess_method='processCache',data_name=data_name) 
