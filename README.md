@@ -18,4 +18,5 @@ Under the `ktransformers` directory, two scripts are provided for testing differ
 - `reprocess_method`:  
   - `processCache` corresponds to the *Query-guided Reprocessing* method in the paper.  
   - `cacheBlend` refers to the SOTA *CacheBlend* method used for comparison.
+  - `Cache-Craft` refers to the SOTA *CacheBlend* method used for comparison.
 - `data_name`: Specifies which dataset to use.
