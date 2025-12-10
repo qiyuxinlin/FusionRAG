@@ -46,7 +46,7 @@ class StaticCache(transformers.StaticCache):
         self.key_cache: List[torch.Tensor] = []
         self.value_cache: List[torch.Tensor] = []
         self.importance_cache: List[torch.Tensor] = []
-        cache_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, self.head_dim)
+        cache_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, 128)
         if passage_len != None:
             importance_shape = (config.num_attention_heads, passage_len)
         if config.architectures[0] == "DeepseekV2ForCausalLM":

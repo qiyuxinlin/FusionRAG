@@ -450,14 +450,28 @@ def main(model_path= '/mnt/data/models/Mistral-7B-Instruct-v0.3',
 # for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
 # for data_name in ['triviaqa-270-100-10-doc.jsonl']:
 # for data_name in ['triviaqa-270-100-10-doc.jsonl']:
-for data_name in ['musique-200.jsonl']:
-
-    for topk in [2]:
-        for rate in[0.05, 0.1, 0.15]:
-            # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
-            main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
-            # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
-            main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+if __name__ == '__main__':
+    for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', "musique-200.jsonl", "2wikimqa-200.jsonl"]:
+        for topk in [10]:
+            for rate in [0, 1, 0.15, 0.05, 0.1]:
+                # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+                # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+                # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
+                main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+    # for data_name in ["2wikimqa-200.jsonl"]:
+    #     for topk in [4]:
+    #         for rate in [0, 1, 0.15, 0.05, 0.1]:
+    #             # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+    #             # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+    #             main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
+    #             main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+    # for data_name in ["2wikimqa-200.jsonl"]:
+    #     for topk in [6, 8, 9]:
+    #         for rate in [0, 1, 0.15, 0.05, 0.1]:
+    #             # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+    #             # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+    #             # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
+    #             main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
 
 
             

@@ -738,8 +738,8 @@ class Qwen2SdpaAttention(Qwen2Attention):
             if self.layer_idx == self.config.num_hidden_layers - 1:
                 # 先不管 question 中提示
                 for context_id, context_len in enumerate(passages_len[:-1]):
-                    if context_id <= 1:
-                        continue
+                    # if context_id <= 1:
+                    #     continue
                     
                     past_len = sum(passages_len[:context_id])
                     context_key = history_key_cache[context_id].to(query_states.device)[self.layer_idx]
@@ -772,6 +772,22 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 attention_scores = attention_scores[:, :, :, :-query_len]
                 attention_scores = attention_scores.squeeze(0).sum(dim=[2])
                 past_key_value.importance_cache.append(attention_scores)
+        elif kwargs['reprocess_method'] == "speculative_prefill":
+            passages_len = kwargs['passages_len']
+            total_len = sum(passages_len)
+            query_len = passages_len[-1]
+            if query_states.shape[1] != key_states.shape[1]:
+                context_key = repeat_kv(key_states, self.num_key_value_groups)
+            else:
+                context_key = key_states
+            context_key = context_key.transpose(-1, -2)
+            attn_weights = torch.matmul(query_states, context_key)
+            attn_weights /= math.sqrt(self.head_dim)
+            attn_weights = nn.functional.softmax(attn_weights, dim = -1, dtype = torch.float16)
+            # attn_weights = attn_weights[:, :, -query_len:, :-query_len]
+            attn_weights = torch.sum(torch.sum(attn_weights, dim=0),dim=-2)
+            attn_weights = attn_weights[:, :-query_len]
+            past_key_value.importance_cache[self.layer_idx].narrow(1,0,sum(passages_len[:-1])).copy_(attn_weights)
         # if kwargs['reprocess_method'] == 'processCache':
         #     if self.layer_idx == self.config.num_hidden_layers - 1:
         #         passages_len = kwargs['passages_len']

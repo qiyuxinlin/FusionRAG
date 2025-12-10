@@ -1,4 +1,4 @@
-from models.modeling_qwen2 import Qwen2ForCausalLM
+from models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
 from FlagEmbedding import FlagModel
 import faiss
 import shutil
@@ -27,6 +27,13 @@ sys.path.insert(0, project_dir)
 from ktransformers.util.utils import prefill_and_generate, prefill_and_save_kv_cache,load_kv_and_generate, rotate_half, prefill_with_cache_and_save_preprocess
 from ktransformers.models.custom_cache import StaticCache
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
+def remove_unused_tokens(text):
+    """移除所有 [unusedXX] 格式的 token"""
+    # 匹配 [unused 后跟任意数字]
+    cleaned = re.sub(r'\[unused\d+\]', '', text)
+    return cleaned.strip()
+
 def parse_generation(s):
     s = s.lstrip('\n').split('\n')[0]
     if s.startswith("Yes") or s.startswith("yes"):
@@ -254,11 +261,11 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
 
-def main(model_path= '/mnt/data/models/Qwen2.5-7B-Instruct', 
+def main(model_path= '/mnt/data/models/openPangu-Embedded-1B-V1.1', 
          data_name='musique-200.jsonl', 
          data_path='/mnt/data/benchmark/data/',
-         cache_path='/mnt/data3/processCache/', 
-         model_name = 'Qwen2.5-7B-Instruct', 
+         cache_path='/mnt/data/processCache/', 
+         model_name = 'openPangu-Embedded-1B-V1.1', 
          max_cache_len= 32768,
          rate=0.2,
          dense=2,
@@ -278,16 +285,16 @@ def main(model_path= '/mnt/data/models/Qwen2.5-7B-Instruct',
     config._attn_implementation = "sdpa"
     # config.torch_dtype="float16"
     with torch.no_grad():
-        model = Qwen2ForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
+        model = PanguEmbeddedForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
         # model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
+    model = model.to('cuda')
     if reprocess_method == "speculative_prefill":
         with torch.no_grad():
-            draft_config = AutoConfig.from_pretrained("/mnt/data/models/Qwen2.5-1.5B-Instruct", trust_remote_code=True)
-            draft_model = Qwen2ForCausalLM.from_pretrained("/mnt/data/models/Qwen2.5-1.5B-Instruct", config=draft_config, torch_dtype=config.torch_dtype)
+            draft_config = AutoConfig.from_pretrained("/mnt/data/models/openPangu-Embedded-1B-V1.1", trust_remote_code=True)
+            draft_model = PanguEmbeddedForCausalLM.from_pretrained("/mnt/data/models/openPangu-Embedded-1B-V1.1", config=draft_config, torch_dtype=config.torch_dtype)
         draft_model = model.to('cuda')
     else:
         draft_model = None
-    model = model.to('cuda')
     answer_list = []
     rouge_score = 0
     normalized_em = 0
@@ -306,10 +313,7 @@ def main(model_path= '/mnt/data/models/Qwen2.5-7B-Instruct',
     past_key_values = StaticCache(
                 config = model.config, max_batch_size = 1, max_cache_len = max_cache_len, device = 'cuda', dtype = model.dtype, passage_len=27000,
             )
-    inputs = None
     for i,iter in enumerate(tokens_data):
-        # if i != 1:
-        #     continue
         system_len = iter[0].shape[0]
         if rate == 1:
         # # Full Cache Recompute 
@@ -385,7 +389,7 @@ def main(model_path= '/mnt/data/models/Qwen2.5-7B-Instruct',
                         # rope 修正
                         if revert_rope and id > 1:
                             position_ids = torch.full((1, chunk_key_cache[layer_idx].shape[2]), past_len - system_len, device='cuda')
-                            cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_cache[layer_idx], position_ids)
+                            cos, sin = model.model.rotary_emb(chunk_key_cache[layer_idx], position_ids)
                             # mistral 限定
                             cos = cos.unsqueeze(1)
                             sin = sin.unsqueeze(1)
@@ -411,6 +415,9 @@ def main(model_path= '/mnt/data/models/Qwen2.5-7B-Instruct',
                                                     max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
                                                     rate=rate, dense=dense, draft_model=draft_model)
         answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]))
+        answer = remove_unused_tokens(answer)
+        if "Answer:" in answer:
+            answer = answer.split('Answer:')[1]
         print(model_name,data_name.split('.')[0],rate, topk)
         if data_name_prefix != 'samsum':
             print("question: " + question_list[i])
@@ -464,21 +471,20 @@ def main(model_path= '/mnt/data/models/Qwen2.5-7B-Instruct',
 #         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name)
 #         main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name)
 if __name__ == '__main__':
-    # for data_name in ['triviaqa-270-100-10-doc.jsonl', "musique-200.jsonl", "2wikimqa-200.jsonl"]:
-    #     for topk in [10]:
-    #         for rate in [0, 1, 0.15, 0.05, 0.1]:
-    #             # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
-    #             # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
-    #             main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
-    #             main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
-    for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', "musique-200.jsonl", "2wikimqa-200.jsonl"]:
-        for topk in [10]:
-            for rate in [0, 1, 0.15, 0.05, 0.1]:
+    # for data_name in ['triviaqa-270-100-10-doc.jsonl']:
+    for data_name in ['hotpotqa-260-100-10-doc.jsonl', 'triviaqa-270-100-10-doc.jsonl']:
+        for topk in [2,3,4,5,6,7,8,9]:
+            # for rate in [0.7]:
+            for rate in[0, 1, 0.15, 0.05, 0.1, 0.3, 0.4, 0.5]:
                 # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
-                # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+                # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
+                main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
                 # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
-                main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
-                # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+                
+                # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='speculative_prefill', data_name=data_name, topk=topk)
+                
+
+
         # for rate in[0,0.05,0.1,0.15]:
         #     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=10)
     # for data_name in ['triviaqa-270-100-10-doc.jsonl', '2wikimqa-200.jsonl', 'musique-200.jsonl', 'hotpotqa-260-100-10-doc.jsonl',]:
