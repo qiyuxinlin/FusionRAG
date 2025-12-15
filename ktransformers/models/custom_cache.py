@@ -35,9 +35,8 @@ class StaticCache(transformers.StaticCache):
         self.max_cache_len = config.max_position_embeddings if max_cache_len is None else max_cache_len
         # Some model define a custom `head_dim` != config.hidden_size // config.num_attention_heads
         self.head_dim = (
-            config.head_dim if hasattr(config, "head_dim") else config.hidden_size // config.num_attention_heads
+            config.head_dim if (hasattr(config, "head_dim") and config.head_dim is not None) else config.hidden_size // config.num_attention_heads
         )
-
         self.dtype = dtype if dtype is not None else torch.float32
         self.num_key_value_heads = (
             config.num_attention_heads if config.num_key_value_heads is None else config.num_key_value_heads
@@ -46,7 +45,7 @@ class StaticCache(transformers.StaticCache):
         self.key_cache: List[torch.Tensor] = []
         self.value_cache: List[torch.Tensor] = []
         self.importance_cache: List[torch.Tensor] = []
-        cache_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, 128)
+        cache_shape = (max_batch_size, self.num_key_value_heads, self.max_cache_len, self.head_dim)
         if passage_len != None:
             importance_shape = (config.num_attention_heads, passage_len)
         if config.architectures[0] == "DeepseekV2ForCausalLM":

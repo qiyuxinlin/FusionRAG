@@ -11,6 +11,11 @@ from torch import nn
 import itertools
 import time
 import enum
+import re
+import string
+import json
+import collections
+import numpy as np
 from ktransformers.util.custom_gguf import translate_name_to_gguf
 from ktransformers.util.custom_gguf import GGUFLoader
 from ktransformers.operators import base_operator
@@ -26,8 +31,10 @@ from transformers import (
     TypicalLogitsWarper,
     EpsilonLogitsWarper,
     EtaLogitsWarper,
-    GenerationConfig
+    GenerationConfig,
+    AutoTokenizer
 )
+from rouge import Rouge
 
 def set_module(model, submodule_key, module):
     tokens = submodule_key.split('.')
@@ -702,8 +709,264 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
     return tokens, past_key_values
 
-class InferenceState(enum.Enum):
-    UNLOAD = 0
-    PREFILL = 1
-    GENERATE = 2
-    RESTORE = 3
+
+
+# ============================================================
+# Utility functions for process_cache
+# ============================================================
+
+def remove_unused_tokens(text):
+    """移除所有 [unusedXX] 格式的 token (PanGu specific)"""
+    cleaned = re.sub(r'\[unused\d+\]', '', text)
+    return cleaned.strip()
+
+def parse_generation(s):
+    s = s.lstrip('\n').split('\n')[0]
+    if s.startswith("Yes") or s.startswith("yes"):
+        s = "Yes"
+    elif (s.split()[0]).startswith("No") or (s.split()[0]).startswith("no"):
+        s = "No"
+    return s
+
+def compute_f1(a_pred, a_gold, tokenizer):
+    a_pred = parse_generation(a_pred)
+    gold_toks = tokenizer.encode(normalize_answer(a_gold))[1:]
+    pred_toks = tokenizer.encode(normalize_answer(a_pred))[1:]
+    common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
+    num_same = sum(common.values())
+    if len(gold_toks) == 0 or len(pred_toks) == 0:
+        # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
+        return int(gold_toks == pred_toks)
+    if num_same == 0:
+        return 0
+    precision = 1.0 * num_same / len(pred_toks)
+    recall = 1.0 * num_same / len(gold_toks)
+    f1 = (2 * precision * recall) / (precision + recall)
+    return f1
+
+def _exact_match_score(prediction, ground_truth):
+    return normalize_answer(prediction) == normalize_answer(ground_truth)
+
+def _metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
+    scores_for_ground_truths = []
+    for ground_truth in ground_truths:
+        score = metric_fn(prediction, ground_truth)
+        scores_for_ground_truths.append(score)
+    return max(scores_for_ground_truths)
+
+def find_group_and_index(sizes, idx):
+    """
+    找到list中的某个索引属于哪个组及该组中的索引
+    :param sizes: 每个组的大小的列表
+    :param idx: 要查找的索引
+    :return: (组号, 组中的索引)
+    """
+    cumulative_size = 0
+    for group_id, group_size in enumerate(sizes):
+        if cumulative_size + group_size > idx:
+            group_index = idx - cumulative_size
+            return group_id, group_index
+        cumulative_size += group_size
+    return None, None  # 如果索引超出范围，返回None
+
+def split_passages_by_title(text, title_marker):
+    # 使用标题标记作为分割点，找到所有的位置
+    titles = [i for i in range(len(text)) if text.startswith(title_marker, i)]
+    # 根据标题位置分割文本为多个段落
+    passages = [text[titles[i]:titles[i+1]].strip() for i in range(len(titles) - 1)]
+    passages.append(text[titles[-1]:].strip())  # 添加最后一个段落
+    return passages
+
+def normalize_answer(s, model_type='default'):
+    """
+    Normalize answer text
+    :param s: answer string
+    :param model_type: 'llama' uses slightly different normalization
+    """
+    def remove_articles(text):
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
+    def white_space_fix(text):
+        if model_type == 'llama':
+            return ' '.join(text.replace('\n', ' ').split())
+        return ' '.join(text.split())
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return ''.join(ch for ch in text if ch not in exclude)
+    def lower(text):
+        return text.lower()
+    return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+def _rouge1_score(prediction, ground_truth):
+    rouge = Rouge()
+    try:
+        scores = rouge.get_scores(normalize_answer(prediction), normalize_answer(ground_truth), avg=True)
+    except ValueError:  # "Hypothesis is empty."
+        return 0.0
+    return scores["rouge-1"]["f"]
+
+def _rougel_score(prediction, ground_truth):
+    rouge = Rouge()
+    try:
+        scores = rouge.get_scores(prediction, ground_truth, avg=True)
+    except ValueError:  # "Hypothesis is empty."
+        return 0.0
+    return scores["rouge-l"]["f"]
+
+def save_list_to_jsonl(data_list, file_path):
+    """
+    保存一个字典的列表为 jsonl 文件。
+    :param data_list: 要保存的字典列表
+    :param file_path: 保存的文件路径
+    """
+    with open(file_path, 'w', encoding='utf-8') as file:
+        for item in data_list:
+            json_line = json.dumps(item, ensure_ascii=False)
+            file.write(json_line + '\n')
+
+def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTokenizer,
+                 topk: int, revert_rope, preprocess, bge_model_path='/mnt/data/models/bge-m3-FP16'):
+    """
+    Prepare data for process cache experiments
+    """
+    import faiss
+    from FlagEmbedding import FlagModel
+    import random
+    import os
+
+    prompt_config = json.load(open('./config/dataset2prompt_few-shot.json'))
+    data_path = data_path+data_name
+    if data_name in ['2wikimqa.jsonl', 'samsum.jsonl', 'multi_news.jsonl', 'musique.jsonl', 'hotpotqa.jsonl', 'triviaqa.jsonl']:
+        data_name_prefix = data_name.split('.')[0]
+    else:
+        data_name_prefix = data_name.split('-')[0]
+    if data_name_prefix in ['hotpotqa','triviaqa','2wikimqa','musique']:
+        rouge_metrics = _rouge1_score
+        max_tokens_length = 50
+    elif data_name_prefix in ['samsum','multi_news']:
+        rouge_metrics = _rougel_score
+        max_tokens_length = 512
+    system_prompt = prompt_config['system_prompt'][model_name.split('-')[0]][data_name_prefix]
+    system_tokens = torch.tensor(tokenizer.encode(system_prompt, add_special_tokens = False),dtype=torch.int)
+    query_task = prompt_config['query_prompt'][model_name.split('-')[0]][data_name_prefix]
+    local_model_config = json.load(open('./config/model_config.json'))
+    stop_token_id = local_model_config[model_name.split('-')[0]]['stop_token_id']
+    # 存报告
+    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
+        os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
+    # 存数据
+    if not os.path.exists(f"{cache_path}data"):
+        os.makedirs(f"{cache_path}data")
+    # reprocess 数据
+    if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"):
+        os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}")
+    if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
+        os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
+    # preprocesss 数据
+    if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"):
+        os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}")
+
+    csv_path = f"{cache_path}{data_name.split('.')[0]}/{model_name}"
+    reprocess_path = f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"
+    preprocess_path = f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"
+    data_file = open(data_path, 'r', encoding='utf-8')
+    data = []
+    for line in data_file.readlines():
+        data.append(json.loads(line))
+    if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
+        data = data[0]
+        for i in range(len(data)):
+            # 打乱顺序
+            random.seed(1)
+            random.shuffle(data[i]['output'][0]['document'])
+            data[i]['passage'] = data[i]['output'][0]['document']
+    else:
+        if data_name == 'samsum.jsonl':
+            split_mark = 'Dialogue:'
+        else:
+            split_mark = 'Passage'
+        for i in range(len(data)):
+            data[i]['passage'] = re.findall(f'({split_mark} \\d+.*?)(?={split_mark} \\d+|$)', data[i]['context'], re.DOTALL)
+        if data_name == 'musique-140.jsonl':
+            for i in range(len(data)):
+                data[i]['passage'] = re.findall(f'Passage \\d+:\\n(.*?)(?=Passage \\d+:|$)', data[i]['context'], re.DOTALL)
+                data[i]['passage'] = ['\n\n' + text for text in data[i]['passage']]
+                data[i]['passage'][-1] = data[i]['passage'][-1] + '\n'
+
+    N = len(data)
+    batch_data = []
+    batch_tokens = []
+    question_list = []
+    real_answer_list = []
+
+    for query_id,query in enumerate(data[:N]):
+        query_prompt = query_task.format(input=data[query_id]['input'])
+        query_tokens = torch.tensor(tokenizer.encode(query_prompt, add_special_tokens = False),dtype=torch.int)
+        question_list.append(data[query_id]['input'])
+        tmp_list = []
+        if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
+            for i in range(len(data[query_id]['output'])):
+                if 'answer' in data[query_id]['output'][i] and \
+                    data[query_id]['output'][i]['answer'] not in tmp_list:
+                    tmp_list.append(data[query_id]['output'][i]['answer'])
+        else:
+            for i in range(len(data[query_id]['answers'])):
+                if data[query_id]['answers'][i] not in tmp_list:
+                    tmp_list.append(data[query_id]['answers'][i])
+        real_answer_list.append(tmp_list)
+        index = 0
+
+        passage = [system_prompt]
+        passage_tokens = [system_tokens]
+        for bn in range(len(query['passage'])):
+            if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
+                passage.append(f'Passage {index+1}:\n' + query['passage'][index] + '\n')
+                passage_tokens.append(torch.tensor(tokenizer.encode(f'Passage {index+1}:\n' + query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
+            else:
+                passage.append(query['passage'][index] + '\n')
+                passage_tokens.append(torch.tensor(tokenizer.encode(query['passage'][index] + '\n', add_special_tokens = False),dtype=torch.int))
+            index += 1
+            if index >=len(query['passage']):
+                break
+        passage.append(query_prompt)
+        passage_tokens.append(query_tokens)
+        batch_tokens.append(passage_tokens)
+        batch_data.append(passage)
+
+    if preprocess == True:
+        bgem3 = FlagModel(bge_model_path,
+                      query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
+                      use_fp16=True)
+        corpus = []
+        corpus_lens = []
+        for batch in batch_data:
+            corpus.extend(batch[1:-1])
+            corpus_lens.append(len(batch[1:-1]))
+        path = f"{cache_path}data/{data_name.split('.')[0]}.bin"
+        start_time = time.time()
+        if os.path.exists(path):
+            index = faiss.read_index(path)
+        else:
+            corpus_embeddings = bgem3.encode(corpus)
+            print("shape of the corpus embeddings:", corpus_embeddings.shape)
+            print("data type of the embeddings: ", corpus_embeddings.dtype)
+            dim = corpus_embeddings.shape[-1]
+            index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
+            corpus_embeddings = corpus_embeddings.astype(np.float32)
+            index.train(corpus_embeddings)
+            index.add(corpus_embeddings)
+            print(f"total number of vectors: {index.ntotal}")
+
+            faiss.write_index(index, path)
+        corpus = np.asarray(corpus)
+        corpus_embeddings = bgem3.encode_queries(corpus)
+        corpus_embeddings = corpus_embeddings[:].astype(np.float32)
+        score, idx = index.search(corpus_embeddings, k=topk)
+        context_rank = idx
+        bgem3 = None
+        duration_time = time.time() - start_time
+        print(f"embedding time: {duration_time}")
+    context_rank = context_rank if preprocess == True else []
+    corpus_lens = corpus_lens if preprocess == True else []
+    return batch_data, batch_tokens,question_list, real_answer_list, stop_token_id, \
+        reprocess_path, preprocess_path, csv_path,\
+            data_name_prefix, rouge_metrics, context_rank, corpus_lens
