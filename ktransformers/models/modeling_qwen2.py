@@ -723,13 +723,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 dropout_p=self.attention_dropout if self.training else 0.0,
                 is_causal=is_causal,
             )
-        # key_states = key_states.transpose(-1, -2)
-        # attn_weights = torch.matmul(query_states[:,:,-50:, :], key_states)
-        # attn_weights += causal_mask[:,:,-50:,:]#  batch_size, num_heads, context_size, context_size
-        # attn_weights /= math.sqrt(self.head_dim)
-        # attn_weights = nn.functional.softmax(attn_weights, dim = -1, dtype = query_states.dtype)
-        # torch.save(attn_weights, f"./tmp_data/full_attention_layer{self.layer_idx}_score_draft.pt")
-        if kwargs['reprocess_method'] == 'processCache':
+        if kwargs['reprocess_method'] == 'FusionRAG':
             load_path = kwargs['load_path']
             example_id = kwargs['example_id']
             passages_len = kwargs['passages_len']
@@ -738,8 +732,8 @@ class Qwen2SdpaAttention(Qwen2Attention):
             if self.layer_idx == self.config.num_hidden_layers - 1:
                 # 先不管 question 中提示
                 for context_id, context_len in enumerate(passages_len[:-1]):
-                    # if context_id <= 1:
-                    #     continue
+                    if context_id <= 1:
+                        continue
                     
                     past_len = sum(passages_len[:context_id])
                     context_key = history_key_cache[context_id].to(query_states.device)[self.layer_idx]

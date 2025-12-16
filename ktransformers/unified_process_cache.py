@@ -6,6 +6,7 @@ import torch
 import os
 import csv
 import sys
+import time
 from transformers import (
     AutoTokenizer,
     AutoConfig,
@@ -103,7 +104,7 @@ def compute_score(answer, real_answer_list, tokenizer, model_type):
 def main(model_type='mistral',
          model_path='/mnt/data/models/Mistral-7B-Instruct-v0.3',
          data_name='musique-200.jsonl',
-         data_path='/mnt/data/benchmark/data/',
+         data_path='./data/',
          cache_path='/mnt/data/processCache/',
          model_name='Mistral-7B-Instruct-v0.3',
          max_cache_len=32768,
@@ -114,7 +115,9 @@ def main(model_type='mistral',
          preprocess=True,
          reprocess_method='cacheBlend',
          bge_model_path='/mnt/data/models/bge-m3-FP16',
-         draft_model_path=None):
+         draft_model_path=None,
+         device="cuda:0",
+         compare_with_full_recompute=False):
     """
     Main function for process cache experiments
 
@@ -134,6 +137,8 @@ def main(model_type='mistral',
         reprocess_method: reprocessing method ('cacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill')
         bge_model_path: path to BGE model for embedding
         draft_model_path: path to draft model for speculative_prefill (optional, any model can use any draft model)
+        device: device to use for model
+        compare_with_full_recompute: if True, run both current method and full recompute for comparison
     """
 
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
@@ -152,7 +157,7 @@ def main(model_type='mistral',
 
     # Load model
     model = load_model(model_type, model_path, config)
-    model = model.to('cuda')
+    model = model.to(device)
 
     # Load draft model for speculative_prefill (all models can use any draft model)
     draft_model = None
@@ -164,33 +169,127 @@ def main(model_type='mistral',
             draft_model = AutoModelForCausalLM.from_pretrained(
                 draft_model_path, config=draft_config, torch_dtype=config.torch_dtype, trust_remote_code=True
             )
-        draft_model = draft_model.to('cuda')
+        draft_model = draft_model.to(device)
 
+    # If compare mode is enabled, run full recompute first
+    if compare_with_full_recompute:
+        print("\n" + "="*80)
+        print("COMPARISON MODE: Running FULL RECOMPUTE (rate=1) as baseline")
+        print("="*80 + "\n")
+
+        # Run full recompute
+        full_recompute_results = run_experiment(
+            model, tokenizer, config, tokens_data, question_list, real_answer_list,
+            data_name_prefix, rouge_metrics, model_type, model_name, data_name,
+            save_path, preporcess_save_path, csv_path, device,
+            rate=1, preprocess=False, reprocess_method=reprocess_method,
+            revert_rope=revert_rope, topk=topk, dense=dense,
+            context_rank=[], corpus_lens=[], max_cache_len=max_cache_len,
+            passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
+            draft_model=None, suffix="_full_recompute"
+        )
+
+        print("\n" + "="*80)
+        print(f"COMPARISON MODE: Running CACHE REUSE (rate={rate})")
+        print("="*80 + "\n")
+
+    # Run current method (cache reuse or just normal run)
+    current_results = run_experiment(
+        model, tokenizer, config, tokens_data, question_list, real_answer_list,
+        data_name_prefix, rouge_metrics, model_type, model_name, data_name,
+        save_path, preporcess_save_path, csv_path, device,
+        rate=rate, preprocess=preprocess, reprocess_method=reprocess_method,
+        revert_rope=revert_rope, topk=topk, dense=dense,
+        context_rank=context_rank, corpus_lens=corpus_lens, max_cache_len=max_cache_len,
+        passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
+        draft_model=draft_model, suffix=""
+    )
+
+    # If compare mode, print comparison results
+    if compare_with_full_recompute:
+        print("\n" + "="*80)
+        print("COMPARISON RESULTS")
+        print("="*80)
+        print(f"\nFull Recompute (Baseline):")
+        print(f"  - Total Prefill Time: {full_recompute_results['total_prefill_time']:.2f}s")
+        print(f"  - Average Prefill Time: {full_recompute_results['avg_prefill_time']:.2f}s")
+        print(f"  - EM Score: {full_recompute_results['em']:.4f}")
+        print(f"  - ROUGE Score: {full_recompute_results['rouge']:.4f}")
+
+        print(f"\nCache Reuse (rate={rate}):")
+        print(f"  - Total Prefill Time: {current_results['total_prefill_time']:.2f}s")
+        print(f"  - Average Prefill Time: {current_results['avg_prefill_time']:.2f}s")
+        print(f"  - EM Score: {current_results['em']:.4f}")
+        print(f"  - ROUGE Score: {current_results['rouge']:.4f}")
+
+        speedup = full_recompute_results['total_prefill_time'] / current_results['total_prefill_time']
+        em_diff = current_results['em'] - full_recompute_results['em']
+        rouge_diff = current_results['rouge'] - full_recompute_results['rouge']
+
+        print(f"\nSpeedup Ratio: {speedup:.2f}x")
+        print(f"EM Score Difference: {em_diff:+.4f} ({em_diff/full_recompute_results['em']*100:+.2f}%)")
+        print(f"ROUGE Score Difference: {rouge_diff:+.4f} ({rouge_diff/full_recompute_results['rouge']*100:+.2f}%)")
+        print("="*80 + "\n")
+
+        # Save comparison results
+        comparison_file = f"{csv_path}/comparison_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.txt"
+        with open(comparison_file, 'w') as f:
+            print("="*80, file=f)
+            print("COMPARISON RESULTS", file=f)
+            print("="*80, file=f)
+            print(f"\nFull Recompute (Baseline):", file=f)
+            print(f"  - Total Prefill Time: {full_recompute_results['total_prefill_time']:.2f}s", file=f)
+            print(f"  - Average Prefill Time: {full_recompute_results['avg_prefill_time']:.2f}s", file=f)
+            print(f"  - EM Score: {full_recompute_results['em']:.4f}", file=f)
+            print(f"  - ROUGE Score: {full_recompute_results['rouge']:.4f}", file=f)
+
+            print(f"\nCache Reuse (rate={rate}):", file=f)
+            print(f"  - Total Prefill Time: {current_results['total_prefill_time']:.2f}s", file=f)
+            print(f"  - Average Prefill Time: {current_results['avg_prefill_time']:.2f}s", file=f)
+            print(f"  - EM Score: {current_results['em']:.4f}", file=f)
+            print(f"  - ROUGE Score: {current_results['rouge']:.4f}", file=f)
+
+            print(f"\nSpeedup Ratio: {speedup:.2f}x", file=f)
+            print(f"EM Score Difference: {em_diff:+.4f} ({em_diff/full_recompute_results['em']*100:+.2f}%)", file=f)
+            print(f"ROUGE Score Difference: {rouge_diff:+.4f} ({rouge_diff/full_recompute_results['rouge']*100:+.2f}%)", file=f)
+            print("="*80, file=f)
+
+
+def run_experiment(model, tokenizer, config, tokens_data, question_list, real_answer_list,
+                   data_name_prefix, rouge_metrics, model_type, model_name, data_name,
+                   save_path, preporcess_save_path, csv_path, device,
+                   rate, preprocess, reprocess_method, revert_rope, topk, dense,
+                   context_rank, corpus_lens, max_cache_len, passage_len_config,
+                   draft_model, suffix=""):
+    """
+    Run a single experiment with given parameters
+
+    Returns a dict with results: {
+        'total_prefill_time': float,
+        'avg_prefill_time': float,
+        'em': float,
+        'rouge': float,
+        'answers': list
+    }
+    """
     answer_list = []
     rouge_score = 0
     normalized_em = 0
+    total_prefill_time = 0
 
     # Generate preprocess kv cache
     if preprocess:
-        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.csv"
+        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}{suffix}.csv"
     else:
-        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}.csv"
+        csv_file = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}{suffix}.csv"
 
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Question', 'Real Answer', 'Pred Answer'])
 
-    # Adjust passage_len for different models
-    passage_len_config = {
-        'mistral': 32768,
-        'pangu': 32768,
-        'qwen': 32768,
-        'llama': 32768
-    }
-
     past_key_values = StaticCache(
         config=model.config, max_batch_size=1, max_cache_len=max_cache_len,
-        device='cuda', dtype=model.dtype,
+        device=device, dtype=model.dtype,
         passage_len=passage_len_config.get(model_type, 32768),
     )
 
@@ -199,8 +298,11 @@ def main(model_type='mistral',
 
         if rate == 1:
             # Full Cache Recompute
-            inputs = torch.cat(iter).to('cuda').unsqueeze(0)
-            generated_tokens, _ = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50)
+            inputs = torch.cat(iter).to(device).unsqueeze(0)
+            generated_tokens, _, example_prefill_time = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50, device=device)
+
+            # Record prefill time (returned from function)
+            total_prefill_time += example_prefill_time
         else:
             # Cache Reuse
             # Generate KV Cache and importance
@@ -213,9 +315,9 @@ def main(model_type='mistral',
                     else:
                         input_tensor = torch.cat((iter[0], chunk)).unsqueeze(0)
                     prefill_and_save_kv_cache(
-                        model, tokenizer, past_key_values, input_tensor.cuda(), save_path=save_path,
+                        model, tokenizer, past_key_values, input_tensor.to(device), save_path=save_path,
                         example_id=i+1, chunk_id=chunk_id, system_len=iter[0].shape[0],
-                        passage_len=passage_len, reprocess_method=reprocess_method
+                        passage_len=passage_len, reprocess_method=reprocess_method, device=device
                     )
 
                 if preprocess == True and chunk_id == 0:
@@ -264,18 +366,18 @@ def main(model_type='mistral',
                         else:
                             tmp_past_key_values = StaticCache(
                                 config=model.config, max_batch_size=1,
-                                max_cache_len=corpus_len+iter[0].shape[0]+5, device='cuda', dtype=model.dtype
+                                max_cache_len=corpus_len+iter[0].shape[0]+5, device=device, dtype=model.dtype
                             )
                             input_tensor = torch.cat((iter[0], tokens_data[corpus_i-1][c_id])).unsqueeze(0)
                             chunk_key_cache, chunk_value_cache = prefill_and_save_kv_cache(
-                                model, tokenizer, tmp_past_key_values, input_tensor.cuda(), save_path=save_path,
+                                model, tokenizer, tmp_past_key_values, input_tensor.to(device), save_path=save_path,
                                 example_id=corpus_i, chunk_id=c_id, system_len=iter[0].shape[0],
                                 passage_len=corpus_len, reprocess_method=reprocess_method,
                             )
 
                         # rope 修正
                         if revert_rope and id > 1:
-                            position_ids = torch.full((1, chunk_key_cache[0].shape[2]), past_len - system_len, device='cuda')
+                            position_ids = torch.full((1, chunk_key_cache[0].shape[2]), past_len - system_len, device=device)
                             # Different models have different rotary_emb access patterns
                             if model_type in ['mistral', 'qwen']:
                                 cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_cache[0], position_ids)
@@ -297,7 +399,7 @@ def main(model_type='mistral',
                         model, tokenizer, past_key_values,
                         corpus_passages, preporcess_save_path,
                         i+1, chunk_id, system_len=system_len, revert_rope=revert_rope,
-                        reprocess_method=reprocess_method
+                        reprocess_method=reprocess_method, device=device
                     )
                     print(f'preprocess batch: {i+1}, context_id: {chunk_id}')
 
@@ -306,11 +408,14 @@ def main(model_type='mistral',
             else:
                 load_path = save_path
 
-            generated_tokens = load_kv_and_generate(
+            generated_tokens, example_prefill_time = load_kv_and_generate(
                 model, tokenizer, past_key_values, iter, load_path, i+1,
                 max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
-                rate=rate, dense=dense, draft_model=draft_model, preprocess=preprocess
+                rate=rate, dense=dense, draft_model=draft_model, preprocess=preprocess, device=device
             )
+
+            # Record prefill time (returned from function)
+            total_prefill_time += example_prefill_time
 
         answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]))
 
@@ -344,19 +449,36 @@ def main(model_type='mistral',
 
         torch.cuda.empty_cache()
 
+    # Calculate final metrics
+    avg_prefill_time = total_prefill_time / len(tokens_data)
+    final_em = normalized_em / len(tokens_data)
+    final_rouge = rouge_score / len(tokens_data)
+
     # Print results
-    print(rouge_score/len(tokens_data))
-    print(f'em: {normalized_em/len(tokens_data)}')
+    print(f'\nTotal Prefill Time: {total_prefill_time:.2f}s')
+    print(f'Average Prefill Time: {avg_prefill_time:.2f}s')
+    print(f'ROUGE Score: {final_rouge:.4f}')
+    print(f'EM Score: {final_em:.4f}')
 
     if preprocess:
-        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.txt"
+        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}{suffix}.txt"
     else:
-        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}.txt"
+        file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}{suffix}.txt"
 
     with open(file_path, 'w') as f:
-        print(f'num_in_batch: {10}', file=f)
-        print(rouge_score/len(tokens_data), file=f)
-        print(f'em: {normalized_em/len(tokens_data)}', file=f)
+        print(f'num_in_batch: {len(tokens_data)}', file=f)
+        print(f'Total Prefill Time: {total_prefill_time:.2f}s', file=f)
+        print(f'Average Prefill Time: {avg_prefill_time:.2f}s', file=f)
+        print(f'ROUGE Score: {final_rouge:.4f}', file=f)
+        print(f'EM Score: {final_em:.4f}', file=f)
+
+    return {
+        'total_prefill_time': total_prefill_time,
+        'avg_prefill_time': avg_prefill_time,
+        'em': final_em,
+        'rouge': final_rouge,
+        'answers': answer_list
+    }
 
 
 if __name__ == '__main__':
@@ -388,13 +510,15 @@ if __name__ == '__main__':
     #      data_name='musique-200.jsonl')
 
     # Example: Run experiments
-    for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl']:
+    # Set compare_with_full_recompute=True to enable comparison mode
+    for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
         for topk in [10]:
-            for rate in [1]:
-                for method in ['cacheBlend']:
-                    main(model_type='pangu',
-                         model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1/',
-                         model_name='openPangu-Embedded-1B-V1.1',
-                         rate=rate, preprocess=False, revert_rope=True,
+            for rate in [0.15]:
+                for method in ['FusionRAG']:
+                    main(model_type='mistral',
+                         model_path='/mnt/data/models/Mistral-7B-Instruct-v0.3',
+                         model_name='Mistral-7B-Instruct-v0.3',
+                         rate=rate, preprocess=True, revert_rope=True,
                          cache_path='/mnt/data3/processCache/',
-                         reprocess_method=method, data_name=data_name, topk=topk)
+                         reprocess_method=method, data_name=data_name, topk=topk,
+                         compare_with_full_recompute=False)  # Enable comparison mode

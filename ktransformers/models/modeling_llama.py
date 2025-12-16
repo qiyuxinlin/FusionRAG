@@ -794,7 +794,7 @@ class LlamaSdpaAttention(LlamaAttention):
                 dropout_p=self.attention_dropout if self.training else 0.0,
                 is_causal=is_causal,
             )
-        if kwargs['reprocess_method'] == 'processCache':
+        if kwargs['reprocess_method'] == 'FusionRAG':
             load_path = kwargs['load_path']
             example_id = kwargs['example_id']
             passages_len = kwargs['passages_len']

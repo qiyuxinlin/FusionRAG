@@ -468,7 +468,7 @@ class PanguEmbeddedAttention(nn.Module):
 
 
         if 'reprocess_method' in kwargs.keys():
-            if kwargs['reprocess_method'] == 'processCache':
+            if kwargs['reprocess_method'] == 'FusionRAG':
                 passages_len = kwargs['passages_len']
                 history_key_cache = kwargs['history_key_cache']
                 if self.layer_idx == self.config.num_hidden_layers - 1:
