@@ -205,53 +205,59 @@ def main(model_type='mistral',
         draft_model=draft_model, suffix=""
     )
 
-    # If compare mode, print comparison results
+    # If compare mode, print comparison results (quality metrics only)
     if compare_with_full_recompute:
         print("\n" + "="*80)
-        print("COMPARISON RESULTS")
+        print("QUALITY COMPARISON RESULTS")
         print("="*80)
+        print(f"\nNote: For prefill time comparison, use benchmark_kvcache_reuse.py")
         print(f"\nFull Recompute (Baseline):")
-        print(f"  - Total Prefill Time: {full_recompute_results['total_prefill_time']:.2f}s")
-        print(f"  - Average Prefill Time: {full_recompute_results['avg_prefill_time']:.2f}s")
         print(f"  - EM Score: {full_recompute_results['em']:.4f}")
         print(f"  - ROUGE Score: {full_recompute_results['rouge']:.4f}")
 
         print(f"\nCache Reuse (rate={rate}):")
-        print(f"  - Total Prefill Time: {current_results['total_prefill_time']:.2f}s")
-        print(f"  - Average Prefill Time: {current_results['avg_prefill_time']:.2f}s")
         print(f"  - EM Score: {current_results['em']:.4f}")
         print(f"  - ROUGE Score: {current_results['rouge']:.4f}")
 
-        speedup = full_recompute_results['total_prefill_time'] / current_results['total_prefill_time']
         em_diff = current_results['em'] - full_recompute_results['em']
         rouge_diff = current_results['rouge'] - full_recompute_results['rouge']
 
-        print(f"\nSpeedup Ratio: {speedup:.2f}x")
-        print(f"EM Score Difference: {em_diff:+.4f} ({em_diff/full_recompute_results['em']*100:+.2f}%)")
-        print(f"ROUGE Score Difference: {rouge_diff:+.4f} ({rouge_diff/full_recompute_results['rouge']*100:+.2f}%)")
+        # Calculate percentage difference (handling zero baseline)
+        em_percent = (em_diff / full_recompute_results['em'] * 100) if full_recompute_results['em'] > 0 else 0
+        rouge_percent = (rouge_diff / full_recompute_results['rouge'] * 100) if full_recompute_results['rouge'] > 0 else 0
+
+        print(f"\nQuality Difference:")
+        print(f"  EM Score Difference: {em_diff:+.4f} ({em_percent:+.2f}%)")
+        print(f"  ROUGE Score Difference: {rouge_diff:+.4f} ({rouge_percent:+.2f}%)")
+
+        # Quality assessment
+        if abs(em_diff) < 0.01 and abs(rouge_diff) < 0.01:
+            print(f"\n✓ Quality preserved: cache reuse maintains generation quality")
+        elif em_diff >= -0.02 and rouge_diff >= -0.02:
+            print(f"\n⚠ Minor quality impact: slight degradation within acceptable range")
+        else:
+            print(f"\n⚠ Warning: noticeable quality degradation detected")
+
         print("="*80 + "\n")
 
         # Save comparison results
         comparison_file = f"{csv_path}/comparison_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}.txt"
         with open(comparison_file, 'w') as f:
             print("="*80, file=f)
-            print("COMPARISON RESULTS", file=f)
+            print("QUALITY COMPARISON RESULTS", file=f)
             print("="*80, file=f)
+            print(f"\nNote: For prefill time comparison, use benchmark_kvcache_reuse.py", file=f)
             print(f"\nFull Recompute (Baseline):", file=f)
-            print(f"  - Total Prefill Time: {full_recompute_results['total_prefill_time']:.2f}s", file=f)
-            print(f"  - Average Prefill Time: {full_recompute_results['avg_prefill_time']:.2f}s", file=f)
             print(f"  - EM Score: {full_recompute_results['em']:.4f}", file=f)
             print(f"  - ROUGE Score: {full_recompute_results['rouge']:.4f}", file=f)
 
             print(f"\nCache Reuse (rate={rate}):", file=f)
-            print(f"  - Total Prefill Time: {current_results['total_prefill_time']:.2f}s", file=f)
-            print(f"  - Average Prefill Time: {current_results['avg_prefill_time']:.2f}s", file=f)
             print(f"  - EM Score: {current_results['em']:.4f}", file=f)
             print(f"  - ROUGE Score: {current_results['rouge']:.4f}", file=f)
 
-            print(f"\nSpeedup Ratio: {speedup:.2f}x", file=f)
-            print(f"EM Score Difference: {em_diff:+.4f} ({em_diff/full_recompute_results['em']*100:+.2f}%)", file=f)
-            print(f"ROUGE Score Difference: {rouge_diff:+.4f} ({rouge_diff/full_recompute_results['rouge']*100:+.2f}%)", file=f)
+            print(f"\nQuality Difference:", file=f)
+            print(f"  EM Score Difference: {em_diff:+.4f} ({em_percent:+.2f}%)", file=f)
+            print(f"  ROUGE Score Difference: {rouge_diff:+.4f} ({rouge_percent:+.2f}%)", file=f)
             print("="*80, file=f)
 
 
@@ -372,7 +378,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                             chunk_key_cache, chunk_value_cache = prefill_and_save_kv_cache(
                                 model, tokenizer, tmp_past_key_values, input_tensor.to(device), save_path=save_path,
                                 example_id=corpus_i, chunk_id=c_id, system_len=iter[0].shape[0],
-                                passage_len=corpus_len, reprocess_method=reprocess_method,
+                                passage_len=corpus_len, reprocess_method=reprocess_method, device=device
                             )
 
                         # rope 修正
@@ -454,11 +460,13 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
     final_em = normalized_em / len(tokens_data)
     final_rouge = rouge_score / len(tokens_data)
 
-    # Print results
-    print(f'\nTotal Prefill Time: {total_prefill_time:.2f}s')
-    print(f'Average Prefill Time: {avg_prefill_time:.2f}s')
-    print(f'ROUGE Score: {final_rouge:.4f}')
+    # Print results - prioritize quality metrics
+    print(f'\n--- Quality Metrics ---')
     print(f'EM Score: {final_em:.4f}')
+    print(f'ROUGE Score: {final_rouge:.4f}')
+    print(f'\n--- Timing (use benchmark_kvcache_reuse.py for detailed analysis) ---')
+    print(f'Total Prefill Time: {total_prefill_time:.2f}s')
+    print(f'Average Prefill Time: {avg_prefill_time:.2f}s')
 
     if preprocess:
         file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}{suffix}.txt"
@@ -467,10 +475,10 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
 
     with open(file_path, 'w') as f:
         print(f'num_in_batch: {len(tokens_data)}', file=f)
+        print(f'EM Score: {final_em:.4f}', file=f)
+        print(f'ROUGE Score: {final_rouge:.4f}', file=f)
         print(f'Total Prefill Time: {total_prefill_time:.2f}s', file=f)
         print(f'Average Prefill Time: {avg_prefill_time:.2f}s', file=f)
-        print(f'ROUGE Score: {final_rouge:.4f}', file=f)
-        print(f'EM Score: {final_em:.4f}', file=f)
 
     return {
         'total_prefill_time': total_prefill_time,
@@ -511,14 +519,14 @@ if __name__ == '__main__':
 
     # Example: Run experiments
     # Set compare_with_full_recompute=True to enable comparison mode
-    for data_name in ['hotpotqa-260-100-10-doc.jsonl']:
+    for data_name in ['2wikimqa-200.jsonl']:
         for topk in [10]:
-            for rate in [0.15]:
+            for rate in [1]:
                 for method in ['FusionRAG']:
-                    main(model_type='mistral',
-                         model_path='/mnt/data/models/Mistral-7B-Instruct-v0.3',
-                         model_name='Mistral-7B-Instruct-v0.3',
+                    main(model_type='pangu',
+                         model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
+                         model_name='openPangu-Embedded-1B-V1.1',
                          rate=rate, preprocess=True, revert_rope=True,
-                         cache_path='/mnt/data3/processCache/',
+                         cache_path='/mnt/data/processCache/',
                          reprocess_method=method, data_name=data_name, topk=topk,
                          compare_with_full_recompute=False)  # Enable comparison mode
