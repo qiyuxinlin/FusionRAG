@@ -109,7 +109,7 @@ def main(model_type='mistral',
          model_name='Mistral-7B-Instruct-v0.3',
          max_cache_len=32768,
          rate=0.2,
-         dense=2,
+         use_sparse_attention=True,
          revert_rope=False,
          topk=10,
          preprocess=True,
@@ -130,7 +130,7 @@ def main(model_type='mistral',
         model_name: name of the model (for logging)
         max_cache_len: maximum cache length
         rate: compression rate
-        dense: dense parameter
+        use_sparse_attention: boolean flag to enable sparse Triton kernel operators (True=enabled, False=disabled)
         revert_rope: whether to revert rope
         topk: top-k for preprocessing
         preprocess: whether to use preprocessing
@@ -183,7 +183,7 @@ def main(model_type='mistral',
             data_name_prefix, rouge_metrics, model_type, model_name, data_name,
             save_path, preporcess_save_path, csv_path, device,
             rate=1, preprocess=False, reprocess_method=reprocess_method,
-            revert_rope=revert_rope, topk=topk, dense=dense,
+            revert_rope=revert_rope, topk=topk, use_sparse_attention=use_sparse_attention,
             context_rank=[], corpus_lens=[], max_cache_len=max_cache_len,
             passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
             draft_model=None, suffix="_full_recompute"
@@ -199,7 +199,7 @@ def main(model_type='mistral',
         data_name_prefix, rouge_metrics, model_type, model_name, data_name,
         save_path, preporcess_save_path, csv_path, device,
         rate=rate, preprocess=preprocess, reprocess_method=reprocess_method,
-        revert_rope=revert_rope, topk=topk, dense=dense,
+        revert_rope=revert_rope, topk=topk, use_sparse_attention=use_sparse_attention,
         context_rank=context_rank, corpus_lens=corpus_lens, max_cache_len=max_cache_len,
         passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
         draft_model=draft_model, suffix=""
@@ -264,7 +264,7 @@ def main(model_type='mistral',
 def run_experiment(model, tokenizer, config, tokens_data, question_list, real_answer_list,
                    data_name_prefix, rouge_metrics, model_type, model_name, data_name,
                    save_path, preporcess_save_path, csv_path, device,
-                   rate, preprocess, reprocess_method, revert_rope, topk, dense,
+                   rate, preprocess, reprocess_method, revert_rope, topk, use_sparse_attention,
                    context_rank, corpus_lens, max_cache_len, passage_len_config,
                    draft_model, suffix=""):
     """
@@ -417,7 +417,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
             generated_tokens, example_prefill_time = load_kv_and_generate(
                 model, tokenizer, past_key_values, iter, load_path, i+1,
                 max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
-                rate=rate, dense=dense, draft_model=draft_model, preprocess=preprocess, device=device
+                rate=rate,  draft_model=draft_model, preprocess=preprocess, device=device
             )
 
             # Record prefill time (returned from function)
@@ -464,9 +464,6 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
     print(f'\n--- Quality Metrics ---')
     print(f'EM Score: {final_em:.4f}')
     print(f'ROUGE Score: {final_rouge:.4f}')
-    print(f'\n--- Timing (use benchmark_kvcache_reuse.py for detailed analysis) ---')
-    print(f'Total Prefill Time: {total_prefill_time:.2f}s')
-    print(f'Average Prefill Time: {avg_prefill_time:.2f}s')
 
     if preprocess:
         file_path = f"{csv_path}/reprocess_method_{reprocess_method}_rate_{rate}_revert_rope_{revert_rope}_topk_{topk}{suffix}.txt"
@@ -477,12 +474,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
         print(f'num_in_batch: {len(tokens_data)}', file=f)
         print(f'EM Score: {final_em:.4f}', file=f)
         print(f'ROUGE Score: {final_rouge:.4f}', file=f)
-        print(f'Total Prefill Time: {total_prefill_time:.2f}s', file=f)
-        print(f'Average Prefill Time: {avg_prefill_time:.2f}s', file=f)
 
     return {
-        'total_prefill_time': total_prefill_time,
-        'avg_prefill_time': avg_prefill_time,
         'em': final_em,
         'rouge': final_rouge,
         'answers': answer_list
@@ -519,14 +512,25 @@ if __name__ == '__main__':
 
     # Example: Run experiments
     # Set compare_with_full_recompute=True to enable comparison mode
+    # for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', 'musique-200.jsonl', '2wikimqa-200.jsonl']:
+    #     for topk in [10]:
+    #         for rate in [0, 1, 0.15, 0.05, 0.1]:
+    #             for method in ['FusionRAG']:
+    #                 main(model_type='pangu',
+    #                      model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
+    #                      model_name='openPangu-Embedded-1B-V1.1',
+    #                      rate=rate, preprocess=True, revert_rope=True,
+    #                      cache_path='/mnt/data3/processCache/',
+    #                      reprocess_method=method, data_name=data_name, topk=topk,
+    #                      compare_with_full_recompute=False)  # Enable comparison mode
     for data_name in ['2wikimqa-200.jsonl']:
         for topk in [10]:
-            for rate in [1]:
+            for rate in [0, 1, 0.15, 0.05, 0.1]:
                 for method in ['FusionRAG']:
-                    main(model_type='pangu',
-                         model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
-                         model_name='openPangu-Embedded-1B-V1.1',
+                     main(model_type='qwen',
+                          model_path='/mnt/data/models/Qwen2.5-14B-Instruct',
+                          model_name='Qwen2.5-14B-Instruct',
                          rate=rate, preprocess=True, revert_rope=True,
-                         cache_path='/mnt/data/processCache/',
+                         cache_path='/mnt/data3/processCache/',
                          reprocess_method=method, data_name=data_name, topk=topk,
-                         compare_with_full_recompute=False)  # Enable comparison mode
+                         compare_with_full_recompute=False)

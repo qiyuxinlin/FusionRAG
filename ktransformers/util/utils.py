@@ -179,8 +179,8 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
-                          load_path='', example_id = 0, max_new_tokens=1, revert_rope=False, 
-                          reprocess_method='normal', rate=0, dense=2, preprocess=False, draft_model=None, group=False, device="cuda"):
+                          load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
+                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, group=False, device="cuda", chunk_ids=None):
     passages_len = [passage.shape[0] for passage in passages]
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
@@ -197,22 +197,28 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     key_cache = []
     value_cache = []
     all_position_ids = [torch.arange(0,system_len).unsqueeze(0).to(device)]
-    
-    for chunk_id, passage in enumerate(passages[:-1]):
+
+    # If chunk_ids is provided, use it; otherwise use sequential indices (backward compatible)
+    if chunk_ids is None:
+        chunk_ids = list(range(len(passages) - 1))
+
+    for idx, passage in enumerate(passages[:-1]):
+        chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
-        
+
         chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
         chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
     start_time = time.time()
-    for chunk_id, passage in enumerate(passages[:-1]):
+    for idx, passage in enumerate(passages[:-1]):
+        chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
-        key_cache[chunk_id] = key_cache[chunk_id].to(device)
-        chunk_key_cache = key_cache[chunk_id]
-        chunk_value_cache = value_cache[chunk_id].to(device)
+        key_cache[idx] = key_cache[idx].to(device)
+        chunk_key_cache = key_cache[idx]
+        chunk_value_cache = value_cache[idx].to(device)
         assert passage_len == chunk_key_cache.shape[3]
-        if revert_rope and chunk_id > 1:
+        if revert_rope and chunk_id > 0:
             all_position_ids = []
             position_ids = torch.full((1, chunk_key_cache[layer_idx].shape[2]), past_len - system_len, device=device)
             try:
@@ -448,8 +454,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     generated_ids[:, :past_len] = torch.cat(passages).unsqueeze(0).to(device)
     tokens = []
 
-    if reprocess_method != 'processCache' or reprocess_method != 'frontRow':
-        dense = 0
+    if reprocess_method != 'FusionRAG':
+        use_sparse_attention = False
+    else:
+        use_sparse_attention = True
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(device)
     cache_position = torch.tensor(k_need_index, device=device)
     with torch.no_grad():
@@ -457,7 +465,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(device)
         logits = model(
         inputs_embeds = inputs_embeds, cache_position=cache_position, 
-        past_key_values=past_key_values, return_dict=False, use_cache=True, dense = dense,
+        past_key_values=past_key_values, return_dict=False, use_cache=True, use_sparse_attention=use_sparse_attention,
         )[0][:,-1,:].unsqueeze(0).clone().to(device)
         with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         v_sub_all = without_attn_value - with_attn_value
@@ -534,7 +542,7 @@ def tf_logits_warper(temperature, top_k):
         return warpers
 
 def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cuda_graph: bool = False,
-                         mode = 'normal', device='cuda'):
+                         mode = 'normal', early_exit_layer=None, device='cuda'):
     import os
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     torch._dynamo.config.suppress_errors = True
@@ -585,10 +593,19 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             inputs_embeds = model.model.embed_tokens(inputs.to("cpu"))
         else:
             inputs_embeds = model.model.embed_tokens(inputs).to(device)
-        logits = model(
-            inputs_embeds = inputs_embeds, cache_position=cache_position, 
-            past_key_values=past_key_values, return_dict=False, use_cache=True
-        )[0][:,-1,:].unsqueeze(0).clone().to(device)
+
+        # Pass early_exit_layer if specified (for CacheBlend)
+        model_kwargs = {
+            'inputs_embeds': inputs_embeds,
+            'cache_position': cache_position,
+            'past_key_values': past_key_values,
+            'return_dict': False,
+            'use_cache': True
+        }
+        if early_exit_layer is not None:
+            model_kwargs['early_exit_layer'] = early_exit_layer
+
+        logits = model(**model_kwargs)[0][:,-1,:].unsqueeze(0).clone().to(device)
         # generation_config, model_kwargs = model._prepare_generation_config(None, do_sample=False, top_k=1,  temperature=0.01)
 
         logits_warper = tf_logits_warper(temperature=0.01, top_k=1)

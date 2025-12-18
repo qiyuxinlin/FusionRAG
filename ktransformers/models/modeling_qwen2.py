@@ -49,7 +49,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.qwen2.configuration_qwen2 import Qwen2Config
-
+from ktransformers.operators.sparse_attention import selected_query_sparse_attention
 
 if is_flash_attn_2_available():
     from transformers.modeling_flash_attention_utils import _flash_attention_forward
@@ -62,188 +62,7 @@ _CHECKPOINT_FOR_DOC = "Qwen/Qwen2-7B-beta"
 _CONFIG_FOR_DOC = "Qwen2Config"
 
 
-def create_lower_triangular_matrix(batch_size, num_heads, context_size):
-    # 创建一个下三角掩码矩阵，形状为 (context_size, context_size)
-    lower_triangular_mask = torch.triu(torch.full((context_size , context_size ), -65504.0),diagonal=1)
-    return lower_triangular_mask.to('cuda')
-# triton sparse attn
-@triton.jit
-def selected_query_sparse_attention_fwd_kernel(
-    Q_selected, # [batch_size, num_heads, selectd_q_num, head_dim]
-    K, # [batch_size, num_heads, context_size, head_dim]
-    V,  # [batch_size, num_heads, context_size, head_dim]
-    batch_size, num_heads, context_size,
-    q_idx,  # [batch_size, num_heads, selected_q_num]
-    q_size,
-    Out,
-    stride_qz, stride_qh, stride_qm, stride_qk,
-    stride_sqz, stride_sqh, stride_sqm, stride_sqk,
-    stride_kz, stride_kh, stride_kn, stride_kk,
-    stride_vz, stride_vh, stride_vn, stride_vk,
-    stride_oz, stride_oh, stride_om, stride_ok,
-    stride_idxz, stride_idxh, stride_idxm,
-    NUM_ROWS,
-    BLOCK_M: tl.constexpr,
-    BLOCK_N: tl.constexpr,
-    BLOCK_DMODEL: tl.constexpr,
-    dtype: tl.constexpr,
-    scale: tl.constexpr,
-):
-    # grid 的两个维度（2，1）
-    start_m = tl.program_id(0)  # 当前是第几块（在 q_size 维度）
-    off_hz = tl.program_id(1)  # batch_size*num_heads 维上的第几块
 
-    batch_idx = off_hz // num_heads
-    head_idx = off_hz % num_heads  
-    # 当前pid 在 query 维度的偏移
-    offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M) # [0,... 15]
-    # 当前pid 在 context 维度的偏移
-    offs_n = tl.arange(0, BLOCK_N) # [0,... 15]
-    # 当前pid 在 head_dim 维度的偏移
-    offs_d = tl.arange(0, BLOCK_DMODEL) # [0,... head_dim]
-    # query 起始偏移量 在前两个维度
-    sq_offset = (off_hz // num_heads) * stride_sqz + (off_hz % num_heads) * stride_sqh
-    o_offset = (off_hz // num_heads) * stride_oz + (off_hz % num_heads) * stride_oh
- 
-
-    # key 起始偏移量 在前两个维度
-    kv_offset = (off_hz // num_heads) * stride_kz + (off_hz % num_heads) * stride_kh
-    
-    if start_m * BLOCK_M >= q_size:
-        return
-     # 加载 q_idx 并确保不越界
-
-    cols_ptr = q_idx + batch_idx * stride_idxz + head_idx * stride_idxh + start_m * BLOCK_M * stride_idxm
-    cols_mask = offs_m < q_size
-    # 特定 query 的索引
-    # q_cols = tl.load(cols_ptr + tl.arange(0, BLOCK_M),  mask=cols_mask, other=0)
-    q_cols = tl.load(cols_ptr + offs_m % BLOCK_M,  mask=cols_mask, other=0)
-
-    # 当前 query索引中的最大值
-    max_qcol = tl.max(q_cols, axis=0)
-
-    q_ptrs = Q_selected + sq_offset + offs_m[:, None] * stride_sqm + offs_d[None, :] * stride_sqk
-    k_ptrs = K + kv_offset + offs_d[:, None] * stride_kk # [[0],... [15]]
-    v_ptrs = V + kv_offset + offs_d[None, :] * stride_vk # [[0,... 15]]
-
-    o_ptrs = Out + o_offset + offs_m[:, None] * stride_om + offs_d[None, :] * stride_ok
-
-   
-    # 确保 q_cols 不越界
-    valid_mask = q_cols < context_size
-    # 从Q_selected的q_ptrs load q
-    q = tl.load(q_ptrs)
-
-
-    # 每个query 最大注意力权重
-    m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    # 每个query 累计权重
-    l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
-    # 累计 o
-    acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
-    # qk_scale= head_dim ** -0.5 / 1.44269504
-    qk_scale =  1 / scale
-    q = (q * qk_scale).to(dtype)
-    # 按块遍历上下文
-    for start_n in range(0, max_qcol + 1, BLOCK_N):
-        # 当前块的context 索引
-        cols = start_n + offs_n # [BLOCK_N]
-        n_mask = cols < context_size # [BLOCK_N]
-        # k_mask = cols <= q_cols # [BLOCK_M, BLOCK_N]
-        # cols[None, :] [1, BLOCK_N]
-        k_mask = cols <= max_qcol
-        k = tl.load(k_ptrs + cols[None, :] * stride_kn, mask=n_mask[None, :], other=0.0)
-        v = tl.load(v_ptrs + cols[:, None] * stride_vn, mask=n_mask[:, None], other=0.0)
-        qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
-        qk += tl.dot(q, k)
-
-
-        # 边界检查，确保 cols 和 q_cols 都在合法范围内
-        qk = tl.where(cols[None, :] <= q_cols[:, None], qk, float("-inf"))
-        m_i_new = tl.maximum(m_i, tl.max(qk, 1))
-        alpha = tl.math.exp(m_i - m_i_new)
-        p = tl.math.exp(qk - m_i_new[:, None])
-
-        acc_scale = l_i * 0 + alpha
-        acc *= acc_scale[:, None]
-        acc += tl.dot(p.to(dtype), v)
-
-        l_i = l_i * alpha + tl.sum(p, 1)
-        m_i = m_i_new
-    acc /= l_i[:, None]
-    # 在写回输出之前也要确保不越界
-    tl.store(o_ptrs, acc.to(dtype), mask=offs_m[:, None] < q_size)
-
-def selected_query_attention_entrance(
-    sq: torch.Tensor,  # [batch_size, num_heads, selected_q_num, head_dim]
-    k: torch.Tensor,  # [batch_size, num_heads, context_size, head_dim]
-    v: torch.Tensor,  # [batch_size, num_heads, context_size, head_dim]
-    q_idx: torch.Tensor,  # [batch_size, num_heads, selected_q_num]
-    block_size_M: int = 64, 
-    block_size_N: int = 64, 
-):
-    dq, dk, dv = sq.shape[-1], k.shape[-1], v.shape[-1]
-    assert dq == dk and dk == dv
-    # assert dk in {16, 32, 64, 128, 256, 512}
-
-    q_size = q_idx.shape[-1]
-    batch_size, num_heads, context_size, head_dim = k.shape
-
-    o = torch.zeros(batch_size, num_heads, q_size, head_dim, device=sq.device)
-    grid = (triton.cdiv(q_size, block_size_M), batch_size * num_heads)
-    dtype = tl.bfloat16 if sq.dtype == torch.bfloat16 else tl.float16
-    selected_query_sparse_attention_fwd_kernel[grid](
-        sq, k, v,
-        batch_size, num_heads, context_size,
-        q_idx,
-        q_size,
-        o,
-        sq.stride(0), sq.stride(1), sq.stride(2), sq.stride(3),
-        sq.stride(0), sq.stride(1), sq.stride(2), sq.stride(3),
-        k.stride(0), k.stride(1), k.stride(2), k.stride(3),
-        v.stride(0), v.stride(1), v.stride(2), v.stride(3),
-        o.stride(0), o.stride(1), o.stride(2), o.stride(3),
-        q_idx.stride(0), q_idx.stride(1), q_idx.stride(2),
-        (q_size + block_size_M - 1) // block_size_M,
-        BLOCK_M=block_size_M, BLOCK_N=block_size_N,
-        BLOCK_DMODEL=head_dim,
-        dtype=dtype,
-        num_warps=4, num_stages=2,
-        scale = math.sqrt(head_dim)
-    )
-    return o
-
-def selected_query_sparse_attention(
-    query_selected: torch.Tensor, # [batch_size, num_heads, selected_q_num, head_dim]
-    key: torch.Tensor,    # [batch_size, num_heads, context_size, head_dim]
-    value: torch.Tensor,  # [batch_size, num_heads, context_size, head_dim]
-    q_idx: torch.Tensor,  # [batch_size, num_heads, selected_q_num]
-    block_size_M: int = 64, 
-    block_size_N: int = 64, 
-):
-    batch_size, num_heads, context_size, head_dim = key.shape
-
-    pad_M = block_size_M - (context_size & (block_size_M -1))
-    q_size = q_idx.shape[-1]
-    pad_MS = block_size_M - (q_size & (block_size_M - 1))
-    query_selected = torch.nn.functional.pad(query_selected, [0, 0, 0, pad_MS, 0, 0, 0, 0])
-
-    pad_N=block_size_N-(context_size&(block_size_N-1))
-    key = torch.nn.functional.pad(key, [0, 0, 0, pad_N, 0, 0, 0, 0])
-    value = torch.nn.functional.pad(value, [0, 0, 0, pad_N, 0, 0, 0, 0])
-
-    if head_dim not in [16, 32, 64, 128, 256, 512]:
-        target_dim = 2 ** math.ceil(math.log2(head_dim)) - head_dim
-        query_selected = torch.nn.functional.pad(query_selected, [0, target_dim, 0, 0, 0, 0, 0, 0])
-        key = torch.nn.functional.pad(key, [0, target_dim, 0, 0, 0, 0, 0, 0])
-        value = torch.nn.functional.pad(value, [0, target_dim, 0, 0, 0, 0, 0, 0])
-
-    q_idx = q_idx.to(torch.int32).reshape((batch_size, num_heads, -1))
-    out = selected_query_attention_entrance(
-        query_selected, key, value,
-        q_idx, block_size_M, block_size_N
-    )
-    return out[..., :context_size, :head_dim]
 
 # Copied from transformers.models.llama.modeling_llama.LlamaRMSNorm with Llama->Qwen2
 class Qwen2RMSNorm(nn.Module):
@@ -711,7 +530,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
         is_causal = True if causal_mask is None and q_len > 1 else False
 
         
-        if query_states.shape != key_states.shape and kwargs['dense'] == 2:
+        if query_states.shape != key_states.shape and kwargs.get('use_sparse_attention', False):
             attn_output = selected_query_sparse_attention(query_states, \
                                                             key_states, value_states, cache_position.unsqueeze(0)[:,None,:].repeat(1, self.num_heads, 1)).to(query_states.dtype)
         else:
@@ -730,7 +549,6 @@ class Qwen2SdpaAttention(Qwen2Attention):
             system_len = passages_len[0]
             history_key_cache = kwargs['history_key_cache']
             if self.layer_idx == self.config.num_hidden_layers - 1:
-                # 先不管 question 中提示
                 for context_id, context_len in enumerate(passages_len[:-1]):
                     if context_id <= 1:
                         continue
@@ -1056,8 +874,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
         passages_len: list = [],
         load_path: str = '',
         example_id: str = '',
-        dense: int = 0,
+        use_sparse_attention: bool = False,
         history_key_cache: list = [],
+        early_exit_layer: Optional[int] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -1118,17 +937,17 @@ class Qwen2Model(Qwen2PreTrainedModel):
             for lengths in range(chunk_size, q_len, chunk_size):
                 chunk_hidden_states[:, last_length:lengths] = self.forward_chunk(hidden_states[:, last_length:lengths], causal_mask[:,:,last_length:lengths],
                                    position_ids[:, last_length:lengths], past_key_values, output_attentions, use_cache,
-                                   cache_position[last_length:lengths], reprocess_method, passages_len, load_path, example_id, dense, history_key_cache)
+                                   cache_position[last_length:lengths], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
                 last_length = lengths
             if lengths < q_len:
                 chunk_hidden_states[:, lengths:q_len] = self.forward_chunk(hidden_states[:, lengths:q_len], causal_mask[:,:,lengths:q_len],
                                    position_ids[:, lengths:q_len], past_key_values, output_attentions, use_cache,
-                                   cache_position[lengths:q_len], reprocess_method, passages_len, load_path, example_id, dense, history_key_cache)
+                                   cache_position[lengths:q_len], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
             hidden_states = self.norm(chunk_hidden_states)
         else:
             hidden_states= self.forward_chunk(hidden_states, causal_mask,
                                    position_ids, past_key_values, output_attentions, use_cache,
-                                   cache_position, reprocess_method, passages_len, load_path, example_id, dense, history_key_cache)
+                                   cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
             hidden_states = self.norm(hidden_states)
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -1147,8 +966,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
             attentions=all_self_attns,
         )
 
-    def forward_chunk(self, hidden_states, causal_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, reprocess_method, passages_len, load_path, example_id, dense, history_key_cache):
-        for decoder_layer in self.layers:
+    def forward_chunk(self, hidden_states, causal_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer=None):
+        for layer_idx, decoder_layer in enumerate(self.layers):
 
             layer_outputs = decoder_layer(
                 hidden_states,
@@ -1162,11 +981,15 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 passages_len=passages_len,
                 load_path=load_path,
                 example_id=example_id,
-                dense=dense,
+                use_sparse_attention=use_sparse_attention,
                 history_key_cache=history_key_cache,
             )
 
             hidden_states = layer_outputs[0]
+
+            # Early exit if specified (for CacheBlend)
+            if early_exit_layer is not None and layer_idx + 1 >= early_exit_layer:
+                break
 
         return hidden_states
     # Copied from transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask
@@ -1300,8 +1123,9 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         passages_len: list = [],
         load_path: str = '',
         example_id: str = '',
-        dense: int = 0,
+        use_sparse_attention: bool = False,
         history_key_cache: list = [],
+        early_exit_layer: Optional[int] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1351,8 +1175,9 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             passages_len=passages_len,
             load_path=load_path,
             example_id=example_id,
-            dense=dense,
+            use_sparse_attention=use_sparse_attention,
             history_key_cache=history_key_cache,
+            early_exit_layer=early_exit_layer,
         )
 
         hidden_states = outputs[0]
