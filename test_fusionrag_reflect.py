@@ -766,22 +766,23 @@ def main(
 
 
 if __name__ == '__main__':
-    main(
-        model_type='qwen3',
-        model_path='/mnt/data/models/Qwen3-32B',
-        data_path='/mnt/data/ktransformers-dev/result_reflect.json',
-        cache_path='/mnt/data3/reflect/',
-        model_name='Qwen3-32B',
-        rate=1,
-        topk=10,
-        preprocess=True,
-        reprocess_method='FusionRAG',
-        bge_model_path='/mnt/data/models/bge-m3-FP16',
-        revert_rope=True,
-        device="cuda:0",
-        use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)
-        openai_base_url="https://api.deepseek.com/v1",
-        openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-        openai_model="deepseek-chat",
-        max_samples=200  # Test first 2 MAIN questions
+    for rate in [0.15, 0.3, 0.2]:
+        main(
+            model_type='qwen',
+            model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+            data_path='./result_reflect.json',
+            cache_path='/mnt/data/reflect/',
+            model_name='Qwen2.5-7B-Instruct',
+            rate=rate,
+            topk=10,
+            preprocess=True,
+            reprocess_method='FusionRAG',
+            bge_model_path='/mnt/data/models/bge-m3-FP16',
+            revert_rope=True,
+            device="cuda:0",
+            use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)
+            openai_base_url="https://api.deepseek.com/v1",
+            openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+            openai_model="deepseek-chat",
+            max_samples=200  # Test first 2 MAIN questions
     )
