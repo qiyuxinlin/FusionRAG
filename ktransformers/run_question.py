@@ -8,8 +8,8 @@ import numpy as np
 from typing import List, Dict, Any, Tuple
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
-from ktransformers.models.custom_cache import StaticCache
-from ktransformers.util.utils import (
+from .models.custom_cache import StaticCache
+from .util.utils import (
     prefill_and_save_kv_cache,
     load_kv_and_generate,
     prefill_with_cache_and_save_preprocess,
@@ -82,26 +82,26 @@ class FusionRAGModel:
             load_kwargs['device_map'] = 'auto'
 
         if model_type == 'mistral':
-            from ktransformers.models.modeling_mistral import MistralForCausalLM
+            from .models.modeling_mistral import MistralForCausalLM
             with torch.no_grad():
                 model = MistralForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'pangu':
-            from ktransformers.models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
+            from .models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = PanguEmbeddedForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'qwen' or model_type == 'qwen2':
-            from ktransformers.models.modeling_qwen2 import Qwen2ForCausalLM
+            from .models.modeling_qwen2 import Qwen2ForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = Qwen2ForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'qwen3':
-            from ktransformers.models.modeling_qwen3 import Qwen3ForCausalLM
+            from .models.modeling_qwen3 import Qwen3ForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = Qwen3ForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'llama':
-            from ktransformers.models.modeling_llama import LlamaForCausalLM
+            from .models.modeling_llama import LlamaForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = LlamaForCausalLM.from_pretrained(model_path, **load_kwargs)
@@ -131,7 +131,7 @@ class FusionRAGModel:
             revert_rope=True,
             preprocess=False,
             max_new_tokens=150,
-    ) -> str:
+    ) -> (int, int, str):
         if system_prompt == "":
             system_prompt="<|im_start|>system\nYou are a helpful assistant.\nWrite a high-quality answer for the given question using only the provided search results. The answer process requires reference to the material content and step-by-step thinking."
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
@@ -204,11 +204,12 @@ class FusionRAGModel:
         question_tensor = torch.tensor(question_tokens, dtype=torch.long)
 
         iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
+        iter_token_len = len(torch.cat(iter_tokens))
 
         if rate == 1:
             # Full recompute
             inputs = torch.cat(iter_tokens).to(self.input_device).unsqueeze(0)
-            from ktransformers.util.utils import prefill_and_generate
+            from .util.utils import prefill_and_generate
             generated_tokens, _, _ = prefill_and_generate(
                 self.model,
                 self.tokenizer,
@@ -238,7 +239,7 @@ class FusionRAGModel:
 
         # Decode answer
         answer = self.tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
-        return answer
+        return iter_token_len, len(generated_tokens), answer
 
 
 if __name__ == '__main__':
@@ -273,7 +274,7 @@ if __name__ == '__main__':
         "answer": "no"
     }
 
-    answer = fusion_rag_model.run_one_question(
+    input_tokens, output_tokens, answer = fusion_rag_model.run_one_question(
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
         model_type='qwen',

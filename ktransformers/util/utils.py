@@ -16,9 +16,9 @@ import string
 import json
 import collections
 import numpy as np
-from ktransformers.models.custom_cache import StaticCache
-from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
-from ktransformers.util.textstream import TextStreamer
+from ..models.custom_cache import StaticCache
+from ..util.cuda_graph_runner import CUDAGraphRunner
+from ..util.textstream import TextStreamer
 from transformers import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
@@ -183,9 +183,10 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     value_cache = torch.stack([cache.cpu() for cache in past_key_values.value_cache])[:,:,:,past_len:past_len + passage_len,:]
     torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
-def load_kv_and_generate(model, tokenizer, past_key_values, passages, hash_keys=None,
+def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
-                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, group=False, device="cuda", chunk_ids=None, device_map=None):
+                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, group=False, device="cuda", chunk_ids=None,
+                         device_map=None, hash_keys=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
 
