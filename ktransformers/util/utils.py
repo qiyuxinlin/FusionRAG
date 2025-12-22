@@ -34,16 +34,8 @@ from transformers import (
 from rouge import Rouge
 
 
-
-
-
-
-
-
-    
-
-def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
-                          save_path='', example_id = 0, chunk_id = 0, system_len = 0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None
+def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs, chunk_id: int, example_id=0, hash_key="",
+                          save_path='', system_len=0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None
                           ):
 
     import os
@@ -77,7 +69,10 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
             )[0][:,-1,:].unsqueeze(0).clone().to(input_device)
             cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
             cachecraft_score = torch.sum(cachecraft_score, dim=0)
-            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
+            if hash_key != "":
+                torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{hash_key}.pt')
+            else:
+                torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
         else:
             logits = model(
                 inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
@@ -97,9 +92,13 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
             key_cache = torch.stack(key_cache)
             value_cache = [past_key_values.value_cache[i][:,:,system_len:system_len + passage_len,:].cpu() for i in range(len(past_key_values.value_cache))]
             value_cache = torch.stack(value_cache)
-        torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
-        torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
-        print(f'example_id: {example_id}, chunk_id: {chunk_id}')
+        if hash_key != "":
+            torch.save(key_cache.clone(), f'{save_path}/{hash_key}_key.pt')
+            torch.save(value_cache.clone(), f'{save_path}/{hash_key}_value.pt')
+        else:
+            torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
+            torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
+        print(f'hashkey: {hash_key}, chunk_id: {chunk_id}')
         return key_cache, value_cache
 
 def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs):
@@ -184,11 +183,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     value_cache = torch.stack([cache.cpu() for cache in past_key_values.value_cache])[:,:,:,past_len:past_len + passage_len,:]
     torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
-
-
-    
-
-def load_kv_and_generate(model, tokenizer, past_key_values, passages,
+def load_kv_and_generate(model, tokenizer, past_key_values, passages, hash_keys=None,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None, group=False, device="cuda", chunk_ids=None, device_map=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
@@ -219,8 +214,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
 
-        chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
-        chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
+        if isinstance(hash_keys, list):
+            chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
+            chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
+        else:
+            chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
+            chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
     start_time = time.time()
@@ -363,7 +362,14 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             k_need_index = torch.tensor(k_need_index)
         elif reprocess_method == "Cache-Craft":
             import os
-            save_prefix_path_list = [f"{load_path}/cachecraftattn_{example_id}_{i}.pt" for i in range(1,len(passages)-1)]
+
+            if isinstance(hash_keys, list):
+                save_prefix_path_list = [f"{load_path}/cachecraftattn_{hash_keys[i]}.pt" for i in
+                                         range(1, len(passages) - 1)]
+            else:
+                save_prefix_path_list = [f"{load_path}/cachecraftattn_{example_id}_{i}.pt" for i in
+                                         range(1, len(passages) - 1)]
+
             chunk_score_list = []
             for file in save_prefix_path_list:
                 if not os.path.exists(file):

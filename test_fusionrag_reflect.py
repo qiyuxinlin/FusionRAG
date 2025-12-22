@@ -507,7 +507,8 @@ def main(
         if rate != 1:  # Skip if full recompute
             # Generate system KV cache (chunk_id=0)
             system_cache_path = f'{save_path}/{example_id}_0_key.pt'
-            if not os.path.exists(system_cache_path):
+            #fixme: mengyao_debug
+            if True or not os.path.exists(system_cache_path):
                 print(f"Generating system KV cache...")
                 input_tensor = system_tensor.unsqueeze(0)
                 prefill_and_save_kv_cache(
@@ -729,6 +730,8 @@ def main(
             else:
                 all_sub_correct = False
 
+            print(f"rate={rate} sub_question({total_sub_questions}) acc rate={correct_sub_questions / total_sub_questions if total_sub_questions > 0 else 0}")
+
             # Save to CSV
             with open(csv_file, mode='a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
@@ -766,22 +769,24 @@ def main(
 
 
 if __name__ == '__main__':
-    main(
-        model_type='qwen3',
-        model_path='/mnt/data/models/Qwen3-32B',
-        data_path='/mnt/data/ktransformers-dev/result_reflect.json',
-        cache_path='/mnt/data3/reflect/',
-        model_name='Qwen3-32B',
-        rate=1,
-        topk=10,
-        preprocess=True,
-        reprocess_method='FusionRAG',
-        bge_model_path='/mnt/data/models/bge-m3-FP16',
-        revert_rope=True,
-        device="cuda:0",
-        use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)
-        openai_base_url="https://api.deepseek.com/v1",
-        openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-        openai_model="deepseek-chat",
-        max_samples=200  # Test first 2 MAIN questions
+    os.environ["CUDA_VISIBLE_DEVICES"]="4,5"
+    for rate in [0.3, 1, 0.2]:
+        main(
+            model_type='qwen3',
+            model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
+            data_path='./result_reflect.json',
+            cache_path='/tmp/fusionrag/',
+            model_name='Qwen3-32B',
+            rate=rate,
+            topk=10,
+            preprocess=False,
+            reprocess_method='FusionRAG',
+            bge_model_path='/mnt/data/models/bge-m3-FP16',
+            revert_rope=True,
+            device="cuda:0",
+            use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)
+            openai_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            openai_api_key="sk-4a21671b0b47480dae01f42ac3a030d3",
+            openai_model="deepseek-v3.2",
+            max_samples=None  # Test first 2 MAIN questions
     )
