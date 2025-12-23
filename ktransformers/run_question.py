@@ -131,17 +131,19 @@ class FusionRAGModel:
             revert_rope=True,
             preprocess=False,
             max_new_tokens=150,
-    ) -> (int, int, str):
+    ) -> (int, int, int, int, str):
         if system_prompt == "":
             system_prompt="<|im_start|>system\nYou are a helpful assistant.\nWrite a high-quality answer for the given question using only the provided search results. The answer process requires reference to the material content and step-by-step thinking."
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
         system_len = system_tensor.shape[0]
         doc_tensors = []
+        doc_tensors_total_length = 0
         hash_keys = [hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()]
         for doc_text in retrieved_docs:
             doc_tokens = self.tokenizer.encode(doc_text, add_special_tokens=False)
             doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
+            doc_tensors_total_length += len(doc_tensor)
             doc_tensors.append(doc_tensor)
             hash_keys.append(hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest())
 
@@ -202,6 +204,7 @@ class FusionRAGModel:
             question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
         question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+        query_len = len(question_tensor)
 
         iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
         iter_token_len = len(torch.cat(iter_tokens))
@@ -239,7 +242,7 @@ class FusionRAGModel:
 
         # Decode answer
         answer = self.tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
-        return iter_token_len, len(generated_tokens), answer
+        return system_len, doc_tensors_total_length, query_len, len(generated_tokens), answer
 
 
 if __name__ == '__main__':
@@ -274,7 +277,7 @@ if __name__ == '__main__':
         "answer": "no"
     }
 
-    input_tokens, output_tokens, answer = fusion_rag_model.run_one_question(
+    system_len, doc_tensors_total_length, query_len, decode_len, answer = fusion_rag_model.run_one_question(
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
         model_type='qwen',
@@ -285,5 +288,9 @@ if __name__ == '__main__':
         max_new_tokens=150,
     )
     print(f"answer={answer}")
+    print(f"system_len={system_len}")
+    print(f"doc_tensors_total_length={doc_tensors_total_length}")
+    print(f"query_len={query_len}")
+    print(f"decode_len={decode_len}")
 
 
