@@ -271,8 +271,6 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
     Run a single experiment with given parameters
 
     Returns a dict with results: {
-        'total_prefill_time': float,
-        'avg_prefill_time': float,
         'em': float,
         'rouge': float,
         'answers': list
@@ -281,7 +279,6 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
     answer_list = []
     rouge_score = 0
     normalized_em = 0
-    total_prefill_time = 0
 
     # Generate preprocess kv cache
     if preprocess:
@@ -305,10 +302,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
         if rate == 1:
             # Full Cache Recompute
             inputs = torch.cat(iter).to(device).unsqueeze(0)
-            generated_tokens, _, example_prefill_time = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50, device=device)
-
-            # Record prefill time (returned from function)
-            total_prefill_time += example_prefill_time
+            generated_tokens, _ = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=50, device=device)
         else:
             # Cache Reuse
             # Generate KV Cache and importance
@@ -414,14 +408,11 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
             else:
                 load_path = save_path
 
-            generated_tokens, example_prefill_time = load_kv_and_generate(
+            generated_tokens = load_kv_and_generate(
                 model, tokenizer, past_key_values, iter, load_path, i+1,
                 max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
                 rate=rate,  draft_model=draft_model, preprocess=preprocess, device=device
             )
-
-            # Record prefill time (returned from function)
-            total_prefill_time += example_prefill_time
 
         answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]))
 
@@ -453,10 +444,12 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
             writer = csv.writer(file)
             writer.writerow([question_list[i], real_answer_list[i][0], answer])
 
-        torch.cuda.empty_cache()
+        if "cuda" in device:
+            torch.cuda.empty_cache()
+        elif "npu" in device:
+            torch.npu.empty_cache()
 
     # Calculate final metrics
-    avg_prefill_time = total_prefill_time / len(tokens_data)
     final_em = normalized_em / len(tokens_data)
     final_rouge = rouge_score / len(tokens_data)
 
@@ -483,53 +476,13 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
 
 
 if __name__ == '__main__':
-    # Example usage for different models
-
-    # Mistral
-    # main(model_type='mistral',
-    #      model_path='/mnt/data/models/Mistral-7B-Instruct-v0.3',
-    #      model_name='Mistral-7B-Instruct-v0.3',
-    #      data_name='musique-200.jsonl')
-
-    # PanGu
-    # main(model_type='pangu',
-    #      model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
-    #      model_name='openPangu-Embedded-1B-V1.1',
-    #      data_name='musique-200.jsonl')
-
-    # Qwen
-    # main(model_type='qwen',
-    #      model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-    #      model_name='Qwen2.5-7B-Instruct',
-    #      cache_path='/mnt/data3/processCache/',
-    #      data_name='musique-200.jsonl')
-
-    # Llama
-    # main(model_type='llama',
-    #      model_path='/mnt/data/model/Llama-3.1-8B-Instruct',
-    #      model_name='Llama-3.1-8B-Instruct',
-    #      data_name='musique-200.jsonl')
-
-    # Example: Run experiments
-    # Set compare_with_full_recompute=True to enable comparison mode
-    # for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', 'musique-200.jsonl', '2wikimqa-200.jsonl']:
-    #     for topk in [10]:
-    #         for rate in [0, 1, 0.15, 0.05, 0.1]:
-    #             for method in ['FusionRAG']:
-    #                 main(model_type='pangu',
-    #                      model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
-    #                      model_name='openPangu-Embedded-1B-V1.1',
-    #                      rate=rate, preprocess=True, revert_rope=True,
-    #                      cache_path='/mnt/data3/processCache/',
-    #                      reprocess_method=method, data_name=data_name, topk=topk,
-    #                      compare_with_full_recompute=False)  # Enable comparison mode
-    for data_name in ['2wikimqa-200.jsonl']:
+    for data_name in ['triviaqa-270-100-10-doc.jsonl']:
         for topk in [10]:
-            for rate in [0, 1, 0.15, 0.05, 0.1]:
+            for rate in [0.15]:
                 for method in ['FusionRAG']:
-                     main(model_type='qwen',
-                          model_path='/mnt/data/models/Qwen2.5-14B-Instruct',
-                          model_name='Qwen2.5-14B-Instruct',
+                     main(model_type='pangu',
+                          model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1/',
+                          model_name='openPangu-Embedded-1B-V1.1',
                          rate=rate, preprocess=True, revert_rope=True,
                          cache_path='/mnt/data3/processCache/',
                          reprocess_method=method, data_name=data_name, topk=topk,

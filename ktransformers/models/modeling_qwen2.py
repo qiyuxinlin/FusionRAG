@@ -488,7 +488,6 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 output_attentions=output_attentions,
                 use_cache=use_cache,
             )
-
         bsz, q_len, _ = hidden_states.size()
 
         query_states = self.q_proj(hidden_states)
@@ -519,7 +518,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
 
         # SDPA with memory-efficient backend is currently (torch==2.1.2) bugged with non-contiguous inputs with custom attn_mask,
         # Reference: https://github.com/pytorch/pytorch/issues/112577.
-        if query_states.device.type == "cuda" and attention_mask is not None:
+        if query_states.device.type in ["cuda", "npu"] and attention_mask is not None:
             query_states = query_states.contiguous()
             key_states = key_states.contiguous()
             value_states = value_states.contiguous()
@@ -529,19 +528,16 @@ class Qwen2SdpaAttention(Qwen2Attention):
         # The q_len > 1 is necessary to match with AttentionMaskConverter.to_causal_4d that does not create a causal mask in case q_len == 1.
         is_causal = True if causal_mask is None and q_len > 1 else False
 
-        
-        if query_states.shape != key_states.shape and kwargs.get('use_sparse_attention', False):
-            attn_output = selected_query_sparse_attention(query_states, \
-                                                            key_states, value_states, cache_position.unsqueeze(0)[:,None,:].repeat(1, self.num_heads, 1)).to(query_states.dtype)
-        else:
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states,
-                key_states,
-                value_states,
-                attn_mask=causal_mask,
-                dropout_p=self.attention_dropout if self.training else 0.0,
-                is_causal=is_causal,
-            )
+        # Use SDPA instead of sparse attention for better multi-GPU compatibility
+        attn_output = torch.nn.functional.scaled_dot_product_attention(
+            query_states,
+            key_states,
+            value_states,
+            attn_mask=causal_mask,
+            dropout_p=self.attention_dropout if self.training else 0.0,
+            is_causal=is_causal,
+        )
+
         if kwargs['reprocess_method'] == 'FusionRAG':
             load_path = kwargs['load_path']
             example_id = kwargs['example_id']
@@ -552,7 +548,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 for context_id, context_len in enumerate(passages_len[:-1]):
                     if context_id <= 1:
                         continue
-                    
+
                     past_len = sum(passages_len[:context_id])
                     context_key = history_key_cache[context_id].to(query_states.device)[self.layer_idx]
                     context_key = repeat_kv(context_key, self.num_key_value_groups)
@@ -596,20 +592,9 @@ class Qwen2SdpaAttention(Qwen2Attention):
             attn_weights = torch.matmul(query_states, context_key)
             attn_weights /= math.sqrt(self.head_dim)
             attn_weights = nn.functional.softmax(attn_weights, dim = -1, dtype = torch.float16)
-            # attn_weights = attn_weights[:, :, -query_len:, :-query_len]
             attn_weights = torch.sum(torch.sum(attn_weights, dim=0),dim=-2)
             attn_weights = attn_weights[:, :-query_len]
             past_key_value.importance_cache[self.layer_idx].narrow(1,0,sum(passages_len[:-1])).copy_(attn_weights)
-        # if kwargs['reprocess_method'] == 'processCache':
-        #     if self.layer_idx == self.config.num_hidden_layers - 1:
-        #         passages_len = kwargs['passages_len']
-        #         system_len = passages_len[0]
-        #         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
-        #         attn_weights = attn_weights + causal_mask
-        #         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
-        #         attn_weights = attn_weights[:,:,:,:cache_position[0]]
-        #         attn_weights = torch.sum(torch.sum(attn_weights, dim=0),dim=-2)
-        #         past_key_value.importance_cache[self.layer_idx].narrow(1,system_len,cache_position[0]).copy_(attn_weights)
 
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.view(bsz, q_len, self.hidden_size)
@@ -1063,7 +1048,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         if (
             self.config._attn_implementation == "sdpa"
             and attention_mask is not None
-            and attention_mask.device.type == "cuda"
+            and attention_mask.device.type in ["cuda", "npu"]
             and not output_attentions
         ):
             # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when

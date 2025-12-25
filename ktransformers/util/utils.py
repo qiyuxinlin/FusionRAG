@@ -17,7 +17,6 @@ import json
 import collections
 import numpy as np
 from ktransformers.models.custom_cache import StaticCache
-from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 from ktransformers.util.textstream import TextStreamer
 from transformers import (
     LogitsProcessorList,
@@ -65,8 +64,6 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
         generated_ids[:, cache_position] = inputs.to(device).to(torch.int)
         if past_key_values != None:
             past_key_values.cur_idx=cache_position
-        start_time = time.time()
-
 
         inputs_embeds = model.model.embed_tokens(inputs).to(device)
         if reprocess_method == "Cache-Craft" and chunk_id != 0:
@@ -109,11 +106,10 @@ def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_v
                 return_dict=False, use_cache=True)[0]
     if past_key_values != None:
         past_key_values.change_seq_length(1)
-    #print(logits)
     next_token_scores = logits_warper(inputs, logits[:, -1, :])
     next_token = torch.argmax(next_token_scores, dim=-1)
     return next_token
-# mistral 是这个函数，其他函数得考虑把这个函数换掉
+
 def rotate_half(x):
     """Rotates half the hidden dims of the input."""
     x1 = x[..., : x.shape[-1] // 2]
@@ -132,7 +128,6 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     passages_len = [passages[i].shape[0] for i in range(len(passages))]
     batch_size, seq_length = inputs.shape
     cache_position = torch.arange(past_len,past_len + seq_length, device=device)
-    # position_ids = torch.arange(system_len,system_len + seq_length, device='cuda').unsqueeze(0)
     generated_ids = torch.zeros(
         batch_size, past_len + seq_length + 1, dtype=torch.int, device=device
     )
@@ -147,7 +142,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
                 inputs_embeds = inputs_embeds, cache_position=cache_position,
                 past_key_values=past_key_values, return_dict=False, use_cache=True, reprocess_method=reprocess_method, passages_len=passages_len
             )[0][:,-1,:].unsqueeze(0).clone().to(device)
-            cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
+            cachecraft_score = past_key_values.importance_cache[-1]
             cachecraft_score = torch.sum(cachecraft_score, dim=0)
             torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
         else:
@@ -161,7 +156,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
         cos, sin = model.model.layers[0].self_attn.rotary_emb(key_cache[0], position_ids)
     except:
         cos, sin = model.model.rotary_emb(key_cache[0], position_ids)
-    # mistral 限定
+    # Apply rotary embeddings
     cos = cos.unsqueeze(1)
     sin = sin.unsqueeze(1)
     key_cache = (key_cache * cos) + (rotate_half(key_cache) * sin)
@@ -176,11 +171,9 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
 
 
 
-    
-
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
-                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, group=False, device="cuda", chunk_ids=None):
+                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, device="cuda", chunk_ids=None):
     passages_len = [passage.shape[0] for passage in passages]
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
@@ -210,7 +203,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
-    start_time = time.time()
     for idx, passage in enumerate(passages[:-1]):
         chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
@@ -225,7 +217,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_cache[layer_idx], position_ids)
             except:
                 cos, sin = model.model.rotary_emb(chunk_key_cache[layer_idx], position_ids)
-            # mistral 限定
+            # Apply rotary embeddings
             cos = cos.unsqueeze(1)
             sin = sin.unsqueeze(1)
             chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
@@ -237,15 +229,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             past_key_values.value_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_value_cache[layer_idx])
             past_key_values.past_tokens[layer_idx] += passage_len
         past_len += passage_len
-    storage_time = time.time() - start_time 
-    print(f'storage_time: {storage_time}')
     if rate != 0:
         if reprocess_method == 'cacheBlend':
             without_attn_key = past_key_values.key_cache[1].narrow(2,0,past_len).clone()
             without_attn_value = past_key_values.value_cache[1].narrow(2,0,past_len).clone()
             inputs = torch.cat(passages[:-1]).to(device).unsqueeze(0)
-            # 这里会在终端上多输出一次
-            _, tmp_past_key_value = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1)
+            _, tmp_past_key_value = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1, early_exit_layer=2)
             with_attn_key = tmp_past_key_value.key_cache[1].narrow(2,0,past_len).clone()
             with_attn_value = tmp_past_key_value.value_cache[1].narrow(2,0,past_len).clone()
             v_sub_all = without_attn_value - with_attn_value
@@ -255,21 +244,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             v_sum = v_sum[system_len:]
             v_need_index = torch.topk(v_sum,int(rate*(past_len - system_len))).indices.to('cpu')
             v_need_index = v_need_index + system_len
-
-            # k_sub_all = without_attn_key - with_attn_key
-            # k_sub_all = torch.abs(k_sub_all)
-            # k_sub_all = k_sub_all.squeeze(0)
-            # k_sub_all = k_sub_all.transpose(0, 1)
-            # k_sub_all = k_sub_all.reshape(past_len,-1)
-            # k_sum = torch.sum(k_sub_all,dim=1)
-            # k_sum = k_sum.tolist()
-            # k_sum = k_sum[system_len:]
-            # k_sum = torch.tensor(k_sum,device=k_sub_all.device)
-            # k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
-            # k_need_index = k_need_index + system_len
             k_need_index = v_need_index
         elif reprocess_method == 'FusionRAG':
-            select_time = time.time()
             query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
             if query_prefix_len >= len(passages[-1]):
                 query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question：')[0]))+1
@@ -278,76 +254,20 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             
             cache_position = torch.arange(past_len, past_len+seq_length, device=device)
             with torch.no_grad():
-                ss_time = time.perf_counter()
                 inputs_embeds = model.model.embed_tokens(inputs).to(device)
                 model(
                     inputs_embeds = inputs_embeds, past_key_values=past_key_values,
                     cache_position=cache_position, reprocess_method=reprocess_method, 
                     return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
                     )
-                
                 k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:cache_position[0]]
-                end_time = time.perf_counter() - ss_time
-                if group:
-                    k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
-                    k_sum_relevant = torch.tensor(k_sum_relevant, device=device)
+                k_sum = k_sum.tolist()
+                k_sum = k_sum[system_len:]
+                k_sum = torch.tensor(k_sum,device=device)
+                k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+                k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
+                k_need_index = k_need_index + system_len
 
-                    # 计算需要选择的 token 数量
-                    total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
-                    k_lens = int(rate * total_relevant_tokens)
-
-                    # === 新增：按组选择逻辑 ===
-                    group_size = 16
-                    num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
-
-                    # 将分数按组重塑（最后一组可能不足 8 个）
-                    # 先 pad 到能被 group_size 整除
-                    padded_length = num_groups * group_size
-                    if total_relevant_tokens < padded_length:
-                        # 用很小的负数填充，确保不会被选中
-                        padding = torch.full((padded_length - total_relevant_tokens,), 
-                                            -float('inf'), device=device)
-                        k_sum_padded = torch.cat([k_sum_relevant, padding])
-                    else:
-                        k_sum_padded = k_sum_relevant
-
-                    # 重塑为 [num_groups, group_size]
-                    k_sum_grouped = k_sum_padded.view(num_groups, group_size)
-
-                    # 计算每组的最大分数
-                    group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
-
-                    # 根据组的最大分数选择 top-k 组
-                    num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
-                    num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
-
-                    top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
-
-                    # 将选中的组展开为 token 索引
-                    selected_token_indices = []
-                    for group_idx in top_group_indices.tolist():
-                        start_idx = group_idx * group_size
-                        end_idx = min(start_idx + group_size, total_relevant_tokens)
-                        selected_token_indices.extend(range(start_idx, end_idx))
-
-                    # 转换为 tensor 并加上 system_len 偏移
-                    k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
-
-                    print(f"选择了 {len(selected_token_indices)} 个 tokens，"
-                          f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
-                else:
-                    k_sum = k_sum.tolist()
-                    k_sum = k_sum[system_len:]
-                    k_sum = torch.tensor(k_sum,device=device)
-                    k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
-                    k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
-                    k_need_index = k_need_index + system_len
-                    print(f'select_time: {time.time() - select_time}')
-        elif reprocess_method == 'frontRow':
-            k_need_index = []
-            for i in range(len(passages_start[:-1])):
-                k_need_index.extend(range(passages_start[i], passages_start[i] + int(passages_len[i+1]*rate)))
-            k_need_index = torch.tensor(k_need_index)
         elif reprocess_method == "Cache-Craft":
             import os
             save_prefix_path_list = [f"{load_path}/cachecraftattn_{example_id}_{i}.pt" for i in range(1,len(passages)-1)]
@@ -363,79 +283,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             k_need_index = torch.topk(chunk_score, k_lens).indices.to('cpu')
             k_need_index = k_need_index + system_len
         
-        elif reprocess_method == "speculative_prefill":
-            inputs = torch.cat(passages).to(device).unsqueeze(0)
-            cache_position = torch.arange(0, inputs.shape[1], device=device)
-            tmp_past_key_values = StaticCache(
-                                    config = model.config, max_batch_size = 1, 
-                                    max_cache_len = inputs.shape[1], device = device, dtype = model.dtype,
-                                    passage_len=torch.cat(passages[:-1]).shape[0],
-                                )
-            with torch.no_grad():
-                ss_time = time.perf_counter()
-                inputs_embeds = draft_model.model.embed_tokens(inputs).to(device)
-                draft_model(
-                    inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
-                    cache_position=cache_position, reprocess_method=reprocess_method, 
-                    return_dict=False, use_cache=True, passages_len=passages_len
-                    )
-
-                # 获取重要性分数
-                k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:past_len]
-                if group:
-                    k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
-                    k_sum_relevant = torch.tensor(k_sum_relevant, device=device)
-
-                    # 计算需要选择的 token 数量
-                    total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
-                    k_lens = int(rate * total_relevant_tokens)
-
-                    # === 新增：按组选择逻辑 ===
-                    group_size = 16
-                    num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
-
-                    # 将分数按组重塑（最后一组可能不足 8 个）
-                    # 先 pad 到能被 group_size 整除
-                    padded_length = num_groups * group_size
-                    if total_relevant_tokens < padded_length:
-                        # 用很小的负数填充，确保不会被选中
-                        padding = torch.full((padded_length - total_relevant_tokens,), 
-                                            -float('inf'), device=device)
-                        k_sum_padded = torch.cat([k_sum_relevant, padding])
-                    else:
-                        k_sum_padded = k_sum_relevant
-
-                    # 重塑为 [num_groups, group_size]
-                    k_sum_grouped = k_sum_padded.view(num_groups, group_size)
-
-                    # 计算每组的最大分数
-                    group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
-
-                    # 根据组的最大分数选择 top-k 组
-                    num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
-                    num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
-
-                    top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
-
-                    # 将选中的组展开为 token 索引
-                    selected_token_indices = []
-                    for group_idx in top_group_indices.tolist():
-                        start_idx = group_idx * group_size
-                        end_idx = min(start_idx + group_size, total_relevant_tokens)
-                        selected_token_indices.extend(range(start_idx, end_idx))
-
-                    # 转换为 tensor 并加上 system_len 偏移
-                    k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
-
-                    print(f"选择了 {len(selected_token_indices)} 个 tokens，"
-                          f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
-                else:
-                    k_sum = k_sum.tolist()
-                    k_sum = k_sum[system_len:]
-                    k_sum = torch.tensor(k_sum,device=device)
-                    k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
-                    k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
-                    k_need_index = k_need_index + system_len
         else:
             raise NotImplementedError
 
@@ -471,15 +318,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         v_sub_all = without_attn_value - with_attn_value
         v_sub_all = v_sub_all.squeeze(0)
         v_sub_all = v_sub_all.transpose(0, 1)
-        v_sum = torch.sum(v_sub_all**2, dim=[1,2])   
-        
-        first_token_time = time.time() - start_time
+        v_sum = torch.sum(v_sub_all**2, dim=[1,2])
+
         stream = TextStreamer(tokenizer)
         logits_warper = tf_logits_warper(temperature=0.01, top_k=1)
         next_token_scores = logits_warper(reprocess_inputs, logits[:, -1, :])
         next_token = torch.argmax(next_token_scores, dim=-1)
-        prefill_count = seq_length
-        prefill_time = first_token_time
         print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, past_len+1] = next_token
         tokens.append(next_token)
@@ -490,7 +334,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         
  
         
-        decode_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs)
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
@@ -505,22 +348,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 print(stream.put(next_token.item()), end="", flush=True)
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
-        
 
-    total_time = time.time() - decode_time
-    tokens_generated = len(tokens)
-    tokens_per_second = tokens_generated / total_time
-
-    print("")
-
-    print(f"prompt eval count:    {prefill_count} token(s)")
-    print(f"prompt eval duration: {prefill_time}s")
-    print(f"prompt eval rate:     {prefill_count/prefill_time} tokens/s")
-    print(f"eval count:           {tokens_generated} token(s)")
-    print(f"eval duration:        {total_time}s")
-    print(f"eval rate:            {tokens_per_second} tokens/s")
-
-    return tokens, prefill_time
+    return tokens
 
 def tf_logits_warper(temperature, top_k):
         """
@@ -541,7 +370,7 @@ def tf_logits_warper(temperature, top_k):
         warpers.append(TopKLogitsWarper(top_k=top_k, min_tokens_to_keep=min_tokens_to_keep))
         return warpers
 
-def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cuda_graph: bool = False,
+def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000,
                          mode = 'normal', early_exit_layer=None, device='cuda'):
     import os
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -553,23 +382,16 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
     tokens = []
     
-    def decode_one_tokens(cuda_graph_runner, cur_token, position_ids, cache_position, past_key_values, use_cuda_graph: bool = False):
-        if use_cuda_graph:
-            logits = cuda_graph_runner(cur_token, position_ids, cache_position)
-        else:
-            # custom_stream = torch.cuda.Stream()
-            inputs_embeds = model.model.embed_tokens(cur_token).to(device)
-            # with torch.cuda.stream(custom_stream):
-            logits=model(inputs_embeds=inputs_embeds,
-                        position_ids=position_ids,
-                        cache_position=cache_position,
-                        past_key_values=past_key_values,
-                        return_dict=False, use_cache=True)[0]
+    def decode_one_tokens(cur_token, position_ids, cache_position, past_key_values):
+        inputs_embeds = model.model.embed_tokens(cur_token).to(device)
+        logits=model(inputs_embeds=inputs_embeds,
+                    position_ids=position_ids,
+                    cache_position=cache_position,
+                    past_key_values=past_key_values,
+                    return_dict=False, use_cache=True)[0]
         if past_key_values != None:
             past_key_values.change_seq_length(1)
-        #print(logits)
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
-
         next_token = torch.argmax(next_token_scores, dim=-1)
         return next_token
     
@@ -587,7 +409,6 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         generated_ids[:, cache_position] = inputs.to(device).to(torch.int)
         if past_key_values != None:
             past_key_values.cur_idx=cache_position
-        start_time = time.time()
 
         if mode == "long_context":
             inputs_embeds = model.model.embed_tokens(inputs.to("cpu"))
@@ -612,10 +433,6 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         next_token_scores = logits_warper(inputs, logits[:, -1, :])
 
         next_token = torch.argmax(next_token_scores, dim=-1)
-        first_token_time = time.time() - start_time
-
-        prefill_count = seq_length
-        prefill_time = first_token_time
         print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, seq_length] = next_token
         tokens.append(next_token)
@@ -623,16 +440,9 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         cache_position = torch.tensor([seq_length], device=device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
-        
-        if use_cuda_graph:
-            cuda_graph_runner = CUDAGraphRunner()
-            cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, device, return_dict=False, use_cache=True)
-        else:
-            cuda_graph_runner = None
-            
-        start_time = time.time()
+
         for _ in range(1, max_new_tokens):
-            next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, use_cuda_graph).to(device)
+            next_token = decode_one_tokens(next_token.unsqueeze(0), position_ids, cache_position, past_key_values).to(device)
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
             generated_ids[:, cache_position] = next_token.int()
             tokens.append(next_token.int())
@@ -645,22 +455,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
                 print(stream.put(next_token.item()), end="", flush=True)
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
-        
 
-    total_time = time.time() - start_time
-    tokens_generated = len(tokens)
-    tokens_per_second = tokens_generated / total_time
-
-    print("")
-
-    print(f"prompt eval count:    {prefill_count} token(s)")
-    print(f"prompt eval duration: {prefill_time}s")
-    print(f"prompt eval rate:     {prefill_count/prefill_time} tokens/s")
-    print(f"eval count:           {tokens_generated} token(s)")
-    print(f"eval duration:        {total_time}s")
-    print(f"eval rate:            {tokens_per_second} tokens/s")
-
-    return tokens, past_key_values, prefill_time
+    return tokens, past_key_values
 
 
 
@@ -895,7 +691,6 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
             corpus.extend(batch[1:-1])
             corpus_lens.append(len(batch[1:-1]))
         path = f"{cache_path}data/{data_name.split('.')[0]}.bin"
-        start_time = time.time()
         if os.path.exists(path):
             index = faiss.read_index(path)
         else:
@@ -916,8 +711,6 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         score, idx = index.search(corpus_embeddings, k=topk)
         context_rank = idx
         bgem3 = None
-        duration_time = time.time() - start_time
-        print(f"embedding time: {duration_time}")
     context_rank = context_rank if preprocess == True else []
     corpus_lens = corpus_lens if preprocess == True else []
     return batch_data, batch_tokens,question_list, real_answer_list, stop_token_id, \

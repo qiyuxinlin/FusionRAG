@@ -90,17 +90,17 @@
             "passage_retrieval_zh": "\n下面是一个摘要\n\n{input}\n\n请输入摘要所属段落的编号。答案格式必须是\"段落1\"，\"段落2\"等格式\n\n答案是：\n<|im_end|>\n<|im_start|>assistant\n"
         },
         "Qwen3":{
-            "hotpotqa": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "bamboogle": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n \no_think <|im_end|>\n<|im_start|>assistant\n",
+            "hotpotqa": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "bamboogle": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n /no_think <|im_end|>\n<|im_start|>assistant\n",
 
-            "2wikimqa": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "musique": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "dureader": "\n请基于上述文章回答下面的问题。\n\n问题：{input}\n回答：\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "multi_news": "\nNow, write a one-page summary of all the news.\n\nSummary:\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "trec": "\n{input}\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "triviaqa": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "samsum": "\n{input}\n \no_think <|im_end|>\n<|im_start|>assistant\n",
-            "passage_retrieval_zh": "\n下面是一个摘要\n\n{input}\n\n请输入摘要所属段落的编号。答案格式必须是\"段落1\"，\"段落2\"等格式\n\n答案是：\n \no_think <|im_end|>\n<|im_start|>assistant\n"
+            "2wikimqa": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "musique": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "dureader": "\n请基于上述文章回答下面的问题。\n\n问题：{input}\n回答：\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "multi_news": "\nNow, write a one-page summary of all the news.\n\nSummary:\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "trec": "\n{input}\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "triviaqa": "\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "samsum": "\n{input}\n /no_think <|im_end|>\n<|im_start|>assistant\n",
+            "passage_retrieval_zh": "\n下面是一个摘要\n\n{input}\n\n请输入摘要所属段落的编号。答案格式必须是\"段落1\"，\"段落2\"等格式\n\n答案是：\n /no_think <|im_end|>\n<|im_start|>assistant\n"
         },
         "GLM":{
             "hotpotqa": "<|user|>\nAnswer the question based on the given passages. Only give me the answer and do not output any other words.\n\nQuestion: {input}\nAnswer:\n<|assistant|>",

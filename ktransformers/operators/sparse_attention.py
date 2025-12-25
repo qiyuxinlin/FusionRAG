@@ -415,6 +415,14 @@ def selected_query_sparse_attention_gqa(
     This function adds padding to ensure dimensions are compatible with block sizes
     and calls the Triton kernel for GQA.
     """
+    # Get current device and ensure all tensors are on the same device
+    current_device = query_selected.device
+
+    # Verify device consistency (important for multi-GPU PP mode)
+    assert key.device == current_device, f"key must be on {current_device}, got {key.device}"
+    assert value.device == current_device, f"value must be on {current_device}, got {value.device}"
+    assert q_idx.device == current_device, f"q_idx must be on {current_device}, got {q_idx.device}"
+
     batch_size, num_q_heads, _, head_dim = query_selected.shape
     _, num_kv_heads, context_size, _ = key.shape
 

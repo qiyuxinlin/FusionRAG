@@ -33,7 +33,6 @@ from torch import nn
 import triton
 import triton.language as tl
 import math
-NPU_ATTN_INFR = False
 
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
