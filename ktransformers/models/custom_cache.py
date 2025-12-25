@@ -64,7 +64,10 @@ class StaticCache(transformers.StaticCache):
             # Note: `mark_static_address` is used to tag the cache as an fixed data pointer, preventing cuda graph
             # breaks when updating the cache.
             if isinstance(device, dict):
-                target_device = device[f"blk.{idx}.self_attn"]["generate_device"]
+                try:
+                    target_device = device[f"model.layers.{idx}"]
+                except:
+                    target_device = device['']
             else:
                 target_device = device
             new_layer_key_cache = torch.zeros(key_shape, dtype=self.dtype, device=target_device)
@@ -108,8 +111,8 @@ class StaticCache(transformers.StaticCache):
         k_out = self.key_cache[layer_idx]
         v_out = self.value_cache[layer_idx]
         #print(cache_position)
-        k_out[:, :, cache_position] = key_states
-        v_out[:, :, cache_position] = value_states
+        k_out[:, :, cache_position] = key_states.to(k_out.device)
+        v_out[:, :, cache_position] = value_states.to(k_out.device)
         self.past_tokens[layer_idx] += cache_position.size(0)
         return k_out, v_out
 
