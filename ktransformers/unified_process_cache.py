@@ -37,21 +37,21 @@ def load_model(model_type, model_path, config):
         model instance
     """
     if model_type == 'mistral':
-        from models.modeling_mistral import MistralForCausalLM
+        from ktransformers.models.modeling_mistral import MistralForCausalLM
         with torch.no_grad():
             model = MistralForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
     elif model_type == 'pangu':
-        from models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
+        from ktransformers.models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
         torch.set_default_dtype(config.torch_dtype)
         with torch.no_grad():
             model = PanguEmbeddedForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
     elif model_type == 'qwen':
-        from models.modeling_qwen2 import Qwen2ForCausalLM
+        from ktransformers.models.modeling_qwen2 import Qwen2ForCausalLM
         torch.set_default_dtype(config.torch_dtype)
         with torch.no_grad():
             model = Qwen2ForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
     elif model_type == 'llama':
-        from models.modeling_llama import LlamaForCausalLM
+        from ktransformers.models.modeling_llama import LlamaForCausalLM
         torch.set_default_dtype(config.torch_dtype)
         with torch.no_grad():
             model = LlamaForCausalLM.from_pretrained(model_path, config=config, torch_dtype=config.torch_dtype)
