@@ -1,0 +1,12 @@
+# Core dependencies for ktransformers-dev
+# Note: faiss-cpu should be installed via conda (see installation instructions)
+
+transformers==4.53.3
+rouge
+FlagEmbedding
+
+# PyTorch (usually pre-installed, but listed for reference)
+# torch>=2.0.0
+
+# Optional: for specific accelerators
+# torch-npu  # For Huawei NPU support

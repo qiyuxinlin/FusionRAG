@@ -1,4 +1,84 @@
-# 简介
+# ktransformers-dev
+
+KV Cache优化框架，支持多种缓存重用和重处理方法。
+
+## 目录
+
+- [安装](#安装)
+- [数据集](#数据集)
+- [代码](#代码)
+- [使用示例](#使用示例)
+- [参数说明](#统一-process-cache-参数说明)
+
+## 安装
+
+### 前置要求
+
+- Python 3.8+
+- Conda (用于安装 faiss)
+- PyTorch 2.0+ (支持 CUDA 或 NPU)
+
+### 方法一：使用安装脚本（推荐）
+
+```bash
+# 克隆或下载项目后，运行安装脚本
+chmod +x install.sh
+./install.sh
+```
+
+安装脚本会自动安装所有依赖：
+- faiss-cpu (通过 conda)
+- transformers 4.53.3
+- rouge
+- FlagEmbedding
+
+### 方法二：手动安装
+
+#### 1. 安装 faiss（必须使用 conda）
+
+```bash
+conda install -c conda-forge faiss-cpu
+```
+
+**注意**: faiss 必须通过 conda 安装，pip 安装可能会有兼容性问题。
+
+#### 2. 安装其他依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+或手动安装：
+
+```bash
+pip install transformers==4.53.3
+pip install rouge
+pip install FlagEmbedding
+```
+
+### NPU 支持
+
+如果在华为昇腾 NPU 上运行，还需要安装：
+
+```bash
+# 根据你的 NPU 驱动版本安装 torch-npu
+pip install torch-npu
+```
+
+然后在运行代码时指定 `device="npu"` 参数。
+
+### 验证安装
+
+```python
+# 测试导入
+import torch
+import faiss
+from transformers import AutoTokenizer
+from FlagEmbedding import FlagModel
+from rouge import Rouge
+
+print("All dependencies installed successfully!")
+```
 
 ## 数据集
 
@@ -124,6 +204,43 @@ main(
     reprocess_method='processCache'
 )
 ```
+
+### 示例 5：在 NPU 设备上运行（华为昇腾）
+```python
+# 在华为昇腾 NPU 上运行
+main(
+    model_type='qwen',
+    model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    model_name='Qwen2.5-7B-Instruct',
+    data_name='musique-200.jsonl',
+    rate=0.15,
+    preprocess=True,
+    topk=10,
+    reprocess_method='FusionRAG',
+    device='npu'  # 指定使用 NPU 设备
+)
+```
+
+**注意**: 使用 NPU 前需要先安装 `torch-npu` 包。代码会自动处理设备特定的操作（如内存清理、SDPA优化等）。
+
+## 设备支持
+
+本项目支持以下计算设备：
+
+- **CUDA**: NVIDIA GPU (默认)
+  ```python
+  main(..., device='cuda')  # 或不指定，默认为 cuda
+  ```
+
+- **NPU**: 华为昇腾处理器
+  ```python
+  main(..., device='npu')
+  ```
+
+所有核心函数都已适配多设备支持，包括：
+- 自动内存管理（`torch.cuda.empty_cache()` / `torch.npu.empty_cache()`）
+- SDPA优化兼容性检查
+- 设备特定的张量操作
 
 ## 输出文件
 
