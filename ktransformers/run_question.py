@@ -131,7 +131,7 @@ class FusionRAGModel:
             revert_rope=True,
             preprocess=False,
             max_new_tokens=150,
-    ) -> (int, int, int, int, str):
+    ) -> (int, int, int, int, str, list[int]):
         if system_prompt == "":
             system_prompt="<|im_start|>system\nYou are a helpful assistant.\nWrite a high-quality answer for the given question using only the provided search results. The answer process requires reference to the material content and step-by-step thinking."
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
@@ -139,12 +139,14 @@ class FusionRAGModel:
         system_len = system_tensor.shape[0]
         doc_tensors = []
         doc_tensors_total_length = 0
+        doc_tensors_len = []
         hash_keys = [hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()]
         for doc_text in retrieved_docs:
             doc_tokens = self.tokenizer.encode(doc_text, add_special_tokens=False)
             doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
             doc_tensors_total_length += len(doc_tensor)
             doc_tensors.append(doc_tensor)
+            doc_tensors_len.append(len(doc_tensor))
             hash_keys.append(hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest())
 
 
@@ -242,7 +244,7 @@ class FusionRAGModel:
 
         # Decode answer
         answer = self.tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
-        return system_len, doc_tensors_total_length, query_len, len(generated_tokens), answer
+        return system_len, doc_tensors_total_length, query_len, len(generated_tokens), answer, doc_tensors_len
 
 
 if __name__ == '__main__':
@@ -277,7 +279,7 @@ if __name__ == '__main__':
         "answer": "no"
     }
 
-    system_len, doc_tensors_total_length, query_len, decode_len, answer = fusion_rag_model.run_one_question(
+    system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
         model_type='qwen',
