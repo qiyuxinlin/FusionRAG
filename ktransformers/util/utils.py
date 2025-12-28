@@ -33,7 +33,6 @@ from transformers import (
 )
 from rouge import Rouge
 
-
 def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs, chunk_id: int, example_id=0, hash_key="",
                           save_path='', system_len=0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None
                           ):
@@ -53,7 +52,7 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs, chunk_i
     with torch.no_grad():
         cache_position = torch.arange(seq_length, device=input_device)
         generated_ids = torch.zeros(
-            batch_size, seq_length  + 1, dtype=torch.int, device=input_device
+            batch_size, seq_length + 1, dtype=torch.int, device=input_device
         )
         generated_ids[:, cache_position] = inputs.to(input_device).to(torch.int)
         if past_key_values != None:
@@ -123,7 +122,9 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, passages,
-                          save_path='', example_id = 0, chunk_id=0, system_len=0, revert_rope=False, reprocess_method=None, device="cuda", device_map=None):
+                                           save_path='', example_id = 0, chunk_id=0, system_len=0,
+                                           revert_rope=False, reprocess_method=None, device="cuda",
+                                           device_map=None, hash_key=""):
 
     # load KV
     past_len = past_key_values.past_tokens[0]
@@ -154,7 +155,10 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
             )[0][:,-1,:].unsqueeze(0).clone().to(input_device)
             cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
             cachecraft_score = torch.sum(cachecraft_score, dim=0)
-            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
+            if hash_key != "":
+                torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{hash_key}.pt')
+            else:
+                torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
         else:
             logits = model(
                 inputs_embeds = inputs_embeds, cache_position=cache_position,
@@ -173,7 +177,10 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     cos = cos.unsqueeze(1).cpu()
     sin = sin.unsqueeze(1).cpu()
     key_cache = (key_cache * cos) + (rotate_half(key_cache) * sin)
-    torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
+    if hash_key != "":
+        torch.save(key_cache.clone(), f'{save_path}/{hash_key}_key.pt')
+    else:
+        torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
     key_cache = None
     if "cuda" in input_device:
         torch.cuda.empty_cache()
@@ -181,7 +188,10 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
         torch.npu.empty_cache()
     # Move to CPU to handle multi-GPU scenarios where different layers are on different devices
     value_cache = torch.stack([cache.cpu() for cache in past_key_values.value_cache])[:,:,:,past_len:past_len + passage_len,:]
-    torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
+    if hash_key != "":
+        torch.save(value_cache.clone(), f'{save_path}/{hash_key}_value.pt')
+    else:
+        torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,

@@ -508,7 +508,7 @@ def main(
             # Generate system KV cache (chunk_id=0)
             system_cache_path = f'{save_path}/{example_id}_0_key.pt'
             #fixme: mengyao_debug
-            if True or not os.path.exists(system_cache_path):
+            if not os.path.exists(system_cache_path):
                 print(f"Generating system KV cache...")
                 input_tensor = system_tensor.unsqueeze(0)
                 prefill_and_save_kv_cache(
@@ -769,7 +769,7 @@ def main(
 
 
 if __name__ == '__main__':
-    os.environ["CUDA_VISIBLE_DEVICES"]="4,5"
+    os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
     for rate in [0.3, 1, 0.2]:
         main(
             model_type='qwen3',
@@ -779,9 +779,9 @@ if __name__ == '__main__':
             model_name='Qwen3-32B',
             rate=rate,
             topk=10,
-            preprocess=False,
+            preprocess=True,
             reprocess_method='FusionRAG',
-            bge_model_path='/mnt/data/models/bge-m3-FP16',
+            bge_model_path='/data2/qy_tmp/xumengyao/bge-m3',
             revert_rope=True,
             device="cuda:0",
             use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)

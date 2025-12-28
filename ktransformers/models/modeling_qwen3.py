@@ -54,7 +54,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from .configuration_qwen3 import Qwen3Config
-from ..operators.sparse_attention import selected_query_sparse_attention
+# from ..operators.sparse_attention import selected_query_sparse_attention
 
 if is_flash_attn_2_available():
     from transformers.modeling_flash_attention_utils import _flash_attention_forward
