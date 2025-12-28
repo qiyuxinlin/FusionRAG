@@ -502,7 +502,7 @@ class MistralSdpaAttention(MistralAttention):
             history_key_cache = kwargs['history_key_cache']
             # query_states = query_states[:,:,-passages_len[-1]:,:]
             if self.layer_idx == self.config.num_hidden_layers - 1:
-                # 先不管 question 中提示
+                # Skip the question part for now
                 for context_id, context_len in enumerate(passages_len[:-1]):
                     # if context_id == 0:
                     #     continue

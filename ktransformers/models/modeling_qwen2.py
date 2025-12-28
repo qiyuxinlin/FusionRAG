@@ -108,7 +108,7 @@ class Qwen2RotaryEmbedding(nn.Module):
         self.register_buffer("cos_cached", emb.cos().to(dtype), persistent=False)
         self.register_buffer("sin_cached", emb.sin().to(dtype), persistent=False)
 
-# qwen2 改成了mistral
+# Changed from Qwen2 to Mistral implementation
     def forward(self, x, seq_len):
         # x: [bs, num_attention_heads, seq_len, head_size]
         inv_freq_expanded = self.inv_freq[None, :, None].float().expand(seq_len.shape[0], -1, 1)

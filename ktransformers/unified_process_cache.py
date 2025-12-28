@@ -113,7 +113,7 @@ def main(model_type='mistral',
          revert_rope=False,
          topk=10,
          preprocess=True,
-         reprocess_method='cacheBlend',
+         reprocess_method='CacheBlend',
          bge_model_path='/mnt/data/models/bge-m3-FP16',
          draft_model_path=None,
          device="cuda:0",
@@ -134,7 +134,7 @@ def main(model_type='mistral',
         revert_rope: whether to revert rope
         topk: top-k for preprocessing
         preprocess: whether to use preprocessing
-        reprocess_method: reprocessing method ('cacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill')
+        reprocess_method: reprocessing method ('CacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill')
         bge_model_path: path to BGE model for embedding
         draft_model_path: path to draft model for speculative_prefill (optional, any model can use any draft model)
         device: device to use for model
@@ -330,7 +330,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                     for layer_idx in range(len(past_key_values.key_cache)):
                         past_key_values.past_tokens[layer_idx] = 0
 
-                    # 不需要生成 preprocess
+                    # No need to generate preprocess if already exists
                     if os.path.exists(f"{preporcess_save_path}/{i+1}_{chunk_id}_key.pt"):
                         continue
 
@@ -345,14 +345,14 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                     past_len += system_len
                     id = 1
 
-                    # 检查下 context 的 topk 有没有准备好，没有的现场生成
+                    # Check if context topk is ready, generate on-the-fly if not
                     for corpus_id in context_rank[sum(corpus_lens[:i])+chunk_id-1]:
                         corpus_i, c_id = find_group_and_index(corpus_lens, corpus_id)
                         corpus_i += 1
                         c_id += 1
                         corpus_len = tokens_data[corpus_i-1][c_id].shape[0]
 
-                        # 存在，更新到 past_key_value 中
+                        # If exists, update to past_key_value
                         if corpus_i - 1 == i and c_id == chunk_id:
                             continue
 
@@ -375,7 +375,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                                 passage_len=corpus_len, reprocess_method=reprocess_method, device=device
                             )
 
-                        # rope 修正
+                        # RoPE correction
                         if revert_rope and id > 1:
                             position_ids = torch.full((1, chunk_key_cache[0].shape[2]), past_len - system_len, device=device)
                             # Different models have different rotary_emb access patterns
@@ -411,7 +411,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
             generated_tokens = load_kv_and_generate(
                 model, tokenizer, past_key_values, iter, load_path, i+1,
                 max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
-                rate=rate,  draft_model=draft_model, preprocess=preprocess, device=device
+                rate=rate,  draft_model=draft_model, preprocess=preprocess, device=device,
+                use_sparse_attention=use_sparse_attention
             )
 
         answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]))
@@ -486,4 +487,4 @@ if __name__ == '__main__':
                          rate=rate, preprocess=True, revert_rope=True,
                          cache_path='/mnt/data3/processCache/',
                          reprocess_method=method, data_name=data_name, topk=topk,
-                         compare_with_full_recompute=False)
+                         compare_with_full_recompute=True)

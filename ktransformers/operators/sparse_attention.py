@@ -51,35 +51,35 @@ def selected_query_sparse_attention_fwd_kernel(
     This kernel computes attention for a subset of query tokens, which is more
     efficient when only certain query positions need to attend to the full context.
     """
-    # grid 的两个维度（2，1）
-    start_m = tl.program_id(0)  # 当前是第几块（在 q_size 维度）
-    off_hz = tl.program_id(1)  # batch_size*num_heads 维上的第几块
+    # Grid has two dimensions (2, 1)
+    start_m = tl.program_id(0)  # Current block index (in q_size dimension)
+    off_hz = tl.program_id(1)  # Block index in batch_size*num_heads dimension
 
     batch_idx = off_hz // num_heads
     head_idx = off_hz % num_heads
-    # 当前pid 在 query 维度的偏移
+    # Current PID offset in query dimension
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M) # [0,... BLOCK_M-1]
-    # 当前pid 在 context 维度的偏移
+    # Current PID offset in context dimension
     offs_n = tl.arange(0, BLOCK_N) # [0,... BLOCK_N-1]
-    # 当前pid 在 head_dim 维度的偏移
+    # Current PID offset in head_dim dimension
     offs_d = tl.arange(0, BLOCK_DMODEL) # [0,... head_dim-1]
-    # query 起始偏移量 在前两个维度
+    # Query starting offset in first two dimensions
     sq_offset = (off_hz // num_heads) * stride_sqz + (off_hz % num_heads) * stride_sqh
     o_offset = (off_hz // num_heads) * stride_oz + (off_hz % num_heads) * stride_oh
 
-    # key 起始偏移量 在前两个维度
+    # Key starting offset in first two dimensions
     kv_offset = (off_hz // num_heads) * stride_kz + (off_hz % num_heads) * stride_kh
 
     if start_m * BLOCK_M >= q_size:
         return
-     # 加载 q_idx 并确保不越界
+     # Load q_idx and ensure no out-of-bounds
 
     cols_ptr = q_idx + batch_idx * stride_idxz + head_idx * stride_idxh + start_m * BLOCK_M * stride_idxm
     cols_mask = offs_m < q_size
-    # 特定 query 的索引
+    # Index for specific query
     q_cols = tl.load(cols_ptr + offs_m % BLOCK_M,  mask=cols_mask, other=0)
 
-    # 当前 query索引中的最大值
+    # Maximum value in current query index
     max_qcol = tl.max(q_cols, axis=0)
 
     q_ptrs = Q_selected + sq_offset + offs_m[:, None] * stride_sqm + offs_d[None, :] * stride_sqk
@@ -89,24 +89,24 @@ def selected_query_sparse_attention_fwd_kernel(
     o_ptrs = Out + o_offset + offs_m[:, None] * stride_om + offs_d[None, :] * stride_ok
 
 
-    # 确保 q_cols 不越界
+    # Ensure q_cols does not go out of bounds
     valid_mask = q_cols < context_size
-    # 从Q_selected的q_ptrs load q
+    # Load q from Q_selected q_ptrs
     q = tl.load(q_ptrs)
 
 
-    # 每个query 最大注意力权重
+    # Max attention weight for each query
     m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    # 每个query 累计权重
+    # Accumulated weight for each query
     l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
-    # 累计 o
+    # Accumulated output
     acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     # qk_scale= head_dim ** -0.5 / 1.44269504
     qk_scale =  1 / scale
     q = (q * qk_scale).to(dtype)
-    # 按块遍历上下文
+    # Iterate over context in blocks
     for start_n in range(0, max_qcol + 1, BLOCK_N):
-        # 当前块的context 索引
+        # Current block context index
         cols = start_n + offs_n # [BLOCK_N]
         n_mask = cols < context_size # [BLOCK_N]
         # k_mask = cols <= q_cols # [BLOCK_M, BLOCK_N]
@@ -118,7 +118,7 @@ def selected_query_sparse_attention_fwd_kernel(
         qk += tl.dot(q, k)
 
 
-        # 边界检查，确保 cols 和 q_cols 都在合法范围内
+        # Boundary check to ensure cols and q_cols are in valid range
         qk = tl.where(cols[None, :] <= q_cols[:, None], qk, float("-inf"))
         m_i_new = tl.maximum(m_i, tl.max(qk, 1))
         alpha = tl.math.exp(m_i - m_i_new)
@@ -131,7 +131,7 @@ def selected_query_sparse_attention_fwd_kernel(
         l_i = l_i * alpha + tl.sum(p, 1)
         m_i = m_i_new
     acc /= l_i[:, None]
-    # 在写回输出之前也要确保不越界
+    # Ensure no out-of-bounds before writing output
     tl.store(o_ptrs, acc.to(dtype), mask=offs_m[:, None] < q_size)
 
 
@@ -163,41 +163,41 @@ def selected_query_sparse_attention_fwd_kernel_gqa(
     This variant supports Grouped Query Attention (GQA), where multiple query heads
     share the same key-value heads.
     """
-    # grid 的两个维度（2，1）
-    start_m = tl.program_id(0)  # 当前是第几块（在 q_size 维度）
-    off_hz = tl.program_id(1)  # batch_size*num_q_heads 维上的第几块
+    # Grid has two dimensions (2, 1)
+    start_m = tl.program_id(0)  # Current block index (in q_size dimension)
+    off_hz = tl.program_id(1)  # Block index in batch_size*num_q_heads dimension
 
     batch_idx = off_hz // num_q_heads
     q_head_idx = off_hz % num_q_heads
 
-    # GQA: 计算对应的 kv head index
+    # GQA: Calculate corresponding kv head index
     # num_q_heads_per_kv = num_q_heads // num_kv_heads
     kv_head_idx = q_head_idx // (num_q_heads // num_kv_heads)
 
-    # 当前pid 在 query 维度的偏移
+    # Current PID offset in query dimension
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M) # [0,... BLOCK_M-1]
-    # 当前pid 在 context 维度的偏移
+    # Current PID offset in context dimension
     offs_n = tl.arange(0, BLOCK_N) # [0,... BLOCK_N-1]
-    # 当前pid 在 head_dim 维度的偏移
+    # Current PID offset in head_dim dimension
     offs_d = tl.arange(0, BLOCK_DMODEL) # [0,... head_dim-1]
 
-    # query 起始偏移量 在前两个维度
+    # Query starting offset in first two dimensions
     sq_offset = batch_idx * stride_sqz + q_head_idx * stride_sqh
     o_offset = batch_idx * stride_oz + q_head_idx * stride_oh
 
-    # key/value 起始偏移量 在前两个维度（使用 kv_head_idx）
+    # Key/value starting offset in first two dimensions (using kv_head_idx)
     kv_offset = batch_idx * stride_kz + kv_head_idx * stride_kh
 
     if start_m * BLOCK_M >= q_size:
         return
 
-    # 加载 q_idx 并确保不越界
+    # Load q_idx and ensure no out-of-bounds
     cols_ptr = q_idx + batch_idx * stride_idxz + q_head_idx * stride_idxh + start_m * BLOCK_M * stride_idxm
     cols_mask = offs_m < q_size
-    # 特定 query 的索引
+    # Index for specific query
     q_cols = tl.load(cols_ptr + offs_m % BLOCK_M, mask=cols_mask, other=0)
 
-    # 当前 query索引中的最大值
+    # Maximum value in current query index
     max_qcol = tl.max(q_cols, axis=0)
 
     q_ptrs = Q_selected + sq_offset + offs_m[:, None] * stride_sqm + offs_d[None, :] * stride_sqk
@@ -206,24 +206,24 @@ def selected_query_sparse_attention_fwd_kernel_gqa(
 
     o_ptrs = Out + o_offset + offs_m[:, None] * stride_om + offs_d[None, :] * stride_ok
 
-    # 确保 q_cols 不越界
+    # Ensure q_cols does not go out of bounds
     valid_mask = q_cols < context_size
-    # 从Q_selected的q_ptrs load q
+    # Load q from Q_selected q_ptrs
     q = tl.load(q_ptrs)
 
-    # 每个query 最大注意力权重
+    # Max attention weight for each query
     m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    # 每个query 累计权重
+    # Accumulated weight for each query
     l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
-    # 累计 o
+    # Accumulated output
     acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     # qk_scale= head_dim ** -0.5 / 1.44269504
     qk_scale = 1 / scale
     q = (q * qk_scale).to(dtype)
 
-    # 按块遍历上下文
+    # Iterate over context in blocks
     for start_n in range(0, max_qcol + 1, BLOCK_N):
-        # 当前块的context 索引
+        # Current block context index
         cols = start_n + offs_n # [BLOCK_N]
         n_mask = cols < context_size # [BLOCK_N]
         k_mask = cols <= max_qcol
@@ -232,7 +232,7 @@ def selected_query_sparse_attention_fwd_kernel_gqa(
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
         qk += tl.dot(q, k)
 
-        # 边界检查，确保 cols 和 q_cols 都在合法范围内
+        # Boundary check to ensure cols and q_cols are in valid range
         qk = tl.where(cols[None, :] <= q_cols[:, None], qk, float("-inf"))
         m_i_new = tl.maximum(m_i, tl.max(qk, 1))
         alpha = tl.math.exp(m_i - m_i_new)
@@ -246,7 +246,7 @@ def selected_query_sparse_attention_fwd_kernel_gqa(
         m_i = m_i_new
 
     acc /= l_i[:, None]
-    # 在写回输出之前也要确保不越界
+    # Ensure no out-of-bounds before writing output
     tl.store(o_ptrs, acc.to(dtype), mask=offs_m[:, None] < q_size)
 
 
@@ -332,7 +332,7 @@ def selected_query_attention_entrance_gqa(
     batch_size, num_q_heads, _, head_dim = sq.shape
     _, num_kv_heads, context_size, _ = k.shape
 
-    # GQA 检查: num_q_heads 必须是 num_kv_heads 的倍数
+    # GQA check: num_q_heads must be a multiple of num_kv_heads
     assert num_q_heads % num_kv_heads == 0, \
         f"num_q_heads ({num_q_heads}) must be divisible by num_kv_heads ({num_kv_heads})"
 
@@ -426,7 +426,7 @@ def selected_query_sparse_attention_gqa(
     batch_size, num_q_heads, _, head_dim = query_selected.shape
     _, num_kv_heads, context_size, _ = key.shape
 
-    # GQA 检查
+    # GQA check
     assert num_q_heads % num_kv_heads == 0, \
         f"num_q_heads ({num_q_heads}) must be divisible by num_kv_heads ({num_kv_heads})"
 

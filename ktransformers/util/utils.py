@@ -173,7 +173,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
-                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, device="cuda", chunk_ids=None):
+                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, device="cuda", chunk_ids=None, use_sparse_attention=False):
     passages_len = [passage.shape[0] for passage in passages]
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
@@ -230,7 +230,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             past_key_values.past_tokens[layer_idx] += passage_len
         past_len += passage_len
     if rate != 0:
-        if reprocess_method == 'cacheBlend':
+        if reprocess_method == 'CacheBlend':
             without_attn_key = past_key_values.key_cache[1].narrow(2,0,past_len).clone()
             without_attn_value = past_key_values.value_cache[1].narrow(2,0,past_len).clone()
             inputs = torch.cat(passages[:-1]).to(device).unsqueeze(0)
@@ -274,7 +274,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             chunk_score_list = []
             for file in save_prefix_path_list:
                 if not os.path.exists(file):
-                    raise FileNotFoundError(f"未找到 cache-craft 文件: {file}")
+                    raise FileNotFoundError(f"Cache-Craft file not found: {file}")
                 tensor = torch.load(file, weights_only=True, map_location="cpu")
                 chunk_score_list.append(tensor)
             chunk_score = torch.cat(chunk_score_list, dim=0)
@@ -301,10 +301,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     generated_ids[:, :past_len] = torch.cat(passages).unsqueeze(0).to(device)
     tokens = []
 
-    if reprocess_method != 'FusionRAG':
-        use_sparse_attention = False
-    else:
-        use_sparse_attention = True
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(device)
     cache_position = torch.tensor(k_need_index, device=device)
     with torch.no_grad():
@@ -465,7 +461,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000,
 # ============================================================
 
 def remove_unused_tokens(text):
-    """移除所有 [unusedXX] 格式的 token (PanGu specific)"""
+    """Remove all [unusedXX] format tokens (PanGu specific)"""
     cleaned = re.sub(r'\[unused\d+\]', '', text)
     return cleaned.strip()
 
@@ -505,10 +501,10 @@ def _metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
 
 def find_group_and_index(sizes, idx):
     """
-    找到list中的某个索引属于哪个组及该组中的索引
-    :param sizes: 每个组的大小的列表
-    :param idx: 要查找的索引
-    :return: (组号, 组中的索引)
+    Find which group an index belongs to in a list and its index within that group
+    :param sizes: List of sizes for each group
+    :param idx: Index to search for
+    :return: (group_number, index_within_group)
     """
     cumulative_size = 0
     for group_id, group_size in enumerate(sizes):
@@ -516,14 +512,14 @@ def find_group_and_index(sizes, idx):
             group_index = idx - cumulative_size
             return group_id, group_index
         cumulative_size += group_size
-    return None, None  # 如果索引超出范围，返回None
+    return None, None  # Return None if index is out of range
 
 def split_passages_by_title(text, title_marker):
-    # 使用标题标记作为分割点，找到所有的位置
+    # Use title marker as split point, find all positions
     titles = [i for i in range(len(text)) if text.startswith(title_marker, i)]
-    # 根据标题位置分割文本为多个段落
+    # Split text into multiple passages based on title positions
     passages = [text[titles[i]:titles[i+1]].strip() for i in range(len(titles) - 1)]
-    passages.append(text[titles[-1]:].strip())  # 添加最后一个段落
+    passages.append(text[titles[-1]:].strip())  # Add the last passage
     return passages
 
 def normalize_answer(s, model_type='default'):
@@ -563,9 +559,9 @@ def _rougel_score(prediction, ground_truth):
 
 def save_list_to_jsonl(data_list, file_path):
     """
-    保存一个字典的列表为 jsonl 文件。
-    :param data_list: 要保存的字典列表
-    :param file_path: 保存的文件路径
+    Save a list of dictionaries as a jsonl file.
+    :param data_list: List of dictionaries to save
+    :param file_path: File path to save to
     """
     with open(file_path, 'w', encoding='utf-8') as file:
         for item in data_list:
@@ -599,32 +595,34 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     query_task = prompt_config['query_prompt'][model_name.split('-')[0]][data_name_prefix]
     local_model_config = json.load(open('./config/model_config.json'))
     stop_token_id = local_model_config[model_name.split('-')[0]]['stop_token_id']
-    # 存报告
+    # Create directory for reports
     if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
-    # 存数据
+    # Create directory for data
     if not os.path.exists(f"{cache_path}data"):
         os.makedirs(f"{cache_path}data")
-    # reprocess 数据
+    # Create directory for reprocess data
     if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}/{model_name}")
     if not os.path.exists(f"{cache_path}{data_name.split('.')[0]}/{model_name}"):
         os.makedirs(f"{cache_path}{data_name.split('.')[0]}/{model_name}")
-    # preprocesss 数据
+    # Create directory for preprocess data
     if not os.path.exists(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"):
         os.makedirs(f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}")
 
     csv_path = f"{cache_path}{data_name.split('.')[0]}/{model_name}"
     reprocess_path = f"{cache_path}data/{data_name.split('.')[0]}/{model_name}"
     preprocess_path = f"{cache_path}data/{data_name.split('.')[0]}-preprocess-{topk}-revert_rope-{revert_rope}/{model_name}"
-    data_file = open(data_path, 'r', encoding='utf-8')
-    data = []
-    for line in data_file.readlines():
-        data.append(json.loads(line))
+
+    # Read JSONL file with proper file handling
+    with open(data_path, 'r', encoding='utf-8') as f:
+        data = [json.loads(line) for line in f]
+
+    # Process data based on dataset structure
     if data_name_prefix in ['hotpotqa','triviaqa'] and data_name not in ['hotpotqa.jsonl', 'triviaqa.jsonl', 'hotpotqa-200.jsonl']:
-        data = data[0]
+        # For hotpotqa/triviaqa with document structure
         for i in range(len(data)):
-            # 打乱顺序
+            # Shuffle the order
             random.seed(1)
             random.shuffle(data[i]['output'][0]['document'])
             data[i]['passage'] = data[i]['output'][0]['document']

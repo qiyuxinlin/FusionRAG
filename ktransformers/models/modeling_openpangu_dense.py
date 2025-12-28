@@ -269,7 +269,7 @@ class PanguEmbeddedAttention(nn.Module):
                 passages_len = kwargs['passages_len']
                 history_key_cache = kwargs['history_key_cache']
                 if self.layer_idx == self.config.num_hidden_layers - 1:
-                    # 先不管 question 中提示
+                    # Skip the question part for now
                     for context_id, context_len in enumerate(passages_len[:-1]):
                         if context_id < 1:
                             continue

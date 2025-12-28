@@ -94,14 +94,8 @@ print("All dependencies installed successfully!")
 
 在 `ktransformers` 目录下提供了以下脚本：
 
-### 旧版脚本（模型特定）
-- `process_cache.py` - 支持 Mistral 系列模型
-- `qwen_process_cache.py` - 支持 Qwen 系列模型
-- `pangu_process_cache.py` - 支持 PanGu 系列模型
-- `llama_process_cache.py` - 支持 Llama 系列模型
-
 ### 统一脚本（推荐使用）
-- `unified_process_cache.py` - **新的统一脚本，支持所有模型类型**（Mistral、Qwen、PanGu、Llama）
+- `unified_process_cache.py` - **新的统一脚本，支持所有模型类型**（Mistral、Qwen、PanGu）
 
 ## 统一 Process Cache 参数说明
 
@@ -136,7 +130,7 @@ print("All dependencies installed successfully!")
 |------|------|--------|------|
 | `rate` | float | `0.2` | 重计算比例（0.0 = 无重计算，1.0 = 完全重计算） |
 | `revert_rope` | bool | `False` | 是否还原 RoPE（旋转位置编码） |
-| `reprocess_method` | str | `'cacheBlend'` | 重处理方法。可选值：<br>- `'processCache'`：查询引导的重处理（论文方法）<br>- `'cacheBlend'`：SOTA CacheBlend 基线<br>- `'Cache-Craft'`：SOTA Cache-Craft 基线<br>- `'speculative_prefill'`：使用 draft 模型的推测预填充<br>- `'frontRow'`：前排基线 |
+| `reprocess_method` | str | `'CacheBlend'` | 重处理方法。可选值：<br>- `'processCache'`：查询引导的重处理（论文方法）<br>- `'CacheBlend'`：SOTA CacheBlend 基线<br>- `'Cache-Craft'`：SOTA Cache-Craft 基线<br>- `'speculative_prefill'`：使用 draft 模型的推测预填充<br>- `'frontRow'`：前排基线 |
 
 ### 预处理配置
 
@@ -175,7 +169,7 @@ main(
     data_name='hotpotqa-260-100-10-doc.jsonl',
     rate=0.2,
     preprocess=False,
-    reprocess_method='cacheBlend'
+    reprocess_method='CacheBlend'
 )
 ```
 
@@ -192,20 +186,7 @@ main(
 )
 ```
 
-### 示例 4：Llama + 完全缓存重计算
-```python
-main(
-    model_type='llama',
-    model_path='/mnt/data/model/Llama-3.1-8B-Instruct',
-    model_name='Llama-3.1-8B-Instruct',
-    data_name='2wikimqa-200.jsonl',
-    rate=1.0,  # 完全重计算
-    preprocess=False,
-    reprocess_method='processCache'
-)
-```
-
-### 示例 5：在 NPU 设备上运行（华为昇腾）
+### 示例 4：在 NPU 设备上运行（华为昇腾）
 ```python
 # 在华为昇腾 NPU 上运行
 main(
@@ -265,14 +246,12 @@ main(
 
 ## 方法说明
 
-### processCache（查询引导的重处理）
+### FusionRAG
 论文中描述的主要贡献。使用查询引导的注意力机制来选择重要的 KV 缓存条目进行重计算。
 
-### cacheBlend
+### CacheBlend
 SOTA 基线方法，混合完全注意力和流式注意力的缓存。
 
 ### Cache-Craft
 SOTA 基线方法，使用精心设计的缓存选择策略。
 
-### speculative_prefill
-使用较小的 draft 模型通过推测执行加速预填充。需要设置 `draft_model_path` 参数。
