@@ -403,7 +403,7 @@ class FusionRAGModel:
                     print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
 
         if model_type == 'qwen3':
-            question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion:/no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         else:
             question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
@@ -429,10 +429,12 @@ class FusionRAGModel:
             # Load preprocessed KV cache and generate
             load_path = self.preprocess_save_path if preprocess else self.save_path
             ## check if all preprocess cache is there.
-            for hash_key in hash_keys:
+            for doc_index, hash_key in enumerate(hash_keys):
                 key_cache_path = f'{load_path}/{hash_key}_key.pt'
                 value_cache_path = f'{load_path}/{hash_key}_value.pt'
                 if preprocess and (not os.path.exists(key_cache_path) or not os.path.exists(value_cache_path)):
+                    if doc_index > 0:
+                        print(f"retrieved_docs {retrieved_docs[doc_index-1]} not preprocessed before.")
                     load_path = self.save_path
                     break
             generated_tokens, _ = load_kv_and_generate(
