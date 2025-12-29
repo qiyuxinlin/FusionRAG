@@ -1,0 +1,170 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+====================================================================================================
+Per-Head Generation with Union Strategy
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 121.17it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+====================================================================================================
+Example 4, Sub-question 1
+====================================================================================================
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+====================================================================================================
+
+Initializing model cache...
+
+====================================================================================================
+Computing per-head selections with Union strategy
+====================================================================================================
+
+Number of layers: 28
+Number of KV heads per layer: 4
+Selection ratio: 1
+Skipping chunks: 0 (system) and 1 (first doc, prefix cache hit)
+
+Loaded 11 document caches for recomputation
+Total recomputable document length: 1788
+
+Forwarding query to compute query key states...
+Computing per-head attention scores...
+
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+Computing Union of all selections...
+
+====================================================================================================
+Union Statistics:
+====================================================================================================
+  Total layers × heads: 28 × 4 = 112
+  Each head selects: 1788 tokens (100.0%)
+  Union result: 1788 unique tokens (100.0%)
+  Overlap reduction: 200256 → 1788 (compression: 0.9%)
+====================================================================================================
+
+
+====================================================================================================
+Loading Union-selected KV cache
+====================================================================================================
+
+Loaded and selected cache for 1788 tokens across 28 layers
+Cache shape per layer: [1, 4, 1788, 128]
+
+
+Initializing model cache...
+
+====================================================================================================
+Generating with Union-selected cache
+====================================================================================================
+
+Loading prefix cache (chunks 0, 1)...
+  Chunk 11: loaded 96 tokens
+  Chunk 12: loaded 139 tokens
+Prefix cache total: 235 tokens
+
+Loading union-selected cache...
+Union cache: 1788 tokens
+Union absolute positions: 235 - 2022
+Max original position: 2022
+
+Per-layer cache statistics:
+  Layer  0: 2075 tokens cached
+  Layer  5: 2075 tokens cached
+  Layer 10: 2075 tokens cached
+  Layer 15: 2075 tokens cached
+  Layer 20: 2075 tokens cached
+  Layer 25: 2075 tokens cached
+  Layer 27: 2075 tokens cached
+
+Query length: 24 tokens
+Cache position for query: 2023 - 2046
+Generating up to 100 tokens...
+
+  Step 0: 1
+  Step 1: 2
+  Step 2: 1
+  Step 3: 6
+  Step 4: .
+  Step 5:  Henry
+  Step 6:  III
+  Step 7:  was
+  Step 8:  unable
+  Step 9:  to
+  Step 10:  be
+  Step 20:  throne
+  Step 30:  of
+  Step 40:  in
+  Step 50: .
+  Step 60:  at
+  EOS reached at step 70
+
+====================================================================================================
+Generation completed
+====================================================================================================
+
+
+====================================================================================================
+RESULTS
+====================================================================================================
+
+Question: When was King Henry III of England crowned?
+
+Ground Truth:
+Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Generated Answer:
+
+user
+Question: When was King Henry III of England crowned?
+assistant
+Answer: 1216. Henry III was unable to be crowned in London when he first came to the throne, because the French prince Louis had taken control of the city. So, the king was crowned in Gloucester Cathedral in 1216. He later chose to have a second coronation at Westminster Abbey in 1220.
+
+====================================================================================================
+
+Results saved to ./per_head_generation_results.json

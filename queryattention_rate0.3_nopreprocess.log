@@ -1,0 +1,2340 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.37it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.38it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:02<00:00,  1.39it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.44it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.42it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  model.embed_tokens: 0
+  model.layers.0: 1
+  model.layers.1: 1
+  model.layers.2: 1
+  model.layers.3: 1
+  model.layers.4: 1
+  model.layers.5: 2
+  model.layers.6: 2
+  model.layers.7: 2
+  model.layers.8: 2
+  model.layers.9: 2
+  model.layers.10: 3
+  model.layers.11: 3
+  model.layers.12: 3
+  model.layers.13: 3
+  model.layers.14: 3
+  model.layers.15: 4
+  model.layers.16: 4
+  model.layers.17: 4
+  model.layers.18: 4
+  model.layers.19: 4
+  model.layers.20: 5
+  model.layers.21: 5
+  model.layers.22: 5
+  model.layers.23: 5
+  model.layers.24: 5
+  model.layers.25: 6
+  model.layers.26: 6
+  model.layers.27: 6
+  model.norm: 6
+  lm_head: 6
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 200 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+  Main question 11: 17 unique documents, 2 sub-questions
+  Main question 12: 19 unique documents, 2 sub-questions
+  Main question 13: 14 unique documents, 2 sub-questions
+  Main question 14: 18 unique documents, 2 sub-questions
+  Main question 15: 17 unique documents, 2 sub-questions
+  Main question 16: 19 unique documents, 2 sub-questions
+  Main question 17: 14 unique documents, 2 sub-questions
+  Main question 18: 14 unique documents, 2 sub-questions
+  Main question 19: 17 unique documents, 2 sub-questions
+  Main question 20: 16 unique documents, 2 sub-questions
+  Main question 21: 17 unique documents, 2 sub-questions
+  Main question 22: 15 unique documents, 2 sub-questions
+  Main question 23: 21 unique documents, 3 sub-questions
+  Main question 24: 19 unique documents, 3 sub-questions
+  Main question 25: 18 unique documents, 2 sub-questions
+  Main question 26: 17 unique documents, 2 sub-questions
+  Main question 27: 10 unique documents, 1 sub-questions
+  Main question 28: 19 unique documents, 2 sub-questions
+  Main question 29: 25 unique documents, 4 sub-questions
+  Main question 30: 17 unique documents, 4 sub-questions
+  Main question 31: 29 unique documents, 4 sub-questions
+  Main question 32: 14 unique documents, 2 sub-questions
+  Main question 33: 14 unique documents, 2 sub-questions
+  Main question 34: 10 unique documents, 1 sub-questions
+  Main question 35: 24 unique documents, 4 sub-questions
+  Main question 36: 17 unique documents, 2 sub-questions
+  Main question 37: 19 unique documents, 2 sub-questions
+  Main question 38: 12 unique documents, 2 sub-questions
+  Main question 39: 18 unique documents, 2 sub-questions
+  Main question 40: 15 unique documents, 2 sub-questions
+  Main question 41: 16 unique documents, 2 sub-questions
+  Main question 42: 30 unique documents, 4 sub-questions
+  Main question 43: 21 unique documents, 4 sub-questions
+  Main question 44: 17 unique documents, 2 sub-questions
+  Main question 45: 20 unique documents, 3 sub-questions
+  Main question 46: 16 unique documents, 2 sub-questions
+  Main question 47: 15 unique documents, 2 sub-questions
+  Main question 48: 20 unique documents, 4 sub-questions
+  Main question 49: 13 unique documents, 4 sub-questions
+  Main question 50: 14 unique documents, 4 sub-questions
+  Main question 51: 13 unique documents, 4 sub-questions
+  Main question 52: 16 unique documents, 2 sub-questions
+  Main question 53: 25 unique documents, 3 sub-questions
+  Main question 54: 10 unique documents, 1 sub-questions
+  Main question 55: 18 unique documents, 2 sub-questions
+  Main question 56: 10 unique documents, 1 sub-questions
+  Main question 57: 10 unique documents, 1 sub-questions
+  Main question 58: 10 unique documents, 1 sub-questions
+  Main question 59: 19 unique documents, 2 sub-questions
+  Main question 60: 18 unique documents, 2 sub-questions
+  Main question 61: 14 unique documents, 2 sub-questions
+  Main question 62: 22 unique documents, 4 sub-questions
+  Main question 63: 25 unique documents, 4 sub-questions
+  Main question 64: 19 unique documents, 2 sub-questions
+  Main question 65: 19 unique documents, 2 sub-questions
+  Main question 66: 27 unique documents, 4 sub-questions
+  Main question 67: 10 unique documents, 1 sub-questions
+  Main question 68: 13 unique documents, 4 sub-questions
+  Main question 69: 19 unique documents, 2 sub-questions
+  Main question 70: 19 unique documents, 2 sub-questions
+  Main question 71: 19 unique documents, 2 sub-questions
+  Main question 72: 18 unique documents, 2 sub-questions
+  Main question 73: 19 unique documents, 2 sub-questions
+  Main question 74: 21 unique documents, 4 sub-questions
+  Main question 75: 14 unique documents, 2 sub-questions
+  Main question 76: 10 unique documents, 1 sub-questions
+  Main question 77: 18 unique documents, 2 sub-questions
+  Main question 78: 14 unique documents, 2 sub-questions
+  Main question 79: 19 unique documents, 2 sub-questions
+  Main question 80: 18 unique documents, 3 sub-questions
+  Main question 81: 10 unique documents, 1 sub-questions
+  Main question 82: 18 unique documents, 2 sub-questions
+  Main question 83: 14 unique documents, 2 sub-questions
+  Main question 84: 14 unique documents, 4 sub-questions
+  Main question 85: 20 unique documents, 2 sub-questions
+  Main question 86: 10 unique documents, 1 sub-questions
+  Main question 87: 19 unique documents, 2 sub-questions
+  Main question 88: 19 unique documents, 4 sub-questions
+  Main question 89: 24 unique documents, 3 sub-questions
+  Main question 90: 18 unique documents, 2 sub-questions
+  Main question 91: 15 unique documents, 3 sub-questions
+  Main question 92: 18 unique documents, 2 sub-questions
+  Main question 93: 22 unique documents, 4 sub-questions
+  Main question 94: 14 unique documents, 2 sub-questions
+  Main question 95: 21 unique documents, 4 sub-questions
+  Main question 96: 10 unique documents, 1 sub-questions
+  Main question 97: 17 unique documents, 2 sub-questions
+  Main question 98: 18 unique documents, 2 sub-questions
+  Main question 99: 17 unique documents, 2 sub-questions
+  Main question 100: 17 unique documents, 4 sub-questions
+  Main question 101: 16 unique documents, 2 sub-questions
+  Main question 102: 16 unique documents, 2 sub-questions
+  Main question 103: 19 unique documents, 2 sub-questions
+  Main question 104: 17 unique documents, 2 sub-questions
+  Main question 105: 10 unique documents, 1 sub-questions
+  Main question 106: 13 unique documents, 2 sub-questions
+  Main question 107: 30 unique documents, 4 sub-questions
+  Main question 108: 17 unique documents, 4 sub-questions
+  Main question 109: 13 unique documents, 4 sub-questions
+  Main question 110: 10 unique documents, 1 sub-questions
+  Main question 111: 28 unique documents, 4 sub-questions
+  Main question 112: 15 unique documents, 4 sub-questions
+  Main question 113: 19 unique documents, 2 sub-questions
+  Main question 114: 17 unique documents, 2 sub-questions
+  Main question 115: 20 unique documents, 2 sub-questions
+  Main question 116: 21 unique documents, 3 sub-questions
+  Main question 117: 25 unique documents, 4 sub-questions
+  Main question 118: 19 unique documents, 2 sub-questions
+  Main question 119: 10 unique documents, 1 sub-questions
+  Main question 120: 19 unique documents, 2 sub-questions
+  Main question 121: 10 unique documents, 1 sub-questions
+  Main question 122: 19 unique documents, 2 sub-questions
+  Main question 123: 14 unique documents, 4 sub-questions
+  Main question 124: 18 unique documents, 4 sub-questions
+  Main question 125: 14 unique documents, 4 sub-questions
+  Main question 126: 10 unique documents, 1 sub-questions
+  Main question 127: 14 unique documents, 2 sub-questions
+  Main question 128: 10 unique documents, 1 sub-questions
+  Main question 129: 10 unique documents, 1 sub-questions
+  Main question 130: 10 unique documents, 1 sub-questions
+  Main question 131: 15 unique documents, 2 sub-questions
+  Main question 132: 19 unique documents, 2 sub-questions
+  Main question 133: 14 unique documents, 4 sub-questions
+  Main question 134: 13 unique documents, 2 sub-questions
+  Main question 135: 12 unique documents, 3 sub-questions
+  Main question 136: 19 unique documents, 2 sub-questions
+  Main question 137: 17 unique documents, 2 sub-questions
+  Main question 138: 16 unique documents, 2 sub-questions
+  Main question 139: 18 unique documents, 2 sub-questions
+  Main question 140: 10 unique documents, 1 sub-questions
+  Main question 141: 30 unique documents, 4 sub-questions
+  Main question 142: 17 unique documents, 2 sub-questions
+  Main question 143: 14 unique documents, 2 sub-questions
+  Main question 144: 18 unique documents, 2 sub-questions
+  Main question 145: 16 unique documents, 2 sub-questions
+  Main question 146: 18 unique documents, 2 sub-questions
+  Main question 147: 19 unique documents, 2 sub-questions
+  Main question 148: 20 unique documents, 2 sub-questions
+  Main question 149: 23 unique documents, 4 sub-questions
+  Main question 150: 10 unique documents, 1 sub-questions
+  Main question 151: 18 unique documents, 2 sub-questions
+  Main question 152: 16 unique documents, 2 sub-questions
+  Main question 153: 15 unique documents, 2 sub-questions
+  Main question 154: 10 unique documents, 1 sub-questions
+  Main question 155: 10 unique documents, 1 sub-questions
+  Main question 156: 19 unique documents, 2 sub-questions
+  Main question 157: 17 unique documents, 2 sub-questions
+  Main question 158: 20 unique documents, 4 sub-questions
+  Main question 159: 18 unique documents, 2 sub-questions
+  Main question 160: 18 unique documents, 4 sub-questions
+  Main question 161: 19 unique documents, 2 sub-questions
+  Main question 162: 12 unique documents, 2 sub-questions
+  Main question 163: 10 unique documents, 1 sub-questions
+  Main question 164: 18 unique documents, 2 sub-questions
+  Main question 165: 18 unique documents, 2 sub-questions
+  Main question 166: 10 unique documents, 1 sub-questions
+  Main question 167: 14 unique documents, 2 sub-questions
+  Main question 168: 19 unique documents, 2 sub-questions
+  Main question 169: 29 unique documents, 4 sub-questions
+  Main question 170: 19 unique documents, 2 sub-questions
+  Main question 171: 21 unique documents, 3 sub-questions
+  Main question 172: 16 unique documents, 4 sub-questions
+  Main question 173: 18 unique documents, 4 sub-questions
+  Main question 174: 13 unique documents, 2 sub-questions
+  Main question 175: 19 unique documents, 2 sub-questions
+  Main question 176: 29 unique documents, 4 sub-questions
+  Main question 177: 10 unique documents, 1 sub-questions
+  Main question 178: 25 unique documents, 4 sub-questions
+  Main question 179: 18 unique documents, 2 sub-questions
+  Main question 180: 17 unique documents, 2 sub-questions
+  Main question 181: 17 unique documents, 2 sub-questions
+  Main question 182: 16 unique documents, 3 sub-questions
+  Main question 183: 22 unique documents, 4 sub-questions
+  Main question 184: 19 unique documents, 2 sub-questions
+  Main question 185: 21 unique documents, 4 sub-questions
+  Main question 186: 20 unique documents, 4 sub-questions
+  Main question 187: 13 unique documents, 2 sub-questions
+  Main question 188: 20 unique documents, 3 sub-questions
+  Main question 189: 18 unique documents, 2 sub-questions
+  Main question 190: 20 unique documents, 4 sub-questions
+  Main question 191: 23 unique documents, 4 sub-questions
+  Main question 192: 19 unique documents, 2 sub-questions
+  Main question 193: 26 unique documents, 3 sub-questions
+  Main question 194: 21 unique documents, 4 sub-questions
+  Main question 195: 17 unique documents, 4 sub-questions
+  Main question 196: 26 unique documents, 4 sub-questions
+  Main question 197: 16 unique documents, 4 sub-questions
+  Main question 198: 21 unique documents, 4 sub-questions
+  Main question 199: 25 unique documents, 4 sub-questions
+  Main question 200: 16 unique documents, 4 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 200
+  - Testable: 135
+  - Skipped (llm_judge=False or problematic answers): 65
+
+Total sub-questions: 485
+  - Testable: 250
+  - Skipped: 235
+
+Total documents (across all questions): 3408
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 3408 documents for FAISS index...
+initial target device:   0%|          | 0/8 [00:00<?, ?it/s]initial target device:  12%|█▎        | 1/8 [00:03<00:27,  3.94s/it]initial target device:  25%|██▌       | 2/8 [00:07<00:23,  3.94s/it]initial target device:  38%|███▊      | 3/8 [00:11<00:19,  3.89s/it]initial target device:  50%|█████     | 4/8 [00:15<00:15,  3.87s/it]initial target device:  62%|██████▎   | 5/8 [00:19<00:11,  3.86s/it]initial target device:  75%|███████▌  | 6/8 [00:23<00:07,  3.87s/it]initial target device:  88%|████████▊ | 7/8 [00:27<00:03,  3.86s/it]initial target device: 100%|██████████| 8/8 [00:30<00:00,  3.86s/it]initial target device: 100%|██████████| 8/8 [00:30<00:00,  3.87s/it]
+Chunks:   0%|          | 0/8 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 35.22it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 35.28it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 32.54it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 31.58it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 31.43it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 37.21it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 34.23it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 38.49it/s]
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.86it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  3.20it/s]
+Chunks:  12%|█▎        | 1/8 [00:08<01:01,  8.72s/it]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.53it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.53it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.62it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.71it/s]
+Chunks:  25%|██▌       | 2/8 [00:09<00:22,  3.76s/it]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.63it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.69it/s]
+Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.63it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.80it/s]
+Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  3.20it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.80it/s]
+Chunks:  62%|██████▎   | 5/8 [00:09<00:03,  1.09s/it]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.88it/s]
+Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.54it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.61it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.67it/s]
+Chunks:  88%|████████▊ | 7/8 [00:09<00:00,  1.41it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.81it/s]
+Chunks: 100%|██████████| 8/8 [00:09<00:00,  1.18s/it]
+Corpus embeddings shape: (3408, 1024)
+FAISS index built with 3408 vectors
+Searching for top-10 similar documents for each document...
+Chunks:   0%|          | 0/8 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 28.12it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 24.82it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 21.02it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 20.69it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.99it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.95it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.25it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.22it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.83it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.80it/s]
+pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.75it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 19.72it/s]
+Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.04it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.91it/s]
+Chunks:  12%|█▎        | 1/8 [00:01<00:08,  1.20s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.11s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.12s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.12s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.15s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.17s/it]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.92it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.64it/s]
+Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.65it/s]
+Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.20s/it]Chunks:  25%|██▌       | 2/8 [00:01<00:03,  1.70it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.65it/s]
+Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.63it/s]
+Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.22s/it]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.60it/s]
+Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.55it/s]
+Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.77it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.50it/s]
+Chunks: 100%|██████████| 8/8 [00:01<00:00,  8.58it/s]Chunks: 100%|██████████| 8/8 [00:01<00:00,  5.35it/s]
+Context rank computed: (3408, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/QueryAttention_global_topk_10_rate_1.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/200: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.13413119316101074
+QueryAttention 选择了 393 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.348s
+
+Predicted:  National Cycle Network
+Judgment: ✓ CORRECT
+F1: 0.2353, EM: 0.0000
+Reason: 预测答案“National Cycle Network”与标准答案“United Kingdom's National Cycle Network (NCN)”在语义上完全等价，因为它直接包含了标准答案的核心关键信息，即国家自行车网络这一主体。尽管预测答案省略了“United Kingdom's”和缩写“NCN”等细节，但这些并不影响对问题本质的回答，因为问题明确询问的是所属网络名称，而预测答案准确提供了这一名称，且措辞差异在允许范围内，意思保持一致。
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/200: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.04476308822631836
+QueryAttention 选择了 388 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Dorset, England
+Judgment: ✓ CORRECT
+F1: 0.5455, EM: 0.0000
+Reason: 预测答案“Dorset, England”虽然比标准答案“Corfe Mullen, Dorset, England”更简洁，但它包含了标准答案中的关键地理信息——Dorset 和 England，这两个要素足以准确定位 Julia's House 总部所在的主要行政区域。在语义上，预测答案与标准答案的核心意思保持一致，因为 Corfe Mullen 是 Dorset 的一部分，而 Dorset 又属于 England，因此预测答案没有提供错误或矛盾的信息。尽管缺少更具体的城镇名称，但根据判断标准，允许措辞上的细微差异，只要关键信息一致即可，因此预测答案正确回答了问题。
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/200: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.04685711860656738
+QueryAttention 选择了 432 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Coffee Swamp is located on the northern edge of Washington Island, in Door County Wisconsin.
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案与标准答案在关键信息上完全一致，都明确指出Coffee Swamp位于华盛顿岛北缘、威斯康星州多尔县。虽然预测答案中“Door County Wisconsin”的标点使用略有差异（缺少逗号），但这属于细微的措辞差异，不影响语义等价性。整体上，预测答案准确传达了地理位置的核心要素，未遗漏或歪曲任何必要信息，因此可以判定为正确回答了问题。
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/200: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.042171478271484375
+QueryAttention 选择了 346 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Johan Ludvig Heiberg
+Judgment: ✓ CORRECT
+F1: 0.5714, EM: 0.0000
+Reason: 预测答案“Johan Ludvig Heiberg”直接提供了标准答案中的核心信息，即彼得·安德烈亚斯·海贝尔格的孩子是谁。虽然预测答案省略了标准答案中“is the child of Peter Andreas Heiberg”的完整表述，但它在语义上完全等价，因为人名本身已明确指向了标准答案中的关键实体。根据评估标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.048093557357788086
+QueryAttention 选择了 405 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Johanne Luise Heiberg
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Johanne Luise Heiberg”与标准答案完全一致，不仅包含了关键信息——即约翰·路德维希·海贝尔的配偶姓名，而且在语义上完全等价，没有任何歧义或差异。该答案准确无误地回应了问题，符合所有判断标准，包括信息完整性和语义一致性，且无需考虑措辞差异，因为两者表述完全相同。因此，可以明确判定预测答案正确回答了问题。
+
+✓ Main question 4: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 5/200: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.04306483268737793
+QueryAttention 选择了 353 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  John de Warenne, 6th Earl of Surrey
+Judgment: ✗ INCORRECT
+F1: 0.1333, EM: 0.0000
+Reason: 预测答案“John de Warenne, 6th Earl of Surrey”并未正确回答问题。问题询问的是Alice de Lusignan的兄弟姐妹，而预测答案提到的是她的丈夫（John de Warenne是她的配偶），这与标准答案中提到的同母异父兄弟亨利三世国王完全不符。预测答案在语义上不涉及任何兄弟姐妹关系，且遗漏了关键信息，因此无法被视为正确或等价回答。
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.05735349655151367
+QueryAttention 选择了 622 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted: 1220
+Judgment: ✗ INCORRECT
+F1: 0.1538, EM: 0.0000
+Reason: 第一次在1216年，第二次在1220年。预测答案遗漏了关键信息（1216年的加冕），且未能完整涵盖标准答案的全部内容，导致语义上不完整，因此未能正确回答问题。
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 6/200: What company merged in 2002 with the CEMM developer?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 7/200: Which university employed the person that Mach bands are named after?
+================================================================================
+
+Sub-question 1/1
+Question: Which university employed Ernst Mach?
+Ground Truth: Ernst Mach was employed at Charles University in Prague.
+storage_time: 0.04780244827270508
+QueryAttention 选择了 447 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Charles University in Prague
+Judgment: ✓ CORRECT
+F1: 0.6250, EM: 0.0000
+Reason: 预测答案“Charles University in Prague”完整包含了标准答案中的关键信息，即明确指出恩斯特·马赫受雇于布拉格的查理大学。尽管预测答案省略了“Ernst Mach was employed at”这一表述，但其核心内容与标准答案在语义上完全等价，且没有引入任何矛盾或额外信息。根据评估标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+✓ Main question 7: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 8/200: Who is the employer of the physicist who Mach number is named after?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the physicist that the Mach number is named after?
+Ground Truth: The Mach number is named after the Austrian physicist and philosopher Ernst Mach.
+storage_time: 0.04455423355102539
+QueryAttention 选择了 476 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Ernst Mach
+Judgment: ✓ CORRECT
+F1: 0.2857, EM: 0.0000
+Reason: 预测答案“Ernst Mach”直接提供了标准答案中的核心信息，即物理学家姓名，虽然省略了国籍和哲学家身份等细节，但关键信息完全匹配且语义等价。根据判断标准，预测答案已包含标准答案的关键信息（人物姓名），且意思保持一致，因此正确回答了问题。
+
+Sub-question 2/2
+Question: Who was Ernst Mach's employer or academic institution during his career?
+Ground Truth: Ernst Mach was a professor at Charles University in Prague.
+storage_time: 0.04802680015563965
+QueryAttention 选择了 439 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Charles University in Prague
+Judgment: ✓ CORRECT
+F1: 0.6250, EM: 0.0000
+Reason: 预测答案“Charles University in Prague”直接提供了标准答案中的核心信息，即恩斯特·马赫的雇主或学术机构是布拉格的查理大学。虽然预测答案省略了“Ernst Mach was a professor at”这一部分，但问题询问的是雇主或机构名称，预测答案精准地给出了这一关键实体，与标准答案在语义上完全等价，且没有引入任何矛盾或错误信息。因此，预测答案正确回答了问题。
+
+✓ Main question 8: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 9/200: What record label did the performer of The Place and the Time belong to?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 10/200: When did a storm disperse the fleet led by the English king who trusted William de Longchamp?
+================================================================================
+
+Sub-question 1/2
+Question: Which English king trusted William de Longchamp?
+Ground Truth: King Richard I of England
+storage_time: 0.054662227630615234
+QueryAttention 选择了 599 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Richard I
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“Richard I”与标准答案“King Richard I of England”在语义上完全等价，都指向同一位英格兰国王理查一世。尽管预测答案省略了“King”和“of England”这些修饰词，但“Richard I”在历史语境中通常特指英格兰的理查一世，这已足够明确地识别出问题所指的君主。预测答案包含了标准答案的核心关键信息，且没有引入歧义或错误，因此可以认为它正确回答了问题。
+
+Sub-question 2/2
+Question: What specific naval expedition or fleet did King Richard I lead that was dispersed by a storm?
+Ground Truth: King Richard I led a large fleet from Messina to Acre in April 1191, which was dispersed by a storm.
+storage_time: 0.06216883659362793
+QueryAttention 选择了 816 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.093s
+
+Predicted:  Richard the Lion-hearted left Messina with a large fleet in order to reach Acre, but a storm dispersed the fleet.
+Judgment: ✓ CORRECT
+F1: 0.4762, EM: 0.0000
+Reason: 明确指出是理查一世（狮心王）率领大型舰队从墨西拿出发前往阿卡，并在途中遭遇风暴导致舰队分散。虽然表述顺序和措辞略有差异（如使用“理查狮心王”而非“理查一世”，以及“为了抵达阿卡”这一补充说明），但核心事件、人物、地点和结果均与标准答案完全一致，语义上完全等价，符合历史事实的准确描述。
+
+✓ Main question 10: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 11/200: The Unwinding author volunteered for which organisation?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the author of The Unwinding?
+Ground Truth: George Packer
+storage_time: 0.048784494400024414
+QueryAttention 选择了 451 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  George Packer
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“George Packer”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案直接准确地指出了《The Unwinding》的作者，符合所有判断标准，因此正确回答了问题。
+
+Sub-question 2/2
+Question: Which organization did George Packer volunteer for?
+Ground Truth: Peace Corps
+storage_time: 0.05161619186401367
+QueryAttention 选择了 521 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Peace Corps
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Peace Corps”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案直接、准确地指出了乔治·帕克曾志愿服务的组织名称，符合问题要求，因此可以明确判定为正确回答了问题。
+
+✓ Main question 11: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 12/200: Who is the lead singer of the band performing Bang Bang Rock & Roll?
+================================================================================
+
+Sub-question 1/2
+Question: Which band performed the song 'Bang Bang Rock & Roll'?
+Ground Truth: The song 'Bang Bang Rock & Roll' was performed by the British rock band Art Brut.
+storage_time: 0.045333147048950195
+QueryAttention 选择了 369 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Art Brut
+Judgment: ✓ CORRECT
+F1: 0.1538, EM: 0.0000
+Reason: 预测答案“Art Brut”直接提供了标准答案中的核心信息，即演唱歌曲“Bang Bang Rock & Roll”的乐队名称。虽然预测答案省略了标准答案中关于乐队国籍（英国）和音乐风格（摇滚）的额外描述，但这些细节并非回答问题的必要关键信息。预测答案在语义上与标准答案完全等价，都准确指出了乐队身份，且措辞简洁符合允许的细微差异标准，因此正确回答了问题。
+
+Sub-question 2/2
+Question: Who is the lead singer of the band Art Brut?
+Ground Truth: Eddie Argos
+storage_time: 0.04964447021484375
+QueryAttention 选择了 361 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Eddie Argos
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Eddie Argos”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。这直接准确地回答了关于Art Brut乐队主唱身份的问题，符合所有判断标准，因此可以明确认定为正确回答。
+
+✓ Main question 12: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 13/200: What company did the company that initiated a successful price war among PC manufacturers in 1994 merge with in 2002?
+================================================================================
+
+Sub-question 1/2
+Question: Which company initiated a successful price war among PC manufacturers in 1994?
+Ground Truth: Compaq initiated a successful price war among PC manufacturers in 1994.
+storage_time: 0.04994797706604004
+QueryAttention 选择了 603 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.093s
+
+Predicted:  Compaq
+Judgment: ✓ CORRECT
+F1: 0.1333, EM: 0.0000
+Reason: 预测答案“Compaq”完全包含了标准答案中的关键信息，即明确指出是Compaq公司。虽然预测答案比标准答案更简洁，但它在语义上与标准答案的核心内容完全等价，都准确回答了“哪家公司”的问题，且没有引入任何矛盾或额外信息。根据判断标准，允许措辞上的细微差异，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Which company did Compaq merge with in 2002?
+Ground Truth: Hewlett Packard
+storage_time: 0.05630946159362793
+QueryAttention 选择了 630 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Hewlett Packard
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Hewlett Packard”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。这直接准确地回答了关于康柏公司在2002年与哪家公司合并的问题，符合所有判断标准，包括信息完整性和语义一致性，因此可以明确判定为正确回答。
+
+✓ Main question 13: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 14/200: What year was the father of Katherine of England crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who is Katherine of England?
+Ground Truth: Katherine of England was the fifth child of King Henry III and Eleanor of Provence. She was born on 25 November 1253, was either deaf-mute or deaf and mentally challenged, was very sickly, possibly had a degenerative disease, and died at Windsor on 3 May 1257 before reaching her fourth year.
+storage_time: 0.043415069580078125
+QueryAttention 选择了 342 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Katherine of England was the fifth child of Henry III and his wife Eleanor of Provence. She was born in 1253 and died in 1257.
+Judgment: ✓ CORRECT
+F1: 0.6154, EM: 0.0000
+Reason: 凯瑟琳是亨利三世和普罗旺斯的埃莉诺的第五个孩子，出生于1253年，去世于1257年。虽然预测答案省略了具体出生日期、健康状况和死亡地点等细节，但这些并非关键信息，不影响对问题“她是谁”的基本回答。预测答案在语义上与标准答案等价，措辞差异微小，整体意思保持一致，因此正确回答了问题。
+
+Sub-question 2/2
+Question: What year was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 and had a second coronation in 1220.
+storage_time: 0.0586087703704834
+QueryAttention 选择了 624 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted: 1216
+Judgment: ✓ CORRECT
+F1: 0.2400, EM: 0.0000
+Reason: 预测答案“1216”准确包含了标准答案中的关键信息，即亨利三世首次加冕的年份。虽然标准答案还提及了1220年的第二次加冕，但问题仅询问“加冕的年份”，并未指定是首次还是全部加冕事件。预测答案在语义上与标准答案的核心部分完全等价，且措辞差异不影响关键信息的正确性，因此可以判定为正确回答了问题。
+
+✓ Main question 14: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 15/200: Who is the sibling of the actress that played the little girl in Miracle on 34th street 1947?
+================================================================================
+
+Sub-question 1/2
+Question: Who played the little girl in the 1947 film Miracle on 34th Street?
+Ground Truth: Natalie Wood played the little girl, Susan Walker, in the 1947 film Miracle on 34th Street.
+storage_time: 0.04429817199707031
+QueryAttention 选择了 317 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Natalie Wood
+Judgment: ✓ CORRECT
+F1: 0.1667, EM: 0.0000
+Reason: 预测答案“Natalie Wood”完整包含了标准答案中的核心关键信息，即演员姓名，且与标准答案在语义上完全等价。尽管预测答案省略了角色名称“Susan Walker”和电影细节，但问题明确询问“谁扮演了小女孩”，预测答案直接提供了正确的人物名称，这已足够准确回答问题的核心。措辞上的简化不影响意思的一致性，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Who is the sibling of actress Natalie Wood?
+Ground Truth: Lana Wood is the sibling of actress Natalie Wood.
+storage_time: 0.05280923843383789
+QueryAttention 选择了 504 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Lana Wood
+Judgment: ✓ CORRECT
+F1: 0.3333, EM: 0.0000
+Reason: 预测答案“Lana Wood”直接提供了标准答案中的核心信息，即娜塔莉·伍德的姐妹姓名。虽然预测答案省略了标准答案中“is the sibling of actress Natalie Wood”这一完整表述，但它在语义上完全等价，因为单独的名字“Lana Wood”已明确指向了标准答案中的关键主体。根据判断标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+✓ Main question 15: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 16/200: What is the capital of the county that Pine Springs is located in?
+================================================================================
+
+Sub-question 1/2
+Question: In which county is Pine Springs located?
+Ground Truth: Culberson County, Texas
+storage_time: 0.037265777587890625
+QueryAttention 选择了 203 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Culberson County
+Judgment: ✓ CORRECT
+F1: 0.8571, EM: 0.0000
+Reason: 预测答案“Culberson County”完整包含了标准答案“Culberson County, Texas”中的核心关键信息——县名“Culberson County”。虽然预测答案省略了州名“Texas”，但问题仅询问“位于哪个县”，因此县名已足够准确回答该问题。语义上两者完全等价，且措辞差异不影响答案的正确性，符合判断标准中的信息包含和语义一致性要求。
+
+Sub-question 2/2
+Question: What is the county seat of Culberson County, Texas?
+Ground Truth: Van Horn
+storage_time: 0.04516291618347168
+QueryAttention 选择了 336 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Van Horn
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Van Horn”与标准答案“Van Horn”完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案准确指出了德克萨斯州卡尔伯森县的县城，符合所有判断标准，因此正确回答了问题。
+
+✓ Main question 16: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 17/200: In 2002, what company merged with the top PC manufacturer from 1994?
+================================================================================
+
+Sub-question 1/2
+Question: Who was the top PC manufacturer in 1994?
+Ground Truth: Compaq was the top PC manufacturer in 1994.
+storage_time: 0.044058799743652344
+QueryAttention 选择了 454 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Compaq
+Judgment: ✓ CORRECT
+F1: 0.1667, EM: 0.0000
+Reason: 预测答案“Compaq”直接提供了标准答案中的核心实体，即1994年顶级PC制造商的名称。虽然预测答案省略了“was the top PC manufacturer in 1994”这一完整表述，但它准确抓住了关键信息点，在语义上与标准答案完全等价。根据判断标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: What company did Compaq merge with in 2002?
+Ground Truth: Compaq merged with Hewlett Packard (HP) in 2002.
+storage_time: 0.05566143989562988
+QueryAttention 选择了 656 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Hewlett-Packard
+Judgment: ✓ CORRECT
+F1: 0.2000, EM: 0.0000
+Reason: 预测答案“Hewlett-Packard”与标准答案“Compaq merged with Hewlett Packard (HP) in 2002”在语义上完全等价，它准确包含了标准答案中的关键信息——即康柏公司在2002年合并的对象是惠普公司。尽管预测答案省略了年份和合并动作的表述，但问题明确询问的是“与哪家公司合并”，因此直接提供公司名称已足够正确回答核心问题，且“Hewlett-Packard”与“Hewlett Packard (HP)”仅存在格式差异，意思完全一致。
+
+✓ Main question 17: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 18/200: In the King's Speech, who played the person who was the King of England in 1950?
+================================================================================
+
+Sub-question 1/2
+Question: Who was the King of England in 1950?
+Ground Truth: George VI was the King of the United Kingdom in 1950.
+storage_time: 0.045952796936035156
+QueryAttention 选择了 424 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  George VI
+Judgment: ✓ CORRECT
+F1: 0.2667, EM: 0.0000
+Reason: 预测答案"George VI"直接提供了标准答案中的核心信息，即1950年英格兰国王的身份。虽然标准答案更详细地说明了"King of the United Kingdom"，但"King of England"在历史语境中通常与"King of the United Kingdom"同义，且预测答案准确指出了具体人物。语义上完全等价，措辞差异不影响关键事实的正确性，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Which actor played King George VI in the film 'The King's Speech'?
+Ground Truth: Colin Firth
+storage_time: 0.060927629470825195
+QueryAttention 选择了 580 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Colin Firth
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Colin Firth”完全符合标准答案，两者在语义和内容上完全一致，没有任何差异。该答案准确指出了在电影《国王的演讲》中饰演国王乔治六世的演员，直接回应了问题的核心信息。由于演员姓名是唯一且明确的答案，预测答案在措辞和关键信息上与标准答案完全等价，因此正确回答了问题。
+
+✓ Main question 18: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 19/200: Whose sister played Susie in miracle on 34th street?
+================================================================================
+
+Sub-question 1/2
+Question: Who played Susie in Miracle on 34th Street?
+Ground Truth: Natalie Wood played Susan Walker in Miracle on 34th Street.
+storage_time: 0.04186606407165527
+QueryAttention 选择了 306 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Natalie Wood
+Judgment: ✓ CORRECT
+F1: 0.2500, EM: 0.0000
+Reason: 预测答案“Natalie Wood”直接提供了标准答案中的核心信息，即演员姓名。虽然标准答案更详细地说明了角色全名（Susan Walker）和电影名称，但预测答案在语义上完全等价，因为问题明确询问“谁扮演了Susie”，而“Natalie Wood”正是该角色的扮演者。这种简洁回答符合常见的信息提取需求，未遗漏关键点，且措辞差异不影响准确性。
+
+Sub-question 2/2
+Question: Who is Natalie Wood's brother?
+Ground Truth: Natalie Wood's sister is Lana Wood. The documents do not mention a brother.
+storage_time: 0.0498197078704834
+QueryAttention 选择了 361 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Lana Wood
+Judgment: ✗ INCORRECT
+F1: 0.2857, EM: 0.0000
+Reason: 预测答案“Lana Wood”虽然与标准答案中提到的名字一致，但它直接回答了“姐姐是谁”，而问题明确询问的是“兄弟是谁”。标准答案明确指出文档未提及兄弟，并补充了姐妹信息作为背景，但预测答案未能正确对应问题核心，即没有表明“没有兄弟”这一关键点，因此语义上不等价，未能正确回答问题。
+
+✗ Main question 19: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 20/200: What team was Anna Benson's husband on?
+================================================================================
+
+Sub-question 1/2
+Question: Who is Anna Benson's husband?
+Ground Truth: Kris Benson, a former Major League Baseball pitcher.
+storage_time: 0.039888858795166016
+QueryAttention 选择了 310 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.089s
+
+Predicted:  Kris Benson
+Judgment: ✓ CORRECT
+F1: 0.5455, EM: 0.0000
+Reason: 预测答案“Kris Benson”完全包含了标准答案中的核心关键信息，即Anna Benson的丈夫是Kris Benson。虽然预测答案省略了“a former Major League Baseball pitcher”这一附加描述，但这部分信息是对Kris Benson身份的补充说明，而非回答问题的必要内容。在语义上，预测答案与标准答案在指代同一人物上完全等价，且措辞差异不影响核心事实的正确性。因此，预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: What team did Kris Benson play for in Major League Baseball?
+Ground Truth: Kris Benson played for the Pittsburgh Pirates, New York Mets, and Baltimore Orioles.
+storage_time: 0.04954385757446289
+QueryAttention 选择了 474 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Pittsburgh Pirates
+Judgment: ✓ CORRECT
+F1: 0.2727, EM: 0.0000
+Reason: 预测答案“Pittsburgh Pirates”是标准答案中提到的球队之一，且问题仅询问Kris Benson在职业棒球大联盟效力的球队，并未要求列出所有球队。预测答案准确提供了他职业生涯中的一支关键球队，与标准答案的关键信息部分重合，语义上等价，且措辞一致，因此正确回答了问题。
+
+✓ Main question 20: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 21/200: What is the record label for the singer who originally sang You Belong To Me.
+================================================================================
+
+Sub-question 1/2
+Question: Who originally sang the song You Belong To Me?
+Ground Truth: Joni James
+storage_time: 0.04406142234802246
+QueryAttention 选择了 455 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted: 1952 recording of the song was by Joni James.
+Judgment: ✓ CORRECT
+F1: 0.3077, EM: 0.0000
+Reason: 预测答案明确指出“1952 recording of the song was by Joni James”，这包含了标准答案“Joni James”的关键信息，即原唱者是Joni James。虽然预测答案补充了时间细节（1952年），但这并未改变原唱者的核心事实，语义上与标准答案完全等价，仅存在措辞上的细微差异，整体意思保持一致。因此，预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: What record label was Joni James signed to when she released 'You Belong To Me' in 1952?
+Ground Truth: MGM Records
+storage_time: 0.05600404739379883
+QueryAttention 选择了 679 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.094s
+
+Predicted:  Sharp Records
+Judgment: ✗ INCORRECT
+F1: 0.6667, EM: 0.0000
+Reason: 预测答案“Sharp Records”与标准答案“MGM Records”在关键信息上完全不一致，两者代表不同的唱片公司，没有任何语义上的等价性。Joni James在1952年发行《You Belong To Me》时确实与MGM Records签约，而Sharp Records并非她当时的签约厂牌，因此预测答案未能正确回答问题，属于事实性错误。
+
+✗ Main question 21: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 22/200: When did the crowning of the person under whom the Chapter House was built happen?
+================================================================================
+
+Sub-question 1/2
+Question: Who was the person under whom the Chapter House was built?
+Ground Truth: Henry III
+storage_time: 0.049749135971069336
+QueryAttention 选择了 524 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Henry III
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Henry III”与标准答案完全一致，直接包含了关键信息，即亨利三世是威斯敏斯特修道院分会堂的建造者。在语义上，两者完全等价，没有任何歧义或差异，准确回答了问题中关于“谁主持建造了分会堂”的询问。这种直接匹配的答案无需考虑措辞差异，完全符合评估标准中的信息包含性和语义一致性要求。
+
+Sub-question 2/2
+Question: When was Henry III crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral, and then again at Westminster Abbey in 1220.
+storage_time: 0.057585716247558594
+QueryAttention 选择了 635 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted: 1220
+Judgment: ✗ INCORRECT
+F1: 0.1818, EM: 0.0000
+Reason: 第一次在1216年于格洛斯特大教堂，第二次在1220年于威斯敏斯特教堂。预测答案遗漏了关键的第一次加冕信息，导致答案不完整且与标准答案的语义不完全等价，未能全面回答“亨利三世何时加冕”的问题。
+
+✗ Main question 22: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 23/200: What group was the performer of Be the One a member of?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 24/200: What month did the person who retained trust in Longchamp go away to the Holy Land?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 25/200: What record label does the artist who sang you belong to me belong to?
+================================================================================
+
+Sub-question 1/2
+Question: Who sang the song 'You Belong to Me'?
+Ground Truth: Joni James sang the song 'You Belong to Me'.
+storage_time: 0.046045780181884766
+QueryAttention 选择了 466 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Joni James
+Judgment: ✓ CORRECT
+F1: 0.4000, EM: 0.0000
+Reason: 预测答案“Joni James”直接提供了标准答案中的核心信息，即演唱者姓名，虽然省略了“sang the song 'You Belong to Me'”这一完整表述，但它在语义上与标准答案完全等价，因为问题明确询问“谁演唱了这首歌”，预测答案精准回应了这一点，且没有引入任何矛盾或额外信息，符合措辞差异但意思一致的要求。
+
+Sub-question 2/2
+Question: What record label is Joni James signed to?
+Ground Truth: Joni James was signed to MGM Records.
+storage_time: 0.05266141891479492
+QueryAttention 选择了 599 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  MGM Records
+Judgment: ✓ CORRECT
+F1: 0.4000, EM: 0.0000
+Reason: 预测答案“MGM Records”直接提供了标准答案中的核心信息，即Joni James签约的唱片公司名称。虽然预测答案省略了“Joni James was signed to”这一表述，但它在语义上与标准答案完全等价，因为问题明确询问的是唱片公司名称，预测答案精准地给出了这一关键实体。这种简洁的回答方式在信息提取类问题中是可接受的，只要关键信息准确无误且与标准答案一致即可。
+
+✓ Main question 25: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 26/200: What place does the administrative territorial entity that Juba is located in share a border with?
+================================================================================
+
+Sub-question 1/2
+Question: What is the administrative territorial entity that contains Juba?
+Ground Truth: Central Equatoria
+storage_time: 0.0436406135559082
+QueryAttention 选择了 236 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Central Equatoria
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Central Equatoria”与标准答案完全一致，直接包含了关键信息，即朱巴（Juba）所属的行政区域实体。在语义上，两者完全等价，没有任何歧义或差异，准确回答了问题所询问的行政区域名称。这符合判断标准中的信息包含和语义等价要求，且措辞无任何偏差，确保了答案的准确性和完整性。
+
+Sub-question 2/2
+Question: What places share a border with Central Equatoria?
+Ground Truth: Eastern Equatoria shares a border with Central Equatoria.
+storage_time: 0.04853200912475586
+QueryAttention 选择了 338 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Nunu Kumba, Guto Wayu, Diga Leka, Enemorina Eaner, Hadiya Zone, and the Oromia Region share a border with Central Equatoria.
+Judgment: ✗ INCORRECT
+F1: 0.2439, EM: 0.0000
+Reason: 预测答案中列出的地点（如Nunu Kumba、Guto Wayu、Oromia Region等）并非南苏丹的行政区划，而是埃塞俄比亚或虚构的地名，与标准答案中的“Eastern Equatoria”（东赤道州）完全不符。标准答案明确指出与中赤道州接壤的是东赤道州，这是南苏丹国内正确的行政边界关系，而预测答案提供了无关且错误的地理信息，未能包含关键信息，语义上也不等价，因此无法正确回答问题。
+
+✗ Main question 26: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 27/200: Who played the monarch at the end of WW2 in The King's Speech?
+================================================================================
+
+Sub-question 1/1
+Question: Who played King George VI in The King's Speech?
+Ground Truth: Colin Firth
+storage_time: 0.046835899353027344
+QueryAttention 选择了 460 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Colin Firth
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Colin Firth”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案准确指出了在电影《国王的演讲》中饰演国王乔治六世的演员，直接回应了问题核心，符合所有判断标准。
+
+✓ Main question 27: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 28/200: Who is the spouse of a cast member from King of the Mountain?
+================================================================================
+
+Sub-question 1/2
+Question: Who are the cast members of King of the Mountain?
+Ground Truth: The cast includes Harry Hamlin as Steve and Deborah Van Valkenburgh as Tina.
+storage_time: 0.04490065574645996
+QueryAttention 选择了 401 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Steve (Harry Hamlin)
+Judgment: ✗ INCORRECT
+F1: 0.4167, EM: 0.0000
+Reason: 预测答案仅提供了部分关键信息，缺少了标准答案中提及的另一位主要演员 Deborah Van Valkenburgh 及其角色 Tina。虽然预测答案正确指出了 Harry Hamlin 饰演 Steve，但问题要求列出所有演员阵容成员，而预测答案遗漏了关键人物，导致信息不完整，无法在语义上与标准答案等价。因此，预测答案未能完全正确地回答问题。
+
+Sub-question 2/2
+Question: Who is Harry Hamlin's spouse?
+Ground Truth: Lisa Rinna
+storage_time: 0.05042576789855957
+QueryAttention 选择了 433 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Lisa Rinna
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Lisa Rinna”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案直接准确地回答了关于Harry Hamlin配偶身份的问题，符合所有判断标准，包括信息完整性、语义一致性和允许的细微措辞变化。因此，预测答案正确无误地回应了问题。
+
+✗ Main question 28: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 29/200: Who is the spouse of the actress who played the fairy god mother in Shrek 2?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 30/200: Who has played for both West Ham Ajax and the team that Adam Hammill is on?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 31/200: Who is the spouse of Young Man Luther's author?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 32/200: When did the military instruction start in the university that Paulo Manalo attended?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 33/200: Who played king whose regal Name did Albert Adopt in the king's speech?
+================================================================================
+
+Sub-question 1/2
+Question: What was the regnal name adopted by King George VI?
+Ground Truth: Albert assumed the regnal name 'George VI'.
+storage_time: 0.04535818099975586
+QueryAttention 选择了 431 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  George VI
+Judgment: ✓ CORRECT
+F1: 0.4000, EM: 0.0000
+Reason: 预测答案"George VI"直接提供了问题所询问的国王采用的尊号，这与标准答案中"Albert assumed the regnal name 'George VI'"的核心信息完全一致。虽然预测答案省略了国王原名阿尔伯特这一背景细节，但它准确给出了尊号本身，在语义上与标准答案的关键部分等价，符合允许措辞差异但意思一致的要求。
+
+Sub-question 2/2
+Question: Who played King George VI in the film 'The King's Speech'?
+Ground Truth: Colin Firth
+storage_time: 0.05213785171508789
+QueryAttention 选择了 516 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Colin Firth
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Colin Firth”与标准答案完全一致，准确无误地指出了在电影《国王的演讲》中饰演乔治六世国王的演员。该答案不仅包含了关键信息，而且在语义上与标准答案完全等价，没有任何措辞上的差异或歧义，因此完全符合正确回答问题的所有判断标准。
+
+✓ Main question 33: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 34/200: What administrative territorial entity contains the place where KPRM is licensed to broadcast to?
+================================================================================
+
+Sub-question 1/1
+Question: Where is KPRM licensed to broadcast?
+Ground Truth: Park Rapids, Minnesota
+storage_time: 0.04378771781921387
+QueryAttention 选择了 232 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Park Rapids, Minnesota
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Park Rapids, Minnesota”与标准答案完全一致，不仅包含了关键信息“Park Rapids, Minnesota”，而且在语义上完全等价，没有任何信息缺失或歧义。措辞上完全相同，准确指出了KPRM被许可广播的地点，因此预测答案正确回答了问题。
+
+✓ Main question 34: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 35/200: Who is the child of the person who followed Tihomir of Serbia?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 36/200: What year did the author of Prince Prigio die?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the author of Prince Prigio?
+Ground Truth: The author of Prince Prigio is Andrew Lang.
+storage_time: 0.04292035102844238
+QueryAttention 选择了 352 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Andrew Lang
+Judgment: ✓ CORRECT
+F1: 0.3636, EM: 0.0000
+Reason: 预测答案“Andrew Lang”直接提供了标准答案中的关键信息，即作者姓名，与标准答案“The author of Prince Prigio is Andrew Lang”在语义上完全等价。尽管预测答案省略了句子结构，仅以人名呈现，但这并不影响核心信息的准确性，且符合允许措辞差异的原则。因此，预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: What year did Andrew Lang die?
+Ground Truth: Andrew Lang died in 1912.
+storage_time: 0.047925472259521484
+QueryAttention 选择了 364 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted: 1912
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“1912”直接提供了标准答案“Andrew Lang died in 1912”中的核心信息，即安德鲁·朗去世的年份。尽管预测答案省略了主语和动词，仅以数字形式呈现，但它在语义上与标准答案完全等价，因为问题明确询问的是年份，而预测答案精准地给出了这一关键数据。这种措辞差异不影响信息准确性，符合判断标准中允许细微差异的要求，因此预测答案正确回答了问题。
+
+✓ Main question 36: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 37/200: In which county is Mark Dismore's birthplace located?
+================================================================================
+
+Sub-question 1/2
+Question: Where was Mark Dismore born?
+Ground Truth: Greenfield, Indiana
+storage_time: 0.046419382095336914
+QueryAttention 选择了 438 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Greenfield, Indiana
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Greenfield, Indiana”与标准答案完全一致，不仅包含了关键信息（地点名称），而且在语义上完全等价，没有任何措辞差异。该答案直接指明了Mark Dismore的出生地，准确回应了问题中的“Where”疑问，符合所有判断标准，因此可以确认为正确回答。
+
+Sub-question 2/2
+Question: Which county is Greenfield, Indiana located in?
+Ground Truth: Greenfield, Indiana is located in Hancock County.
+storage_time: 0.054311275482177734
+QueryAttention 选择了 546 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Hancock County
+Judgment: ✓ CORRECT
+F1: 0.1818, EM: 0.0000
+Reason: 预测答案“Hancock County”直接提供了标准答案中的核心信息，即格林菲尔德所在的县名。虽然预测答案省略了“Greenfield, Indiana is located in”这一表述，但其语义与标准答案完全等价，都准确指出了地点归属关系。这种简洁回答在信息提取任务中是常见且可接受的，符合“语义等价”和“允许措辞差异”的判断标准。
+
+✓ Main question 37: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 38/200: Who was the sibling of Nannina de' Medici?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the parents of Nannina de' Medici?
+Ground Truth: Nannina de' Medici's parents were Piero di Cosimo de' Medici and Lucrezia Tornabuoni.
+storage_time: 0.04283761978149414
+QueryAttention 选择了 321 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Piero de' Medici and Lucrezia Tornabuoni
+Judgment: ✓ CORRECT
+F1: 0.6286, EM: 0.0000
+Reason: 预测答案与标准答案在语义上完全等价，关键信息一致。标准答案中父母为"Piero di Cosimo de' Medici"和"Lucrezia Tornabuoni"，预测答案简化为"Piero de' Medici"，但这是同一人物的常见简称，历史文献中常将"Piero di Cosimo de' Medici"简称为"Piero de' Medici"，且母亲姓名"Lucrezia Tornabuoni"完全匹配。这种措辞差异不影响核心事实的准确性，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Based on Nannina de' Medici's parents Piero di Cosimo de' Medici and Lucrezia Tornabuoni, who were her siblings?
+Ground Truth: Nannina de' Medici's siblings were Lorenzo de' Medici and Giuliano de' Medici.
+storage_time: 0.04782581329345703
+QueryAttention 选择了 387 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.095s
+
+Predicted:  Lorenzo de' Medici
+Judgment: ✗ INCORRECT
+F1: 0.3200, EM: 0.0000
+Reason: 预测答案只提到了洛伦佐·德·美第奇（Lorenzo de' Medici），但标准答案明确指出南尼娜·德·美第奇（Nannina de' Medici）的兄弟姐妹包括洛伦佐·德·美第奇和朱利亚诺·德·美第奇（Giuliano de' Medici）两人。预测答案遗漏了朱利亚诺这一关键信息，因此未能完整覆盖标准答案的核心内容，不符合语义等价的要求。尽管措辞上可能存在细微差异，但信息不完整导致答案不准确。
+
+✗ Main question 38: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 39/200: What county is the NRHEG High School located in?
+================================================================================
+
+Sub-question 1/2
+Question: Where is NRHEG High School located?
+Ground Truth: NRHEG High School is located in New Richland, Minnesota.
+storage_time: 0.04013657569885254
+QueryAttention 选择了 242 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  New Richland, Minnesota
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“New Richland, Minnesota”完整包含了标准答案中的关键地理位置信息，即学校所在的城市和州。虽然预测答案省略了“NRHEG High School is located in”这一表述，但其核心内容与标准答案在语义上完全等价，都准确指出了学校位于明尼苏达州的新里奇兰。根据评估标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Which county is New Richland, Minnesota located in?
+Ground Truth: New Richland is located in Waseca County, Minnesota.
+storage_time: 0.04928135871887207
+QueryAttention 选择了 297 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Waseca County
+Judgment: ✓ CORRECT
+F1: 0.4286, EM: 0.0000
+Reason: 预测答案“Waseca County”直接提供了标准答案中的核心信息，即新里奇兰所在的县名。虽然预测答案省略了“New Richland is located in”和“Minnesota”等背景描述，但问题明确询问的是县名，预测答案在语义上与标准答案的关键部分完全等价，且措辞差异不影响准确回答问题的本质。因此，预测答案正确回答了问题。
+
+✓ Main question 39: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 40/200: Who founded the political party of Dimuthu Bandara Abayakoon?
+================================================================================
+
+Sub-question 1/2
+Question: What is the name of the political party of Dimuthu Bandara Abayakoon?
+Ground Truth: Janatha Vimukthi Peramuna
+storage_time: 0.04255819320678711
+QueryAttention 选择了 289 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Janatha Vimukthi Peramuna
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Janatha Vimukthi Peramuna”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。这直接准确地回答了关于Dimuthu Bandara Abayakoon所属政党名称的问题，符合所有判断标准，包括信息完整性和意思一致性。因此，预测答案正确无误地回应了问题。
+
+Sub-question 2/2
+Question: Who founded the Janatha Vimukthi Peramuna political party?
+Ground Truth: The Janatha Vimukthi Peramuna was founded by Rohana Wijeweera.
+storage_time: 0.046541452407836914
+QueryAttention 选择了 406 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Patabendi Don Jinadasa Nandasiri Wijeweera
+Judgment: ✓ CORRECT
+F1: 0.2069, EM: 0.0000
+Reason: 预测答案“Patabendi Don Jinadasa Nandasiri Wijeweera”与标准答案“Rohana Wijeweera”在语义上完全等价，因为两者指向同一人物。Rohana Wijeweera 是该政治人物的常用名，而预测答案提供了其全名，包含了标准答案的关键信息，即创始人身份未变。尽管措辞有差异，但核心意思保持一致，都正确识别了 Janatha Vimukthi Peramuna 政党的创立者。因此，预测答案正确回答了问题。
+
+✓ Main question 40: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 41/200: When did military instruction start at the place where Larry Alcala was educated?
+================================================================================
+
+Sub-question 1/2
+Question: Where did Larry Alcala study?
+Ground Truth: Larry Alcala estudió en la Universidad de Filipinas, donde obtuvo un título de Licenciado en Bellas Artes en Pintura.
+storage_time: 0.042263031005859375
+QueryAttention 选择了 326 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.089s
+
+Predicted:  University of the Philippines
+Judgment: ✓ CORRECT
+F1: 0.0000, EM: 0.0000
+Reason: 预测答案“University of the Philippines”与标准答案中的“Universidad de Filipinas”在语义上完全等价，后者是西班牙语对菲律宾大学的直接翻译。标准答案的关键信息是拉里·阿尔卡拉在菲律宾大学学习，预测答案准确提取了这一核心内容，尽管省略了学位细节，但问题仅询问学习地点，因此预测答案正确回答了问题。措辞上的差异（如语言不同）不影响意思的一致性，符合判断标准。
+
+Sub-question 2/2
+Question: When did military instruction begin at the University of the Philippines?
+Ground Truth: Military instruction began at the University of the Philippines in 1912.
+storage_time: 0.049746036529541016
+QueryAttention 选择了 454 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted: 1912
+Judgment: ✓ CORRECT
+F1: 0.3750, EM: 0.0000
+Reason: 预测答案“1912”完全包含了标准答案中的关键信息，即军事训练在菲律宾大学开始的年份。虽然预测答案在表述上比标准答案更简洁，但两者在语义上完全等价，都准确指出了1912年这一具体时间点，没有出现任何矛盾或额外信息。这种措辞上的差异属于允许范围，因为核心事实保持一致，且直接回答了问题所询问的时间。
+
+✓ Main question 41: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 42/200: Who has played for West Ham Ajax and the team that David Currie plays for?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 43/200: Who is the spouse of the creator of Absolutely Fabulous?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 44/200: What county shares a border with Cedar Springs?
+================================================================================
+
+Sub-question 1/2
+Question: Where is Cedar Springs located?
+Ground Truth: Cedar Springs is an unincorporated community in west Falls County, Texas, United States, located on Farm-to-market road #2027.
+storage_time: 0.041507720947265625
+QueryAttention 选择了 251 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.089s
+
+Predicted:  Cedar Springs is an unincorporated community in west Falls County, Texas.
+Judgment: ✓ CORRECT
+F1: 0.6667, EM: 0.0000
+Reason: 预测答案包含了标准答案的关键信息，即Cedar Springs是一个位于德克萨斯州西部福尔斯县的非建制社区。虽然预测答案省略了具体道路信息（FM #2027），但这并不影响核心地理位置的正确性，因为“west Falls County, Texas”已准确指明了其所在区域。语义上与标准答案等价，措辞差异在允许范围内，整体意思保持一致。
+
+Sub-question 2/2
+Question: Which counties share a border with Falls County, Texas?
+Ground Truth: Bell County shares a border with Falls County.
+storage_time: 0.04786205291748047
+QueryAttention 选择了 297 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Bell County, Coleman County, Coryell County, Ellis County, Hill County, McLennan County, and Somervell County share a border with Falls County, Texas.
+Judgment: ✗ INCORRECT
+F1: 0.2857, EM: 0.0000
+Reason: 预测答案中包含了多个与标准答案不符的额外县名，如Coleman County、Ellis County和Somervell County等，这些县实际上并不与Falls County接壤。虽然预测答案包含了标准答案中的Bell County，但由于添加了错误的地理信息，导致整体答案不准确，未能正确回答“哪些县与Falls County接壤”的问题。预测答案与标准答案在语义上不等价，且关键信息存在严重偏差。
+
+✗ Main question 44: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 45/200: Bancroft's county borders what county?
+================================================================================
+
+Sub-question 1/3
+Question: Where is Bancroft located?
+Ground Truth: Bancroft is located in Ontario, Canada.
+storage_time: 0.03949999809265137
+QueryAttention 选择了 299 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Bancroft is located in Ontario, Canada.
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Bancroft is located in Ontario, Canada”与标准答案完全一致，不仅包含了关键信息“Ontario, Canada”，而且在语义上完全等价，没有任何歧义或信息缺失。措辞上完全相同，准确回答了问题中关于Bancroft地理位置的核心内容，符合所有判断标准。
+
+Sub-question 2/3
+Question: Which county is Bancroft, Ontario located in?
+Ground Truth: Bancroft, Ontario is located in Hastings County.
+storage_time: 0.043314456939697266
+QueryAttention 选择了 332 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Hastings County
+Judgment: ✓ CORRECT
+F1: 0.2857, EM: 0.0000
+Reason: 预测答案“Hastings County”直接提供了标准答案中的核心信息，即班克罗夫特所在的县名。虽然预测答案省略了“Bancroft, Ontario is located in”这一背景描述，但它在语义上与标准答案的关键部分完全等价，准确回答了问题所询问的具体县名。这种措辞差异不影响信息的准确性和完整性，符合评估标准中允许细微差异的要求。
+
+Sub-question 3/3
+Question: Which counties border Hastings County in Ontario?
+Ground Truth: Renfrew County and Haliburton County border Hastings County in Ontario.
+storage_time: 0.048311710357666016
+QueryAttention 选择了 480 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Renfrew County, Haliburton County
+Judgment: ✓ CORRECT
+F1: 0.6364, EM: 0.0000
+Reason: 预测答案“Renfrew County, Haliburton County”完整包含了标准答案中提到的两个县名，即Renfrew County和Haliburton County，这些是Hastings County在安大略省相邻的关键行政区划。尽管预测答案省略了标准答案中的部分描述性语句（如“border Hastings County in Ontario”），但仅列出县名已明确传达了相同的核心信息，即这两个县与Hastings County接壤。在语义上，预测答案与标准答案等价，因为列表形式直接回答了问题，且没有添加或遗漏关键实体，符合允许措辞差异的判断标准。
+
+✓ Main question 45: ALL 3 sub-questions CORRECT
+
+================================================================================
+Main Question 46/200: Who is the father of Empress Wang's husband?
+================================================================================
+
+Sub-question 1/2
+Question: Who is Empress Wang's husband?
+Ground Truth: Empress Wang's husband was Yang Pu (Emperor Rui), the final ruler of the Chinese state Wu during the Five Dynasties and Ten Kingdoms period.
+storage_time: 0.04434680938720703
+QueryAttention 选择了 461 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Yang Xingmi
+Judgment: ✗ INCORRECT
+F1: 0.0000, EM: 0.0000
+Reason: 预测答案“Yang Xingmi”与标准答案“Yang Pu (Emperor Rui)”在关键信息上不一致。Yang Xingmi是五代十国时期吴国的奠基者，而Empress Wang的丈夫是吴国末代君主杨溥（即睿帝），两者并非同一人。预测答案未能提供正确的历史人物关系，语义上也不等价，因此无法正确回答问题。
+
+Sub-question 2/2
+Question: Who was the father of Yang Pu (Emperor Rui of Wu)?
+Ground Truth: Yang Pu's father was Yang Xingmi, a late-Tang Dynasty warlord and military governor of Huainan Circuit.
+storage_time: 0.05281782150268555
+QueryAttention 选择了 546 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Yang Xingmi
+Judgment: ✓ CORRECT
+F1: 0.2500, EM: 0.0000
+Reason: 预测答案“Yang Xingmi”直接提供了标准答案中的核心信息，即杨溥的父亲是杨行密。虽然预测答案省略了标准答案中关于杨行密身份（晚唐军阀、淮南节度使）的补充描述，但问题仅询问父子关系，预测答案已准确给出关键人名，在语义上与标准答案等价，完全回答了“谁是谁的父亲”这一核心问题。因此，预测答案正确且简洁地满足了问题的要求。
+
+✗ Main question 46: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 47/200: Who played the king that was king of england in 1951 in the king's speech?
+================================================================================
+
+Sub-question 1/2
+Question: Who was the king of England in 1951?
+Ground Truth: George VI was the King of the United Kingdom in 1951.
+storage_time: 0.04368901252746582
+QueryAttention 选择了 456 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  George VI
+Judgment: ✓ CORRECT
+F1: 0.2667, EM: 0.0000
+Reason: 预测答案"George VI"直接提供了标准答案中的核心信息，即1951年英格兰国王的身份。虽然预测答案省略了标准答案中"the King of the United Kingdom in 1951"的完整表述，但"George VI"这一专有名词已明确指向特定历史人物，且在历史语境中与"1951年英国国王"的语义完全等价。这种简洁回答并未丢失关键信息，符合允许措辞差异的判断标准。
+
+Sub-question 2/2
+Question: Which actor played King George VI in the film 'The King's Speech'?
+Ground Truth: Colin Firth
+storage_time: 0.05613994598388672
+QueryAttention 选择了 580 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Colin Firth
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Colin Firth”与标准答案完全一致，准确无误地指出了在电影《国王的演讲》中饰演国王乔治六世的演员。该答案不仅包含了标准答案的所有关键信息，而且在语义上完全等价，没有任何歧义或额外修饰。由于这是一个事实性问题，预测答案直接提供了正确的姓名，符合所有判断标准，包括允许的措辞细微差异（这里甚至没有差异），因此可以明确判定为正确回答了问题。
+
+✓ Main question 47: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 48/200: Who is the spouse of the person who sang holding out for a hero in shrek 2?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 49/200: Who is the employer of the person Mach's principle was named after?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 50/200: Who has played for West Ham Ajax and the team from the city where Malcolm Graham died?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 51/200: When was John's eldest son crowned?
+================================================================================
+
+Sub-question 1/4
+Question: Who is John's eldest son?
+Ground Truth: Henry III
+storage_time: 0.04472017288208008
+QueryAttention 选择了 501 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  John I of Cyprus
+Judgment: ✗ INCORRECT
+F1: 0.0000, EM: 0.0000
+Reason: 预测答案“John I of Cyprus”与标准答案“Henry III”在语义上完全不匹配，既未包含关键信息，也不存在等价关系。问题询问的是“John的长子是谁”，标准答案指向特定历史人物Henry III，而预测答案却给出了另一个不同的人物名称，两者在身份和历史上无直接关联，因此预测答案未能正确回答问题。
+
+Sub-question 2/4
+Question: When was John's eldest son crowned?
+Ground Truth: John I of Cyprus (John II of Jerusalem) was crowned on May 11, 1284.
+storage_time: 0.04694342613220215
+QueryAttention 选择了 576 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted: 11 May 1284
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“11 May 1284”与标准答案“May 11, 1284”在语义上完全等价，都准确指出了约翰一世（塞浦路斯国王）加冕的具体日期。尽管日期格式略有差异（数字与月份顺序不同），但这属于措辞上的细微变化，不影响核心信息的正确性。预测答案完整包含了标准答案中的关键时间信息，且没有引入任何矛盾或错误内容，因此可以判定为正确回答了问题。
+
+Sub-question 3/4
+Question: When was John's eldest son crowned?
+Ground Truth: John I of Cyprus (John II of Jerusalem) was crowned on May 11, 1284.
+storage_time: 0.04738211631774902
+QueryAttention 选择了 576 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted: 11 May 1284
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“11 May 1284”与标准答案“May 11, 1284”在语义上完全等价，都准确指出了约翰一世（塞浦路斯国王）加冕的具体日期。尽管日期格式存在细微差异（数字与月份的顺序不同），但这并不影响核心信息的正确性，且预测答案完整包含了标准答案中的关键时间要素，符合允许措辞差异的判断标准。因此，预测答案正确回答了问题。
+
+Sub-question 4/4
+Question: When was John's eldest son crowned?
+Ground Truth: John I of Cyprus (John II of Jerusalem) was crowned on May 11, 1284.
+storage_time: 0.06374597549438477
+QueryAttention 选择了 848 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted: 1284
+Judgment: ✓ CORRECT
+F1: 0.2500, EM: 0.0000
+Reason: 预测答案“1284”准确包含了标准答案中的核心时间信息，即约翰一世（或耶路撒冷的约翰二世）加冕的年份。尽管预测答案省略了具体日期“5月11日”和人物全称，但问题询问的是“何时”，年份是回答的关键要素，语义上与标准答案的年份部分完全一致，符合允许措辞差异但意思保持相同的判断标准。
+
+✗ Main question 51: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 52/200: What character in A League of their Own was played by the actress who played Thelma in the movie Thelma and Louise?
+================================================================================
+
+Sub-question 1/2
+Question: Who played Thelma in Thelma and Louise?
+Ground Truth: Geena Davis played Thelma in Thelma and Louise.
+storage_time: 0.04648590087890625
+QueryAttention 选择了 320 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Geena Davis
+Judgment: ✓ CORRECT
+F1: 0.3529, EM: 0.0000
+Reason: 预测答案“Geena Davis”完整包含了标准答案中的核心信息，即演员姓名，且与标准答案“Geena Davis played Thelma in Thelma and Louise”在语义上完全等价。尽管预测答案省略了动词和电影名称，但问题明确询问“谁饰演了Thelma”，因此仅提供演员姓名已足够准确回答，无需额外修饰。这种措辞差异不影响关键信息的传递，符合判断标准中的语义一致性和允许细微差异的原则。
+
+Sub-question 2/2
+Question: What character did Geena Davis play in the movie A League of Their Own?
+Ground Truth: Geena Davis played the character Dottie Hinson.
+storage_time: 0.05510663986206055
+QueryAttention 选择了 459 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Dottie Hinson
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“Dottie Hinson”完全包含了标准答案“Geena Davis played the character Dottie Hinson”中的关键信息，即角色名称。尽管预测答案省略了演员姓名和电影背景，但问题明确询问的是“什么角色”，因此仅提供角色名称在语义上与标准答案的核心内容等价，且意思保持一致，符合判断标准中的允许措辞差异原则。
+
+✓ Main question 52: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 53/200: In A League of Their Own, who played the husband of the actress who played Thelma in Thelma and Louise?
+================================================================================
+
+Sub-question 1/3
+Question: Who played Thelma in Thelma and Louise?
+Ground Truth: Geena Davis played Thelma in Thelma and Louise.
+storage_time: 0.04152393341064453
+QueryAttention 选择了 320 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Geena Davis
+Judgment: ✓ CORRECT
+F1: 0.3529, EM: 0.0000
+Reason: 预测答案“Geena Davis”完整包含了标准答案中的核心信息，即演员姓名，且与标准答案“Geena Davis played Thelma in Thelma and Louise”在语义上完全等价。尽管预测答案省略了动词和电影名称，但问题明确询问“谁饰演了Thelma”，因此仅提供演员姓名已足够准确回答，无需额外修饰。这种措辞差异不影响关键信息的传递，符合判断标准中的语义一致性和允许细微差异的原则。
+
+Sub-question 2/3
+Question: Which character did Geena Davis play in the film A League of Their Own?
+Ground Truth: Geena Davis played the character Dottie Hinson.
+storage_time: 0.04313302040100098
+QueryAttention 选择了 401 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Dottie Hinson
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“Dottie Hinson”直接提供了标准答案中的核心信息，即吉娜·戴维斯在电影《红粉联盟》中饰演的角色名称。尽管预测答案省略了“Geena Davis played the character”这一部分表述，但它完整且准确地指出了角色名，与标准答案在语义上完全等价，且意思保持一致，符合允许措辞细微差异的判断标准。因此，预测答案正确回答了问题。
+
+Sub-question 3/3
+Question: Who played the husband of Dottie Hinson in the film A League of Their Own?
+Ground Truth: Bill Pullman played Bob, the husband of Dottie Hinson.
+storage_time: 0.055808305740356445
+QueryAttention 选择了 518 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Bill Pullman
+Judgment: ✓ CORRECT
+F1: 0.3333, EM: 0.0000
+Reason: 预测答案“Bill Pullman”直接提供了标准答案中的核心信息，即演员姓名，而标准答案中“Bill Pullman played Bob, the husband of Dottie Hinson”虽然包含更多细节，但预测答案在语义上完全等价于关键部分，准确回答了问题所询问的扮演者身份，且没有引入错误或矛盾信息，符合措辞差异但意思一致的要求。
+
+✓ Main question 53: ALL 3 sub-questions CORRECT
+
+================================================================================
+Main Question 54/200: Who is the child of Chiang Hsiao-wen's father?
+================================================================================
+
+Sub-question 1/1
+Question: Who is Chiang Hsiao-wen's father?
+Ground Truth: Chiang Hsiao-wen's father is Chiang Ching-kuo.
+storage_time: 0.048773765563964844
+QueryAttention 选择了 424 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Chiang Ching-kuo
+Judgment: ✓ CORRECT
+F1: 0.5556, EM: 0.0000
+Reason: 预测答案“Chiang Ching-kuo”直接提供了标准答案“Chiang Hsiao-wen's father is Chiang Ching-kuo”中的核心信息，即父亲的身份是蒋经国。两者在语义上完全等价，预测答案虽然省略了问题中的主语“Chiang Hsiao-wen”，但通过直接给出父亲姓名，准确回应了问题“谁的父亲是谁”的查询意图，符合措辞差异允许范围，意思保持一致且无歧义。
+
+✓ Main question 54: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 55/200: The actor who played Thelma in "Thelma and Louise" also played which character in "A League of Their Own"?
+================================================================================
+
+Sub-question 1/2
+Question: Who played Thelma in the movie 'Thelma and Louise'?
+Ground Truth: Geena Davis played Thelma in the movie 'Thelma & Louise'.
+storage_time: 0.04219794273376465
+QueryAttention 选择了 293 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Geena Davis
+Judgment: ✓ CORRECT
+F1: 0.3529, EM: 0.0000
+Reason: 预测答案“Geena Davis”完整包含了标准答案中的核心信息，即演员姓名，且与标准答案“Geina Davis played Thelma in the movie 'Thelma & Louise'”在语义上完全等价。尽管预测答案省略了电影名称和角色描述等细节，但问题明确询问“谁饰演了Thelma”，因此直接提供演员姓名已足够准确回答，符合措辞差异允许范围，意思保持一致。
+
+Sub-question 2/2
+Question: Which character did Geena Davis play in the movie 'A League of Their Own'?
+Ground Truth: Geena Davis played the character Dottie Hinson.
+storage_time: 0.055108070373535156
+QueryAttention 选择了 538 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Dottie Hinson
+Judgment: ✓ CORRECT
+F1: 0.5000, EM: 0.0000
+Reason: 预测答案“Dottie Hinson”直接提供了标准答案中的核心信息，即吉娜·戴维斯在电影《红粉联盟》中饰演的角色名称。尽管预测答案省略了“Geena Davis played the character”这一背景描述，但其内容与标准答案的语义完全等价，且关键信息准确无误。在评估中，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+✓ Main question 55: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 56/200: What is the movie starring Preity Zinta, Madhuri Dixit and the spouse of Kajol?
+================================================================================
+
+Sub-question 1/1
+Question: Movies starring Preity Zinta, Madhuri Dixit, and Ajay Devgn
+Ground Truth: The movie 'Yeh Raaste Hain Pyaar Ke' (2001) stars Preity Zinta, Madhuri Dixit, and Ajay Devgn.
+storage_time: 0.046499013900756836
+QueryAttention 选择了 448 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Mrityudand, Dil Kya Kare, Pyar Ka Devta, U Me Aur Hum, Love Kiya Aur Lag Gayi
+Judgment: ✗ INCORRECT
+F1: 0.1111, EM: 0.0000
+Reason: 预测答案列出了五部电影名称，但其中没有一部与标准答案中的电影《Yeh Raaste Hain Pyaar Ke》相符。虽然这些电影可能分别由Preity Zinta、Madhuri Dixit或Ajay Devgn主演，但问题要求的是三人共同出演的电影，而预测答案未能提供任何一部满足此条件的作品，因此与标准答案在语义上不等价，也未包含关键信息。
+
+✗ Main question 56: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 57/200: The territory containing Bansaan Island is located at which island?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Bansaan Island located?
+Ground Truth: Bansaan Island is a boomerang-shaped island located off the mid-northern coast of Bohol Island, Philippines, and is part of the municipality of Talibon.
+storage_time: 0.05263519287109375
+QueryAttention 选择了 387 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Bansaan is a boomerang-shaped island located off the mid-northern coast of Bohol Island, part of the municipality of Talibon.
+Judgment: ✓ CORRECT
+F1: 0.9286, EM: 0.0000
+Reason: 岛屿的形状（boomerang-shaped）、地理位置（off the mid-northern coast of Bohol Island）以及行政归属（part of the municipality of Talibon）。虽然省略了“Philippines”和“is”等词语，但核心语义完全一致，且“Bansaan”与“Bansaan Island”在上下文中指代同一对象，不影响答案的正确性。因此，预测答案在语义上与标准答案等价，符合评估标准。
+
+✓ Main question 57: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 58/200: In which district was Ernie Watts born?
+================================================================================
+
+Sub-question 1/1
+Question: Where was Ernie Watts born?
+Ground Truth: Woolhampton in Berkshire
+storage_time: 0.04337668418884277
+QueryAttention 选择了 350 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Woolhampton in Berkshire
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Woolhampton in Berkshire”与标准答案完全一致，不仅包含了关键地点信息“Woolhampton”和所属区域“Berkshire”，而且在语义和措辞上没有任何差异。两者均准确指出了Ernie Watts的出生地，符合所有判断标准，包括信息完整性、语义等价性以及措辞一致性，因此可以确认预测答案正确回答了问题。
+
+✓ Main question 58: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 59/200: In which county was James Finch born?
+================================================================================
+
+Sub-question 1/2
+Question: Where was James Finch born?
+Ground Truth: Lynn Haven, Florida
+storage_time: 0.04110455513000488
+QueryAttention 选择了 342 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.089s
+
+Predicted: 1950, Lynn Haven, Florida
+Judgment: ✓ CORRECT
+F1: 0.4000, EM: 0.0000
+Reason: 预测答案"1950, Lynn Haven, Florida"完整包含了标准答案"Lynn Haven, Florida"的关键信息，即出生地点。虽然预测答案额外提供了出生年份"1950"，但这并未改变或歪曲关于出生地点的核心事实，两者在语义上完全等价。根据判断标准，允许措辞上的细微差异，只要关键信息一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Which county is Lynn Haven, Florida located in?
+Ground Truth: Bay County
+storage_time: 0.047989845275878906
+QueryAttention 选择了 354 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Lynn Haven, Florida is located in Bay County.
+Judgment: ✓ CORRECT
+F1: 0.2222, EM: 0.0000
+Reason: 预测答案明确指出了Lynn Haven, Florida位于Bay County，这与标准答案“Bay County”完全一致。预测答案不仅包含了关键信息，还在语义上与标准答案等价，尽管措辞上略有扩展（如添加了“is located in”），但这并未改变核心意思，反而使表述更完整。因此，预测答案正确回答了问题，符合所有判断标准。
+
+✓ Main question 59: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 60/200: Who was married to the star of No Escape?
+================================================================================
+
+Sub-question 1/2
+Question: Who starred in the movie No Escape?
+Ground Truth: Valerie Hobson, Leslie Perrins, and Robert Cochran starred in the movie No Escape.
+storage_time: 0.04401397705078125
+QueryAttention 选择了 385 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Valerie Hobson, Leslie Perrins and Robert Cochran
+Judgment: ✓ CORRECT
+F1: 0.8387, EM: 0.0000
+Reason: 预测答案完整列出了标准答案中的三位演员姓名——Valerie Hobson、Leslie Perrins和Robert Cochran，且顺序与标准答案一致。尽管预测答案省略了标准答案中的部分连接词（如“and”前的逗号）和结尾的“starred in the movie No Escape”，但核心信息完全覆盖，语义上与标准答案等价。根据判断标准，允许措辞上的细微差异，只要关键信息一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Which of the actors from No Escape (Valerie Hobson, Leslie Perrins, or Robert Cochran) was married and to whom?
+Ground Truth: Valerie Hobson was married to John Profumo.
+storage_time: 0.0459132194519043
+QueryAttention 选择了 317 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.094s
+
+Predicted:  Valerie Hobson was married to John Profumo, who was a former British government minister.
+Judgment: ✓ CORRECT
+F1: 0.7500, EM: 0.0000
+Reason: 预测答案不仅包含了标准答案中“Valerie Hobson was married to John Profumo”这一核心信息，还额外补充了John Profumo的身份细节，但这并未改变或歪曲标准答案的语义。根据判断标准，预测答案与标准答案在关键信息上完全一致，语义等价，且措辞差异属于细微补充，不影响整体意思的正确性。因此，预测答案正确地回答了问题。
+
+✓ Main question 60: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 61/200: Who is the other child of Chian Hsiao-chang's father?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the father of Chian Hsiao-chang?
+Ground Truth: Chiang Ching-kuo
+storage_time: 0.04350709915161133
+QueryAttention 选择了 369 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Chiang Ching-kuo
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Chiang Ching-kuo”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价。两者都准确指出了蒋经国是蒋孝章的父亲，没有任何措辞或含义上的差异。这符合所有判断标准，包括信息完整性、语义等价性以及允许的细微措辞差异。因此，预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: What are all the children of Chiang Ching-kuo?
+Ground Truth: Chiang Ching-kuo had four legitimate children with his wife Faina Ipatyevna Vakhreva (Chiang Fang-liang): Chiang Hsiao-wen (eldest son), Chiang Hsiao-chang (daughter), Chiang Hsiao-wu (second son), and Chiang Hsiao-yung (youngest son). He also had two half-brothers with other mothers: Winston Chang and John Chiang.
+storage_time: 0.054733991622924805
+QueryAttention 选择了 588 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Chiang Hsiao-wen, Chiang Hsiao-chang, Chiang Hsiao-wu, Chiang Hsiao-yung, Chiang Hsiao-chang (Princess Pingyang), Winston Chang, John Chiang
+Judgment: ✗ INCORRECT
+F1: 0.5565, EM: 0.0000
+Reason: 预测答案虽然列出了大部分子女，但存在重复和错误信息。它重复列出了"Chiang Hsiao-chang"两次（其中一次错误标注为"Princess Pingyang"，这并非其正式称谓），且未明确区分婚生子女与非婚生子女（半兄弟）的类别。标准答案清晰说明了四名婚生子女及两名半兄弟，而预测答案的列举方式模糊了这种重要区分，且在事实准确性上存在偏差，因此未能完全正确地回答问题。
+
+✗ Main question 61: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 62/200: Where was the spouse of Frances Tupper born?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 63/200: What is the birthplace of the person after whom São José dos Campos was named?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 64/200: In which county did Snappy Tomato Pizza form?
+================================================================================
+
+Sub-question 1/2
+Question: Where was Snappy Tomato Pizza founded?
+Ground Truth: Fort Mitchell, Kentucky
+storage_time: 0.045181989669799805
+QueryAttention 选择了 441 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Fort Mitchell, Kentucky
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Fort Mitchell, Kentucky”与标准答案完全一致，不仅包含了关键信息“Fort Mitchell, Kentucky”，而且在语义上完全等价，没有任何信息缺失或歧义。尽管允许措辞上的细微差异，但此处预测答案的表述与标准答案完全相同，准确回答了关于Snappy Tomato Pizza创立地点的问题，因此可以明确判定为正确。
+
+Sub-question 2/2
+Question: Which county is Fort Mitchell, Kentucky located in?
+Ground Truth: Kenton County
+storage_time: 0.042650699615478516
+QueryAttention 选择了 250 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Kenton County
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Kenton County”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案直接、准确地回答了问题，明确指出Fort Mitchell位于肯塔基州的肯顿县，符合所有判断标准，因此是正确的。
+
+✓ Main question 64: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 65/200: Where are the headquarters for the publisher of In the Shadow of Greatness?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the publisher of In the Shadow of Greatness?
+Ground Truth: The United States Naval Institute
+storage_time: 0.03894495964050293
+QueryAttention 选择了 273 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  United States Naval Institute
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“United States Naval Institute”与标准答案“The United States Naval Institute”在语义上完全等价，仅存在冠词“The”的细微差异，这并不影响核心信息的准确性。两者都明确指向同一家出版机构，即美国海军学会，完全符合问题“Who is the publisher of In the Shadow of Greatness?”的查询意图。根据判断标准，预测答案包含了关键信息，且措辞差异属于可接受范围，因此应判定为正确回答。
+
+Sub-question 2/2
+Question: Where are the headquarters of the United States Naval Institute located?
+Ground Truth: Annapolis, Maryland
+storage_time: 0.044687509536743164
+QueryAttention 选择了 328 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Annapolis, Maryland
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Annapolis, Maryland”与标准答案完全一致，不仅包含了关键信息“Annapolis”和“Maryland”，而且在语义上完全等价，没有任何歧义或差异。该答案准确指出了美国海军学会总部的具体地理位置，符合问题要求，且措辞与标准答案完全相同，因此正确回答了问题。
+
+✓ Main question 65: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 66/200: In the movie A League of their Own, who played the husband of the person who also played Thelma in the movie Thelma and Louise?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 67/200: What political party was the socialist candidate part of who ran for president in 1912?
+================================================================================
+
+Sub-question 1/1
+Question: Who was the socialist candidate in the 1912 US presidential election?
+Ground Truth: Eugene V. Debs was the Socialist Party candidate in the 1912 US presidential election.
+storage_time: 0.04889392852783203
+QueryAttention 选择了 469 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Eugene V. Debs
+Judgment: ✓ CORRECT
+F1: 0.4348, EM: 0.0000
+Reason: 预测答案“Eugene V. Debs”直接提供了标准答案中的核心信息，即1912年美国总统选举中社会主义候选人的姓名。虽然预测答案省略了“Socialist Party candidate”等背景描述，但问题明确询问候选人是谁，预测答案在语义上与标准答案的关键部分完全等价，且没有引入错误或歧义，因此正确回答了问题。
+
+✓ Main question 67: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 68/200: What league does the team that occupies the Rabat Ajax Football Ground belong to?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 69/200: Which county does Lloyd Dane's birthplace belong to?
+================================================================================
+
+Sub-question 1/2
+Question: Where was Lloyd Dane born?
+Ground Truth: Lloyd Dane was born in Eldon, Missouri.
+storage_time: 0.039703369140625
+QueryAttention 选择了 307 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.089s
+
+Predicted:  Pasadena, California
+Judgment: ✓ CORRECT
+F1: 0.0000, EM: 0.0000
+Reason: 预测答案“Pasadena, California”与标准答案“Eldon, Missouri”在关键信息上完全不一致，两者指代不同的出生地点，没有任何语义上的等价性。标准答案明确指出Lloyd Dane出生于密苏里州的埃尔登，而预测答案却错误地指向加利福尼亚州的帕萨迪纳，这种地理位置上的差异直接导致预测答案未能正确回答问题，因此不符合判断标准中的任何一条要求。
+
+Sub-question 2/2
+Question: Which county does Eldon, Missouri belong to?
+Ground Truth: Miller County
+storage_time: 0.04438948631286621
+QueryAttention 选择了 315 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Miller County
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Miller County”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。这直接准确地回答了问题“Eldon, Missouri属于哪个县”，符合所有判断标准，因此是正确的。
+
+✓ Main question 69: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 70/200: The actor who plays the girl in Spiderman Homecoming is signed to which record label?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 71/200: What is the record label for the band which performed Pythons?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 72/200: Who is the voice of the character in Spongebob Squarepants with the same name as the creature that annelid larvae live like?
+================================================================================
+
+Sub-question 1/2
+Question: What creature do annelid larvae live like?
+Ground Truth: Annelid larvae live like plankton.
+storage_time: 0.04470229148864746
+QueryAttention 选择了 486 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  eruciform
+Judgment: ✗ INCORRECT
+F1: 0.0000, EM: 0.0000
+Reason: 预测答案“eruciform”指的是毛虫状或蠕虫状的形态，这描述的是幼虫的外形特征，而非其生活方式或生态角色。标准答案明确指出环节动物幼虫像浮游生物一样生活，强调了它们在水中浮游的生态行为。两者在语义上并不等价，预测答案未能包含“像浮游生物一样生活”这一关键信息，因此无法正确回答问题。
+
+Sub-question 2/2
+Question: Which character in Spongebob Squarepants has the same name as the creature that annelid larvae live like (plankton)?
+Ground Truth: Plankton
+storage_time: 0.05392169952392578
+QueryAttention 选择了 666 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.095s
+
+Predicted:  Plankton
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Plankton”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价。问题询问《海绵宝宝》中哪个角色的名字与环节动物幼虫所类似生物的名称相同，标准答案明确指出是“Plankton”，而预测答案直接提供了这一名称，没有任何措辞差异或信息缺失，因此正确回答了问题。
+
+✗ Main question 72: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 73/200: Who is part of the band that performed Full Cooperation?
+================================================================================
+
+Sub-question 1/2
+Question: Who performed the song Full Cooperation?
+Ground Truth: The song 'Full Cooperation' was performed by the American hip hop group Def Squad.
+storage_time: 0.044428348541259766
+QueryAttention 选择了 479 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Def Squad
+Judgment: ✓ CORRECT
+F1: 0.1667, EM: 0.0000
+Reason: 预测答案"Def Squad"直接提供了标准答案中的核心信息，即表演者是美国嘻哈团体Def Squad。虽然预测答案省略了"American hip hop group"这一描述性修饰语，但关键实体"Def Squad"已准确无误地指出，且与标准答案在语义上完全等价，符合允许措辞差异但意思一致的要求。因此，预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Who are the members of the American hip hop group Def Squad?
+Ground Truth: The American hip hop group Def Squad consists of Erick Sermon, Redman, and Keith Murray. Jamal is considered an honorary member.
+storage_time: 0.048719167709350586
+QueryAttention 选择了 353 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Erick Sermon, Redman and Keith Murray
+Judgment: ✓ CORRECT
+F1: 0.5625, EM: 0.0000
+Reason: 预测答案准确列出了Def Squad的核心成员Erick Sermon、Redman和Keith Murray，这与标准答案的关键信息完全一致。虽然预测答案未提及荣誉成员Jamal，但标准答案中明确将核心成员作为主要回答内容，而荣誉成员属于补充说明。根据评估标准，预测答案在语义上与标准答案等价，且核心信息无缺失或矛盾，细微的措辞差异不影响整体正确性。
+
+✓ Main question 73: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 74/200: When is the next episode of the series that Steven the Sword Fighter is a part of being released?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 75/200: What film features Anil Devgan's sibling?
+================================================================================
+
+Sub-question 1/2
+Question: Who is Anil Devgan's sibling?
+Ground Truth: Anil Devgan's sibling is Ajay Devgan.
+storage_time: 0.04161691665649414
+QueryAttention 选择了 375 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Ajay Devgan
+Judgment: ✓ CORRECT
+F1: 0.4615, EM: 0.0000
+Reason: 预测答案“Ajay Devgan”直接提供了标准答案中的核心信息，即Anil Devgan的兄弟姐妹是Ajay Devgan。尽管预测答案省略了“Anil Devgan's sibling is”这一表述，但其内容在语义上与标准答案完全等价，都准确指出了兄弟关系的对象。根据评估标准，允许措辞上的细微差异，只要关键信息一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Which films feature Ajay Devgan?
+Ground Truth: The films featuring Ajay Devgan are: U Me Aur Hum, Yeh Raaste Hain Pyaar Ke, and Dil Kya Kare.
+storage_time: 0.052533626556396484
+QueryAttention 选择了 467 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  U Me Aur Hum, Dil Kya Kare
+Judgment: ✓ CORRECT
+F1: 0.4848, EM: 0.0000
+Reason: 预测答案仅列出了标准答案中的两部电影（U Me Aur Hum 和 Dil Kya Kare），但遗漏了关键信息“Yeh Raaste Hain Pyaar Ke”。虽然预测答案包含的部分内容与标准答案一致，但由于缺少完整的关键信息，未能完全覆盖标准答案的全部要素，因此在语义上不等价，无法正确回答“哪些电影由Ajay Devgan主演”这一问题。根据判断标准，预测答案必须包含所有关键信息才能被视为正确，而此处存在明显缺失。
+
+✓ Main question 75: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 76/200: What political party was the candidate who garnered a million votes during the 1920 election despite being in prison, a member of?
+================================================================================
+
+Sub-question 1/1
+Question: Who was the candidate that received a million votes in the 1920 election while in prison?
+Ground Truth: Eugene V. Debs was the Socialist Party candidate who received 913,664 votes in the 1920 election while in prison.
+storage_time: 0.04668998718261719
+QueryAttention 选择了 473 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Eugene V. Debs
+Judgment: ✓ CORRECT
+F1: 0.2941, EM: 0.0000
+Reason: 预测答案“Eugene V. Debs”直接提供了标准答案中的核心人物姓名，即1920年大选中在监狱里获得近百万选票的候选人。虽然预测答案省略了具体票数和政党等细节，但问题主要询问的是“候选人是谁”，预测答案准确抓住了这一关键信息，在语义上与标准答案完全等价，符合“允许措辞细微差异”的判断标准。因此，预测答案正确回答了问题。
+
+✓ Main question 76: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 77/200: What's the place of birth of the former member of The Sunnyboys?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 78/200: Who was the US physicist who directed the project that developed the first atomic bomb at the same place where Feynman worked on Water Boiler?
+================================================================================
+
+Sub-question 1/2
+Question: Where did Richard Feynman work on the Water Boiler reactor?
+Ground Truth: Richard Feynman worked on the Water Boiler reactor at Los Alamos.
+storage_time: 0.046785831451416016
+QueryAttention 选择了 558 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Los Alamos
+Judgment: ✓ CORRECT
+F1: 0.2667, EM: 0.0000
+Reason: 预测答案“Los Alamos”直接提供了标准答案中的关键地点信息，即理查德·费曼在洛斯阿拉莫斯参与了水锅炉反应堆的工作。虽然预测答案省略了“Richard Feynman worked on the Water Boiler reactor at”这一部分，但问题本身已明确询问工作地点，因此仅回答地点在语义上与标准答案等价，且完全符合判断标准中的信息包含和意思一致性要求。
+
+Sub-question 2/2
+Question: Which atomic bomb development project took place at Los Alamos and who was its director?
+Ground Truth: The Manhattan Project took place at Los Alamos, and its director was Robert Oppenheimer.
+storage_time: 0.05366873741149902
+QueryAttention 选择了 662 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  The Manhattan Project, with Robert Oppenheimer as its director.
+Judgment: ✓ CORRECT
+F1: 0.6154, EM: 0.0000
+Reason: 一是原子弹研发项目为“曼哈顿计划”（The Manhattan Project），二是其负责人为“罗伯特·奥本海默”（Robert Oppenheimer）。尽管预测答案在句式上更为简洁，省略了“took place at Los Alamos”这一地点描述，但问题本身已明确提及地点为洛斯阿拉莫斯，因此预测答案在语义上与标准答案完全等价，且核心信息准确无误，符合允许措辞差异的判断标准。
+
+✓ Main question 78: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 79/200: What award was received by the person who authored Missing Person?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the author of Missing Person?
+Ground Truth: Patrick Modiano
+storage_time: 0.043166160583496094
+QueryAttention 选择了 265 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Patrick Modiano
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Patrick Modiano”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案准确无误地指出了《Missing Person》的作者是帕特里克·莫迪亚诺，符合所有判断标准，因此正确回答了问题。
+
+Sub-question 2/2
+Question: What award did Patrick Modiano receive?
+Ground Truth: Patrick Modiano received the 2014 Nobel Prize in Literature, the 2012 Austrian State Prize for European Literature, the 2010 Prix mondial Cino Del Duca, the 1978 Prix Goncourt, and the 1972 Grand Prix du roman de l'Académie française.
+storage_time: 0.04993724822998047
+QueryAttention 选择了 537 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted: 2014 Nobel Prize in Literature
+Judgment: ✓ CORRECT
+F1: 0.2286, EM: 0.0000
+Reason: 预测答案“2014 Nobel Prize in Literature”完全包含在标准答案的关键信息中，并且准确回答了问题“Patrick Modiano received what award?”的核心要点。虽然标准答案列出了多个奖项，但预测答案聚焦于最具代表性的诺贝尔文学奖，这在语义上与标准答案的部分内容等价，且没有出现事实性错误或矛盾。根据判断标准，允许措辞差异和部分信息匹配，因此预测答案正确回答了问题。
+
+✓ Main question 79: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 80/200: What preity zinta and madhuri dixit movie had a cast member from U Me Aur Hum ?
+================================================================================
+
+Sub-question 1/3
+Question: Who are the cast members of the movie U Me Aur Hum?
+Ground Truth: The cast includes Ajay Devgan, Kajol, Karan Khanna, Isha Sharvani, Sumeet Raghavan, and Divya Dutta.
+storage_time: 0.04152417182922363
+QueryAttention 选择了 378 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Ajay Devgan, Kajol
+Judgment: ✗ INCORRECT
+F1: 0.3529, EM: 0.0000
+Reason: 预测答案仅列出了两位演员（Ajay Devgan 和 Kajol），而标准答案包含了六位主要演员，还包括 Karan Khanna、Isha Sharvani、Sumeet Raghavan 和 Divya Dutta。虽然预测答案的部分信息正确，但它遗漏了关键信息，未能完整覆盖标准答案的全部内容，因此不能被视为正确回答了问题。
+
+Sub-question 2/3
+Question: Which Bollywood movies feature both Preity Zinta and Madhuri Dixit in their cast?
+Ground Truth: The only Bollywood movie featuring both Preity Zinta and Madhuri Dixit is 'Yeh Raaste Hain Pyaar Ke'.
+storage_time: 0.045975446701049805
+QueryAttention 选择了 470 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Pyar Ka Devta
+Judgment: ✗ INCORRECT
+F1: 0.0000, EM: 0.0000
+Reason: 预测答案“Pyar Ka Devta”与标准答案“Yeh Raaste Hain Pyaar Ke”在语义上并不等价，且未包含关键信息。标准答案明确指出唯一同时由Preity Zinta和Madhuri Dixit出演的宝莱坞电影是《Yeh Raaste Hain Pyaar Ke》，而“Pyar Ka Devta”并非该电影的别名或正确片名，两者在内容上无关联，因此预测答案未能正确回答问题。
+
+Sub-question 3/3
+Question: What is the cast list for the movie 'Yeh Raaste Hain Pyaar Ke'?
+Ground Truth: The cast includes Madhuri Dixit, Ajay Devgn, and Preity Zinta.
+storage_time: 0.04660153388977051
+QueryAttention 选择了 413 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Madhuri Dixit, Ajay Devgn, Preity Zinta
+Judgment: ✓ CORRECT
+F1: 0.8966, EM: 0.0000
+Reason: 预测答案完整列出了标准答案中的所有关键演员姓名，即Madhuri Dixit、Ajay Devgn和Preity Zinta，且顺序一致。尽管预测答案省略了标准答案中的引导语“The cast includes”，但核心信息完全匹配，语义上等价。根据判断标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。
+
+✗ Main question 80: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 81/200: Who married the publisher of abolitionist newspaper The North Star?
+================================================================================
+
+Sub-question 1/1
+Question: Who was Frederick Douglass married to?
+Ground Truth: Frederick Douglass was married first to Anna Murray Douglass and second to Helen Pitts Douglass.
+storage_time: 0.046767234802246094
+QueryAttention 选择了 399 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.090s
+
+Predicted:  Helen Pitts and Helen Pitts Douglass
+Judgment: ✗ INCORRECT
+F1: 0.4444, EM: 0.0000
+Reason: 预测答案仅提到了弗雷德里克·道格拉斯的第二任妻子海伦·皮茨·道格拉斯，且重复了“Helen Pitts”这一名字，但完全遗漏了他的第一任妻子安娜·默里·道格拉斯。标准答案明确指出他先后与两位女性结婚，而预测答案未能涵盖这一关键信息，导致语义不完整且与标准答案不等价。因此，预测答案未能正确回答问题。
+
+✗ Main question 81: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 82/200: What political party does the person that Adversary in the House is based on a member of?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the book 'Adversary in the House' based on?
+Ground Truth: The book 'Adversary in the House' is based on the life of Eugene V. Debs and his wife Kate.
+storage_time: 0.04347968101501465
+QueryAttention 选择了 399 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Eugene V. Debs and of his wife Kate
+Judgment: ✓ CORRECT
+F1: 0.7333, EM: 0.0000
+Reason: 预测答案虽然省略了标准答案中的部分引导性表述，但完整且准确地保留了核心关键信息“Eugene V. Debs and of his wife Kate”，这与标准答案中“based on the life of Eugene V. Debs and his wife Kate”的语义完全等价。尽管预测答案在语法结构上略有简化，但明确指出了书籍的创作基础是德布斯及其妻子，完全符合问题要求，且未引入任何错误或歧义信息。因此，预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: What political party did Eugene V. Debs belong to?
+Ground Truth: Eugene V. Debs belonged to the Socialist Party of America.
+storage_time: 0.05360007286071777
+QueryAttention 选择了 489 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Socialist Party
+Judgment: ✓ CORRECT
+F1: 0.1538, EM: 0.0000
+Reason: 预测答案"Socialist Party"虽然省略了标准答案中的"of America"这一具体限定，但在历史和政治语境中，提及尤金·V·德布斯时，"Socialist Party"通常默认指美国社会主义党，因为他是该党的核心代表人物。预测答案准确抓住了标准答案的关键信息——德布斯所属政党的社会主义性质，语义上与标准答案等价，且措辞差异不影响核心事实的传达。因此，预测答案正确回答了问题。
+
+✓ Main question 82: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 83/200: What event caused the Liberal Party of Australia's longest-serving leader to become Prime Minister?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the longest-serving leader of the Liberal Party of Australia?
+Ground Truth: Robert Menzies
+storage_time: 0.0421750545501709
+QueryAttention 选择了 394 个 tokens (29.9%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Robert Menzies
+Judgment: ✓ CORRECT
+F1: 1.0000, EM: 1.0000
+Reason: 预测答案“Robert Menzies”与标准答案完全一致，准确指出了澳大利亚自由党任职时间最长的领导人。罗伯特·孟席斯（Robert Menzies）在1949年至1966年担任澳大利亚总理，并领导自由党长达17年，这一事实在历史记录中明确无误。预测答案不仅包含了关键信息，且在语义上与标准答案完全等价，没有任何歧义或差异，因此正确回答了问题。
+
+Sub-question 2/2
+Question: What specific political event or circumstance caused Robert Menzies to become Prime Minister of Australia?
+Ground Truth: Robert Menzies became Prime Minister following the death of the incumbent Prime Minister, Joseph Lyons, in 1939.
+storage_time: 0.049074649810791016
+QueryAttention 选择了 492 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.092s
+
+Predicted:  Menzies became Prime Minister after the death of Joseph Lyons, leading the United Australia Party (UAP) and forming a government in 1939.
+Judgment: ✓ CORRECT
+F1: 0.6800, EM: 0.0000
+Reason: 预测答案准确包含了标准答案的关键信息，即罗伯特·孟席斯是在约瑟夫·莱昂斯去世后成为澳大利亚总理的，且时间点（1939年）一致。虽然预测答案额外提到了他领导联合澳大利亚党并组建政府，但这并未偏离核心事实，反而补充了背景信息，与标准答案在语义上完全等价，意思保持一致。因此，预测答案正确回答了问题。
+
+✓ Main question 83: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 84/200: Who is the uncle of Liu Bin?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 85/200: Who founded the publisher of The Final Testament of the Holy Bible?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the publisher of The Final Testament of the Holy Bible?
+Ground Truth: The Final Testament of the Holy Bible was published by Gagosian Gallery.
+storage_time: 0.043561458587646484
+QueryAttention 选择了 382 个 tokens (30.0%)
+使用了 7 个层 (21 - 27)
+select_time: 0.091s
+
+Predicted:  Gagosian Gallery
+Judgment: ✓ CORRECT
+F1: 0.2857, EM: 0.0000
+Reason: 预测答案“Gagosian Gallery”完整包含了标准答案中的关键信息，即该书的出版商。虽然预测答案省略了“The Final Testament of the Holy Bible was published by”这一表述，但其核心语义与标准答案完全等价，都准确指出了出版商的身份。在评估中，允许措辞上的简化或细微差异，只要核心事实一致即可，因此预测答案正确回答了问题。
+
+Sub-question 2/2
+Question: Who founded the Gagosian Gallery?

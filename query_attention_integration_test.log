@@ -1,0 +1,107 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+/mnt/data/wjh/.venv/lib/python3.10/site-packages/accelerate/utils/modeling.py:1569: UserWarning: Current model requires 402656256 bytes of buffer for offloaded layers, which seems does not fit any GPU's remaining memory. If you are experiencing a OOM later, please consider using offload_buffers=True.
+  warnings.warn(
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:01,  1.95it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00,  7.51it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Some parameters are on the meta device because they were offloaded to the cpu.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  model.embed_tokens: 0
+  model.layers.0: 0
+  model.layers.1: 0
+  model.layers.2: 0
+  model.layers.3: 0
+  model.layers.4: cpu
+  model.layers.5: cpu
+  model.layers.6: cpu
+  model.layers.7: cpu
+  model.layers.8: cpu
+  model.layers.9: cpu
+  model.layers.10: cpu
+  model.layers.11: cpu
+  model.layers.12: cpu
+  model.layers.13: cpu
+  model.layers.14: cpu
+  model.layers.15: cpu
+  model.layers.16: cpu
+  model.layers.17: cpu
+  model.layers.18: cpu
+  model.layers.19: cpu
+  model.layers.20: cpu
+  model.layers.21: cpu
+  model.layers.22: cpu
+  model.layers.23: cpu
+  model.layers.24: cpu
+  model.layers.25: cpu
+  model.layers.26: cpu
+  model.layers.27: cpu
+  model.norm: cpu
+  lm_head: cpu
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 1004, in <module>
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 561, in main
+    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 373, in prepare_reflect_data
+    corpus_embeddings = bgem3.encode(global_corpus)
+  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/FlagEmbedding/inference/embedder/encoder_only/base.py", line 161, in encode
+    return super().encode(
+  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/FlagEmbedding/abc/inference/AbsEmbedder.py", line 266, in encode
+    return self.encode_single_device(
+  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/FlagEmbedding/inference/embedder/encoder_only/base.py", line 230, in encode_single_device
+    inputs_batch = self.tokenizer.pad(
+  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/transformers/tokenization_utils_base.py", line 3286, in pad
+    if isinstance(encoded_inputs, (list, tuple)) and isinstance(encoded_inputs[0], Mapping):
+IndexError: list index out of range

@@ -1,0 +1,132 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+====================================================================================================
+Test Full Text Generation vs Sparse Prefill
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 161.90it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+====================================================================================================
+Example 4, Sub-question 1
+====================================================================================================
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+====================================================================================================
+
+System prompt length: 792 tokens
+Question tensor length: 24 tokens
+Document tensors: 13 documents
+  Doc 1: 148 tokens
+  Doc 2: 139 tokens
+  Doc 3: 149 tokens
+  Doc 4: 265 tokens
+  Doc 5: 228 tokens
+  Doc 6: 196 tokens
+  Doc 7: 72 tokens
+  Doc 8: 88 tokens
+  Doc 9: 86 tokens
+  Doc 10: 321 tokens
+  Doc 11: 96 tokens
+  Doc 12: 148 tokens
+  Doc 13: 139 tokens
+
+Full input length: 2891 tokens
+
+--- Full Input Text (first 500 chars) ---
+<|im_start|>system
+You are a helpful assistant.
+Write a high-quality answer for the given question using only the provided search results. You should come out the answer without any other words. The answer process requires reference to the material content and step-by-step thinking.
+
+For example:
+Document (Title: Ed Wood) Edward Davis Wood Jr. (October 10, 1924 – December 10, 1978) was an American filmmaker, actor, writer, producer, and director.
+Document (Title: Scott Derrickson) Scott Derricks
+...
+--- Full Input Text (last 200 chars) ---
+erbury is the traditional cleric in the coronation ceremony.[citation needed]
+<|im_end|>
+<|im_start|>user
+Question: When was King Henry III of England crowned?<|im_end|>
+<|im_start|>assistant
+Answer: 
+---
+
+====================================================================================================
+TEST 1: Full Text Generation (Baseline, equivalent to ratio=1)
+====================================================================================================
+
+================================================================================
+Full Text Generation (Baseline)
+================================================================================
+
+Input length: 2891 tokens
+Generating tokens...
+  Step 0: '1'
+  Step 1: '2'
+  Step 2: '1'
+  Step 3: '6'
+  Step 4: ' and'
+  Step 5: ' '
+  Step 6: '1'
+  Step 7: '2'
+  Step 8: '2'
+  Step 9: '0'
+  EOS reached at step 10
+
+================================================================================
+Generation Complete
+================================================================================
+
+
+Baseline Generated Answer:
+  '1216 and 1220'
+
+====================================================================================================
+TEST 2: Using model.generate() API
+====================================================================================================
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/test_full_text_generation.py", line 352, in <module>
+    results = test_generation_comparison(
+  File "/mnt/data/wjh/FusionRAG/test_full_text_generation.py", line 211, in test_generation_comparison
+    generated = model.generate(
+  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1964, in __getattr__
+    raise AttributeError(
+AttributeError: 'Qwen2ForCausalLM' object has no attribute 'generate'

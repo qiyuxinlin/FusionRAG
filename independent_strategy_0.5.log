@@ -1,0 +1,312 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+====================================================================================================
+Per-Layer Token Selection and Recomputation
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 159.76it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+====================================================================================================
+Example 4, Sub-question 1
+====================================================================================================
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+====================================================================================================
+
+
+====================================================================================================
+Step 1: Computing per-layer token selections
+====================================================================================================
+
+Model config:
+  Layers: 28
+  Attention heads: 28
+  KV heads: 4
+  Head dim: 128
+  Total ratio: 0.5
+
+Loaded 13 document caches
+Total document length: 2075 tokens
+
+Computing attention scores...
+
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+====================================================================================================
+Attention Distribution Analysis
+====================================================================================================
+
+Layer-wise Statistics:
+Layer  Mean       Std        Max        P99        P95        P90       
+----------------------------------------------------------------------
+0      0.000482   0.000709   0.013000   0.003479   0.001427   0.001137  
+2      0.000482   0.000953   0.015869   0.004730   0.001756   0.000992  
+4      0.000482   0.001417   0.104004   0.004272   0.001762   0.001122  
+6      0.000482   0.013143   0.710938   0.000031   0.000000   0.000000  
+8      0.000482   0.018168   0.996094   0.000000   0.000000   0.000000  
+10     0.000482   0.018340   1.000000   0.000001   0.000000   0.000000  
+12     0.000482   0.021884   1.000000   0.000000   0.000000   0.000000  
+14     0.000482   0.018214   0.996094   0.000000   0.000000   0.000000  
+16     0.000482   0.020023   1.000000   0.000002   0.000000   0.000000  
+18     0.000482   0.019013   1.000000   0.000000   0.000000   0.000000  
+20     0.000482   0.020421   1.000000   0.000000   0.000000   0.000000  
+22     0.000482   0.021276   1.000000   0.000000   0.000000   0.000000  
+24     0.000482   0.020122   1.000000   0.000000   0.000000   0.000000  
+26     0.000482   0.021948   1.000000   0.000000   0.000000   0.000000  
+27     0.000482   0.016059   1.000000   0.000000   0.000000   0.000000  
+
+Saved distribution plot to ./attention_analysis/attention_distribution.png
+
+====================================================================================================
+Selection Strategy Analysis
+====================================================================================================
+
+If using ABSOLUTE threshold (# tokens selected per layer):
+Layer th=0.0001   th=0.0005   th=0.001    th=0.002    th=0.005    th=0.01     
+------------------------------------------------------------------------------
+0     2074        1205        962         207         30          4           
+2     2040        1085        442         189         51          8           
+4     2010        1198        648         252         39          8           
+6     62          46          42          30          25          22          
+8     21          20          19          15          12          11          
+10    34          23          22          20          18          12          
+12    11          8           7           7           5           4           
+14    29          23          20          18          18          17          
+16    40          26          16          14          10          8           
+18    29          25          24          24          22          21          
+20    8           7           7           6           6           6           
+22    9           9           8           8           6           6           
+24    7           7           7           6           6           6           
+26    4           4           4           4           4           4           
+27    10          10          10          10          10          10          
+
+If using PERCENTILE threshold (# tokens selected per layer):
+Layer P99         P95         P90         P85         P80         P75         
+------------------------------------------------------------------------------
+0     753         926         1021        1157        1261        1293        
+2     65          223         462         695         907         1036        
+4     75          317         607         826         1023        1190        
+6     85          367         687         943         1139        1320        
+8     82          349         646         913         1126        1299        
+10    83          375         731         984         1214        1406        
+12    83          373         662         906         1121        2075        
+14    77          342         592         801         968         1107        
+16    63          297         485         660         2075        2075        
+18    66          279         539         2075        2075        2075        
+20    76          323         605         831         1013        2075        
+22    2075        2075        2075        2075        2075        2075        
+24    2075        2075        2075        2075        2075        2075        
+26    2075        2075        2075        2075        2075        2075        
+27    2075        2075        2075        2075        2075        2075        
+
+====================================================================================================
+
+Saved statistics to ./attention_analysis/attention_stats.json
+
+Computing layer-wise PER-HEAD selections using INDEPENDENT strategy...
+
+Using INDEPENDENT selection strategy
+  - Each head independently selects based on its own attention scores
+  - No nested constraint between layers
+  - Target ratio per head: 50.0%
+
+  Layer  0: per-head=1037, union=1744 ( 84.0%)
+  Layer  4: per-head=1037, union=1769 ( 85.3%)
+  Layer  8: per-head=1037, union=1886 ( 90.9%)
+  Layer 12: per-head=1037, union=1815 ( 87.5%)
+  Layer 16: per-head=1037, union=1670 ( 80.5%)
+  Layer 20: per-head=1037, union=1944 ( 93.7%)
+  Layer 24: per-head=1037, union=1066 ( 51.4%)
+  Layer 27: per-head=1037, union=1050 ( 50.6%)
+
+====================================================================================================
+Per-Head Selection Statistics
+====================================================================================================
+
+Total document tokens: 2075
+Total layers: 28
+Total KV heads per layer: 4
+Total possible (layer × head × token): 232400
+Actual per-head selections: 116144
+Overall selection ratio: 49.98%
+
+Layer 0 union size: 1744 tokens (84.0%)
+
+Per-layer head diversity (Jaccard similarity between heads):
+  Layer  0: avg Jaccard similarity = 0.454
+  Layer  7: avg Jaccard similarity = 0.371
+  Layer 14: avg Jaccard similarity = 0.525
+  Layer 27: avg Jaccard similarity = 0.989
+
+====================================================================================================
+Selection complete
+====================================================================================================
+
+
+====================================================================================================
+Loading FULL cache (prefix + document)
+====================================================================================================
+
+  Loaded chunk 0: 94 tokens
+  Loaded chunk 11: 146 tokens
+  Loaded chunk 12: 138 tokens
+  Loaded chunk 13: 148 tokens
+  Loaded chunk 5: 263 tokens
+  Loaded chunk 14: 226 tokens
+  Loaded chunk 15: 194 tokens
+  Loaded chunk 16: 70 tokens
+  Loaded chunk 17: 87 tokens
+  Loaded chunk 18: 85 tokens
+  Loaded chunk 19: 319 tokens
+  Loaded chunk 1: 94 tokens
+  Loaded chunk 11: 146 tokens
+  Loaded chunk 12: 138 tokens
+
+Prefix length (chunk 0 = system prompt): 94
+Document length (chunks 2+): 2075
+Total cache length: 2169
+
+
+====================================================================================================
+Step 2: Sparse Prefill (Per-Head with Triton)
+====================================================================================================
+
+Critical tokens (Layer 0 union): 1744
+Query tokens: 24
+Total sparse sequence: 1768
+
+Position mapping:
+  Critical positions: 94 - 2168
+  Query positions: 2169 - 2192
+
+====================================================================================================
+Per-Layer Per-Head Recomputation Statistics
+====================================================================================================
+
+Layer  Head0     Head1     Head2     Head3     Union    Ratio   
+--------------------------------------------------------------
+0      1037      1037      1037      1037      1744       84.0%
+4      1037      1037      1037      1037      1769       85.3%
+8      1037      1037      1037      1037      1886       90.9%
+12     1037      1037      1037      1037      1815       87.5%
+16     1037      1037      1037      1037      1670       80.5%
+20     1037      1037      1037      1037      1944       93.7%
+24     1037      1037      1037      1037      1066       51.4%
+27     1037      1037      1037      1037      1050       50.6%
+--------------------------------------------------------------
+
+Total document tokens: 2075
+Total layers: 28
+Total possible recomputations: 58100
+Actual recomputations (union): 45042
+Overall recomputation ratio: 77.52%
+====================================================================================================
+
+Processing 28 layers with per-head sparse attention (Triton)...
+
+  Layer  0 done
+  Layer  4 done
+  Layer  8 done
+  Layer 12 done
+  Layer 16 done
+  Layer 20 done
+  Layer 24 done
+  Layer 27 done
+
+Cache updated: total length = 2193
+
+====================================================================================================
+Sparse Prefill complete
+====================================================================================================
+
+
+====================================================================================================
+Step 3: Generating with query re-forward
+====================================================================================================
+
+Prefix length: 94
+Document length: 2075
+Query length: 24
+Query positions: 2169 - 2192
+Re-forwarding query tokens on updated KV cache...
+
+Total cache length after query forward: 2193
+Generating tokens...
+
+  Step 0: 1
+  Step 1: 2
+  Step 2: 1
+  Step 3: 6
+  Step 4:  and
+  Step 5:  
+  Step 6: 1
+  Step 7: 2
+  Step 8: 2
+  Step 9: 0
+  EOS reached at step 10
+
+====================================================================================================
+Generation completed
+====================================================================================================
+
+
+====================================================================================================
+FINAL RESULTS
+====================================================================================================
+
+Question: When was King Henry III of England crowned?
+
+Ground Truth:
+Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Generated Answer:
+1216 and 1220
+
+====================================================================================================
+
+Results saved to ./per_head_generation_results_independent_0.5.json

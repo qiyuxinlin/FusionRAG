@@ -20,6 +20,7 @@ import shutil
 import torch
 import numpy as np
 from typing import List, Dict, Any, Tuple
+from enum import Enum
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
 from FlagEmbedding import BGEM3FlagModel
@@ -33,9 +34,25 @@ from ktransformers.util.utils import (
     load_kv_and_generate,
     prefill_with_cache_and_save_preprocess,
     rotate_half,
-    find_group_and_index
+    find_group_and_index,
+    compute_f1,
+    _exact_match_score
 )
 from ktransformers.models.custom_cache import StaticCache
+import torch.nn.functional as F
+
+
+class PreprocessScope(Enum):
+    """
+    Enum to control the scope of document retrieval during preprocessing
+
+    GLOBAL: Retrieve similar documents from ALL examples globally (original behavior)
+    PER_EXAMPLE: Retrieve similar documents only within each example's documents
+    SKIP_UNTESTED: Skip retrieval for documents from untested examples (should_test=False)
+    """
+    GLOBAL = "global"
+    PER_EXAMPLE = "per_example"
+    SKIP_UNTESTED = "skip_untested"
 
 
 def load_model(model_type, model_path, config, device="cuda:0", use_multi_gpu=False):
@@ -126,25 +143,25 @@ def prepare_reflect_data(
     model_type: str = 'qwen2',
     topk: int = 10,
     max_main_questions: int = None,
-    preprocess: bool = True
+    preprocess: bool = True,
+    preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL
 ) -> Tuple[List, torch.Tensor, List, List]:
     """
-    Prepare data from result_reflect.json with GLOBAL document corpus for preprocessing
-
-    Similar to prepare_data in unified_process_cache.py:
-    - All documents from all questions form a global corpus
-    - BGE model computes similarity across the entire corpus
-    - Each document can reference similar documents from ANY question
+    Prepare data from result_reflect.json with configurable document corpus scope
 
     Args:
         model_type: Type of model to determine system prompt
         topk: Top-k similar documents for each document
-        preprocess: Whether to compute global context_rank
+        preprocess: Whether to compute context_rank
+        preprocess_scope: Scope of document retrieval
+            - GLOBAL: All documents from all questions (original behavior)
+            - PER_EXAMPLE: Only retrieve within each example's documents
+            - SKIP_UNTESTED: Exclude documents from untested examples (should_test=False)
 
     Returns:
         questions_data: List of dicts for each main question
         system_tensor: Tokenized system prompt
-        context_rank: [total_docs x topk] array of similar document indices (global)
+        context_rank: [total_docs x topk] array of similar document indices
         corpus_lens: List of document counts per question
     """
     print(f"Loading dataset from {data_path}...")
@@ -171,12 +188,12 @@ def prepare_reflect_data(
     system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
     system_tensor = torch.tensor(system_tokens, dtype=torch.long)
 
-    # STEP 1: Build GLOBAL document corpus across all questions
+    # STEP 1: Build document corpus based on preprocess_scope
     print("\n" + "="*80)
-    print("Building global document corpus...")
+    print(f"Building document corpus with scope: {preprocess_scope.value}")
     print("="*80)
 
-    global_corpus = []  # All documents from all questions (in order)
+    global_corpus = []  # Documents based on scope
     corpus_lens = []  # Number of docs per question
     questions_data = []
 
@@ -193,8 +210,8 @@ def prepare_reflect_data(
         # Check if this main question should be tested
         # Skip if main question's llm_judge is False
         should_test_main_question = True
-        if data_item.get('llm_judge', True) is False:
-            should_test_main_question = False
+        # if data_item.get('llm_judge', True) is False:
+        #     should_test_main_question = False
 
         for sub_q_idx, sub_q in enumerate(intermediate_context):
             docs = sub_q.get("retrieve docs", [])
@@ -229,7 +246,7 @@ def prepare_reflect_data(
 
             # Check if any sub-question has problematic answer
             # If so, skip the entire main question
-            if "No relevant information found" in answer:
+            if "No relevant information found" in answer or "没有相关信息" in answer:
                 should_test_main_question = False
 
             sub_questions_info.append({
@@ -248,9 +265,18 @@ def prepare_reflect_data(
             doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
             doc_tensors.append(doc_tensor)
 
-        # Add this question's docs to global corpus
-        global_corpus.extend(question_docs)
-        corpus_lens.append(len(question_docs))
+        # Add this question's docs to global corpus based on scope
+        # For SKIP_UNTESTED, only add docs if should_test is True
+        if preprocess_scope == PreprocessScope.SKIP_UNTESTED:
+            if should_test_main_question:
+                global_corpus.extend(question_docs)
+                corpus_lens.append(len(question_docs))
+            else:
+                corpus_lens.append(0)  # No docs added for this question
+        else:
+            # GLOBAL and PER_EXAMPLE: add all docs
+            global_corpus.extend(question_docs)
+            corpus_lens.append(len(question_docs))
 
         questions_data.append({
             'main_question': main_question,
@@ -284,11 +310,11 @@ def prepare_reflect_data(
     print(f"\nTotal documents (across all questions): {total_docs}")
     print(f"{'='*80}")
 
-    # STEP 2: Build FAISS index and compute global context_rank
+    # STEP 2: Build FAISS index and compute context_rank based on scope
     context_rank = []
     if preprocess and len(global_corpus) > 0:
         print("\n" + "="*80)
-        print("Computing global document similarity with BGE + FAISS...")
+        print(f"Computing document similarity with BGE + FAISS (scope: {preprocess_scope.value})...")
         print("="*80)
 
         import faiss
@@ -298,27 +324,73 @@ def prepare_reflect_data(
         print(f"Loading BGE model from {bge_model_path}...")
         bgem3 = FlagModel(bge_model_path, use_fp16=True)
 
-        # Encode global corpus for FAISS index
-        print(f"Encoding {len(global_corpus)} documents for FAISS index...")
-        corpus_embeddings = bgem3.encode(global_corpus)
-        print(f"Corpus embeddings shape: {corpus_embeddings.shape}")
+        if preprocess_scope == PreprocessScope.PER_EXAMPLE:
+            # Build separate FAISS index for EACH example
+            print("Building per-example FAISS indices...")
+            context_rank = []
 
-        # Build FAISS index
-        dim = corpus_embeddings.shape[-1]
-        index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
-        corpus_embeddings = corpus_embeddings.astype(np.float32)
-        index.train(corpus_embeddings)
-        index.add(corpus_embeddings)
-        print(f"FAISS index built with {index.ntotal} vectors")
+            for q_idx, q_data in enumerate(questions_data):
+                example_docs = q_data['docs']
 
-        # Search for similar documents globally
-        print(f"Searching for top-{topk} similar documents for each document...")
-        corpus_embeddings_query = bgem3.encode_queries(global_corpus)
-        corpus_embeddings_query = corpus_embeddings_query.astype(np.float32)
-        score, idx = index.search(corpus_embeddings_query, k=topk)
-        context_rank = idx  # Shape: [total_docs, topk]
+                if len(example_docs) == 0:
+                    continue
 
-        print(f"Context rank computed: {context_rank.shape}")
+                print(f"  Example {q_idx + 1}: {len(example_docs)} documents")
+
+                # Encode this example's documents
+                example_embeddings = bgem3.encode(example_docs)
+                example_embeddings = example_embeddings.astype(np.float32)
+
+                # Build FAISS index for this example
+                dim = example_embeddings.shape[-1]
+                index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
+                index.train(example_embeddings)
+                index.add(example_embeddings)
+
+                # Search within this example only
+                example_embeddings_query = bgem3.encode_queries(example_docs)
+                example_embeddings_query = example_embeddings_query.astype(np.float32)
+                actual_k = min(topk, len(example_docs))
+                score, idx = index.search(example_embeddings_query, k=actual_k)
+
+                # Convert local indices to global indices
+                global_offset = sum(corpus_lens[:q_idx])
+                global_idx = idx + global_offset
+
+                # Pad to topk if needed
+                if actual_k < topk:
+                    pad_width = ((0, 0), (0, topk - actual_k))
+                    global_idx = np.pad(global_idx, pad_width, mode='constant', constant_values=-1)
+
+                context_rank.append(global_idx)
+
+            if len(context_rank) > 0:
+                context_rank = np.vstack(context_rank)
+                print(f"Per-example context rank computed: {context_rank.shape}")
+
+        else:
+            # GLOBAL or SKIP_UNTESTED: Build single FAISS index for all corpus
+            print(f"Encoding {len(global_corpus)} documents for FAISS index...")
+            corpus_embeddings = bgem3.encode(global_corpus)
+            print(f"Corpus embeddings shape: {corpus_embeddings.shape}")
+
+            # Build FAISS index
+            dim = corpus_embeddings.shape[-1]
+            index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
+            corpus_embeddings = corpus_embeddings.astype(np.float32)
+            index.train(corpus_embeddings)
+            index.add(corpus_embeddings)
+            print(f"FAISS index built with {index.ntotal} vectors")
+
+            # Search for similar documents
+            print(f"Searching for top-{topk} similar documents for each document...")
+            corpus_embeddings_query = bgem3.encode_queries(global_corpus)
+            corpus_embeddings_query = corpus_embeddings_query.astype(np.float32)
+            score, idx = index.search(corpus_embeddings_query, k=topk)
+            context_rank = idx  # Shape: [total_docs, topk]
+
+            print(f"Context rank computed: {context_rank.shape}")
+
         bgem3 = None  # Free memory
 
     return questions_data, system_tensor, context_rank, corpus_lens
@@ -330,47 +402,83 @@ def judge_answer_with_openai(
     question: str,
     predicted_answer: str,
     ground_truth_answer: str
-) -> bool:
+) -> Tuple[bool, str]:
     """
     Use OpenAI API to judge if the predicted answer is correct
+
+    Returns:
+        Tuple[bool, str]: (is_correct, reason)
     """
-    judge_prompt = f"""You are an answer evaluator. Your task is to determine if a predicted answer is correct based on the ground truth answer.
+    judge_prompt = f"""你是一个答案评估专家。你的任务是判断预测答案是否正确地回答了问题。
 
-Question: {question}
+问题: {question}
 
-Ground Truth Answer: {ground_truth_answer}
+标准答案: {ground_truth_answer}
 
-Predicted Answer: {predicted_answer}
+预测答案: {predicted_answer}
 
-Does the predicted answer correctly answer the question? Consider the answer correct if:
-1. The predicted answer contains the key information from the ground truth
-2. The predicted answer is semantically equivalent to the ground truth
-3. Minor wording differences are acceptable as long as the meaning is preserved
+请判断预测答案是否正确回答了问题。判断标准：
+1. 预测答案包含了标准答案的关键信息
+2. 预测答案与标准答案在语义上等价
+3. 允许措辞上的细微差异，只要意思保持一致即可
 
-Respond with only "YES" if correct or "NO" if incorrect."""
+请按照以下格式回答：
+判断: [正确/错误]
+原因: [详细说明为什么正确或错误，至少30字]"""
 
     try:
         response = openai_client.chat.completions.create(
             model=openai_model,
             messages=[
-                {"role": "system", "content": "You are an answer evaluator."},
+                {"role": "system", "content": "你是一个专业的答案评估专家。"},
                 {"role": "user", "content": judge_prompt}
             ],
             temperature=0,
-            max_tokens=10
+            max_tokens=300
         )
 
-        judgment = response.choices[0].message.content.strip().upper()
-        return "YES" in judgment
+        result = response.choices[0].message.content.strip()
+
+        # 解析返回结果
+        is_correct = False
+        reason = result
+
+        # 尝试解析格式化的回答
+        lines = result.split('\n')
+        for i, line in enumerate(lines):
+            if '判断' in line or 'judgment' in line.lower():
+                if '正确' in line or 'YES' in line.upper() or '对' in line:
+                    is_correct = True
+                elif '错误' in line or 'NO' in line.upper() or '错' in line:
+                    is_correct = False
+            if '原因' in line or 'reason' in line.lower():
+                # 获取原因部分
+                if ':' in line or '：' in line:
+                    reason_start = line.split(':', 1)[-1].split('：', 1)[-1].strip()
+                    # 如果原因在下一行
+                    if len(lines) > i + 1 and not reason_start:
+                        reason = '\n'.join(lines[i+1:]).strip()
+                    else:
+                        reason = reason_start + '\n' + '\n'.join(lines[i+1:]).strip()
+                    reason = reason.strip()
+                    break
+
+        # 如果没有找到格式化的原因，使用整个回答
+        if not reason or len(reason) < 10:
+            reason = result
+
+        return is_correct, reason
 
     except Exception as e:
-        print(f"Error calling OpenAI API: {e}")
-        return False
+        error_msg = f"调用 OpenAI API 时出错: {e}"
+        print(error_msg)
+        return False, error_msg
 
 
 def main(
     model_type='qwen',
     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    draft_model_path=None,  # Draft model path for DraftModel method
     data_path='/mnt/data/ktransformers-dev/result_reflect.json',
     cache_path='/mnt/data3/reflect/',
     model_name='Qwen2.5-7B-Instruct',
@@ -378,7 +486,10 @@ def main(
     rate=0.2,
     topk=10,
     preprocess=True,
+    preprocess_scope=PreprocessScope.GLOBAL,
     reprocess_method='FusionRAG',
+    use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
+    entropy_top_k=4,  # 熵选层选择的层数
     bge_model_path='/mnt/data/models/bge-m3-FP16',
     revert_rope=True,
     device="cuda:0",
@@ -401,6 +512,7 @@ def main(
         rate: Compression rate (0=no compression, 1=full recompute)
         topk: Top-k similar documents to fuse in preprocess
         preprocess: Whether to use FusionRAG preprocess
+        preprocess_scope: Scope for document retrieval (GLOBAL, PER_EXAMPLE, SKIP_UNTESTED)
         reprocess_method: Method name ('FusionRAG')
         bge_model_path: Path to BGE model for computing similarity
         revert_rope: Whether to revert rope in preprocessing
@@ -413,15 +525,29 @@ def main(
     """
 
     # Create cache directories with model-specific subdirectories
+    # Different preprocess_scope uses different preprocess cache directories
     model_cache_root = os.path.join(cache_path, model_name)
     save_path = os.path.join(model_cache_root, 'kv_cache')
-    preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache')
+
+    # Separate preprocess cache for different scopes
+    if preprocess_scope == PreprocessScope.GLOBAL:
+        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_global')
+    elif preprocess_scope == PreprocessScope.PER_EXAMPLE:
+        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_per_example')
+    elif preprocess_scope == PreprocessScope.SKIP_UNTESTED:
+        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_skip_untested')
+    else:
+        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache')
+
     csv_path = os.path.join(model_cache_root, 'results')
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(preprocess_save_path, exist_ok=True)
     os.makedirs(csv_path, exist_ok=True)
 
     print(f"Cache directories created under: {model_cache_root}")
+    print(f"  - KV cache: {save_path}")
+    print(f"  - Preprocess cache ({preprocess_scope.value}): {preprocess_save_path}")
+    print(f"  - Results: {csv_path}")
 
     # Load model and tokenizer
     print(f"Loading tokenizer and config from {model_path}...")
@@ -434,10 +560,23 @@ def main(
         print("Using multi-GPU with device_map='auto'")
     model, device_map = load_model(model_type, model_path, config, device, use_multi_gpu)
 
+    # Load draft model if using DraftModel method
+    draft_model = None
+    if reprocess_method == 'DraftModel':
+        if draft_model_path is None:
+            raise ValueError("draft_model_path must be provided when using DraftModel method")
+        print(f"\nLoading draft model from {draft_model_path}...")
+        draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
+        draft_config._attn_implementation = "sdpa"
+        # Draft model always on single GPU
+        draft_model, _ = load_model('qwen', draft_model_path, draft_config, device, use_multi_gpu=False)
+        draft_model.eval()
+        print(f"Draft model loaded: {draft_model.config.num_hidden_layers} layers")
+
     # Prepare data organized by main questions
     print("Preparing data organized by main questions...")
     questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
-        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess
+        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
     )
 
     # Initialize OpenAI client
@@ -445,17 +584,51 @@ def main(
         openai_api_key = os.environ.get("OPENAI_API_KEY")
     openai_client = OpenAI(api_key=openai_api_key, base_url=openai_base_url)
 
-    # CSV file for results
+    # CSV file for results (include preprocess_scope and revert_rope in filename)
+    rope_suffix = "_revert_rope" if revert_rope else ""
     if preprocess:
-        csv_file = f"{csv_path}/fusionrag_topk_{topk}_rate_{rate}.csv"
-        result_file = f"{csv_path}/fusionrag_topk_{topk}_rate_{rate}.txt"
+        csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{rope_suffix}.csv"
+        result_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{rope_suffix}.txt"
+        rate1_csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_1{rope_suffix}.csv"
     else:
-        csv_file = f"{csv_path}/baseline_rate_{rate}.csv"
-        result_file = f"{csv_path}/baseline_rate_{rate}.txt"
+        csv_file = f"{csv_path}/{reprocess_method}_rate_{rate}{rope_suffix}.csv"
+        result_file = f"{csv_path}/{reprocess_method}_rate_{rate}{rope_suffix}.txt"
+        rate1_csv_file = f"{csv_path}/{reprocess_method}_rate_1{rope_suffix}.csv"
 
+    # Load rate=1 results for comparison if rate != 1
+    rate1_results = {}
+    if rate != 1:
+        if not os.path.exists(rate1_csv_file):
+            raise FileNotFoundError(
+                f"Rate=1 results file not found: {rate1_csv_file}\n"
+                f"Please run with rate=1 first to generate baseline results."
+            )
+
+        print(f"\nLoading rate=1 baseline results from {rate1_csv_file}...")
+        with open(rate1_csv_file, mode='r', newline='', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                key = (row['Main Question'], row['Sub Question'])
+                rate1_results[key] = {
+                    'predicted': row['Predicted'],
+                    'correct': row['Correct'],
+                    'f1': row['F1'],
+                    'em': row['EM'],
+                    'reason': row['Reason']
+                }
+        print(f"Loaded {len(rate1_results)} rate=1 results for comparison")
+
+    # Write CSV header
     with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow(['Main Question', 'Sub Question', 'Ground Truth', 'Predicted', 'Correct'])
+        if rate != 1:
+            writer.writerow([
+                'Main Question', 'Sub Question', 'Ground Truth',
+                'Predicted', 'Correct', 'F1', 'EM', 'Reason',
+                'Rate1_Predicted', 'Rate1_Correct', 'Rate1_F1', 'Rate1_EM', 'Rate1_Reason'
+            ])
+        else:
+            writer.writerow(['Main Question', 'Sub Question', 'Ground Truth', 'Predicted', 'Correct', 'F1', 'EM', 'Reason'])
 
     # Initialize static cache
     # For multi-GPU, pass device_map; for single GPU, pass device string
@@ -488,6 +661,8 @@ def main(
     correct_main_questions = 0
     total_sub_questions = 0
     correct_sub_questions = 0
+    total_f1 = 0.0
+    total_em = 0.0
 
     # Process each main question (on-demand cache generation)
     for example_id, q_data in enumerate(questions_data):
@@ -558,6 +733,9 @@ def main(
                     if global_doc_idx < len(context_rank):
                         similar_docs_info = []
                         for similar_global_idx in context_rank[global_doc_idx][:topk]:
+                            # Skip invalid indices (from padding in PER_EXAMPLE mode)
+                            if similar_global_idx < 0:
+                                continue
                             if similar_global_idx == global_doc_idx:
                                 continue
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
@@ -577,6 +755,9 @@ def main(
 
                     if global_doc_idx < len(context_rank):
                         for similar_global_idx in context_rank[global_doc_idx][:topk]:
+                            # Skip invalid indices (from padding in PER_EXAMPLE mode)
+                            if similar_global_idx < 0:
+                                continue
                             if similar_global_idx == global_doc_idx:
                                 continue
 
@@ -634,6 +815,9 @@ def main(
 
                     if global_doc_idx < len(context_rank):
                         for similar_global_idx in context_rank[global_doc_idx][:topk]:
+                            # Skip invalid indices (from padding in PER_EXAMPLE mode)
+                            if similar_global_idx < 0:
+                                continue
                             if similar_global_idx == global_doc_idx:
                                 continue
 
@@ -699,15 +883,18 @@ def main(
                 inputs = torch.cat(iter_tokens).to(input_device).unsqueeze(0)
                 from ktransformers.util.utils import prefill_and_generate
                 generated_tokens, _, _ = prefill_and_generate(
-                    model, tokenizer, inputs, max_new_tokens=50, device=input_device, device_map=device_map
+                    model, tokenizer, inputs, max_new_tokens=500, device=input_device, device_map=device_map
                 )
             else:
-                # Load preprocessed KV cache and generate
+                # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, etc.)
                 load_path = preprocess_save_path if preprocess else save_path
                 generated_tokens, _ = load_kv_and_generate(
                     model, tokenizer, past_key_values, iter_tokens, load_path, example_id,
-                    max_new_tokens=50, revert_rope=revert_rope,
+                    max_new_tokens=500, revert_rope=revert_rope,
                     reprocess_method=reprocess_method, rate=rate,
+                    draft_model=draft_model,  # DraftModel 方法会用到
+                    use_entropy_selection=use_entropy_selection,
+                    entropy_top_k=entropy_top_k,
                     preprocess=preprocess, device=input_device, chunk_ids=kv_chunk_ids, device_map=device_map
                 )
 
@@ -716,14 +903,22 @@ def main(
             print(f"Predicted: {answer}")
 
             # Judge
-            is_correct = judge_answer_with_openai(
+            is_correct, judge_reason = judge_answer_with_openai(
                 openai_client, openai_model,
                 sub_q_info['query'], answer, sub_q_info['answer']
             )
 
+            # Compute F1 and EM
+            f1_score = compute_f1(answer, sub_q_info['answer'], tokenizer)
+            em_score = 1.0 if _exact_match_score(answer, sub_q_info['answer']) else 0.0
+
             print(f"Judgment: {'✓ CORRECT' if is_correct else '✗ INCORRECT'}")
+            print(f"F1: {f1_score:.4f}, EM: {em_score:.4f}")
+            print(f"Reason: {judge_reason}")
 
             total_sub_questions += 1
+            total_f1 += f1_score
+            total_em += em_score
             if is_correct:
                 correct_sub_questions += 1
             else:
@@ -732,10 +927,27 @@ def main(
             # Save to CSV
             with open(csv_file, mode='a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    q_data['main_question'], sub_q_info['query'],
-                    sub_q_info['answer'], answer, is_correct
-                ])
+                if rate != 1:
+                    # Get rate=1 results for comparison
+                    key = (q_data['main_question'], sub_q_info['query'])
+                    rate1_data = rate1_results.get(key, {
+                        'predicted': 'N/A',
+                        'correct': 'N/A',
+                        'f1': 'N/A',
+                        'em': 'N/A',
+                        'reason': 'N/A'
+                    })
+                    writer.writerow([
+                        q_data['main_question'], sub_q_info['query'],
+                        sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason,
+                        rate1_data['predicted'], rate1_data['correct'],
+                        rate1_data['f1'], rate1_data['em'], rate1_data['reason']
+                    ])
+                else:
+                    writer.writerow([
+                        q_data['main_question'], sub_q_info['query'],
+                        sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason
+                    ])
 
             torch.cuda.empty_cache()
 
@@ -750,38 +962,128 @@ def main(
     # Final results
     main_q_acc = correct_main_questions / total_main_questions if total_main_questions > 0 else 0
     sub_q_acc = correct_sub_questions / total_sub_questions if total_sub_questions > 0 else 0
+    avg_f1 = total_f1 / total_sub_questions if total_sub_questions > 0 else 0
+    avg_em = total_em / total_sub_questions if total_sub_questions > 0 else 0
 
     print(f"\n{'='*80}")
     print("FINAL RESULTS")
     print(f"{'='*80}")
     print(f"Main Questions: {correct_main_questions}/{total_main_questions} ({main_q_acc:.2%})")
     print(f"Sub Questions: {correct_sub_questions}/{total_sub_questions} ({sub_q_acc:.2%})")
+    print(f"Average F1: {avg_f1:.4f}")
+    print(f"Average EM: {avg_em:.4f}")
+
+    # Show comparison with rate=1 if applicable
+    if rate != 1 and len(rate1_results) > 0:
+        # Calculate rate=1 statistics
+        rate1_correct = sum(1 for v in rate1_results.values() if v['correct'].lower() == 'true')
+        rate1_total = len(rate1_results)
+        rate1_acc = rate1_correct / rate1_total if rate1_total > 0 else 0
+        rate1_avg_f1 = sum(float(v['f1']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+        rate1_avg_em = sum(float(v['em']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+
+        print(f"\n{'='*80}")
+        print("COMPARISON WITH RATE=1 BASELINE")
+        print(f"{'='*80}")
+        print(f"Current (rate={rate}):")
+        print(f"  Sub Questions Accuracy: {sub_q_acc:.2%}, F1: {avg_f1:.4f}, EM: {avg_em:.4f}")
+        print(f"Baseline (rate=1):")
+        print(f"  Sub Questions Accuracy: {rate1_acc:.2%}, F1: {rate1_avg_f1:.4f}, EM: {rate1_avg_em:.4f}")
+        print(f"Delta:")
+        print(f"  Accuracy: {sub_q_acc - rate1_acc:+.2%}, F1: {avg_f1 - rate1_avg_f1:+.4f}, EM: {avg_em - rate1_avg_em:+.4f}")
+        print(f"{'='*80}")
+
     print(f"{'='*80}")
 
     with open(result_file, 'w') as f:
         f.write(f"Main Questions Accuracy: {correct_main_questions}/{total_main_questions} ({main_q_acc:.4f})\n")
         f.write(f"Sub Questions Accuracy: {correct_sub_questions}/{total_sub_questions} ({sub_q_acc:.4f})\n")
+        f.write(f"Average F1 Score: {avg_f1:.4f}\n")
+        f.write(f"Average EM Score: {avg_em:.4f}\n")
+
+        # Add rate=1 comparison to file
+        if rate != 1 and len(rate1_results) > 0:
+            rate1_correct = sum(1 for v in rate1_results.values() if v['correct'].lower() == 'true')
+            rate1_total = len(rate1_results)
+            rate1_acc = rate1_correct / rate1_total if rate1_total > 0 else 0
+            rate1_avg_f1 = sum(float(v['f1']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+            rate1_avg_em = sum(float(v['em']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+
+            f.write(f"\n--- Comparison with Rate=1 Baseline ---\n")
+            f.write(f"Rate=1 Sub Questions Accuracy: {rate1_acc:.4f}\n")
+            f.write(f"Rate=1 Average F1 Score: {rate1_avg_f1:.4f}\n")
+            f.write(f"Rate=1 Average EM Score: {rate1_avg_em:.4f}\n")
+            f.write(f"Accuracy Delta: {sub_q_acc - rate1_acc:+.4f}\n")
+            f.write(f"F1 Delta: {avg_f1 - rate1_avg_f1:+.4f}\n")
+            f.write(f"EM Delta: {avg_em - rate1_avg_em:+.4f}\n")
 
     print(f"\nResults saved to {csv_path}")
 
 
 if __name__ == '__main__':
+
+    # DraftModel 方法: 用小模型指导大模型的 token 选择
     main(
-        model_type='qwen3',
-        model_path='/mnt/data/models/Qwen3-32B',
-        data_path='/mnt/data/ktransformers-dev/result_reflect.json',
-        cache_path='/mnt/data3/reflect/',
-        model_name='Qwen3-32B',
-        rate=1,
+        model_type='qwen',
+        model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+        draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',  # Draft model for guidance
+        data_path='./result_reflect.json',
+        cache_path='/mnt/data/reflect/',
+        model_name='Qwen2.5-7B-Instruct',
+        rate=0.2,  # 30% token selection
         topk=10,
         preprocess=True,
-        reprocess_method='FusionRAG',
+        use_entropy_selection=True,
+        reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
+        preprocess_scope=PreprocessScope.GLOBAL,
         bge_model_path='/mnt/data/models/bge-m3-FP16',
-        revert_rope=True,
+        revert_rope=False,
         device="cuda:0",
-        use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)
+        use_multi_gpu=True,
         openai_base_url="https://api.deepseek.com/v1",
         openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
         openai_model="deepseek-chat",
-        max_samples=200  # Test first 2 MAIN questions
+        max_samples=200
     )
+
+    # # QueryAttention 方法
+    # main(
+    #     model_type='qwen3',
+    #     model_path='/mnt/data/models/Qwen3-32B',
+    #     data_path='./result_reflect.json',
+    #     cache_path='/mnt/data/reflect/',
+    #     model_name='Qwen3-32B',
+    #     rate=1,  # 30% token selection
+    #     topk=10,
+    #     preprocess=True,  # 开启预处理
+    #     reprocess_method='QueryAttention',  # 测试 QueryAttention 方法
+    #     preprocess_scope=PreprocessScope.GLOBAL,
+    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #     revert_rope=True,
+    #     device="cuda:0",
+    #     use_multi_gpu=True,  # Multi-GPU mode
+    #     openai_base_url="https://api.deepseek.com/v1",
+    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #     openai_model="deepseek-chat",
+    #     max_samples=200  # Test samples
+    #     )
+    # main(
+    #     model_type='qwen3',
+    #     model_path='/mnt/data/models/Qwen3-32B',
+    #     data_path='./result.json',
+    #     cache_path='/mnt/data/junshi/',
+    #     model_name='Qwen3-32B',
+    #     rate=0.3,
+    #     topk=10,
+    #     preprocess=True,
+    #     reprocess_method='FusionRAG',
+    #     preprocess_scope=PreprocessScope.GLOBAL,
+    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #     revert_rope=True,
+    #     device="cuda:0",
+    #     use_multi_gpu=True,  # Set to True for multi-GPU (e.g., Qwen3-32B)
+    #     openai_base_url="https://api.deepseek.com/v1",
+    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #     openai_model="deepseek-chat",
+    #     max_samples=200  # Test first 2 MAIN questions
+    # )
