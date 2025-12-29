@@ -499,7 +499,7 @@ def test_question(fusion_rag_model):
     system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
-        model_type='qwen',
+        model_type='qwen3',
         rate=0.3,
         reprocess_method='FusionRAG',
         revert_rope=True,
