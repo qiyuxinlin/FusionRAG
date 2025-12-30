@@ -116,6 +116,7 @@ def main(model_type='mistral',
          reprocess_method='cacheBlend',
          bge_model_path='/mnt/data/models/bge-m3-FP16',
          draft_model_path=None,
+         entropy_top_k=4,
          device="cuda:0",
          compare_with_full_recompute=False):
     """
@@ -134,9 +135,10 @@ def main(model_type='mistral',
         revert_rope: whether to revert rope
         topk: top-k for preprocessing
         preprocess: whether to use preprocessing
-        reprocess_method: reprocessing method ('cacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill')
+        reprocess_method: reprocessing method ('cacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill', 'DraftModel')
         bge_model_path: path to BGE model for embedding
-        draft_model_path: path to draft model for speculative_prefill (optional, any model can use any draft model)
+        draft_model_path: path to draft model for speculative_prefill/DraftModel (optional)
+        entropy_top_k: number of layers to select by entropy for DraftModel (default: 4)
         device: device to use for model
         compare_with_full_recompute: if True, run both current method and full recompute for comparison
     """
@@ -159,10 +161,10 @@ def main(model_type='mistral',
     model = load_model(model_type, model_path, config)
     model = model.to(device)
 
-    # Load draft model for speculative_prefill (all models can use any draft model)
+    # Load draft model for speculative_prefill or DraftModel
     draft_model = None
-    if reprocess_method == "speculative_prefill" and draft_model_path is not None:
-        # Automatically detect draft model type from path or use AutoModelForCausalLM
+    if reprocess_method in ["speculative_prefill", "DraftModel"] and draft_model_path is not None:
+        print(f"\nLoading draft model from {draft_model_path}...")
         from transformers import AutoModelForCausalLM
         with torch.no_grad():
             draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
@@ -170,6 +172,8 @@ def main(model_type='mistral',
                 draft_model_path, config=draft_config, torch_dtype=config.torch_dtype, trust_remote_code=True
             )
         draft_model = draft_model.to(device)
+        draft_model.eval()
+        print(f"Draft model loaded: {draft_model.config.num_hidden_layers} layers")
 
     # If compare mode is enabled, run full recompute first
     if compare_with_full_recompute:
@@ -186,7 +190,7 @@ def main(model_type='mistral',
             revert_rope=revert_rope, topk=topk, use_sparse_attention=use_sparse_attention,
             context_rank=[], corpus_lens=[], max_cache_len=max_cache_len,
             passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
-            draft_model=None, suffix="_full_recompute"
+            draft_model=None, entropy_top_k=entropy_top_k, suffix="_full_recompute"
         )
 
         print("\n" + "="*80)
@@ -202,7 +206,7 @@ def main(model_type='mistral',
         revert_rope=revert_rope, topk=topk, use_sparse_attention=use_sparse_attention,
         context_rank=context_rank, corpus_lens=corpus_lens, max_cache_len=max_cache_len,
         passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
-        draft_model=draft_model, suffix=""
+        draft_model=draft_model, entropy_top_k=entropy_top_k, suffix=""
     )
 
     # If compare mode, print comparison results (quality metrics only)
@@ -266,7 +270,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                    save_path, preporcess_save_path, csv_path, device,
                    rate, preprocess, reprocess_method, revert_rope, topk, use_sparse_attention,
                    context_rank, corpus_lens, max_cache_len, passage_len_config,
-                   draft_model, suffix=""):
+                   draft_model, entropy_top_k=4, suffix=""):
     """
     Run a single experiment with given parameters
 
@@ -341,8 +345,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                         continue
 
                     corpus_passages = [iter[0]]
-                    system_key_cache = torch.load(f"{save_path}/{i+1}_{0}_key.pt", weights_only=True)
-                    system_value_cache = torch.load(f"{save_path}/{i+1}_{0}_value.pt", weights_only=True)
+                    system_key_cache = torch.load(f"{save_path}/{i+1}_{0}_key.pt", weights_only=True, map_location=device)
+                    system_value_cache = torch.load(f"{save_path}/{i+1}_{0}_value.pt", weights_only=True, map_location=device)
 
                     for layer_idx in range(len(past_key_values.key_cache)):
                         past_key_values.key_cache[layer_idx].narrow(2, 0, system_len).copy_(system_key_cache[layer_idx])
@@ -367,8 +371,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                         if os.path.exists(f"{save_path}/{corpus_i}_{c_id}_key.pt") and \
                            ((reprocess_method == "Cache-Craft" and os.path.exists(f'{save_path}/cachecraftattn_{corpus_i}_{c_id}.pt')) or \
                             reprocess_method != "Cache-Craft"):
-                            chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_key.pt", weights_only=True)
-                            chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_value.pt", weights_only=True)
+                            chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_key.pt", weights_only=True, map_location=device)
+                            chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{c_id}_value.pt", weights_only=True, map_location=device)
                         else:
                             tmp_past_key_values = StaticCache(
                                 config=model.config, max_batch_size=1,
@@ -389,8 +393,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                                 cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_cache[0], position_ids)
                             else:  # pangu, llama
                                 cos, sin = model.model.rotary_emb(chunk_key_cache[0], position_ids)
-                            cos = cos.unsqueeze(1)
-                            sin = sin.unsqueeze(1)
+                            cos = cos.unsqueeze(1).to(chunk_key_cache.device)
+                            sin = sin.unsqueeze(1).to(chunk_key_cache.device)
                             chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
 
                         for layer_idx in range(len(past_key_values.key_cache)):
@@ -417,7 +421,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
             generated_tokens, example_prefill_time = load_kv_and_generate(
                 model, tokenizer, past_key_values, iter, load_path, i+1,
                 max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
-                rate=rate,  draft_model=draft_model, preprocess=preprocess, device=device
+                rate=rate, draft_model=draft_model, entropy_top_k=entropy_top_k,
+                draft_layer_selection='entropy', preprocess=preprocess, device=device
             )
 
             # Record prefill time (returned from function)
@@ -485,6 +490,19 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
 if __name__ == '__main__':
     # Example usage for different models
 
+    # DraftModel 方法: 用小模型指导大模型的 token 选择
+    # main(model_type='qwen',
+    #      model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #      draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+    #      model_name='Qwen2.5-7B-Instruct',
+    #      cache_path='/mnt/data3/processCache/',
+    #      data_name='musique-200.jsonl',
+    #      rate=0.3,
+    #      preprocess=True,
+    #      revert_rope=True,
+    #      reprocess_method='DraftModel',
+    #      entropy_top_k=4)
+
     # Mistral
     # main(model_type='mistral',
     #      model_path='/mnt/data/models/Mistral-7B-Instruct-v0.3',
@@ -511,26 +529,15 @@ if __name__ == '__main__':
     #      data_name='musique-200.jsonl')
 
     # Example: Run experiments
-    # Set compare_with_full_recompute=True to enable comparison mode
-    # for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', 'musique-200.jsonl', '2wikimqa-200.jsonl']:
-    #     for topk in [10]:
-    #         for rate in [0, 1, 0.15, 0.05, 0.1]:
-    #             for method in ['FusionRAG']:
-    #                 main(model_type='pangu',
-    #                      model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
-    #                      model_name='openPangu-Embedded-1B-V1.1',
-    #                      rate=rate, preprocess=True, revert_rope=True,
-    #                      cache_path='/mnt/data3/processCache/',
-    #                      reprocess_method=method, data_name=data_name, topk=topk,
-    #                      compare_with_full_recompute=False)  # Enable comparison mode
     for data_name in ['2wikimqa-200.jsonl']:
         for topk in [10]:
-            for rate in [0, 1, 0.15, 0.05, 0.1]:
-                for method in ['FusionRAG']:
-                     main(model_type='qwen',
-                          model_path='/mnt/data/models/Qwen2.5-14B-Instruct',
-                          model_name='Qwen2.5-14B-Instruct',
-                         rate=rate, preprocess=True, revert_rope=True,
-                         cache_path='/mnt/data3/processCache/',
-                         reprocess_method=method, data_name=data_name, topk=topk,
-                         compare_with_full_recompute=False)
+            for rate in [0.15]:
+                main(model_type='qwen',
+                     model_path='/mnt/data/models/Qwen2.5-14B-Instruct/',
+                     draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct/',
+                     model_name='Qwen2.5-14B-Instruct',
+                     rate=rate, preprocess=True, revert_rope=True,
+                     cache_path='/mnt/data2/processCache/',
+                     reprocess_method='DraftModel', data_name=data_name, topk=topk,
+                     entropy_top_k=4,
+                     compare_with_full_recompute=False)

@@ -21,6 +21,7 @@ import torch
 import numpy as np
 from typing import List, Dict, Any, Tuple
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
 from FlagEmbedding import BGEM3FlagModel
@@ -490,6 +491,7 @@ def main(
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
     entropy_top_k=4,  # 熵选层选择的层数
+    draft_layer_selection='entropy',  # DraftModel 选层方式: 'entropy' (熵选层) 或 'last' (最后一层)
     bge_model_path='/mnt/data/models/bge-m3-FP16',
     revert_rope=True,
     device="cuda:0",
@@ -583,6 +585,9 @@ def main(
     if openai_api_key is None:
         openai_api_key = os.environ.get("OPENAI_API_KEY")
     openai_client = OpenAI(api_key=openai_api_key, base_url=openai_base_url)
+
+    # 创建线程池用于异步判断（max_workers=4 允许同时发起 4 个 API 请求）
+    judge_executor = ThreadPoolExecutor(max_workers=4)
 
     # CSV file for results (include preprocess_scope and revert_rope in filename)
     rope_suffix = "_revert_rope" if revert_rope else ""
@@ -851,7 +856,9 @@ def main(
                 )
 
         # Step 3: Answer sub-questions
-        all_sub_correct = True
+        # 使用线程池异步判断，主线程继续生成下一个答案
+        judge_futures = []  # 存放判断任务的 Future 对象
+        sub_q_results = []  # 存放每个 sub-question 的结果（用于后续统计和 CSV 写入）
 
         for sub_q_idx, sub_q_info in enumerate(q_data['sub_questions']):
             print(f"\nSub-question {sub_q_idx+1}/{len(q_data['sub_questions'])}")
@@ -895,6 +902,7 @@ def main(
                     draft_model=draft_model,  # DraftModel 方法会用到
                     use_entropy_selection=use_entropy_selection,
                     entropy_top_k=entropy_top_k,
+                    draft_layer_selection=draft_layer_selection,  # DraftModel 选层方式
                     preprocess=preprocess, device=input_device, chunk_ids=kv_chunk_ids, device_map=device_map
                 )
 
@@ -902,19 +910,45 @@ def main(
             answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
             print(f"Predicted: {answer}")
 
-            # Judge
-            is_correct, judge_reason = judge_answer_with_openai(
+            # Compute F1 and EM (这个很快，同步计算)
+            f1_score = compute_f1(answer, sub_q_info['answer'], tokenizer)
+            em_score = 1.0 if _exact_match_score(answer, sub_q_info['answer']) else 0.0
+            print(f"F1: {f1_score:.4f}, EM: {em_score:.4f}")
+
+            # 提交判断任务到线程池（异步执行，不阻塞主线程）
+            future = judge_executor.submit(
+                judge_answer_with_openai,
                 openai_client, openai_model,
                 sub_q_info['query'], answer, sub_q_info['answer']
             )
+            judge_futures.append(future)
 
-            # Compute F1 and EM
-            f1_score = compute_f1(answer, sub_q_info['answer'], tokenizer)
-            em_score = 1.0 if _exact_match_score(answer, sub_q_info['answer']) else 0.0
+            # 保存结果信息，等待判断完成后更新
+            sub_q_results.append({
+                'sub_q_idx': sub_q_idx,
+                'sub_q_info': sub_q_info,
+                'answer': answer,
+                'f1_score': f1_score,
+                'em_score': em_score,
+                'future': future
+            })
 
-            print(f"Judgment: {'✓ CORRECT' if is_correct else '✗ INCORRECT'}")
-            print(f"F1: {f1_score:.4f}, EM: {em_score:.4f}")
-            print(f"Reason: {judge_reason}")
+            torch.cuda.empty_cache()
+
+        # 等待该 main question 的所有判断任务完成
+        print(f"\n⏳ Waiting for {len(judge_futures)} judgment(s) to complete...")
+        all_sub_correct = True
+
+        for result in sub_q_results:
+            future = result['future']
+            is_correct, judge_reason = future.result()  # 阻塞等待结果
+
+            sub_q_info = result['sub_q_info']
+            answer = result['answer']
+            f1_score = result['f1_score']
+            em_score = result['em_score']
+
+            print(f"Sub-Q {result['sub_q_idx']+1}: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} - {sub_q_info['query'][:50]}...")
 
             total_sub_questions += 1
             total_f1 += f1_score
@@ -948,8 +982,6 @@ def main(
                         q_data['main_question'], sub_q_info['query'],
                         sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason
                     ])
-
-            torch.cuda.empty_cache()
 
         # Main question result
         total_main_questions += 1
@@ -1017,6 +1049,9 @@ def main(
             f.write(f"F1 Delta: {avg_f1 - rate1_avg_f1:+.4f}\n")
             f.write(f"EM Delta: {avg_em - rate1_avg_em:+.4f}\n")
 
+    # 关闭线程池
+    judge_executor.shutdown(wait=True)
+
     print(f"\nResults saved to {csv_path}")
 
 
@@ -1030,11 +1065,12 @@ if __name__ == '__main__':
         data_path='./result_reflect.json',
         cache_path='/mnt/data/reflect/',
         model_name='Qwen2.5-7B-Instruct',
-        rate=0.2,  # 30% token selection
+        rate=0.3,  # 30% token selection
         topk=10,
         preprocess=True,
         use_entropy_selection=True,
         reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
+        draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
         preprocess_scope=PreprocessScope.GLOBAL,
         bge_model_path='/mnt/data/models/bge-m3-FP16',
         revert_rope=False,

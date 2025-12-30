@@ -187,30 +187,37 @@ def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
     return selected_layers
 
 
-def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
+def compute_draft_model_attention(draft_model, input_ids, query_start, device="cuda:0"):
     """
-    用 draft model 完整 prefill 获取 attention 分布
+    用 draft model 完整 prefill 获取 attention 分布（内存优化版本）
+
+    使用 SDPA (Flash Attention) 进行前向传播，只对后 50% 的层计算 query→all 的 attention。
+    这样内存从 O(seq_len²) 降到 O(query_len × seq_len)。
 
     Args:
         draft_model: 小模型
         input_ids: 输入 token ids [1, seq_len]
+        query_start: query 的起始位置（只计算 query positions 的 attention）
         device: 设备
 
     Returns:
-        layer_attention_scores: {layer_idx: attention_matrix [num_heads, seq_len, seq_len]}
+        layer_attention_scores: {layer_idx: attention_matrix [num_heads, query_len, seq_len]}
     """
     import torch.nn.functional as F
 
     seq_len = input_ids.shape[1]
+    query_len = seq_len - query_start
     num_layers = draft_model.config.num_hidden_layers
     num_heads = draft_model.config.num_attention_heads
     num_kv_heads = draft_model.config.num_key_value_heads
     head_dim = draft_model.config.hidden_size // num_heads
 
     print(f"\n{'='*60}")
-    print("Computing Draft Model Attention")
+    print("Computing Draft Model Attention (Memory Optimized)")
     print(f"{'='*60}")
-    print(f"  Layers: {num_layers}, Heads: {num_heads}, Seq len: {seq_len}")
+    print(f"  Layers: {num_layers}, Heads: {num_heads}")
+    print(f"  Seq len: {seq_len}, Query len: {query_len} (from pos {query_start})")
+    print(f"  Memory: ~{query_len * seq_len * num_heads * 4 / 1024 / 1024:.1f} MB per layer (vs {seq_len * seq_len * num_heads * 4 / 1024 / 1024:.1f} MB full)")
 
     layer_attention_scores = {}
 
@@ -261,18 +268,55 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
             key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
             value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
 
-            # Compute attention
-            attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (head_dim ** 0.5)
-            causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
-            attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
-            attn_weights = F.softmax(attn_weights, dim=-1)
-
-            # 保存后半部分层的 attention
+            # 对于后 50% 的层，只计算 query→all 的 attention
             if layer_idx >= num_layers // 2:
-                layer_attention_scores[layer_idx] = attn_weights[0].cpu().float().numpy()
+                # 只计算 query positions 的 attention: [bsz, num_heads, query_len, seq_len]
+                query_states_subset = query_states[:, :, query_start:, :]  # [1, num_heads, query_len, head_dim]
+                attn_weights_subset = torch.matmul(
+                    query_states_subset.float(),
+                    key_states_expanded.float().transpose(2, 3)
+                ) / (head_dim ** 0.5)
 
-            # Continue forward
-            attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+                # Causal mask: 对于 query position i，只能看到 position <= query_start + i
+                # 生成正确的 causal mask
+                query_positions = torch.arange(query_start, seq_len, device=device)  # [query_len]
+                key_positions = torch.arange(seq_len, device=device)  # [seq_len]
+                causal_mask = key_positions.unsqueeze(0) > query_positions.unsqueeze(1)  # [query_len, seq_len]
+                attn_weights_subset = attn_weights_subset.masked_fill(causal_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
+
+                attn_weights_subset = F.softmax(attn_weights_subset, dim=-1)
+                layer_attention_scores[layer_idx] = attn_weights_subset[0].cpu().float().numpy()
+
+                # 计算 attention output（只对 query 部分）
+                attn_output_subset = torch.matmul(
+                    attn_weights_subset.to(value_states_expanded.dtype),
+                    value_states_expanded
+                )  # [1, num_heads, query_len, head_dim]
+
+                # 对于前面的 positions，使用 SDPA
+                if query_start > 0:
+                    query_states_prefix = query_states[:, :, :query_start, :]
+                    key_states_prefix = key_states_expanded[:, :, :query_start, :]
+                    value_states_prefix = value_states_expanded[:, :, :query_start, :]
+                    attn_output_prefix = F.scaled_dot_product_attention(
+                        query_states_prefix,
+                        key_states_prefix,
+                        value_states_prefix,
+                        is_causal=True
+                    )
+                    # 合并 prefix 和 subset
+                    attn_output = torch.cat([attn_output_prefix, attn_output_subset], dim=2)
+                else:
+                    attn_output = attn_output_subset
+            else:
+                # 前 50% 的层：使用 SDPA（Flash Attention），不存储 attention
+                attn_output = F.scaled_dot_product_attention(
+                    query_states,
+                    key_states_expanded,
+                    value_states_expanded,
+                    is_causal=True
+                )
+
             attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
             attn_output = layer.self_attn.o_proj(attn_output)
 
@@ -285,7 +329,6 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
 
             if layer_idx % 8 == 0 or layer_idx == num_layers - 1:
                 print(f"  Layer {layer_idx} done")
-
     print(f"Draft model attention computed")
     return layer_attention_scores
 
@@ -451,6 +494,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
+                          draft_layer_selection='entropy',  # 'entropy' or 'last'
                           group=False, device="cuda", chunk_ids=None, device_map=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
@@ -783,40 +827,50 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # DraftModel: 用小模型 prefill 获取 attention，指导 token 选择
             select_time = time.time()
 
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            doc_len = sum(passages_len[1:-1])
+
             # 如果没有传入 draft_attention，需要用 draft_model 计算
             if draft_attention is None:
                 if draft_model is None:
                     raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
                 # 构建完整输入
                 full_input = torch.cat(passages).unsqueeze(0).to(input_device)
-                draft_attention = compute_draft_model_attention(draft_model, full_input, input_device)
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, input_device)
+                torch.cuda.empty_cache()
 
-            doc_len = sum(passages_len[1:-1])
-
-            # draft_attention 是 {layer_idx: attention [num_heads, seq_len, seq_len]} 格式
-            # 需要提取 query→doc attention
-            query_start = sum(passages_len[:-1])
-            total_len = sum(passages_len)
+            # draft_attention 是 {layer_idx: attention [num_heads, query_len, seq_len]} 格式（内存优化版本）
+            # 已经只包含 query positions 的 attention，不需要再切片 query 维度
 
             # 收集各层的 query→doc attention
             layer_attention_dict = {}
             for layer_idx, layer_attn in draft_attention.items():
-                # layer_attn: [num_heads, seq_len, seq_len]
-                # 提取 query→doc attention
-                query_to_doc = layer_attn[:, query_start:total_len, system_len:system_len + doc_len]
+                # layer_attn: [num_heads, query_len, seq_len]
+                # 提取 query→doc attention（只切片 key 维度）
+                query_to_doc = layer_attn[:, :, system_len:system_len + doc_len]
                 # 对 heads 和 query positions 平均
                 doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
                 layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
 
-            # 基于熵动态选层（DraftModel 默认使用熵选层）
-            active_layers, layer_entropy = entropy_layer_selection(
-                layer_attention_dict, top_k=entropy_top_k, return_entropy=True
-            )
-            print(f"  DraftModel 熵选层: 选择了 {active_layers}")
-
-            # 聚合选中层的 attention
-            layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
-            multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+            # 选择用于聚合的层
+            if draft_layer_selection == 'entropy':
+                # 基于熵动态选层
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  DraftModel 熵选层: 选择了 {active_layers}")
+                # 聚合选中层的 attention
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+            elif draft_layer_selection == 'last':
+                # 只使用最后一层
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  DraftModel 使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}, expected 'entropy' or 'last'")
 
             # 使用 smart_query_selection 进行选择
             selected_indices = smart_query_selection(

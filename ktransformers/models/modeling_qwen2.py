@@ -1296,6 +1296,139 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         )
         return model_inputs
 
+    def compute_draft_attention(self, input_ids: torch.LongTensor, query_start: int):
+        """
+        计算 draft model attention 分布（内存优化版本）
+
+        使用 SDPA (Flash Attention) 进行前向传播，只对后 50% 的层计算 query→all 的 attention。
+        这样内存从 O(seq_len²) 降到 O(query_len × seq_len)。
+
+        Args:
+            input_ids: 输入 token ids [1, seq_len]
+            query_start: query 的起始位置（只计算 query positions 的 attention）
+
+        Returns:
+            layer_attention_scores: {layer_idx: attention_matrix [num_heads, query_len, seq_len]}
+        """
+        import torch.nn.functional as F
+
+        device = next(self.parameters()).device
+        input_ids = input_ids.to(device)
+
+        seq_len = input_ids.shape[1]
+        query_len = seq_len - query_start
+        num_layers = self.config.num_hidden_layers
+        num_heads = self.config.num_attention_heads
+        num_kv_heads = self.config.num_key_value_heads
+        head_dim = self.config.hidden_size // num_heads
+
+        print(f"\n{'='*60}")
+        print("Computing Draft Model Attention (Memory Optimized)")
+        print(f"{'='*60}")
+        print(f"  Layers: {num_layers}, Heads: {num_heads}")
+        print(f"  Seq len: {seq_len}, Query len: {query_len} (from pos {query_start})")
+        print(f"  Memory: ~{query_len * seq_len * num_heads * 4 / 1024 / 1024:.1f} MB per layer (vs {seq_len * seq_len * num_heads * 4 / 1024 / 1024:.1f} MB full)")
+
+        layer_attention_scores = {}
+
+        with torch.no_grad():
+            inputs_embeds = self.model.embed_tokens(input_ids)
+            hidden_states = inputs_embeds
+            position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+
+            for layer_idx in range(num_layers):
+                layer = self.model.layers[layer_idx]
+
+                residual = hidden_states
+                hidden_states = layer.input_layernorm(hidden_states)
+
+                bsz, q_len, _ = hidden_states.size()
+
+                # Q, K, V projections
+                query_states = layer.self_attn.q_proj(hidden_states)
+                key_states = layer.self_attn.k_proj(hidden_states)
+                value_states = layer.self_attn.v_proj(hidden_states)
+
+                # Reshape
+                query_states = query_states.view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
+                key_states = key_states.view(bsz, q_len, num_kv_heads, head_dim).transpose(1, 2)
+                value_states = value_states.view(bsz, q_len, num_kv_heads, head_dim).transpose(1, 2)
+
+                # Apply RoPE (Qwen2 每层都有自己的 rotary_emb)
+                cos, sin = layer.self_attn.rotary_emb(value_states, position_ids)
+                cos = cos.unsqueeze(1)
+                sin = sin.unsqueeze(1)
+                query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+                key_states = (key_states * cos) + (rotate_half(key_states) * sin)
+
+                # Expand K, V for GQA
+                n_rep = num_heads // num_kv_heads
+                key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
+                value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
+
+                # 对于后 50% 的层，只计算 query→all 的 attention
+                if layer_idx >= num_layers // 2:
+                    # 只计算 query positions 的 attention: [bsz, num_heads, query_len, seq_len]
+                    query_states_subset = query_states[:, :, query_start:, :]
+                    attn_weights_subset = torch.matmul(
+                        query_states_subset.float(),
+                        key_states_expanded.float().transpose(2, 3)
+                    ) / (head_dim ** 0.5)
+
+                    # Causal mask
+                    query_positions = torch.arange(query_start, seq_len, device=device)
+                    key_positions = torch.arange(seq_len, device=device)
+                    causal_mask = key_positions.unsqueeze(0) > query_positions.unsqueeze(1)
+                    attn_weights_subset = attn_weights_subset.masked_fill(causal_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
+
+                    attn_weights_subset = F.softmax(attn_weights_subset, dim=-1)
+                    layer_attention_scores[layer_idx] = attn_weights_subset[0].cpu().float().numpy()
+
+                    # 计算 attention output（只对 query 部分）
+                    attn_output_subset = torch.matmul(
+                        attn_weights_subset.to(value_states_expanded.dtype),
+                        value_states_expanded
+                    )
+
+                    # 对于前面的 positions，使用 SDPA
+                    if query_start > 0:
+                        query_states_prefix = query_states[:, :, :query_start, :]
+                        key_states_prefix = key_states_expanded[:, :, :query_start, :]
+                        value_states_prefix = value_states_expanded[:, :, :query_start, :]
+                        attn_output_prefix = F.scaled_dot_product_attention(
+                            query_states_prefix,
+                            key_states_prefix,
+                            value_states_prefix,
+                            is_causal=True
+                        )
+                        attn_output = torch.cat([attn_output_prefix, attn_output_subset], dim=2)
+                    else:
+                        attn_output = attn_output_subset
+                else:
+                    # 前 50% 的层：使用 SDPA（Flash Attention），不存储 attention
+                    attn_output = F.scaled_dot_product_attention(
+                        query_states,
+                        key_states_expanded,
+                        value_states_expanded,
+                        is_causal=True
+                    )
+
+                attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
+                attn_output = layer.self_attn.o_proj(attn_output)
+
+                hidden_states = residual + attn_output
+
+                residual = hidden_states
+                hidden_states = layer.post_attention_layernorm(hidden_states)
+                hidden_states = layer.mlp(hidden_states)
+                hidden_states = residual + hidden_states
+
+                if layer_idx % 8 == 0 or layer_idx == num_layers - 1:
+                    print(f"  Layer {layer_idx} done")
+
+        print(f"Draft model attention computed")
+        return layer_attention_scores
+
 
 @add_start_docstrings(
     """

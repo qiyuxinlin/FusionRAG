@@ -1,144 +1,0 @@
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Loading tokenizer from /mnt/data/models/Qwen2.5-7B-Instruct...
-Loading qwen model...
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 159.85it/s]
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Preparing data...
-Loading dataset from ./result_reflect.json...
-Limited to first 5 main questions
-
-================================================================================
-Building document corpus with scope: global
-================================================================================
-  Main question 1: 10 unique documents, 1 sub-questions
-  Main question 2: 10 unique documents, 1 sub-questions
-  Main question 3: 10 unique documents, 1 sub-questions
-  Main question 4: 11 unique documents, 2 sub-questions
-  Main question 5: 19 unique documents, 2 sub-questions
-
-================================================================================
-DATASET STATISTICS
-================================================================================
-Total main questions: 5
-  - Testable: 5
-  - Skipped (llm_judge=False or problematic answers): 0
-
-Total sub-questions: 7
-  - Testable: 7
-  - Skipped: 0
-
-Total documents (across all questions): 60
-================================================================================
-
-================================================================================
-Computing document similarity with BGE + FAISS (scope: global)...
-================================================================================
-Loading BGE model from /mnt/data/models/bge-m3-FP16...
-Encoding 60 documents for FAISS index...
-initial target device:   0%|          | 0/8 [00:00<?, ?it/s]initial target device:  12%|█▎        | 1/8 [00:04<00:29,  4.22s/it]initial target device:  25%|██▌       | 2/8 [00:08<00:24,  4.11s/it]initial target device:  38%|███▊      | 3/8 [00:12<00:20,  4.10s/it]initial target device:  50%|█████     | 4/8 [00:16<00:16,  4.22s/it]initial target device:  62%|██████▎   | 5/8 [00:20<00:12,  4.15s/it]initial target device:  75%|███████▌  | 6/8 [00:25<00:08,  4.27s/it]initial target device:  88%|████████▊ | 7/8 [00:29<00:04,  4.26s/it]initial target device: 100%|██████████| 8/8 [00:33<00:00,  4.19s/it]initial target device: 100%|██████████| 8/8 [00:33<00:00,  4.20s/it]
-Chunks:   0%|          | 0/8 [00:00<?, ?it/s]You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Chunks:  12%|█▎        | 1/8 [00:06<00:48,  6.87s/it]You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Chunks:  25%|██▌       | 2/8 [00:06<00:17,  2.90s/it]Chunks:  38%|███▊      | 3/8 [00:07<00:08,  1.67s/it]Chunks: 100%|██████████| 8/8 [00:07<00:00,  1.10it/s]
-Corpus embeddings shape: (60, 1024)
-FAISS index built with 60 vectors
-Searching for top-10 similar documents for each document...
-Chunks:   0%|          | 0/8 [00:00<?, ?it/s]Chunks: 100%|██████████| 8/8 [00:00<00:00, 145.91it/s]
-Context rank computed: (60, 10)
-
-====================================================================================================
-ANALYZING EXAMPLE 4, SUB-QUESTION 1
-====================================================================================================
-Sub Question: When was King Henry III of England crowned?
-Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
-====================================================================================================
-
-====================================================================================================
-Computing per-KV-head attention-based token selection
-====================================================================================================
-Number of layers: 28
-Number of KV heads per layer: 4
-Number of query heads per layer: 28
-Query heads per KV head: 7
-Selection ratio: 0.3
-Skipping chunks: 0 (system) and 1 (first doc, prefix cache hit)
-Loaded 12 document caches for recomputation
-Total recomputable document length: 1927
-
-Computing per-head attention scores (using K-based similarity)...
-  Layer  0: head selections: [578, 578, 578, 578]
-  Layer  5: head selections: [578, 578, 578, 578]
-  Layer 10: head selections: [578, 578, 578, 578]
-  Layer 15: head selections: [578, 578, 578, 578]
-  Layer 20: head selections: [578, 578, 578, 578]
-  Layer 25: head selections: [578, 578, 578, 578]
-  Layer 27: head selections: [578, 578, 578, 578]
-
-====================================================================================================
-Per-head selection diversity analysis
-====================================================================================================
-
-Layer 0:
-  Head 0 vs Head 1: 16/1140 overlap (1.4%)
-  Head 0 vs Head 2: 403/753 overlap (53.5%)
-  Head 0 vs Head 3: 160/996 overlap (16.1%)
-  Head 1 vs Head 2: 79/1077 overlap (7.3%)
-  Head 1 vs Head 3: 167/989 overlap (16.9%)
-  Head 2 vs Head 3: 236/920 overlap (25.7%)
-
-Layer 14:
-  Head 0 vs Head 1: 228/928 overlap (24.6%)
-  Head 0 vs Head 2: 335/821 overlap (40.8%)
-  Head 0 vs Head 3: 293/863 overlap (34.0%)
-  Head 1 vs Head 2: 313/843 overlap (37.1%)
-  Head 1 vs Head 3: 277/879 overlap (31.5%)
-  Head 2 vs Head 3: 335/821 overlap (40.8%)
-
-Layer 27:
-  Head 0 vs Head 1: 142/1014 overlap (14.0%)
-  Head 0 vs Head 2: 520/636 overlap (81.8%)
-  Head 0 vs Head 3: 472/684 overlap (69.0%)
-  Head 1 vs Head 2: 146/1010 overlap (14.5%)
-  Head 1 vs Head 3: 153/1003 overlap (15.3%)
-  Head 2 vs Head 3: 484/672 overlap (72.0%)
-====================================================================================================
-
-
-====================================================================================================
-Saving per-head selection caches to /mnt/data/reflect/Qwen2.5-7B-Instruct/headwise_kv_cache
-====================================================================================================
-Saving 12 chunks (skipped chunks 0 and 1)
-  Chunk 12: avg 54.1 tokens/head (38.9%)
-  Chunk 13: avg 31.9 tokens/head (21.4%)
-  Chunk 5: avg 62.9 tokens/head (23.8%)
-  Chunk 14: avg 70.1 tokens/head (30.7%)
-  Chunk 15: avg 71.8 tokens/head (36.6%)
-  Chunk 16: avg 27.9 tokens/head (38.7%)
-  Chunk 17: avg 20.6 tokens/head (23.4%)
-  Chunk 18: avg 14.6 tokens/head (17.0%)
-  Chunk 19: avg 81.8 tokens/head (25.5%)
-  Chunk 1: avg 25.7 tokens/head (26.8%)
-  Chunk 11: avg 62.1 tokens/head (42.0%)
-  Chunk 12: avg 54.7 tokens/head (39.4%)
-====================================================================================================
-
-
-Per-head selection completed!
-Results saved to: ./kvcache_headwise_analysis
-/home/qujing/.local/share/uv/python/cpython-3.10.17-linux-x86_64-gnu/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 8 leaked semaphore objects to clean up at shutdown
-  warnings.warn('resource_tracker: There appear to be %d '
