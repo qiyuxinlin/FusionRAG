@@ -1,0 +1,252 @@
+
+====================================================================================================
+Checking if per-head selections preserved date sequences
+====================================================================================================
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.\n
+Total recomputable tokens: 1788
+
+================================================================================
+Date sequences in original document:
+================================================================================
+  1216 at positions [1586, 1587, 1588, 1589]
+  1220 at positions [1604, 1605, 1606, 1607]
+  1216 at positions [1692, 1693, 1694, 1695]
+  1220 at positions [1766, 1767, 1768, 1769]
+
+================================================================================
+Checking per-head selections:
+================================================================================
+
+################################################################################
+LAYER 0
+################################################################################
+
+  Head 0:
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 1:
+    1216: ✅ FULLY SELECTED
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ✅ FULLY SELECTED
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ✅ FULLY SELECTED
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ✅ FULLY SELECTED
+      Positions: [1766, 1767, 1768, 1769]
+  Head 2:
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 3:
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+
+################################################################################
+LAYER 5
+################################################################################
+
+  Head 0:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 1:
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 2:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 3:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+
+################################################################################
+LAYER 14
+################################################################################
+
+  Head 0:
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 1:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 2:
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 3:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+
+################################################################################
+LAYER 20
+################################################################################
+
+  Head 0:
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 1:
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 2:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 3:
+    1216: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (3/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+
+################################################################################
+LAYER 27
+################################################################################
+
+  Head 0:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 1:
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 2:
+    1216: ⚠️  PARTIAL (2/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+  Head 3:
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1586, 1587, 1588, 1589]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1604, 1605, 1606, 1607]
+    1216: ⚠️  PARTIAL (1/4 tokens)
+      Positions: [1692, 1693, 1694, 1695]
+    1220: ⚠️  PARTIAL (0/4 tokens)
+      Positions: [1766, 1767, 1768, 1769]
+

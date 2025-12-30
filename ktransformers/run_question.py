@@ -78,9 +78,12 @@ class FusionRAGModel:
     def __init__(
             self,
             model_path: str,
+            draft_model_path: str,
             use_multi_gpu: bool,
             model_type='qwen',
+            draft_model_type='qwen',
             device="cuda:0",
+            draft_model_device="cuda:0",
             max_cache_len=32768,
             cache_path='/mnt/data3/reflect/',
             model_name='Qwen2.5-7B-Instruct',
@@ -97,6 +100,12 @@ class FusionRAGModel:
         if use_multi_gpu:
             print("Using multi-GPU with device_map='auto'")
         self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu)
+        if draft_model_path != "":
+            draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
+            draft_config._attn_implementation = "sdpa"
+            self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False)
+            self.draft_model.eval()
+            self.draft_model_device=draft_model_device
 
         cache_device = self.device_map if use_multi_gpu else device
         self.past_key_values = StaticCache(
@@ -331,6 +340,9 @@ class FusionRAGModel:
             revert_rope=True,
             preprocess=False,
             max_new_tokens=150,
+            use_entropy_selection=False,
+            entropy_top_k=4,
+            device_draft_model="",
     ) -> (int, int, int, int, str, list[int]):
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
@@ -447,10 +459,13 @@ class FusionRAGModel:
                 max_new_tokens=max_new_tokens,
                 revert_rope=revert_rope,
                 reprocess_method=reprocess_method,
+                use_entropy_selection=use_entropy_selection,
                 rate=rate,
+                draft_model=self.draft_model,
                 preprocess=preprocess,
                 device=self.input_device,
-                device_map=self.device_map
+                device_map=self.device_map,
+                draft_model_device=self.draft_model_device,
             )
 
         # Decode answer
@@ -484,26 +499,13 @@ def preprocess_all_docs(file_input: str):
         )
 
 def test_question(fusion_rag_model):
-    similar_idx = fusion_rag_model.preprocess_build_faiss_index(
-        bge_model_path="/data2/qy_tmp/xumengyao/bge-m3",
-        all_documents=question_test["gold_docs"],
-        topk=10
-    )
-
-    fusion_rag_model.preprocess_all_documents(
-        system_prompt=DEFAULT_SYSTEM_PROMPT,
-        context_rank=similar_idx,
-        all_documents=question_test["gold_docs"],
-        reprocess_method='FusionRAG',
-        revert_rope=True,
-    )
 
     system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
         model_type='qwen3',
         rate=0.3,
-        reprocess_method='FusionRAG',
+        reprocess_method='DraftModel',
         revert_rope=True,
         preprocess=False,
         max_new_tokens=250,
@@ -515,9 +517,22 @@ def test_question(fusion_rag_model):
     print(f"decode_len={decode_len}")
 
 if __name__ == '__main__':
-    os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+    os.environ["CUDA_VISIBLE_DEVICES"]="4,5,6,7"
 
 
-    preprocess_all_docs(file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json")
+    # preprocess_all_docs(file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json")
+
+    fusion_rag_model = FusionRAGModel(
+        model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
+        use_multi_gpu=True,
+        model_type="qwen3",
+        model_name="Qwen3-32B",
+        device="cuda:0",
+        cache_path='/data2/qy_tmp/xumengyao/fusionrag/',
+        draft_model_device="cuda:0",
+        draft_model_path='/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct',
+        draft_model_type="qwen"
+    )
+    test_question(fusion_rag_model)
 
 

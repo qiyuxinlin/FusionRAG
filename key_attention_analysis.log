@@ -1,0 +1,189 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+Attention Analysis for Key Tokens
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 162.80it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model config: 28 layers, 28 heads, 4 KV heads, 128 head_dim
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Prefix length: 792
+Document length: 2075
+
+================================================================================
+KEY TOKEN POSITIONS
+================================================================================
+  '1216' (critical): positions [85, 86, 87, 88, 191, 192, 193, 194, 1873, 1874]...
+  '1220' (critical): positions [103, 104, 105, 106, 265, 266, 267, 268, 1891, 1892]...
+  '17 May' (important): positions [261, 262, 263, 2049, 2050, 2051]
+  'crowned' (important): positions [46, 79, 202, 230, 392, 1834, 1867, 1990, 2018]
+  'coronation' (moderate): positions [20, 21, 64, 65, 97, 98, 118, 119, 155, 156]...
+  'Gloucester' (important): positions [81, 82, 232, 233, 454, 455, 1463, 1464, 1869, 1870]...
+  'Westminster' (important): positions [48, 100, 150, 289, 1199, 1210, 1267, 1836, 1888, 1938]
+  'Henry III' (moderate): positions [76, 77, 196, 197, 540, 541, 863, 864, 1321, 1322]...
+
+================================================================================
+Loading cache
+================================================================================
+Total cache length: 2867
+
+Query: <|im_end|>
+<|im_start|>user
+Question: When was King Henry III of England crowned?<|im_end|>
+<|im_sta...
+Query tokens: 24
+
+================================================================================
+Computing Query Attention Weights Manually
+================================================================================
+
+Attention computed for layers: [0, 4, 8, 12, 16, 20, 24, 27]
+
+================================================================================
+ATTENTION SCORES FOR KEY TOKENS (Query-based)
+================================================================================
+
+  '1216' (critical):
+    Layer  0: mean=0.000186, max=0.000244, rank=39.2%
+    Layer  4: mean=0.000117, max=0.000234, rank=79.1%
+    Layer  8: mean=0.000068, max=0.000158, rank=58.5%
+    Layer 12: mean=0.000155, max=0.000547, rank=82.2%
+    Layer 16: mean=0.000102, max=0.000466, rank=74.9%
+    Layer 20: mean=0.000053, max=0.000215, rank=76.3%
+    Layer 24: mean=0.000422, max=0.001754, rank=91.4%
+    Layer 27: mean=0.000087, max=0.000145, rank=49.2%
+
+  '1220' (critical):
+    Layer  0: mean=0.000272, max=0.000578, rank=58.1%
+    Layer  4: mean=0.000087, max=0.000252, rank=69.7%
+    Layer  8: mean=0.000094, max=0.000351, rank=69.3%
+    Layer 12: mean=0.000156, max=0.000814, rank=82.2%
+    Layer 16: mean=0.000382, max=0.002321, rank=91.2%
+    Layer 20: mean=0.000154, max=0.000894, rank=90.5%
+    Layer 24: mean=0.000117, max=0.000471, rank=67.1%
+    Layer 27: mean=0.000135, max=0.000266, rank=66.2%
+
+  '17 May' (important):
+    Layer  0: mean=0.000215, max=0.000268, rank=45.8%
+    Layer  4: mean=0.000065, max=0.000130, rank=60.0%
+    Layer  8: mean=0.000045, max=0.000072, rank=43.7%
+    Layer 12: mean=0.000074, max=0.000169, rank=67.1%
+    Layer 16: mean=0.000216, max=0.000540, rank=86.3%
+    Layer 20: mean=0.000046, max=0.000054, rank=72.6%
+    Layer 24: mean=0.000104, max=0.000160, rank=64.0%
+    Layer 27: mean=0.000241, max=0.000340, rank=82.5%
+
+  'crowned' (important):
+    Layer  0: mean=0.000172, max=0.000225, rank=35.8%
+    Layer  4: mean=0.000047, max=0.000060, rank=45.8%
+    Layer  8: mean=0.000050, max=0.000054, rank=48.0%
+    Layer 12: mean=0.000028, max=0.000048, rank=37.9%
+    Layer 16: mean=0.000027, max=0.000053, rank=39.6%
+    Layer 20: mean=0.000016, max=0.000019, rank=38.1%
+    Layer 24: mean=0.000063, max=0.000086, rank=49.3%
+    Layer 27: mean=0.000094, max=0.000210, rank=52.9%
+
+  'Gloucester' (important):
+    Layer  0: mean=0.000144, max=0.000291, rank=27.1%
+    Layer  4: mean=0.000065, max=0.000138, rank=59.9%
+    Layer  8: mean=0.000053, max=0.000131, rank=49.9%
+    Layer 12: mean=0.000040, max=0.000121, rank=49.0%
+    Layer 16: mean=0.000045, max=0.000117, rank=53.5%
+    Layer 20: mean=0.000013, max=0.000030, rank=34.3%
+    Layer 24: mean=0.000125, max=0.000243, rank=68.6%
+    Layer 27: mean=0.000119, max=0.000291, rank=62.7%
+
+  'Westminster' (important):
+    Layer  0: mean=0.000184, max=0.000316, rank=39.0%
+    Layer  4: mean=0.000118, max=0.000203, rank=79.5%
+    Layer  8: mean=0.000261, max=0.000444, rank=91.3%
+    Layer 12: mean=0.000269, max=0.000661, rank=88.2%
+    Layer 16: mean=0.000625, max=0.001377, rank=93.6%
+    Layer 20: mean=0.000114, max=0.000242, rank=88.6%
+    Layer 24: mean=0.000964, max=0.001851, rank=96.5%
+    Layer 27: mean=0.001497, max=0.003240, rank=97.6%
+
+================================================================================
+COMPARISON: Query Attention vs Reconstruction Scoring
+================================================================================
+Reconstruction scores not found
+
+================================================================================
+PROPOSED SELECTION STRATEGIES (30% target)
+================================================================================
+
+1. Query Attention (Layer 27):
+    '1216': 0/16 selected
+    '1220': 6/16 selected
+
+2. Query Attention (Layer 20-27 avg):
+    '1216': 8/16 selected
+    '1220': 6/16 selected
+
+================================================================================
+SAVING BEST SELECTION FOR TESTING
+================================================================================
+
+Saved selection to ./attention_analysis/query_attention_selection.json
+Selected 622 tokens (30.0%)
+
+================================================================================
+KEY OBSERVATIONS
+================================================================================
+
+发现:
+1. Reconstruction Scoring 的问题:
+   - 它是 query-agnostic 的，只考虑 token 对上下文重建的贡献
+   - 关键年份 (1216, 1220) 在重建任务中可能不那么重要
+   
+2. Query Attention 的优势:
+   - 它是 query-aware 的，知道问题在问什么
+   - 能够更准确地定位与问题相关的 tokens
+   
+3. 建议的改进:
+   - 使用 Query Attention 作为主要选择依据
+   - 或者使用 Hybrid 策略 (Reconstruction + Query Attention)
+
+================================================================================

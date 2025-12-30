@@ -1,0 +1,385 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+Smart Query Selection Test
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 161.61it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Prefix length: 792
+Document length: 2075
+
+Computing Query Attention Scores...
+
+################################################################################
+TARGET RATIO: 30%
+################################################################################
+  High attention positions (>mean+0.5*std): 204
+  Connected components: 88
+  Selected 88 components
+
+================================================================================
+Testing: Smart Query Selection (30%)
+================================================================================
+Selected 622 tokens (30.0%)
+  '1216': 10/16 selected
+  '1220': 6/16 selected
+  'crowned': 0/9 selected
+  'Westminster': 10/10 selected
+
+====================================================================================================
+Step 2: Sparse Prefill (Per-Head with Triton)
+====================================================================================================
+
+Critical tokens (Layer 0 union): 622
+Query tokens: 24
+Total sparse sequence: 646
+
+Position mapping:
+  Critical positions: 792 - 2866
+  Query positions: 2867 - 2890
+
+====================================================================================================
+Per-Layer Per-Head Recomputation Statistics
+====================================================================================================
+
+Layer  Head0     Head1     Head2     Head3     Union    Ratio   
+--------------------------------------------------------------
+0      622       622       622       622       622        30.0%
+4      622       622       622       622       622        30.0%
+8      622       622       622       622       622        30.0%
+12     622       622       622       622       622        30.0%
+16     622       622       622       622       622        30.0%
+20     622       622       622       622       622        30.0%
+24     622       622       622       622       622        30.0%
+27     622       622       622       622       622        30.0%
+--------------------------------------------------------------
+
+Total document tokens: 2075
+Total layers: 28
+Total possible recomputations: 58100
+Actual recomputations (union): 17416
+Overall recomputation ratio: 29.98%
+====================================================================================================
+
+Processing 28 layers with per-head sparse attention (Triton)...
+
+  Layer  0 done
+  Layer  4 done
+  Layer  8 done
+  Layer 12 done
+  Layer 16 done
+  Layer 20 done
+  Layer 24 done
+  Layer 27 done
+
+Cache updated: total length = 2891
+
+====================================================================================================
+Sparse Prefill complete
+====================================================================================================
+
+
+====================================================================================================
+Step 3: Generating with query re-forward
+====================================================================================================
+
+Prefix length: 792
+Document length: 2075
+Query length: 24
+Query positions: 2867 - 2890
+Re-forwarding query tokens on updated KV cache...
+
+Total cache length after query forward: 2891
+Generating tokens...
+
+  Step 0: 1
+  Step 1: 2
+  Step 2: 1
+  Step 3: 6
+  Step 4:  and
+  Step 5:  
+  Step 6: 1
+  Step 7: 2
+  Step 8: 2
+  Step 9: 0
+  EOS reached at step 10
+
+====================================================================================================
+Generation completed
+====================================================================================================
+
+
+Generated: 1216 and 1220
+
+################################################################################
+TARGET RATIO: 32%
+################################################################################
+  High attention positions (>mean+0.5*std): 204
+  Connected components: 88
+  Selected 88 components
+
+================================================================================
+Testing: Smart Query Selection (32%)
+================================================================================
+Selected 664 tokens (32.0%)
+  '1216': 10/16 selected
+  '1220': 6/16 selected
+  'crowned': 0/9 selected
+  'Westminster': 10/10 selected
+
+====================================================================================================
+Step 2: Sparse Prefill (Per-Head with Triton)
+====================================================================================================
+
+Critical tokens (Layer 0 union): 664
+Query tokens: 24
+Total sparse sequence: 688
+
+Position mapping:
+  Critical positions: 792 - 2866
+  Query positions: 2867 - 2890
+
+====================================================================================================
+Per-Layer Per-Head Recomputation Statistics
+====================================================================================================
+
+Layer  Head0     Head1     Head2     Head3     Union    Ratio   
+--------------------------------------------------------------
+0      664       664       664       664       664        32.0%
+4      664       664       664       664       664        32.0%
+8      664       664       664       664       664        32.0%
+12     664       664       664       664       664        32.0%
+16     664       664       664       664       664        32.0%
+20     664       664       664       664       664        32.0%
+24     664       664       664       664       664        32.0%
+27     664       664       664       664       664        32.0%
+--------------------------------------------------------------
+
+Total document tokens: 2075
+Total layers: 28
+Total possible recomputations: 58100
+Actual recomputations (union): 18592
+Overall recomputation ratio: 32.00%
+====================================================================================================
+
+Processing 28 layers with per-head sparse attention (Triton)...
+
+  Layer  0 done
+  Layer  4 done
+  Layer  8 done
+  Layer 12 done
+  Layer 16 done
+  Layer 20 done
+  Layer 24 done
+  Layer 27 done
+
+Cache updated: total length = 2891
+
+====================================================================================================
+Sparse Prefill complete
+====================================================================================================
+
+
+====================================================================================================
+Step 3: Generating with query re-forward
+====================================================================================================
+
+Prefix length: 792
+Document length: 2075
+Query length: 24
+Query positions: 2867 - 2890
+Re-forwarding query tokens on updated KV cache...
+
+Total cache length after query forward: 2891
+Generating tokens...
+
+  Step 0: 1
+  Step 1: 2
+  Step 2: 1
+  Step 3: 6
+  Step 4:  and
+  Step 5:  
+  Step 6: 1
+  Step 7: 2
+  Step 8: 2
+  Step 9: 0
+  EOS reached at step 10
+
+====================================================================================================
+Generation completed
+====================================================================================================
+
+
+Generated: 1216 and 1220
+
+################################################################################
+TARGET RATIO: 35%
+################################################################################
+  High attention positions (>mean+0.5*std): 204
+  Connected components: 88
+  Selected 88 components
+
+================================================================================
+Testing: Smart Query Selection (35%)
+================================================================================
+Selected 726 tokens (35.0%)
+  '1216': 10/16 selected
+  '1220': 8/16 selected
+  'crowned': 0/9 selected
+  'Westminster': 10/10 selected
+
+====================================================================================================
+Step 2: Sparse Prefill (Per-Head with Triton)
+====================================================================================================
+
+Critical tokens (Layer 0 union): 726
+Query tokens: 24
+Total sparse sequence: 750
+
+Position mapping:
+  Critical positions: 792 - 2866
+  Query positions: 2867 - 2890
+
+====================================================================================================
+Per-Layer Per-Head Recomputation Statistics
+====================================================================================================
+
+Layer  Head0     Head1     Head2     Head3     Union    Ratio   
+--------------------------------------------------------------
+0      726       726       726       726       726        35.0%
+4      726       726       726       726       726        35.0%
+8      726       726       726       726       726        35.0%
+12     726       726       726       726       726        35.0%
+16     726       726       726       726       726        35.0%
+20     726       726       726       726       726        35.0%
+24     726       726       726       726       726        35.0%
+27     726       726       726       726       726        35.0%
+--------------------------------------------------------------
+
+Total document tokens: 2075
+Total layers: 28
+Total possible recomputations: 58100
+Actual recomputations (union): 20328
+Overall recomputation ratio: 34.99%
+====================================================================================================
+
+Processing 28 layers with per-head sparse attention (Triton)...
+
+  Layer  0 done
+  Layer  4 done
+  Layer  8 done
+  Layer 12 done
+  Layer 16 done
+  Layer 20 done
+  Layer 24 done
+  Layer 27 done
+
+Cache updated: total length = 2891
+
+====================================================================================================
+Sparse Prefill complete
+====================================================================================================
+
+
+====================================================================================================
+Step 3: Generating with query re-forward
+====================================================================================================
+
+Prefix length: 792
+Document length: 2075
+Query length: 24
+Query positions: 2867 - 2890
+Re-forwarding query tokens on updated KV cache...
+
+Total cache length after query forward: 2891
+Generating tokens...
+
+  Step 0: 1
+  Step 1: 2
+  Step 2: 1
+  Step 3: 6
+  Step 4:  and
+  Step 5:  
+  Step 6: 1
+  Step 7: 2
+  Step 8: 2
+  Step 9: 0
+  EOS reached at step 10
+
+====================================================================================================
+Generation completed
+====================================================================================================
+
+
+Generated: 1216 and 1220
+
+====================================================================================================
+FINAL SUMMARY
+====================================================================================================
+
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Results:
+  ✓ [30.0%] Smart Query Selection (30%): 1216 and 1220
+  ✓ [32.0%] Smart Query Selection (32%): 1216 and 1220
+  ✓ [35.0%] Smart Query Selection (35%): 1216 and 1220
+
+====================================================================================================
+CONCLUSION
+====================================================================================================
+
+基于 Query Attention 的选择方法分析:
+
+1. Query Attention 能够识别与问题相关的 tokens
+2. 但需要确保关键 token 群组（如年份数字）被完整选中
+3. 使用连通分量分析可以帮助保持 token 群组的完整性
+4. 需要在选择率和完整性之间权衡
+
+建议的最终方案:
+- 使用 Query Attention 作为主要评分依据
+- 采用连通分量分析确保群组完整性  
+- 目标选择率设为 32-35% 以确保关键信息完整
+

@@ -600,6 +600,47 @@ class Qwen2SdpaAttention(Qwen2Attention):
             attn_weights = torch.sum(torch.sum(attn_weights, dim=0),dim=-2)
             attn_weights = attn_weights[:, :-query_len]
             past_key_value.importance_cache[self.layer_idx].narrow(1,0,sum(passages_len[:-1])).copy_(attn_weights)
+        elif kwargs['reprocess_method'] == 'QueryAttention':
+            # Smart Query Selection: 在多个层计算 query 对 document 的 attention
+            # 与 per_head_generation.py 中的 compute_query_attention_scores 保持一致
+            num_layers = self.config.num_hidden_layers
+            start_layer = num_layers * 3 // 4  # 后 1/4 的层
+
+            if self.layer_idx >= start_layer:
+                passages_len = kwargs['passages_len']
+                system_len = passages_len[0]
+                doc_len = sum(passages_len[1:-1])  # 文档部分的长度
+                query_len = passages_len[-1]
+                total_context_len = system_len + doc_len  # 不包括 query
+
+                # 关键：与 per_head_generation.py 完全一致的实现
+                # 1. 从 cache 中获取 context 部分的 key（cache 中的 key 已经有 RoPE）
+                cache_key = past_key_value.key_cache[self.layer_idx][:, :, :total_context_len, :]
+                # expand: [batch, num_kv_heads, len, dim] -> [batch, num_heads, len, dim]
+                cache_key_expanded = cache_key.repeat_interleave(self.num_key_value_groups, dim=1)
+
+                # 2. 使用当前 forward 中的 query_states（已经应用了 RoPE）
+                # 注意：per_head_generation.py 没有对 query 应用 RoPE，但 cache 中的 key 有 RoPE
+                # 这里 query_states 已经在主 forward 中应用了 RoPE，key 也有 RoPE，所以是一致的
+
+                # 计算 attention
+                attn_weights = torch.matmul(query_states.float(), cache_key_expanded.float().transpose(-1, -2))
+                attn_weights = attn_weights / math.sqrt(self.head_dim)
+                attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32)
+
+                # 提取 document 部分的 attention
+                doc_attn = attn_weights[:, :, :, system_len:system_len + doc_len]
+
+                # 对 query positions 和 heads 取平均（与 per_head_generation.py 一致）
+                # doc_attn shape: [batch, num_heads, query_len, doc_len]
+                # mean(dim=(0,1)) 对 heads 平均, mean(dim=2) 对 query 平均
+                # 这里保持与 importance_cache 的 shape 兼容：先对 query 平均
+                doc_attn = doc_attn.mean(dim=2)  # [batch, num_heads, doc_len]
+
+                # 存储到 importance_cache
+                past_key_value.importance_cache[self.layer_idx].narrow(1, system_len, doc_len).copy_(
+                    doc_attn.squeeze(0).to(past_key_value.importance_cache[self.layer_idx].dtype)
+                )
         # if kwargs['reprocess_method'] == 'processCache':
         #     if self.layer_idx == self.config.num_hidden_layers - 1:
         #         passages_len = kwargs['passages_len']

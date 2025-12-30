@@ -1,0 +1,409 @@
+{
+  "example_idx": 4,
+  "sub_question_idx": 1,
+  "question": "When was King Henry III of England crowned?",
+  "ground_truth": "Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.",
+  "generated_answer": "1216",
+  "total_ratio": 0.9,
+  "selection_strategy": "layer_wise",
+  "overall_recompute_ratio": 0.8997590361445783,
+  "doc_len": 2075,
+  "num_layers": 28,
+  "num_kv_heads": 4,
+  "layer_recompute_stats": [
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    },
+    {
+      "head_counts": [
+        1867,
+        1867,
+        1867,
+        1867
+      ],
+      "union_count": 1867,
+      "ratio": 0.8997590361445783
+    }
+  ],
+  "layer_stats": {
+    "0": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "1": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "2": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "3": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "4": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "5": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "6": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "7": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "8": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "9": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "10": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "11": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "12": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "13": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "14": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "15": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "16": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "17": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "18": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "19": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "20": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "21": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "22": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "23": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "24": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "25": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "26": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    },
+    "27": {
+      "union_size": 1867,
+      "union_ratio": 0.8997590361445783
+    }
+  }
+}

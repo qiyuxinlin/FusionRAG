@@ -1,0 +1,409 @@
+{
+  "example_idx": 4,
+  "sub_question_idx": 1,
+  "question": "When was King Henry III of England crowned?",
+  "ground_truth": "Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.",
+  "generated_answer": "1216\n\nThe provided document states that when Henry III came to the throne in 1199, he was unable to be crowned in London due to the city being controlled by rebels. As a result, he was crowned in Gloucester in 1216. This event is a key detail in the historical account of Henry III's coronation.",
+  "total_ratio": 0.4,
+  "selection_strategy": "greedy_union",
+  "overall_recompute_ratio": 0.4,
+  "doc_len": 2075,
+  "num_layers": 28,
+  "num_kv_heads": 4,
+  "layer_recompute_stats": [
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    },
+    {
+      "head_counts": [
+        664,
+        664,
+        664,
+        664
+      ],
+      "union_count": 830,
+      "ratio": 0.4
+    }
+  ],
+  "layer_stats": {
+    "0": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "1": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "2": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "3": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "4": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "5": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "6": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "7": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "8": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "9": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "10": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "11": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "12": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "13": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "14": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "15": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "16": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "17": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "18": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "19": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "20": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "21": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "22": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "23": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "24": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "25": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "26": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    },
+    "27": {
+      "union_size": 830,
+      "union_ratio": 0.4
+    }
+  }
+}

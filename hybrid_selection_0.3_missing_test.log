@@ -1,0 +1,604 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+Hybrid Selection Test: ratio=0.3 + 30% of (0.95 - 0.9) missing tokens
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 122.44it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+================================================================================
+Step 1: Computing selections for ratio=0.95, 0.9, and 0.3
+================================================================================
+
+====================================================================================================
+Step 1: Computing per-layer token selections
+====================================================================================================
+
+Model config:
+  Layers: 28
+  Attention heads: 28
+  KV heads: 4
+  Head dim: 128
+  Total ratio: 0.95
+
+Loaded 13 document caches
+Total document length: 2075 tokens
+
+Computing attention scores using 'reconstruction' method...
+
+Using RECONSTRUCTION scoring (KVzip style)
+  Scoring is query-agnostic (based on document structure)
+  Repeat prompt: 7 tokens
+  Target chunk: 512 tokens
+  Total scoring input: 519 tokens
+  Scoring query range: [0, 7)
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+====================================================================================================
+Attention Distribution Analysis
+====================================================================================================
+
+Layer-wise Statistics:
+Layer  Mean       Std        Max        P99        P95        P90       
+----------------------------------------------------------------------
+0      0.003265   0.007635   0.137695   0.037109   0.011353   0.007721  
+2      0.002840   0.007577   0.373047   0.027106   0.009888   0.005801  
+4      0.016048   0.097342   1.000000   0.500000   0.030041   0.011230  
+6      0.019530   0.129689   1.000000   1.000000   0.000000   0.000000  
+8      0.020617   0.136321   1.000000   1.000000   0.000000   0.000000  
+10     0.021598   0.140306   1.000000   1.000000   0.000000   0.000000  
+12     0.022026   0.137978   1.000000   1.000000   0.000000   0.000000  
+14     0.021143   0.135875   1.000000   1.000000   0.000000   0.000000  
+16     0.021156   0.137427   1.000000   1.000000   0.000000   0.000000  
+18     0.021492   0.137217   1.000000   1.000000   0.000000   0.000000  
+20     0.017169   0.120892   1.000000   1.000000   0.000000   0.000000  
+22     0.011249   0.098664   1.000000   0.500000   0.000000   0.000000  
+24     0.021868   0.139575   1.000000   1.000000   0.000000   0.000000  
+26     0.020904   0.136448   1.000000   1.000000   0.000000   0.000000  
+27     0.020071   0.124628   1.000000   1.000000   0.013916   0.001656  
+
+Saved distribution plot to ./attention_analysis/attention_distribution.png
+
+====================================================================================================
+Selection Strategy Analysis
+====================================================================================================
+
+If using ABSOLUTE threshold (# tokens selected per layer):
+Layer th=0.0001   th=0.0005   th=0.001    th=0.002    th=0.005    th=0.01     
+------------------------------------------------------------------------------
+0     2075        2070        1999        1546        807         374         
+2     2075        2034        1847        1373        636         301         
+4     2069        1973        1836        1555        1107        739         
+6     252         236         236         234         229         225         
+8     221         208         208         207         203         200         
+10    225         211         211         211         206         205         
+12    254         230         229         229         226         224         
+14    222         210         210         210         209         209         
+16    195         192         192         192         192         192         
+18    204         198         198         198         198         198         
+20    166         166         166         166         166         166         
+22    102         102         102         102         102         102         
+24    214         214         214         214         214         214         
+26    200         200         200         200         200         200         
+27    2063        1755        1337        735         500         429         
+
+If using PERCENTILE threshold (# tokens selected per layer):
+Layer P99         P95         P90         P85         P80         P75         
+------------------------------------------------------------------------------
+0     96          414         648         831         1072        1263        
+2     77          303         528         752         966         1135        
+4     83          368         693         976         1186        1381        
+6     105         378         706         2075        2075        2075        
+8     138         379         2075        2075        2075        2075        
+10    145         387         2075        2075        2075        2075        
+12    132         370         2075        2075        2075        2075        
+14    127         2075        2075        2075        2075        2075        
+16    130         2075        2075        2075        2075        2075        
+18    127         2075        2075        2075        2075        2075        
+20    99          2075        2075        2075        2075        2075        
+22    2075        2075        2075        2075        2075        2075        
+24    145         2075        2075        2075        2075        2075        
+26    133         2075        2075        2075        2075        2075        
+27    117         2075        2075        2075        2075        2075        
+
+====================================================================================================
+
+Saved statistics to ./attention_analysis/attention_stats.json
+
+Computing layer-wise PER-HEAD selections using LAYER_WISE strategy...
+
+Using LAYER_WISE selection strategy
+  - Different layers select different tokens
+  - All heads within a layer select the SAME tokens
+  - Target ratio: 95.0%
+
+  Layer  0: selected=1971, union=1971 ( 95.0%)
+  Layer  4: selected=1971, union=1971 ( 95.0%)
+  Layer  8: selected=1971, union=1971 ( 95.0%)
+  Layer 12: selected=1971, union=1971 ( 95.0%)
+  Layer 16: selected=1971, union=1971 ( 95.0%)
+  Layer 20: selected=1971, union=1971 ( 95.0%)
+  Layer 24: selected=1971, union=1971 ( 95.0%)
+  Layer 27: selected=1971, union=1971 ( 95.0%)
+
+====================================================================================================
+Per-Head Selection Statistics
+====================================================================================================
+
+Total document tokens: 2075
+Total layers: 28
+Total KV heads per layer: 4
+Total possible (layer × head × token): 232400
+Actual per-head selections: 220752
+Overall selection ratio: 94.99%
+
+Layer 0 union size: 1971 tokens (95.0%)
+
+Per-layer head diversity (Jaccard similarity between heads):
+  Layer  0: avg Jaccard similarity = 1.000
+  Layer  7: avg Jaccard similarity = 1.000
+  Layer 14: avg Jaccard similarity = 1.000
+  Layer 27: avg Jaccard similarity = 1.000
+
+====================================================================================================
+Selection complete
+====================================================================================================
+
+
+====================================================================================================
+Step 1: Computing per-layer token selections
+====================================================================================================
+
+Model config:
+  Layers: 28
+  Attention heads: 28
+  KV heads: 4
+  Head dim: 128
+  Total ratio: 0.9
+
+Loaded 13 document caches
+Total document length: 2075 tokens
+
+Computing attention scores using 'reconstruction' method...
+
+Using RECONSTRUCTION scoring (KVzip style)
+  Scoring is query-agnostic (based on document structure)
+  Repeat prompt: 7 tokens
+  Target chunk: 512 tokens
+  Total scoring input: 519 tokens
+  Scoring query range: [0, 7)
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+====================================================================================================
+Attention Distribution Analysis
+====================================================================================================
+
+Layer-wise Statistics:
+Layer  Mean       Std        Max        P99        P95        P90       
+----------------------------------------------------------------------
+0      0.003265   0.007635   0.137695   0.037109   0.011353   0.007721  
+2      0.002840   0.007577   0.373047   0.027106   0.009888   0.005801  
+4      0.016048   0.097342   1.000000   0.500000   0.030041   0.011230  
+6      0.019530   0.129689   1.000000   1.000000   0.000000   0.000000  
+8      0.020617   0.136321   1.000000   1.000000   0.000000   0.000000  
+10     0.021598   0.140306   1.000000   1.000000   0.000000   0.000000  
+12     0.022026   0.137978   1.000000   1.000000   0.000000   0.000000  
+14     0.021143   0.135875   1.000000   1.000000   0.000000   0.000000  
+16     0.021156   0.137427   1.000000   1.000000   0.000000   0.000000  
+18     0.021492   0.137217   1.000000   1.000000   0.000000   0.000000  
+20     0.017169   0.120892   1.000000   1.000000   0.000000   0.000000  
+22     0.011249   0.098664   1.000000   0.500000   0.000000   0.000000  
+24     0.021868   0.139575   1.000000   1.000000   0.000000   0.000000  
+26     0.020904   0.136448   1.000000   1.000000   0.000000   0.000000  
+27     0.020071   0.124628   1.000000   1.000000   0.013916   0.001656  
+
+Saved distribution plot to ./attention_analysis/attention_distribution.png
+
+====================================================================================================
+Selection Strategy Analysis
+====================================================================================================
+
+If using ABSOLUTE threshold (# tokens selected per layer):
+Layer th=0.0001   th=0.0005   th=0.001    th=0.002    th=0.005    th=0.01     
+------------------------------------------------------------------------------
+0     2075        2070        1999        1546        807         374         
+2     2075        2034        1847        1373        636         301         
+4     2069        1973        1836        1555        1107        739         
+6     252         236         236         234         229         225         
+8     221         208         208         207         203         200         
+10    225         211         211         211         206         205         
+12    254         230         229         229         226         224         
+14    222         210         210         210         209         209         
+16    195         192         192         192         192         192         
+18    204         198         198         198         198         198         
+20    166         166         166         166         166         166         
+22    102         102         102         102         102         102         
+24    214         214         214         214         214         214         
+26    200         200         200         200         200         200         
+27    2063        1755        1337        735         500         429         
+
+If using PERCENTILE threshold (# tokens selected per layer):
+Layer P99         P95         P90         P85         P80         P75         
+------------------------------------------------------------------------------
+0     96          414         648         831         1072        1263        
+2     77          303         528         752         966         1135        
+4     83          368         693         976         1186        1381        
+6     105         378         706         2075        2075        2075        
+8     138         379         2075        2075        2075        2075        
+10    145         387         2075        2075        2075        2075        
+12    132         370         2075        2075        2075        2075        
+14    127         2075        2075        2075        2075        2075        
+16    130         2075        2075        2075        2075        2075        
+18    127         2075        2075        2075        2075        2075        
+20    99          2075        2075        2075        2075        2075        
+22    2075        2075        2075        2075        2075        2075        
+24    145         2075        2075        2075        2075        2075        
+26    133         2075        2075        2075        2075        2075        
+27    117         2075        2075        2075        2075        2075        
+
+====================================================================================================
+
+Saved statistics to ./attention_analysis/attention_stats.json
+
+Computing layer-wise PER-HEAD selections using LAYER_WISE strategy...
+
+Using LAYER_WISE selection strategy
+  - Different layers select different tokens
+  - All heads within a layer select the SAME tokens
+  - Target ratio: 90.0%
+
+  Layer  0: selected=1867, union=1867 ( 90.0%)
+  Layer  4: selected=1867, union=1867 ( 90.0%)
+  Layer  8: selected=1867, union=1867 ( 90.0%)
+  Layer 12: selected=1867, union=1867 ( 90.0%)
+  Layer 16: selected=1867, union=1867 ( 90.0%)
+  Layer 20: selected=1867, union=1867 ( 90.0%)
+  Layer 24: selected=1867, union=1867 ( 90.0%)
+  Layer 27: selected=1867, union=1867 ( 90.0%)
+
+====================================================================================================
+Per-Head Selection Statistics
+====================================================================================================
+
+Total document tokens: 2075
+Total layers: 28
+Total KV heads per layer: 4
+Total possible (layer × head × token): 232400
+Actual per-head selections: 209104
+Overall selection ratio: 89.98%
+
+Layer 0 union size: 1867 tokens (90.0%)
+
+Per-layer head diversity (Jaccard similarity between heads):
+  Layer  0: avg Jaccard similarity = 1.000
+  Layer  7: avg Jaccard similarity = 1.000
+  Layer 14: avg Jaccard similarity = 1.000
+  Layer 27: avg Jaccard similarity = 1.000
+
+====================================================================================================
+Selection complete
+====================================================================================================
+
+
+====================================================================================================
+Step 1: Computing per-layer token selections
+====================================================================================================
+
+Model config:
+  Layers: 28
+  Attention heads: 28
+  KV heads: 4
+  Head dim: 128
+  Total ratio: 0.3
+
+Loaded 13 document caches
+Total document length: 2075 tokens
+
+Computing attention scores using 'reconstruction' method...
+
+Using RECONSTRUCTION scoring (KVzip style)
+  Scoring is query-agnostic (based on document structure)
+  Repeat prompt: 7 tokens
+  Target chunk: 512 tokens
+  Total scoring input: 519 tokens
+  Scoring query range: [0, 7)
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+====================================================================================================
+Attention Distribution Analysis
+====================================================================================================
+
+Layer-wise Statistics:
+Layer  Mean       Std        Max        P99        P95        P90       
+----------------------------------------------------------------------
+0      0.003265   0.007635   0.137695   0.037109   0.011353   0.007721  
+2      0.002840   0.007577   0.373047   0.027106   0.009888   0.005801  
+4      0.016048   0.097342   1.000000   0.500000   0.030041   0.011230  
+6      0.019530   0.129689   1.000000   1.000000   0.000000   0.000000  
+8      0.020617   0.136321   1.000000   1.000000   0.000000   0.000000  
+10     0.021598   0.140306   1.000000   1.000000   0.000000   0.000000  
+12     0.022026   0.137978   1.000000   1.000000   0.000000   0.000000  
+14     0.021143   0.135875   1.000000   1.000000   0.000000   0.000000  
+16     0.021156   0.137427   1.000000   1.000000   0.000000   0.000000  
+18     0.021492   0.137217   1.000000   1.000000   0.000000   0.000000  
+20     0.017169   0.120892   1.000000   1.000000   0.000000   0.000000  
+22     0.011249   0.098664   1.000000   0.500000   0.000000   0.000000  
+24     0.021868   0.139575   1.000000   1.000000   0.000000   0.000000  
+26     0.020904   0.136448   1.000000   1.000000   0.000000   0.000000  
+27     0.020071   0.124628   1.000000   1.000000   0.013916   0.001656  
+
+Saved distribution plot to ./attention_analysis/attention_distribution.png
+
+====================================================================================================
+Selection Strategy Analysis
+====================================================================================================
+
+If using ABSOLUTE threshold (# tokens selected per layer):
+Layer th=0.0001   th=0.0005   th=0.001    th=0.002    th=0.005    th=0.01     
+------------------------------------------------------------------------------
+0     2075        2070        1999        1546        807         374         
+2     2075        2034        1847        1373        636         301         
+4     2069        1973        1836        1555        1107        739         
+6     252         236         236         234         229         225         
+8     221         208         208         207         203         200         
+10    225         211         211         211         206         205         
+12    254         230         229         229         226         224         
+14    222         210         210         210         209         209         
+16    195         192         192         192         192         192         
+18    204         198         198         198         198         198         
+20    166         166         166         166         166         166         
+22    102         102         102         102         102         102         
+24    214         214         214         214         214         214         
+26    200         200         200         200         200         200         
+27    2063        1755        1337        735         500         429         
+
+If using PERCENTILE threshold (# tokens selected per layer):
+Layer P99         P95         P90         P85         P80         P75         
+------------------------------------------------------------------------------
+0     96          414         648         831         1072        1263        
+2     77          303         528         752         966         1135        
+4     83          368         693         976         1186        1381        
+6     105         378         706         2075        2075        2075        
+8     138         379         2075        2075        2075        2075        
+10    145         387         2075        2075        2075        2075        
+12    132         370         2075        2075        2075        2075        
+14    127         2075        2075        2075        2075        2075        
+16    130         2075        2075        2075        2075        2075        
+18    127         2075        2075        2075        2075        2075        
+20    99          2075        2075        2075        2075        2075        
+22    2075        2075        2075        2075        2075        2075        
+24    145         2075        2075        2075        2075        2075        
+26    133         2075        2075        2075        2075        2075        
+27    117         2075        2075        2075        2075        2075        
+
+====================================================================================================
+
+Saved statistics to ./attention_analysis/attention_stats.json
+
+Computing layer-wise PER-HEAD selections using LAYER_WISE strategy...
+
+Using LAYER_WISE selection strategy
+  - Different layers select different tokens
+  - All heads within a layer select the SAME tokens
+  - Target ratio: 30.0%
+
+  Layer  0: selected= 622, union= 622 ( 30.0%)
+  Layer  4: selected= 622, union= 622 ( 30.0%)
+  Layer  8: selected= 622, union= 622 ( 30.0%)
+  Layer 12: selected= 622, union= 622 ( 30.0%)
+  Layer 16: selected= 622, union= 622 ( 30.0%)
+  Layer 20: selected= 622, union= 622 ( 30.0%)
+  Layer 24: selected= 622, union= 622 ( 30.0%)
+  Layer 27: selected= 622, union= 622 ( 30.0%)
+
+====================================================================================================
+Per-Head Selection Statistics
+====================================================================================================
+
+Total document tokens: 2075
+Total layers: 28
+Total KV heads per layer: 4
+Total possible (layer × head × token): 232400
+Actual per-head selections: 69664
+Overall selection ratio: 29.98%
+
+Layer 0 union size: 622 tokens (30.0%)
+
+Per-layer head diversity (Jaccard similarity between heads):
+  Layer  0: avg Jaccard similarity = 1.000
+  Layer  7: avg Jaccard similarity = 1.000
+  Layer 14: avg Jaccard similarity = 1.000
+  Layer 27: avg Jaccard similarity = 1.000
+
+====================================================================================================
+Selection complete
+====================================================================================================
+
+
+================================================================================
+Step 2: Computing missing tokens and adding 30%
+================================================================================
+  Layer  0: base(0.3)= 622 + missing(0.95-0.9)=104 * 30% =  31 =>  653 tokens (31.5%)
+  Layer  7: base(0.3)= 622 + missing(0.95-0.9)=104 * 30% =  31 =>  653 tokens (31.5%)
+  Layer 14: base(0.3)= 622 + missing(0.95-0.9)=104 * 30% =  31 =>  653 tokens (31.5%)
+  Layer 21: base(0.3)= 622 + missing(0.95-0.9)=104 * 30% =  31 =>  653 tokens (31.5%)
+  Layer 27: base(0.3)= 622 + missing(0.95-0.9)=104 * 30% =  31 =>  653 tokens (31.5%)
+
+================================================================================
+Step 3: Loading FULL cache and running sparse prefill
+================================================================================
+  Loaded prefix (chunk 0): 792 tokens
+  Loaded chunk 11: 148 tokens
+  Loaded chunk 12: 139 tokens
+  Loaded chunk 13: 149 tokens
+  Loaded chunk 5: 265 tokens
+  Loaded chunk 14: 228 tokens
+  Loaded chunk 15: 196 tokens
+  Loaded chunk 16: 72 tokens
+  Loaded chunk 17: 88 tokens
+  Loaded chunk 18: 86 tokens
+  Loaded chunk 19: 321 tokens
+  Loaded chunk 1: 96 tokens
+  Loaded chunk 11: 148 tokens
+  Loaded chunk 12: 139 tokens
+  Document length: 2075
+  Total cache length: 2867
+
+================================================================================
+Step 4: Sparse Prefill with Hybrid Selection
+================================================================================
+
+====================================================================================================
+Step 2: Sparse Prefill (Per-Head with Triton)
+====================================================================================================
+
+Critical tokens (Layer 0 union): 653
+Query tokens: 24
+Total sparse sequence: 677
+
+Position mapping:
+  Critical positions: 803 - 2862
+  Query positions: 2867 - 2890
+
+====================================================================================================
+Per-Layer Per-Head Recomputation Statistics
+====================================================================================================
+
+Layer  Head0     Head1     Head2     Head3     Union    Ratio   
+--------------------------------------------------------------
+0      653       653       653       653       653        31.5%
+4      653       653       653       653       653        31.5%
+8      653       653       653       653       653        31.5%
+12     653       653       653       653       653        31.5%
+16     653       653       653       653       653        31.5%
+20     653       653       653       653       653        31.5%
+24     653       653       653       653       653        31.5%
+27     653       653       653       653       653        31.5%
+--------------------------------------------------------------
+
+Total document tokens: 2075
+Total layers: 28
+Total possible recomputations: 58100
+Actual recomputations (union): 18284
+Overall recomputation ratio: 31.47%
+====================================================================================================
+
+Processing 28 layers with per-head sparse attention (Triton)...
+
+  Layer  0 done
+  Layer  4 done
+  Layer  8 done
+  Layer 12 done
+  Layer 16 done
+  Layer 20 done
+  Layer 24 done
+  Layer 27 done
+
+Cache updated: total length = 2891
+
+====================================================================================================
+Sparse Prefill complete
+====================================================================================================
+
+
+================================================================================
+Step 5: Generating Answer
+================================================================================
+
+====================================================================================================
+Step 3: Generating with query re-forward
+====================================================================================================
+
+Prefix length: 792
+Document length: 2075
+Query length: 24
+Query positions: 2867 - 2890
+Re-forwarding query tokens on updated KV cache...
+
+Total cache length after query forward: 2891
+Generating tokens...
+
+  Step 0: 1
+  Step 1: 2
+  Step 2: 2
+  Step 3: 0
+  EOS reached at step 4
+
+====================================================================================================
+Generation completed
+====================================================================================================
+
+
+====================================================================================================
+FINAL RESULTS
+====================================================================================================
+
+Question: When was King Henry III of England crowned?
+
+Ground Truth:
+Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Generated Answer:
+1220
+====================================================================================================
+
+Actual selection ratio: 31.47%

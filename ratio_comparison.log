@@ -1,0 +1,611 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+Token Selection Comparison: ratio=0.95 vs ratio=0.9
+====================================================================================================
+
+Loading model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 122.06it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading data...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+================================================================================
+Computing selections for ratio=0.95
+================================================================================
+
+====================================================================================================
+Step 1: Computing per-layer token selections
+====================================================================================================
+
+Model config:
+  Layers: 28
+  Attention heads: 28
+  KV heads: 4
+  Head dim: 128
+  Total ratio: 0.95
+
+Loaded 13 document caches
+Total document length: 2075 tokens
+
+Computing attention scores using 'reconstruction' method...
+
+Using RECONSTRUCTION scoring (KVzip style)
+  Scoring is query-agnostic (based on document structure)
+  Repeat prompt: 7 tokens
+  Target chunk: 512 tokens
+  Total scoring input: 519 tokens
+  Scoring query range: [0, 7)
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+====================================================================================================
+Attention Distribution Analysis
+====================================================================================================
+
+Layer-wise Statistics:
+Layer  Mean       Std        Max        P99        P95        P90       
+----------------------------------------------------------------------
+0      0.003265   0.007635   0.137695   0.037109   0.011353   0.007721  
+2      0.002840   0.007577   0.373047   0.027106   0.009888   0.005801  
+4      0.016048   0.097342   1.000000   0.500000   0.030041   0.011230  
+6      0.019530   0.129689   1.000000   1.000000   0.000000   0.000000  
+8      0.020617   0.136321   1.000000   1.000000   0.000000   0.000000  
+10     0.021598   0.140306   1.000000   1.000000   0.000000   0.000000  
+12     0.022026   0.137978   1.000000   1.000000   0.000000   0.000000  
+14     0.021143   0.135875   1.000000   1.000000   0.000000   0.000000  
+16     0.021156   0.137427   1.000000   1.000000   0.000000   0.000000  
+18     0.021492   0.137217   1.000000   1.000000   0.000000   0.000000  
+20     0.017169   0.120892   1.000000   1.000000   0.000000   0.000000  
+22     0.011249   0.098664   1.000000   0.500000   0.000000   0.000000  
+24     0.021868   0.139575   1.000000   1.000000   0.000000   0.000000  
+26     0.020904   0.136448   1.000000   1.000000   0.000000   0.000000  
+27     0.020071   0.124628   1.000000   1.000000   0.013916   0.001656  
+
+Saved distribution plot to ./attention_analysis/attention_distribution.png
+
+====================================================================================================
+Selection Strategy Analysis
+====================================================================================================
+
+If using ABSOLUTE threshold (# tokens selected per layer):
+Layer th=0.0001   th=0.0005   th=0.001    th=0.002    th=0.005    th=0.01     
+------------------------------------------------------------------------------
+0     2075        2070        1999        1546        807         374         
+2     2075        2034        1847        1373        636         301         
+4     2069        1973        1836        1555        1107        739         
+6     252         236         236         234         229         225         
+8     221         208         208         207         203         200         
+10    225         211         211         211         206         205         
+12    254         230         229         229         226         224         
+14    222         210         210         210         209         209         
+16    195         192         192         192         192         192         
+18    204         198         198         198         198         198         
+20    166         166         166         166         166         166         
+22    102         102         102         102         102         102         
+24    214         214         214         214         214         214         
+26    200         200         200         200         200         200         
+27    2063        1755        1337        735         500         429         
+
+If using PERCENTILE threshold (# tokens selected per layer):
+Layer P99         P95         P90         P85         P80         P75         
+------------------------------------------------------------------------------
+0     96          414         648         831         1072        1263        
+2     77          303         528         752         966         1135        
+4     83          368         693         976         1186        1381        
+6     105         378         706         2075        2075        2075        
+8     138         379         2075        2075        2075        2075        
+10    145         387         2075        2075        2075        2075        
+12    132         370         2075        2075        2075        2075        
+14    127         2075        2075        2075        2075        2075        
+16    130         2075        2075        2075        2075        2075        
+18    127         2075        2075        2075        2075        2075        
+20    99          2075        2075        2075        2075        2075        
+22    2075        2075        2075        2075        2075        2075        
+24    145         2075        2075        2075        2075        2075        
+26    133         2075        2075        2075        2075        2075        
+27    117         2075        2075        2075        2075        2075        
+
+====================================================================================================
+
+Saved statistics to ./attention_analysis/attention_stats.json
+
+Computing layer-wise PER-HEAD selections using LAYER_WISE strategy...
+
+Using LAYER_WISE selection strategy
+  - Different layers select different tokens
+  - All heads within a layer select the SAME tokens
+  - Target ratio: 95.0%
+
+  Layer  0: selected=1971, union=1971 ( 95.0%)
+  Layer  4: selected=1971, union=1971 ( 95.0%)
+  Layer  8: selected=1971, union=1971 ( 95.0%)
+  Layer 12: selected=1971, union=1971 ( 95.0%)
+  Layer 16: selected=1971, union=1971 ( 95.0%)
+  Layer 20: selected=1971, union=1971 ( 95.0%)
+  Layer 24: selected=1971, union=1971 ( 95.0%)
+  Layer 27: selected=1971, union=1971 ( 95.0%)
+
+====================================================================================================
+Per-Head Selection Statistics
+====================================================================================================
+
+Total document tokens: 2075
+Total layers: 28
+Total KV heads per layer: 4
+Total possible (layer × head × token): 232400
+Actual per-head selections: 220752
+Overall selection ratio: 94.99%
+
+Layer 0 union size: 1971 tokens (95.0%)
+
+Per-layer head diversity (Jaccard similarity between heads):
+  Layer  0: avg Jaccard similarity = 1.000
+  Layer  7: avg Jaccard similarity = 1.000
+  Layer 14: avg Jaccard similarity = 1.000
+  Layer 27: avg Jaccard similarity = 1.000
+
+====================================================================================================
+Selection complete
+====================================================================================================
+
+
+================================================================================
+Computing selections for ratio=0.9
+================================================================================
+
+====================================================================================================
+Step 1: Computing per-layer token selections
+====================================================================================================
+
+Model config:
+  Layers: 28
+  Attention heads: 28
+  KV heads: 4
+  Head dim: 128
+  Total ratio: 0.9
+
+Loaded 13 document caches
+Total document length: 2075 tokens
+
+Computing attention scores using 'reconstruction' method...
+
+Using RECONSTRUCTION scoring (KVzip style)
+  Scoring is query-agnostic (based on document structure)
+  Repeat prompt: 7 tokens
+  Target chunk: 512 tokens
+  Total scoring input: 519 tokens
+  Scoring query range: [0, 7)
+  Layer  0 done
+  Layer  5 done
+  Layer 10 done
+  Layer 15 done
+  Layer 20 done
+  Layer 25 done
+  Layer 27 done
+
+====================================================================================================
+Attention Distribution Analysis
+====================================================================================================
+
+Layer-wise Statistics:
+Layer  Mean       Std        Max        P99        P95        P90       
+----------------------------------------------------------------------
+0      0.003265   0.007635   0.137695   0.037109   0.011353   0.007721  
+2      0.002840   0.007577   0.373047   0.027106   0.009888   0.005801  
+4      0.016048   0.097342   1.000000   0.500000   0.030041   0.011230  
+6      0.019530   0.129689   1.000000   1.000000   0.000000   0.000000  
+8      0.020617   0.136321   1.000000   1.000000   0.000000   0.000000  
+10     0.021598   0.140306   1.000000   1.000000   0.000000   0.000000  
+12     0.022026   0.137978   1.000000   1.000000   0.000000   0.000000  
+14     0.021143   0.135875   1.000000   1.000000   0.000000   0.000000  
+16     0.021156   0.137427   1.000000   1.000000   0.000000   0.000000  
+18     0.021492   0.137217   1.000000   1.000000   0.000000   0.000000  
+20     0.017169   0.120892   1.000000   1.000000   0.000000   0.000000  
+22     0.011249   0.098664   1.000000   0.500000   0.000000   0.000000  
+24     0.021868   0.139575   1.000000   1.000000   0.000000   0.000000  
+26     0.020904   0.136448   1.000000   1.000000   0.000000   0.000000  
+27     0.020071   0.124628   1.000000   1.000000   0.013916   0.001656  
+
+Saved distribution plot to ./attention_analysis/attention_distribution.png
+
+====================================================================================================
+Selection Strategy Analysis
+====================================================================================================
+
+If using ABSOLUTE threshold (# tokens selected per layer):
+Layer th=0.0001   th=0.0005   th=0.001    th=0.002    th=0.005    th=0.01     
+------------------------------------------------------------------------------
+0     2075        2070        1999        1546        807         374         
+2     2075        2034        1847        1373        636         301         
+4     2069        1973        1836        1555        1107        739         
+6     252         236         236         234         229         225         
+8     221         208         208         207         203         200         
+10    225         211         211         211         206         205         
+12    254         230         229         229         226         224         
+14    222         210         210         210         209         209         
+16    195         192         192         192         192         192         
+18    204         198         198         198         198         198         
+20    166         166         166         166         166         166         
+22    102         102         102         102         102         102         
+24    214         214         214         214         214         214         
+26    200         200         200         200         200         200         
+27    2063        1755        1337        735         500         429         
+
+If using PERCENTILE threshold (# tokens selected per layer):
+Layer P99         P95         P90         P85         P80         P75         
+------------------------------------------------------------------------------
+0     96          414         648         831         1072        1263        
+2     77          303         528         752         966         1135        
+4     83          368         693         976         1186        1381        
+6     105         378         706         2075        2075        2075        
+8     138         379         2075        2075        2075        2075        
+10    145         387         2075        2075        2075        2075        
+12    132         370         2075        2075        2075        2075        
+14    127         2075        2075        2075        2075        2075        
+16    130         2075        2075        2075        2075        2075        
+18    127         2075        2075        2075        2075        2075        
+20    99          2075        2075        2075        2075        2075        
+22    2075        2075        2075        2075        2075        2075        
+24    145         2075        2075        2075        2075        2075        
+26    133         2075        2075        2075        2075        2075        
+27    117         2075        2075        2075        2075        2075        
+
+====================================================================================================
+
+Saved statistics to ./attention_analysis/attention_stats.json
+
+Computing layer-wise PER-HEAD selections using LAYER_WISE strategy...
+
+Using LAYER_WISE selection strategy
+  - Different layers select different tokens
+  - All heads within a layer select the SAME tokens
+  - Target ratio: 90.0%
+
+  Layer  0: selected=1867, union=1867 ( 90.0%)
+  Layer  4: selected=1867, union=1867 ( 90.0%)
+  Layer  8: selected=1867, union=1867 ( 90.0%)
+  Layer 12: selected=1867, union=1867 ( 90.0%)
+  Layer 16: selected=1867, union=1867 ( 90.0%)
+  Layer 20: selected=1867, union=1867 ( 90.0%)
+  Layer 24: selected=1867, union=1867 ( 90.0%)
+  Layer 27: selected=1867, union=1867 ( 90.0%)
+
+====================================================================================================
+Per-Head Selection Statistics
+====================================================================================================
+
+Total document tokens: 2075
+Total layers: 28
+Total KV heads per layer: 4
+Total possible (layer × head × token): 232400
+Actual per-head selections: 209104
+Overall selection ratio: 89.98%
+
+Layer 0 union size: 1867 tokens (90.0%)
+
+Per-layer head diversity (Jaccard similarity between heads):
+  Layer  0: avg Jaccard similarity = 1.000
+  Layer  7: avg Jaccard similarity = 1.000
+  Layer 14: avg Jaccard similarity = 1.000
+  Layer 27: avg Jaccard similarity = 1.000
+
+====================================================================================================
+Selection complete
+====================================================================================================
+
+
+====================================================================================================
+COMPARISON ANALYSIS
+====================================================================================================
+
+Per-layer difference (tokens in 0.95 but not in 0.9):
+--------------------------------------------------------------------------------
+Layer  0: 1971 -> 1867 (missing  104 tokens)
+Layer  1: 1971 -> 1867 (missing  104 tokens)
+Layer  2: 1971 -> 1867 (missing  104 tokens)
+Layer  3: 1971 -> 1867 (missing  104 tokens)
+Layer  4: 1971 -> 1867 (missing  104 tokens)
+Layer  5: 1971 -> 1867 (missing  104 tokens)
+Layer  6: 1971 -> 1867 (missing  104 tokens)
+Layer  7: 1971 -> 1867 (missing  104 tokens)
+Layer  8: 1971 -> 1867 (missing  104 tokens)
+Layer  9: 1971 -> 1867 (missing  104 tokens)
+Layer 10: 1971 -> 1867 (missing  104 tokens)
+Layer 11: 1971 -> 1867 (missing  104 tokens)
+Layer 12: 1971 -> 1867 (missing  104 tokens)
+Layer 13: 1971 -> 1867 (missing  104 tokens)
+Layer 14: 1971 -> 1867 (missing  104 tokens)
+Layer 15: 1971 -> 1867 (missing  104 tokens)
+Layer 16: 1971 -> 1867 (missing  104 tokens)
+Layer 17: 1971 -> 1867 (missing  104 tokens)
+Layer 18: 1971 -> 1867 (missing  104 tokens)
+Layer 19: 1971 -> 1867 (missing  104 tokens)
+Layer 20: 1971 -> 1867 (missing  104 tokens)
+Layer 21: 1971 -> 1867 (missing  104 tokens)
+Layer 22: 1971 -> 1867 (missing  104 tokens)
+Layer 23: 1971 -> 1867 (missing  104 tokens)
+Layer 24: 1971 -> 1867 (missing  104 tokens)
+Layer 25: 1971 -> 1867 (missing  104 tokens)
+Layer 26: 1971 -> 1867 (missing  104 tokens)
+Layer 27: 1971 -> 1867 (missing  104 tokens)
+
+总共有 1061 个位置在 ratio=0.95 中选中但在 ratio=0.9 中未选中
+
+====================================================================================================
+MISSING TOKENS CONTENT ANALYSIS
+====================================================================================================
+
+Missing token positions and content (first 50):
+--------------------------------------------------------------------------------
+  Position   11: token_id=  6222, text='-S'
+  Position   14: token_id=    82, text='s'
+  Position   17: token_id= 10468, text=' locations'
+  Position   19: token_id=   862, text=' their'
+  Position   22: token_id=    11, text=','
+  Position   30: token_id=  7148, text=' London'
+  Position   53: token_id=    15, text='0'
+  Position   54: token_id=    21, text='6'
+  Position   55: token_id=    21, text='6'
+  Position   57: token_id=   279, text=' the'
+  Position   58: token_id=  3728, text=' location'
+  Position   59: token_id=   572, text=' was'
+  Position   62: token_id=   678, text=' all'
+  Position   63: token_id=  3853, text=' future'
+  Position   64: token_id= 21989, text=' coron'
+  Position   65: token_id=   804, text='ations'
+  Position   69: token_id=   572, text=' was'
+  Position   70: token_id=  1212, text=' under'
+  Position   73: token_id=   315, text=' of'
+  Position   77: token_id= 14429, text=' III'
+  Position   78: token_id=   572, text=' was'
+  Position   79: token_id= 78643, text=' crowned'
+  Position   80: token_id=   518, text=' at'
+  Position   84: token_id=   220, text=' '
+  Position   86: token_id=    17, text='2'
+  Position   87: token_id=    16, text='1'
+  Position   89: token_id=    26, text=';'
+  Position   93: token_id=   311, text=' to'
+  Position   94: token_id=   614, text=' have'
+  Position   96: token_id=  2086, text=' second'
+  Position   97: token_id= 21989, text=' coron'
+  Position   98: token_id=   367, text='ation'
+  Position  103: token_id=    16, text='1'
+  Position  104: token_id=    17, text='2'
+  Position  105: token_id=    17, text='2'
+  Position  106: token_id=    15, text='0'
+  Position  111: token_id=  2937, text=' later'
+  Position  116: token_id=  1030, text=' had'
+  Position  117: token_id=  1378, text=' two'
+  Position  125: token_id=   304, text=' in'
+  Position  131: token_id=    17, text='2'
+  Position  132: token_id=    24, text='9'
+  Position  145: token_id=    18, text='3'
+  Position  157: token_id=   304, text=' in'
+  Position  160: token_id=    15, text='0'
+  Position  161: token_id=    21, text='6'
+  Position  162: token_id=    21, text='6'
+  Position  163: token_id=   315, text=' of'
+  Position  183: token_id=  5644, text=' held'
+  Position  184: token_id=   304, text=' in'
+  ... and 1011 more positions
+
+====================================================================================================
+SEARCHING FOR CRITICAL TOKENS IN MISSING SET
+====================================================================================================
+
+Keyword '1216' -> token_ids: [16, 17, 16, 21]
+  Found at position 54: '6'
+  Found at position 55: '6'
+  Found at position 86: '2'
+  Found at position 87: '1'
+  Found at position 103: '1'
+  Found at position 104: '2'
+  Found at position 105: '2'
+  Found at position 131: '2'
+  Found at position 161: '6'
+  Found at position 162: '6'
+  Found at position 267: '2'
+  Found at position 348: '1'
+  Found at position 351: '1'
+  Found at position 464: '2'
+  Found at position 477: '1'
+  Found at position 478: '2'
+  Found at position 738: '1'
+  Found at position 802: '2'
+  Found at position 803: '1'
+  Found at position 884: '1'
+  Found at position 885: '2'
+  Found at position 886: '6'
+  Found at position 912: '1'
+  Found at position 913: '2'
+  Found at position 914: '6'
+  Found at position 918: '1'
+  Found at position 919: '2'
+  Found at position 920: '6'
+  Found at position 952: '1'
+  Found at position 1120: '1'
+  Found at position 1121: '1'
+  Found at position 1137: '2'
+  Found at position 1140: '1'
+  Found at position 1141: '1'
+  Found at position 1262: '2'
+  Found at position 1276: '1'
+  Found at position 1280: '1'
+  Found at position 1300: '2'
+  Found at position 1304: '1'
+  Found at position 1305: '2'
+  Found at position 1311: '1'
+  Found at position 1312: '2'
+  Found at position 1390: '1'
+  Found at position 1391: '1'
+  Found at position 1706: '1'
+  Found at position 1707: '2'
+  Found at position 1708: '2'
+  Found at position 1716: '2'
+  Found at position 1718: '6'
+  Found at position 1745: '6'
+  Found at position 1761: '1'
+  Found at position 1762: '2'
+  Found at position 1842: '6'
+  Found at position 1843: '6'
+  Found at position 1873: '1'
+  Found at position 1874: '2'
+  Found at position 1875: '1'
+  Found at position 1876: '6'
+  Found at position 1891: '1'
+  Found at position 1892: '2'
+  Found at position 1893: '2'
+  Found at position 1931: '1'
+  Found at position 1949: '6'
+  Found at position 1950: '6'
+
+Keyword '1220' -> token_ids: [16, 17, 17, 15]
+  Found at position 53: '0'
+  Found at position 86: '2'
+  Found at position 87: '1'
+  Found at position 103: '1'
+  Found at position 104: '2'
+  Found at position 105: '2'
+  Found at position 106: '0'
+  Found at position 131: '2'
+  Found at position 160: '0'
+  Found at position 267: '2'
+  Found at position 340: '0'
+  Found at position 348: '1'
+  Found at position 351: '1'
+  Found at position 464: '2'
+  Found at position 477: '1'
+  Found at position 478: '2'
+  Found at position 738: '1'
+  Found at position 802: '2'
+  Found at position 803: '1'
+  Found at position 884: '1'
+  Found at position 885: '2'
+  Found at position 912: '1'
+  Found at position 913: '2'
+  Found at position 918: '1'
+  Found at position 919: '2'
+  Found at position 952: '1'
+  Found at position 1120: '1'
+  Found at position 1121: '1'
+  Found at position 1137: '2'
+  Found at position 1140: '1'
+  Found at position 1141: '1'
+  Found at position 1142: '0'
+  Found at position 1143: '0'
+  Found at position 1262: '2'
+  Found at position 1263: '0'
+  Found at position 1276: '1'
+  Found at position 1280: '1'
+  Found at position 1283: '0'
+  Found at position 1300: '2'
+  Found at position 1304: '1'
+  Found at position 1305: '2'
+  Found at position 1311: '1'
+  Found at position 1312: '2'
+  Found at position 1390: '1'
+  Found at position 1391: '1'
+  Found at position 1706: '1'
+  Found at position 1707: '2'
+  Found at position 1708: '2'
+  Found at position 1716: '2'
+  Found at position 1761: '1'
+  Found at position 1762: '2'
+  Found at position 1841: '0'
+  Found at position 1873: '1'
+  Found at position 1874: '2'
+  Found at position 1875: '1'
+  Found at position 1891: '1'
+  Found at position 1892: '2'
+  Found at position 1893: '2'
+  Found at position 1894: '0'
+  Found at position 1931: '1'
+  Found at position 1948: '0'
+
+Keyword 'Gloucester' -> token_ids: [31541, 69779, 3667]
+  Found at position 455: 'ster'
+  Found at position 1464: 'ster'
+  Found at position 1870: 'ster'
+
+Keyword 'Westminster' -> token_ids: [23306, 40378]
+
+Keyword 'crowned' -> token_ids: [66, 44084]
+
+Keyword 'coronation' -> token_ids: [6005, 90883]
+
+Keyword 'May' -> token_ids: [11109]
+
+Keyword '17' -> token_ids: [16, 22]
+  Found at position 87: '1'
+  Found at position 103: '1'
+  Found at position 348: '1'
+  Found at position 351: '1'
+  Found at position 477: '1'
+  Found at position 738: '1'
+  Found at position 803: '1'
+  Found at position 884: '1'
+  Found at position 912: '1'
+  Found at position 918: '1'
+  Found at position 952: '1'
+  Found at position 1120: '1'
+  Found at position 1121: '1'
+  Found at position 1140: '1'
+  Found at position 1141: '1'
+  Found at position 1276: '1'
+  Found at position 1280: '1'
+  Found at position 1304: '1'
+  Found at position 1311: '1'
+  Found at position 1314: '7'
+  Found at position 1390: '1'
+  Found at position 1391: '1'
+  Found at position 1706: '1'
+  Found at position 1761: '1'
+  Found at position 1873: '1'
+  Found at position 1875: '1'
+  Found at position 1891: '1'
+  Found at position 1931: '1'
+
+Results saved to ./ratio_comparison_results.json

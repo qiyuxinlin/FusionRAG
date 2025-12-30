@@ -1,0 +1,409 @@
+{
+  "example_idx": 4,
+  "sub_question_idx": 1,
+  "question": "When was King Henry III of England crowned?",
+  "ground_truth": "Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.",
+  "generated_answer": "1216",
+  "total_ratio": 0.4,
+  "selection_strategy": "independent",
+  "overall_recompute_ratio": 0.685869191049914,
+  "doc_len": 2075,
+  "num_layers": 28,
+  "num_kv_heads": 4,
+  "layer_recompute_stats": [
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1539,
+      "ratio": 0.7416867469879518
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1468,
+      "ratio": 0.7074698795180723
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1379,
+      "ratio": 0.6645783132530121
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1494,
+      "ratio": 0.72
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1578,
+      "ratio": 0.7604819277108433
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1651,
+      "ratio": 0.7956626506024096
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1682,
+      "ratio": 0.8106024096385542
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1765,
+      "ratio": 0.8506024096385543
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1715,
+      "ratio": 0.8265060240963855
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1719,
+      "ratio": 0.828433734939759
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1762,
+      "ratio": 0.8491566265060241
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1561,
+      "ratio": 0.752289156626506
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1636,
+      "ratio": 0.788433734939759
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1390,
+      "ratio": 0.6698795180722892
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1423,
+      "ratio": 0.6857831325301205
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1767,
+      "ratio": 0.8515662650602409
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1474,
+      "ratio": 0.7103614457831325
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1734,
+      "ratio": 0.8356626506024096
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1697,
+      "ratio": 0.8178313253012048
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1435,
+      "ratio": 0.691566265060241
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1735,
+      "ratio": 0.8361445783132531
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 843,
+      "ratio": 0.40626506024096387
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 1028,
+      "ratio": 0.49542168674698794
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 912,
+      "ratio": 0.4395180722891566
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 873,
+      "ratio": 0.4207228915662651
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 903,
+      "ratio": 0.4351807228915663
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 839,
+      "ratio": 0.40433734939759036
+    },
+    {
+      "head_counts": [
+        830,
+        830,
+        830,
+        830
+      ],
+      "union_count": 847,
+      "ratio": 0.4081927710843373
+    }
+  ],
+  "layer_stats": {
+    "0": {
+      "union_size": 1539,
+      "union_ratio": 0.7416867469879518
+    },
+    "1": {
+      "union_size": 1468,
+      "union_ratio": 0.7074698795180723
+    },
+    "2": {
+      "union_size": 1379,
+      "union_ratio": 0.6645783132530121
+    },
+    "3": {
+      "union_size": 1494,
+      "union_ratio": 0.72
+    },
+    "4": {
+      "union_size": 1578,
+      "union_ratio": 0.7604819277108433
+    },
+    "5": {
+      "union_size": 1651,
+      "union_ratio": 0.7956626506024096
+    },
+    "6": {
+      "union_size": 1682,
+      "union_ratio": 0.8106024096385542
+    },
+    "7": {
+      "union_size": 1765,
+      "union_ratio": 0.8506024096385543
+    },
+    "8": {
+      "union_size": 1715,
+      "union_ratio": 0.8265060240963855
+    },
+    "9": {
+      "union_size": 1719,
+      "union_ratio": 0.828433734939759
+    },
+    "10": {
+      "union_size": 1762,
+      "union_ratio": 0.8491566265060241
+    },
+    "11": {
+      "union_size": 1561,
+      "union_ratio": 0.752289156626506
+    },
+    "12": {
+      "union_size": 1636,
+      "union_ratio": 0.788433734939759
+    },
+    "13": {
+      "union_size": 1390,
+      "union_ratio": 0.6698795180722892
+    },
+    "14": {
+      "union_size": 1423,
+      "union_ratio": 0.6857831325301205
+    },
+    "15": {
+      "union_size": 1767,
+      "union_ratio": 0.8515662650602409
+    },
+    "16": {
+      "union_size": 1474,
+      "union_ratio": 0.7103614457831325
+    },
+    "17": {
+      "union_size": 1734,
+      "union_ratio": 0.8356626506024096
+    },
+    "18": {
+      "union_size": 1697,
+      "union_ratio": 0.8178313253012048
+    },
+    "19": {
+      "union_size": 1435,
+      "union_ratio": 0.691566265060241
+    },
+    "20": {
+      "union_size": 1735,
+      "union_ratio": 0.8361445783132531
+    },
+    "21": {
+      "union_size": 843,
+      "union_ratio": 0.40626506024096387
+    },
+    "22": {
+      "union_size": 1028,
+      "union_ratio": 0.49542168674698794
+    },
+    "23": {
+      "union_size": 912,
+      "union_ratio": 0.4395180722891566
+    },
+    "24": {
+      "union_size": 873,
+      "union_ratio": 0.4207228915662651
+    },
+    "25": {
+      "union_size": 903,
+      "union_ratio": 0.4351807228915663
+    },
+    "26": {
+      "union_size": 839,
+      "union_ratio": 0.40433734939759036
+    },
+    "27": {
+      "union_size": 847,
+      "union_ratio": 0.4081927710843373
+    }
+  }
+}

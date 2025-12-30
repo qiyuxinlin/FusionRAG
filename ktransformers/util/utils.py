@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # coding=utf-8
 '''
-Description  :  
+Description  :
 Author       : Boxin Zhang, Azure-Tang
 Version      : 0.1.0
-Copyright (c) 2024 by KVCache.AI, All Rights Reserved. 
+Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 '''
 import torch
 from torch import nn
@@ -32,9 +32,266 @@ from transformers import (
     AutoTokenizer
 )
 from rouge import Rouge
+from filelock import FileLock
 
-def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs, chunk_id: int, example_id=0, hash_key="",
-                          save_path='', system_len=0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None
+
+# ============================================================
+# Smart Query Selection 辅助函数
+# ============================================================
+
+def find_connected_components(positions, max_gap=2):
+    """
+    找到位置列表中的连通分量（相邻 token 群组）
+
+    Args:
+        positions: 位置列表
+        max_gap: 最大允许的间隔，小于等于这个间隔的位置被认为是连通的
+
+    Returns:
+        List of lists, 每个子列表是一个连通分量
+    """
+    if len(positions) == 0:
+        return []
+
+    positions = sorted(positions)
+    components = []
+    current_component = [positions[0]]
+
+    for i in range(1, len(positions)):
+        if positions[i] - positions[i-1] <= max_gap:
+            current_component.append(positions[i])
+        else:
+            components.append(current_component)
+            current_component = [positions[i]]
+
+    components.append(current_component)
+    return components
+
+
+def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
+    """
+    Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
+
+    Args:
+        attention_scores: torch.Tensor, shape [doc_len], 每个位置的 attention 分数
+        doc_len: 文档长度
+        target_ratio: 目标选择比例
+        system_len: system prompt 长度
+        device: 计算设备
+
+    Returns:
+        List of selected positions (global indices, including system_len offset)
+    """
+    if isinstance(attention_scores, torch.Tensor):
+        attention_scores = attention_scores.float().cpu().numpy()
+
+    target_count = int(doc_len * target_ratio)
+
+    # Step 1: 找到高 attention 位置
+    mean_attn = np.mean(attention_scores)
+    std_attn = np.std(attention_scores)
+    threshold = mean_attn + 0.5 * std_attn
+
+    high_attn_positions = list(np.where(attention_scores > threshold)[0])
+
+    # Step 2: 连通分量分析
+    components = find_connected_components(high_attn_positions, max_gap=2)
+
+    # Step 3: 计算每个分量的总 attention
+    component_scores = []
+    for comp in components:
+        total_score = sum(attention_scores[p] for p in comp)
+        component_scores.append((comp, total_score))
+
+    # Step 4: 按总 attention 排序
+    component_scores.sort(key=lambda x: x[1], reverse=True)
+
+    # Step 5: 贪心选择分量 + 上下文扩展 (±1)
+    selected = set()
+
+    for comp, total_score in component_scores:
+        # 扩展分量边界 (±1)
+        extended_comp = set()
+        for p in comp:
+            for offset in range(-1, 2):
+                new_p = p + offset
+                if 0 <= new_p < doc_len:
+                    extended_comp.add(new_p)
+
+        # 检查是否会超过目标 (允许 10% 余量)
+        new_positions = extended_comp - selected
+        if len(selected) + len(new_positions) <= target_count * 1.1:
+            selected.update(extended_comp)
+
+    # Step 6: 补充到目标数量
+    if len(selected) < target_count:
+        sorted_indices = np.argsort(attention_scores)[::-1]
+        for pos in sorted_indices:
+            if pos not in selected:
+                selected.add(int(pos))
+                if len(selected) >= target_count:
+                    break
+
+    # Step 7: 如果超过目标，移除最低分的位置
+    while len(selected) > target_count:
+        min_pos = min(selected, key=lambda p: attention_scores[p])
+        selected.remove(min_pos)
+
+    # 转换为全局索引 (加上 system_len 偏移)
+    selected_global = [p + system_len for p in sorted(selected)]
+
+    return selected_global
+
+
+def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
+    """
+    基于熵动态选择层（熵越低的层，attention 越集中，信息量可能越大）
+
+    Args:
+        layer_attentions: dict {layer_idx: attention_tensor [doc_len]}
+                          或 list of (layer_idx, attention_tensor)
+        top_k: 选择熵最低的 top_k 层
+        return_entropy: 是否返回各层的熵值
+
+    Returns:
+        selected_layers: 选中的层索引列表
+        layer_entropy: (可选) 各层的熵值字典
+    """
+    layer_entropy = {}
+
+    # 处理不同输入格式
+    if isinstance(layer_attentions, dict):
+        items = layer_attentions.items()
+    else:
+        items = layer_attentions
+
+    for layer_idx, attn in items:
+        # 确保是 numpy array
+        if isinstance(attn, torch.Tensor):
+            attn = attn.cpu().float().numpy()
+
+        # 归一化为概率分布
+        p = attn / (attn.sum() + 1e-10)
+        p = np.clip(p, 1e-10, 1.0)
+
+        # 计算熵 H = -sum(p * log(p))
+        entropy = -np.sum(p * np.log(p))
+        layer_entropy[layer_idx] = entropy
+
+    # 按熵值排序，选择熵最低的 top_k 层
+    sorted_layers = sorted(layer_entropy.items(), key=lambda x: x[1])
+    selected_layers = [layer_idx for layer_idx, _ in sorted_layers[:top_k]]
+
+    if return_entropy:
+        return selected_layers, layer_entropy
+    return selected_layers
+
+
+def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
+    """
+    用 draft model 完整 prefill 获取 attention 分布
+
+    Args:
+        draft_model: 小模型
+        input_ids: 输入 token ids [1, seq_len]
+        device: 设备
+
+    Returns:
+        layer_attention_scores: {layer_idx: attention_matrix [num_heads, seq_len, seq_len]}
+    """
+    import torch.nn.functional as F
+
+    seq_len = input_ids.shape[1]
+    num_layers = draft_model.config.num_hidden_layers
+    num_heads = draft_model.config.num_attention_heads
+    num_kv_heads = draft_model.config.num_key_value_heads
+    head_dim = draft_model.config.hidden_size // num_heads
+
+    print(f"\n{'='*60}")
+    print("Computing Draft Model Attention")
+    print(f"{'='*60}")
+    print(f"  Layers: {num_layers}, Heads: {num_heads}, Seq len: {seq_len}")
+
+    layer_attention_scores = {}
+
+    with torch.no_grad():
+        inputs_embeds = draft_model.model.embed_tokens(input_ids.to(device))
+        hidden_states = inputs_embeds
+        position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+
+        # 获取 rotary_emb (兼容不同模型结构)
+        if hasattr(draft_model.model, 'rotary_emb'):
+            rotary_emb = draft_model.model.rotary_emb
+            cos, sin = rotary_emb(hidden_states, position_ids)
+            cos = cos.unsqueeze(1)
+            sin = sin.unsqueeze(1)
+            use_global_rope = True
+        else:
+            use_global_rope = False
+            cos, sin = None, None
+
+        for layer_idx in range(num_layers):
+            layer = draft_model.model.layers[layer_idx]
+
+            residual = hidden_states
+            hidden_states = layer.input_layernorm(hidden_states)
+
+            bsz, q_len, _ = hidden_states.size()
+
+            # Q, K, V projections
+            query_states = layer.self_attn.q_proj(hidden_states)
+            key_states = layer.self_attn.k_proj(hidden_states)
+            value_states = layer.self_attn.v_proj(hidden_states)
+
+            # Reshape
+            query_states = query_states.view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
+            key_states = key_states.view(bsz, q_len, num_kv_heads, head_dim).transpose(1, 2)
+            value_states = value_states.view(bsz, q_len, num_kv_heads, head_dim).transpose(1, 2)
+
+            # Apply RoPE
+            if not use_global_rope:
+                cos, sin = layer.self_attn.rotary_emb(value_states, position_ids)
+                cos = cos.unsqueeze(1)
+                sin = sin.unsqueeze(1)
+            query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+            key_states = (key_states * cos) + (rotate_half(key_states) * sin)
+
+            # Expand K, V for GQA
+            n_rep = num_heads // num_kv_heads
+            key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
+            value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
+
+            # Compute attention
+            attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (head_dim ** 0.5)
+            causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
+            attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
+            attn_weights = F.softmax(attn_weights, dim=-1)
+
+            # 保存后半部分层的 attention
+            if layer_idx >= num_layers // 2:
+                layer_attention_scores[layer_idx] = attn_weights[0].cpu().float().numpy()
+
+            # Continue forward
+            attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+            attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
+            attn_output = layer.self_attn.o_proj(attn_output)
+
+            hidden_states = residual + attn_output
+
+            residual = hidden_states
+            hidden_states = layer.post_attention_layernorm(hidden_states)
+            hidden_states = layer.mlp(hidden_states)
+            hidden_states = residual + hidden_states
+
+            if layer_idx % 8 == 0 or layer_idx == num_layers - 1:
+                print(f"  Layer {layer_idx} done")
+
+    print(f"Draft model attention computed")
+    return layer_attention_scores
+
+
+def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
+                          save_path='', example_id = 0, chunk_id = 0, system_len = 0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None, hash_key="",
                           ):
 
     import os
@@ -91,13 +348,25 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs, chunk_i
             key_cache = torch.stack(key_cache)
             value_cache = [past_key_values.value_cache[i][:,:,system_len:system_len + passage_len,:].cpu() for i in range(len(past_key_values.value_cache))]
             value_cache = torch.stack(value_cache)
+
         if hash_key != "":
-            torch.save(key_cache.clone(), f'{save_path}/{hash_key}_key.pt')
-            torch.save(value_cache.clone(), f'{save_path}/{hash_key}_value.pt')
+            key_path = f'{save_path}/{hash_key}_key.pt'
+            value_path = f'{save_path}/{hash_key}_value.pt'
+            lock_path = f'{save_path}/{hash_key}.lock'
         else:
-            torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
-            torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
+            key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
+            value_path = f'{save_path}/{example_id}_{chunk_id}_value.pt'
+            lock_path = f'{save_path}/{example_id}_{chunk_id}.lock'
         print(f'hashkey: {hash_key}, chunk_id: {chunk_id}')
+
+        with FileLock(lock_path, timeout=60):
+            # Double-check if file exists (another process might have created it)
+            if not os.path.exists(key_path):
+                torch.save(key_cache.clone(), key_path)
+                torch.save(value_cache.clone(), value_path)
+                print(f'example_id: {example_id}, chunk_id: {chunk_id} (saved by current process)')
+            else:
+                print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
         return key_cache, value_cache
 
 def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs):
@@ -195,8 +464,9 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
-                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None, group=False, device="cuda", chunk_ids=None,
-                         device_map=None, hash_keys=None):
+                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
+                          draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
+                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
 
@@ -243,14 +513,20 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         assert passage_len == chunk_key_cache.shape[3]
         if revert_rope and chunk_id > 0:
             all_position_ids = []
-            position_ids = torch.full((1, chunk_key_cache[layer_idx].shape[2]), past_len - system_len, device=input_device)
-            try:
-                cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_cache[layer_idx], position_ids)
-            except:
-                cos, sin = model.model.rotary_emb(chunk_key_cache[layer_idx], position_ids)
+            # Get the device of the rotary embedding layer from inv_freq buffer
+            rotary_emb = model.model.layers[0].self_attn.rotary_emb
+            if hasattr(rotary_emb, 'inv_freq') and rotary_emb.inv_freq is not None:
+                rotary_device = rotary_emb.inv_freq.device
+            else:
+                # Fallback: use the device of the first layer
+                rotary_device = next(model.model.layers[0].parameters()).device
+
+            position_ids = torch.full((1, chunk_key_cache[0].shape[2]), past_len - system_len, device=rotary_device)
+            chunk_key_for_rope = chunk_key_cache[0].to(rotary_device)
+            cos, sin = rotary_emb(chunk_key_for_rope, position_ids)
             # mistral 限定
-            cos = cos.unsqueeze(1)
-            sin = sin.unsqueeze(1)
+            cos = cos.unsqueeze(1).to(input_device)
+            sin = sin.unsqueeze(1).to(input_device)
             chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
         elif chunk_id > 0:
             all_position_ids.append(torch.arange(system_len,system_len+passage_len).to(input_device).unsqueeze(0))
@@ -268,7 +544,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             without_attn_value = past_key_values.value_cache[1].narrow(2,0,past_len).clone()
             inputs = torch.cat(passages[:-1]).to(input_device).unsqueeze(0)
             # 这里会在终端上多输出一次
-            _, tmp_past_key_value = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1, device=input_device)
+            _, tmp_past_key_value, _ = prefill_and_generate(model, tokenizer, inputs, max_new_tokens=1, device=input_device, early_exit_layer=2,device_map=device_map)
             with_attn_key = tmp_past_key_value.key_cache[1].narrow(2,0,past_len).clone()
             with_attn_value = tmp_past_key_value.value_cache[1].narrow(2,0,past_len).clone()
             v_sub_all = without_attn_value - with_attn_value
@@ -468,6 +744,119 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
                     k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
                     k_need_index = k_need_index + system_len
+        elif reprocess_method == 'QueryAttention':
+            # Smart Query Selection: 使用 query attention + 连通分量分析
+            select_time = time.time()
+
+            # 获取 query tokens
+            inputs = passages[-1][:].unsqueeze(0).to(input_device)
+            seq_length = passages[-1][:].shape[0]
+
+            cache_position = torch.arange(past_len, past_len + seq_length, device=input_device)
+
+            with torch.no_grad():
+                inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
+                model(
+                    inputs_embeds=inputs_embeds, past_key_values=past_key_values,
+                    cache_position=cache_position, reprocess_method='QueryAttention',
+                    return_dict=False, use_cache=True, passages_len=passages_len
+                )
+
+                # 获取文档部分的 attention 分数
+                num_layers = len(past_key_values.importance_cache)
+                doc_len = sum(passages_len[1:-1])
+
+                # 收集所有候选层的 attention（后 1/2 的层，用于熵选层）
+                candidate_start = num_layers // 2
+                layer_attention_dict = {}
+                for layer_idx in range(candidate_start, num_layers):
+                    layer_attn = past_key_values.importance_cache[layer_idx][:, system_len:system_len + doc_len]
+                    layer_attn_avg = layer_attn.mean(dim=0).to(input_device)  # [doc_len]
+                    layer_attention_dict[layer_idx] = layer_attn_avg
+
+                # 选择使用的层
+                if use_entropy_selection:
+                    # 基于熵动态选层
+                    active_layers, layer_entropy = entropy_layer_selection(
+                        layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                    )
+                    print(f"  熵选层: 选择了 {active_layers} (熵最低的 {entropy_top_k} 层)")
+                else:
+                    # 默认使用后 1/4 的层
+                    start_layer = num_layers * 3 // 4
+                    active_layers = list(range(start_layer, num_layers))
+
+                # 聚合选中层的 attention
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+                # 使用 smart_query_selection 进行选择
+                selected_indices = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=doc_len,
+                    target_ratio=rate,
+                    system_len=system_len,
+                    device=input_device
+                )
+                # 转成 tensor 以与后续 torch.sort 兼容
+                k_need_index = torch.tensor(selected_indices, device='cpu')
+
+                print(f"QueryAttention 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+                print(f"使用了 {len(active_layers)} 个层: {active_layers}")
+                print(f'select_time: {time.time() - select_time:.3f}s')
+
+        elif reprocess_method == 'DraftModel':
+            # DraftModel: 用小模型 prefill 获取 attention，指导 token 选择
+            select_time = time.time()
+
+            # 如果没有传入 draft_attention，需要用 draft_model 计算
+            if draft_attention is None:
+                if draft_model is None:
+                    raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
+                # 构建完整输入
+                full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)
+                draft_attention = compute_draft_model_attention(draft_model, full_input, draft_model_device)
+
+            doc_len = sum(passages_len[1:-1])
+
+            # draft_attention 是 {layer_idx: attention [num_heads, seq_len, seq_len]} 格式
+            # 需要提取 query→doc attention
+            query_start = sum(passages_len[:-1])
+            total_len = sum(passages_len)
+
+            # 收集各层的 query→doc attention
+            layer_attention_dict = {}
+            for layer_idx, layer_attn in draft_attention.items():
+                # layer_attn: [num_heads, seq_len, seq_len]
+                # 提取 query→doc attention
+                query_to_doc = layer_attn[:, query_start:total_len, system_len:system_len + doc_len]
+                # 对 heads 和 query positions 平均
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
+
+            # 基于熵动态选层（DraftModel 默认使用熵选层）
+            active_layers, layer_entropy = entropy_layer_selection(
+                layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+            )
+            print(f"  DraftModel 熵选层: 选择了 {active_layers}")
+
+            # 聚合选中层的 attention
+            layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+            multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+            # 使用 smart_query_selection 进行选择
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                target_ratio=rate,
+                system_len=system_len,
+                device=draft_model_device
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+            print(f'select_time: {time.time() - select_time:.3f}s')
+
         else:
             raise NotImplementedError
 
@@ -518,7 +907,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         next_token = torch.argmax(next_token_scores, dim=-1)
         prefill_count = seq_length
         prefill_time = first_token_time
-        print(stream.put(next_token.item()), end="", flush=True)
+        # print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, past_len+1] = next_token
         tokens.append(next_token)
 
@@ -658,7 +1047,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
         prefill_count = seq_length
         prefill_time = first_token_time
-        print(stream.put(next_token.item()), end="", flush=True)
+        # print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, seq_length] = next_token
         tokens.append(next_token)
         inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
