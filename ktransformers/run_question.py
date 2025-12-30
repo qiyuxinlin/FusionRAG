@@ -403,7 +403,7 @@ class FusionRAGModel:
                     print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
 
         if model_type == 'qwen3':
-            question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion:/no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         else:
             question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
