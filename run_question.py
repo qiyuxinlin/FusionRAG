@@ -10,8 +10,8 @@ import numpy as np
 from typing import List, Dict, Any, Tuple
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
-from .models.custom_cache import StaticCache
-from .util.utils import (
+from ktransformers.models.custom_cache import StaticCache
+from ktransformers.util.utils import (
     prefill_and_save_kv_cache,
     load_kv_and_generate,
     prefill_with_cache_and_save_preprocess,
@@ -26,7 +26,7 @@ DEFAULT_SYSTEM_PROMPT = "<|im_start|>system\nYou are a helpful assistant.\nWrite
 
 question_test = {
     "question": """
-    Are director of film Move (1970 Film) and director of film M\u00e9diterran\u00e9e (1963 Film) from the same country? please output using json format
+    Who is the spouse of the Green performer? please output using json format
     please output using json format:
     {{
     "reason": "",
@@ -34,12 +34,10 @@ question_test = {
     }}
     """,
     "gold_docs": [
-        "Stuart Rosenberg (August 11, 1927 \u2013 March 15, 2007) was an American film and television director whose motion pictures include \"Cool Hand Luke\" (1967), \"Voyage of the Damned\" (1976), \"The Amityville Horror\" (1979), and \"The Pope of Greenwich Village\" (1984). He was noted for his work with actor Paul Newman.",
-        "M\u00e9diterran\u00e9e (1963 film): M\u00e9diterran\u00e9e is a 1963 French experimental film directed by Jean-Daniel Pollet with assistance from Volker Schl\u00f6ndorff. It was written by Philippe Sollers and produced by Barbet Schroeder, with music by Antione Duhamel. The 45 minute film is cited as one of Pollet's most influential films, which according to Jonathan Rosenbaum directly influenced Jean-Luc Goddard's \"Contempt\", released later the same year. Footage for the film was shot around the Mediterranean, including at a Greek temple, a Sicilian garden, the sea, and also features a fisherman, a bullfighter, and a girl on an operating table.",
-        "Move (1970 film): Move is a 1970 American comedy film starring Elliott Gould, Paula Prentiss and Genevi\u00e8ve Wa\u00efte, and directed by Stuart Rosenberg. The screenplay was written by Joel Lieber and Stanley Hart, adapted from a novel by Lieber.",
-        "Jean-Daniel Pollet (1936\u20132004) was a French film director and screenwriter who was most active in the 1960s and 1970s. He was associated with two approaches to filmmaking: comedies which blended burlesque and melancholic elements, and poetic films based on texts by writers such as the French poet Francis Ponge."
+        "Miquette Giraudy (born 9 February 1953, Nice, France) is a keyboard player and vocalist, best known for her work in Gong and with her partner Steve Hillage. She and Hillage currently form the core of the ambient band System 7. In addition to her performances in music, she has also worked as an actress, film editor and writer. In each role, she has used different stage names.",
+        "Green (Steve Hillage album): Green is the fourth studio album by British progressive rock musician Steve Hillage. Written in spring 1977 at the same time as his previous album, the funk-inflected \"Motivation Radio\" (1977), \"Green\" was originally going to be released as \"The Green Album\" as a companion to \"The Red Album\" (the originally intended name for \"Motivation Radio\"). However, this plan was dropped and after a US tour in late 1977, \"Green\" was recorded alone, primarily in Dorking, Surrey, and in London."
     ],
-    "answer": "no"
+    "answer": "Miquette Giraudy"
 }
 
 class RerankModel:
@@ -87,12 +85,37 @@ class FusionRAGModel:
             max_cache_len=32768,
             cache_path='/mnt/data3/reflect/',
             model_name='Qwen2.5-7B-Instruct',
+            preprocess=False,
+            file_input="",
+            preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
     ):
+
         self.model_cache_root = os.path.join(cache_path, model_name)
         self.save_path = os.path.join(self.model_cache_root, 'kv_cache')
         self.preprocess_save_path = os.path.join(self.model_cache_root, 'preprocess_kv_cache')
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(self.preprocess_save_path, exist_ok=True)
+        self.preprocess=preprocess
+        if preprocess:
+            dataset_name = os.path.basename(file_input).split(".")[0]
+            similar_index_save_path = os.path.join(self.preprocess_save_path, "similar_index")
+            self.similar_index_file_path = os.path.join(similar_index_save_path, f"{dataset_name}.npy")
+            os.makedirs(similar_index_save_path, exist_ok=True)
+            with open(file_input, "r") as f:
+                all_input = json.load(f)
+                self.all_texts = [input["text"] for input in all_input]
+            if os.path.exists(self.similar_index_file_path):
+                self.similar_idx = np.load(self.similar_index_file_path)
+                print(f"index load from {self.similar_index_file_path}")
+            else:
+                rerank_model = RerankModel(bge_model_path=preprocess_model_path)
+                self.similar_idx = rerank_model.preprocess_build_faiss_index(
+                    all_documents=self.all_texts,
+                    topk=10
+                )
+                np.save(self.similar_index_file_path, self.similar_idx)
+                rerank_model.clean_()
+                del rerank_model
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         config._attn_implementation = "sdpa"
@@ -120,6 +143,140 @@ class FusionRAGModel:
             self.input_device = "cuda:0"  # First GPU for inputs
         else:
             self.input_device = device
+
+
+    def preprocess_one_document(self, system_prompt: str, document: str, reprocess_method: str, revert_rope: bool):
+        system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
+        system_tensor = torch.tensor(system_tokens, dtype=torch.long)
+        system_len = system_tensor.shape[0]
+        hash_key = hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()
+        system_cache_path = f'{self.save_path}/{hash_key}_key.pt'
+        ## first generate system cache, this should already be there.
+        if not os.path.exists(system_cache_path):
+            print(f"Generating system KV cache...")
+            input_tensor = system_tensor.unsqueeze(0)
+            prefill_and_save_kv_cache(
+                model=self.model,
+                tokenizer=self.tokenizer,
+                past_key_values=self.past_key_values,
+                inputs=input_tensor.to(self.input_device),
+                save_path=self.save_path,
+                chunk_id=0,
+                hash_key=hash_key,
+                system_len=system_len,
+                passage_len=system_len,
+                reprocess_method=reprocess_method,
+                device=self.input_device,
+                device_map=self.device_map
+            )
+
+        ## also put in preprocess_save_path
+        system_cache_path = f'{self.preprocess_save_path}/{hash_key}_key.pt'
+        if not os.path.exists(system_cache_path):
+            input_tensor = system_tensor.unsqueeze(0)
+            prefill_and_save_kv_cache(
+                model=self.model,
+                tokenizer=self.tokenizer,
+                past_key_values=self.past_key_values,
+                inputs=input_tensor.to(self.input_device),
+                save_path=self.preprocess_save_path,
+                chunk_id=0,
+                hash_key=hash_key,
+                system_len=system_len,
+                passage_len=system_len,
+                reprocess_method=reprocess_method,
+                device=self.input_device,
+                device_map=self.device_map
+            )
+        time_start = time.time()
+
+        time_start = time.time()
+        current_doc = document
+        try:
+            current_doc_index = self.all_texts.index(current_doc)
+        except ValueError:
+            print("字符串不存在！！！！")
+            return
+        current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
+        current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
+        current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
+        print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
+        if os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_value.pt') \
+                and os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_key.pt'):
+            print(f"preprocess_all_documents skipping doc {current_doc}.")
+            return
+
+        similar_doc_indeces = self.similar_idx[current_doc_index]
+        all_doc_tensors = [system_tensor]
+        all_doc_len = [len(system_tensor)]
+
+
+        # 1. compute all kv.
+        for similar_doc_index in similar_doc_indeces:
+            if similar_doc_index < 0:
+                continue
+            if similar_doc_index == current_doc_index:
+                continue
+            similar_doc_text = self.all_texts[similar_doc_index]
+            doc_tokens = self.tokenizer.encode(similar_doc_text, add_special_tokens=False)
+            doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
+            all_doc_tensors.append(doc_tensor)
+            all_doc_len.append(len(doc_tensor))
+            hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
+            cache_key_path = f'{self.save_path}/{hash_key}_key.pt'
+            cache_value_path = f'{self.save_path}/{hash_key}_value.pt'
+
+            if not os.path.exists(cache_key_path):
+                passage_len = doc_tensor.shape[0]
+                ## system_prompt + document_text
+                input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
+                prefill_and_save_kv_cache(
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    past_key_values=self.past_key_values,
+                    inputs=input_tensor.to(self.input_device),
+                    hash_key=hash_key,
+                    save_path=self.save_path,
+                    chunk_id=1,
+                    system_len=system_len,
+                    passage_len=passage_len,
+                    reprocess_method=reprocess_method,
+                    device=self.input_device,
+                    device_map=self.device_map
+                )
+
+        # clean all past tokens
+        for layer_idx in range(len(self.past_key_values.key_cache)):
+            self.past_key_values.past_tokens[layer_idx] = 0
+        ## 2. load all kv caches
+        for doc_idx, doc_tensor in enumerate(all_doc_tensors):
+            hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
+            cache_key_path = f'{self.save_path}/{hash_key}_key.pt'
+            cache_value_path = f'{self.save_path}/{hash_key}_value.pt'
+            print(f"cache_key_path = {cache_key_path}")
+            chunk_key_cache = torch.load(cache_key_path, weights_only=True)
+            chunk_value_cache = torch.load(cache_value_path, weights_only=True)
+            past_len = sum(all_doc_len[:doc_idx])
+
+            ## load all kv caches
+            for layer_idx in range(len(self.past_key_values.key_cache)):
+                self.past_key_values.key_cache[layer_idx].narrow(2, past_len, all_doc_len[doc_idx]).copy_(
+                    chunk_key_cache[layer_idx])
+                self.past_key_values.value_cache[layer_idx].narrow(2, past_len, all_doc_len[doc_idx]).copy_(
+                    chunk_value_cache[layer_idx])
+                self.past_key_values.past_tokens[layer_idx] += all_doc_len[doc_idx]
+                if layer_idx == 0:
+                    print(f"past_tokens += {all_doc_len[doc_idx]}, ={self.past_key_values.past_tokens[layer_idx]}")
+
+        all_doc_tensors.append(current_doc_tensor)
+        prefill_with_cache_and_save_preprocess(
+            self.model, self.tokenizer, self.past_key_values, all_doc_tensors,
+            self.preprocess_save_path, example_id=0, chunk_id=0,
+            system_len=system_len, revert_rope=revert_rope,
+            reprocess_method=reprocess_method, device=self.input_device, device_map=self.device_map,
+            hash_key=current_hash_key
+        )
+        print(f"[preprocess_all_documents] takes {time.time()-time_start} seconds")
 
 
     def preprocess_all_documents(self, system_prompt: str, context_rank, all_documents: list[str], reprocess_method: str, revert_rope: bool):
@@ -291,26 +448,26 @@ class FusionRAGModel:
             load_kwargs['device_map'] = 'auto'
 
         if model_type == 'mistral':
-            from .models.modeling_mistral import MistralForCausalLM
+            from ktransformers.models.modeling_mistral import MistralForCausalLM
             with torch.no_grad():
                 model = MistralForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'pangu':
-            from .models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
+            from ktransformers.models.modeling_openpangu_dense import PanguEmbeddedForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = PanguEmbeddedForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'qwen' or model_type == 'qwen2':
-            from .models.modeling_qwen2 import Qwen2ForCausalLM
+            from ktransformers.models.modeling_qwen2 import Qwen2ForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = Qwen2ForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'qwen3':
-            from .models.modeling_qwen3 import Qwen3ForCausalLM
+            from ktransformers.models.modeling_qwen3 import Qwen3ForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = Qwen3ForCausalLM.from_pretrained(model_path, **load_kwargs)
         elif model_type == 'llama':
-            from .models.modeling_llama import LlamaForCausalLM
+            from ktransformers.models.modeling_llama import LlamaForCausalLM
             torch.set_default_dtype(config.torch_dtype)
             with torch.no_grad():
                 model = LlamaForCausalLM.from_pretrained(model_path, **load_kwargs)
@@ -338,7 +495,6 @@ class FusionRAGModel:
             rate=0.2,
             reprocess_method='FusionRAG',
             revert_rope=True,
-            preprocess=False,
             max_new_tokens=150,
             use_entropy_selection=False,
             entropy_top_k=4,
@@ -413,6 +569,14 @@ class FusionRAGModel:
                         device_map=self.device_map
                     )
                     print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
+            if self.preprocess:
+                for doc_text in retrieved_docs:
+                    self.preprocess_one_document(
+                        system_prompt=DEFAULT_SYSTEM_PROMPT,
+                        document=doc_text,
+                        reprocess_method=reprocess_method,
+                        revert_rope=revert_rope,
+                    )
 
         if model_type == 'qwen3':
             question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
@@ -428,7 +592,7 @@ class FusionRAGModel:
         if rate == 1:
             # Full recompute
             inputs = torch.cat(iter_tokens).to(self.input_device).unsqueeze(0)
-            from .util.utils import prefill_and_generate
+            from ktransformers.util.utils import prefill_and_generate
             generated_tokens, _, _ = prefill_and_generate(
                 self.model,
                 self.tokenizer,
@@ -439,12 +603,12 @@ class FusionRAGModel:
             )
         else:
             # Load preprocessed KV cache and generate
-            load_path = self.preprocess_save_path if preprocess else self.save_path
+            load_path = self.preprocess_save_path if self.preprocess else self.save_path
             ## check if all preprocess cache is there.
             for doc_index, hash_key in enumerate(hash_keys):
                 key_cache_path = f'{load_path}/{hash_key}_key.pt'
                 value_cache_path = f'{load_path}/{hash_key}_value.pt'
-                if preprocess and (not os.path.exists(key_cache_path) or not os.path.exists(value_cache_path)):
+                if self.preprocess and (not os.path.exists(key_cache_path) or not os.path.exists(value_cache_path)):
                     if doc_index > 0:
                         print(f"retrieved_docs {retrieved_docs[doc_index-1]} not preprocessed before.")
                     load_path = self.save_path
@@ -462,7 +626,7 @@ class FusionRAGModel:
                 use_entropy_selection=use_entropy_selection,
                 rate=rate,
                 draft_model=self.draft_model,
-                preprocess=preprocess,
+                preprocess=self.preprocess,
                 device=self.input_device,
                 device_map=self.device_map,
                 draft_model_device=self.draft_model_device,
@@ -507,7 +671,6 @@ def test_question(fusion_rag_model):
         rate=0.3,
         reprocess_method='DraftModel',
         revert_rope=True,
-        preprocess=False,
         max_new_tokens=250,
     )
     print(f"answer={answer}")
@@ -531,7 +694,10 @@ if __name__ == '__main__':
         cache_path='/data2/qy_tmp/xumengyao/fusionrag/',
         draft_model_device="cuda:0",
         draft_model_path='/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct',
-        draft_model_type="qwen"
+        draft_model_type="qwen",
+        preprocess=True,
+        file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
+        preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3"
     )
     test_question(fusion_rag_model)
 

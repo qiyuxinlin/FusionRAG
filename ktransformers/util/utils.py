@@ -16,9 +16,9 @@ import string
 import json
 import collections
 import numpy as np
-from ..models.custom_cache import StaticCache
-from ..util.cuda_graph_runner import CUDAGraphRunner
-from ..util.textstream import TextStreamer
+from ktransformers.models.custom_cache import StaticCache
+from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
+from ktransformers.util.textstream import TextStreamer
 from transformers import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
