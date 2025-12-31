@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import sys
@@ -144,6 +145,70 @@ class FusionRAGModel:
         else:
             self.input_device = device
 
+    def levenshtein_distance(self, s1: str, s2: str) -> int:
+        """
+        计算两个字符串之间的编辑距离（Levenshtein距离）
+        """
+        if len(s1) < len(s2):
+            return self.levenshtein_distance(s2, s1)
+
+        if len(s2) == 0:
+            return len(s1)
+
+        previous_row = range(len(s2) + 1)
+
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+
+            for j, c2 in enumerate(s2):
+                # 计算插入、删除、替换的代价
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+
+                current_row.append(min(insertions, deletions, substitutions))
+
+            previous_row = current_row
+
+        return previous_row[-1]
+
+    def find_closest_by_edit_distance(self, texts: list[str], target: str, return_all_min: bool = False) -> int or list[int]:
+        import re
+        for idx, text in enumerate(texts):
+            if re.sub(r'\s+', '', text) == re.sub(r'\s+', '', target):
+                print(f"find_closest_by_edit_distance found {idx}")
+                return idx
+        """
+        从字符串列表中找出与目标字符串编辑距离最近的文本
+
+        参数:
+            texts: 字符串列表
+            target: 目标字符串
+            return_all_min: 是否返回所有最小距离的索引，默认为False（只返回第一个）
+
+        返回:
+            如果return_all_min为False: 返回最小编辑距离的索引
+            如果return_all_min为True: 返回所有最小编辑距离的索引列表
+        """
+        if not texts:
+            raise ValueError("字符串列表不能为空")
+
+        min_distance = float('inf')
+        min_indices = []
+
+        for i, text in enumerate(texts):
+            distance = self.levenshtein_distance(text, target)
+
+            if distance < min_distance:
+                min_distance = distance
+                min_indices = [i]
+            elif distance == min_distance:
+                min_indices.append(i)
+
+        if return_all_min:
+            return min_indices
+        else:
+            return min_indices[0]
 
     def preprocess_one_document(self, system_prompt: str, document: str, reprocess_method: str, revert_rope: bool):
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
@@ -195,8 +260,10 @@ class FusionRAGModel:
         try:
             current_doc_index = self.all_texts.index(current_doc)
         except ValueError:
-            print("字符串不存在！！！！")
-            return
+            print(f"字符串不存在")
+            current_doc_index = self.find_closest_by_edit_distance(texts=self.all_texts, target=current_doc, return_all_min=False)
+            print(f"字符串不存在！{current_doc}, replace with {self.all_texts[current_doc_index]}")
+
         current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
         current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
@@ -498,8 +565,8 @@ class FusionRAGModel:
             max_new_tokens=150,
             use_entropy_selection=False,
             entropy_top_k=4,
-            device_draft_model="",
     ) -> (int, int, int, int, str, list[int]):
+        print(f"recomputing using recomputation_rate={rate}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
@@ -610,7 +677,7 @@ class FusionRAGModel:
                 value_cache_path = f'{load_path}/{hash_key}_value.pt'
                 if self.preprocess and (not os.path.exists(key_cache_path) or not os.path.exists(value_cache_path)):
                     if doc_index > 0:
-                        print(f"retrieved_docs {retrieved_docs[doc_index-1]} not preprocessed before.")
+                        print(f"retrieved_docs {retrieved_docs[doc_index]} not preprocessed before. 字符串不存在")
                     load_path = self.save_path
                     break
             generated_tokens, _ = load_kv_and_generate(
@@ -625,6 +692,7 @@ class FusionRAGModel:
                 reprocess_method=reprocess_method,
                 use_entropy_selection=use_entropy_selection,
                 rate=rate,
+                entropy_top_k=entropy_top_k,
                 draft_model=self.draft_model,
                 preprocess=self.preprocess,
                 device=self.input_device,
