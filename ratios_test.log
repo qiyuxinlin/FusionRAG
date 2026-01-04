@@ -1,0 +1,1918 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+测试样例 4 在不同重算比例下的答案变化
+====================================================================================================
+测试比例: ['0%', '10%', '15%', '20%', '25%', '30%']
+====================================================================================================
+
+
+====================================================================================================
+测试比例: 0%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.44it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.50it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.52it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.56it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Oracle method: Using main model for attention computation (no draft model needed)
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/Oracle_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/5: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.05823159217834473
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/5: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.024458885192871094
+
+Predicted:  Corfe Mullen, Dorset, England
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/5: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.025162458419799805
+
+Predicted: 位于威斯康星州道尔县华盛顿岛的北部边缘。
+F1: 0.0000, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/5: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.02192521095275879
+
+Predicted:  Sigrid Sture (also known as Sigrid Sture Banér) is the child of Peter Andreas Heiberg, as she is described as the niece of queen Margaret Leijonhufvud, who is the daughter of Peter Andreas Heiberg and Märta Erikdotter Leijonhufvud.
+F1: 0.3077, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.024866819381713867
+
+Predicted:  Margareta Eriksdotter Vasa
+F1: 0.0000, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✗ Main question 4: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 5/5: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.022269487380981445
+
+Predicted:  Joan de Geneville, Henry de Lusignan, Oliver de Lusignan, John de Lusignan, Geoffrey de Lusignan, Henry de Lusignan, Osbert Giffard de Lusignan, Eudes de Lusignan, Bartholomew de Lusignan, and probably Philip de Lusignan
+F1: 0.1489, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.030849456787109375
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 3/5 (60.00%)
+Sub Questions: 4/7 (57.14%)
+Average F1: 0.2637
+Average EM: 0.1429
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.0):
+  Sub Questions Accuracy: 57.14%, F1: 0.2637, EM: 0.1429
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -30.76%, F1: -0.3074, EM: -0.0910
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+⚠️  未找到结果文件: ./result/Oracle_global_topk_10_rate_0.0_revert_rope.csv
+
+====================================================================================================
+测试比例: 10%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.44it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.51it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.54it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.57it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Oracle method: Using main model for attention computation (no draft model needed)
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/Oracle_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/5: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.025067567825317383
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~6.1 MB per layer (vs 485.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 19, 22, 17]
+Oracle 选择了 126 个 tokens (10.0%)
+select_time: 0.242s
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/5: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.02332162857055664
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~5.6 MB per layer (vs 476.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 17, 19]
+Oracle 选择了 120 个 tokens (10.0%)
+select_time: 0.238s
+
+Predicted:  Corfe Mullen, Dorset, England
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/5: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.024382591247558594
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~5.1 MB per layer (vs 542.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 20, 17]
+Oracle 选择了 137 个 tokens (9.9%)
+select_time: 0.247s
+
+Predicted:  Coffee Swamp is located on the northern edge of Washington Island, in Door County Wisconsin.
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/5: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.021485090255737305
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 19, 17]
+Oracle 选择了 104 个 tokens (9.9%)
+select_time: 0.218s
+
+Predicted:  Johanne Luise Heiberg
+F1: 0.2727, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.024241209030151367
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~6.3 MB per layer (vs 503.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 15]
+Oracle 选择了 126 个 tokens (10.0%)
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+select_time: 0.247s
+
+Predicted:  Johanne Luise Heiberg
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✗ Main question 4: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 5/5: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.021654129028320312
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~6.8 MB per layer (vs 428.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 19]
+Oracle 选择了 108 个 tokens (10.0%)
+select_time: 0.225s
+
+Predicted:  John of Gaunt, 1st Duke of Lancaster and Isabella of Angoulême
+F1: 0.0556, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.030321359634399414
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 15, 18, 17]
+Oracle 选择了 192 个 tokens (10.0%)
+select_time: 0.330s
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 3/5 (60.00%)
+Sub Questions: 4/7 (57.14%)
+Average F1: 0.5311
+Average EM: 0.4286
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.1):
+  Sub Questions Accuracy: 57.14%, F1: 0.5311, EM: 0.4286
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -30.76%, F1: -0.0401, EM: +0.1947
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+⚠️  未找到结果文件: ./result/Oracle_global_topk_10_rate_0.1_revert_rope.csv
+
+====================================================================================================
+测试比例: 15%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.45it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.52it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.62it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.58it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Oracle method: Using main model for attention computation (no draft model needed)
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/Oracle_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/5: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.02532339096069336
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~6.1 MB per layer (vs 485.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 19, 22, 17]
+Oracle 选择了 189 个 tokens (15.0%)
+select_time: 0.236s
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/5: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.023516416549682617
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~5.6 MB per layer (vs 476.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 17, 19]
+Oracle 选择了 180 个 tokens (14.9%)
+select_time: 0.235s
+
+Predicted:  Dorset, England
+F1: 0.5455, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/5: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.024664878845214844
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~5.1 MB per layer (vs 542.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 20, 17]
+Oracle 选择了 206 个 tokens (15.0%)
+select_time: 0.248s
+
+Predicted:  Washington Island, Door County Wisconsin
+F1: 0.5000, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/5: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.021564722061157227
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 19, 17]
+Oracle 选择了 156 个 tokens (14.9%)
+select_time: 0.215s
+
+Predicted:  Johanne Luise Heiberg
+F1: 0.2727, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.024441957473754883
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~6.3 MB per layer (vs 503.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 15]
+Oracle 选择了 189 个 tokens (15.0%)
+select_time: 0.237s
+
+Predicted:  Johanne Luise Heiberg
+F1: 1.0000, EM: 1.0000
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✗ Main question 4: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 5/5: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.021877765655517578
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~6.8 MB per layer (vs 428.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 19]
+Oracle 选择了 162 个 tokens (15.0%)
+select_time: 0.224s
+
+Predicted:  John of Gaunt, 1st Duke of Lancaster and Isabella of Angoulême
+F1: 0.0556, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.0302734375
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 15, 18, 17]
+Oracle 选择了 289 个 tokens (15.0%)
+select_time: 0.322s
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 3/5 (60.00%)
+Sub Questions: 4/7 (57.14%)
+Average F1: 0.3947
+Average EM: 0.1429
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.15):
+  Sub Questions Accuracy: 57.14%, F1: 0.3947, EM: 0.1429
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -30.76%, F1: -0.1764, EM: -0.0910
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+⚠️  未找到结果文件: ./result/Oracle_global_topk_10_rate_0.15_revert_rope.csv
+
+====================================================================================================
+测试比例: 20%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.45it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.51it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.62it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.58it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Oracle method: Using main model for attention computation (no draft model needed)
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/Oracle_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/5: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.025498628616333008
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~6.1 MB per layer (vs 485.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 19, 22, 17]
+Oracle 选择了 252 个 tokens (20.0%)
+select_time: 0.236s
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/5: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.02348637580871582
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~5.6 MB per layer (vs 476.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 17, 19]
+Oracle 选择了 241 个 tokens (20.0%)
+select_time: 0.239s
+
+Predicted:  Dorset, England
+F1: 0.5455, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/5: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.024739503860473633
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~5.1 MB per layer (vs 542.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 20, 17]
+Oracle 选择了 275 个 tokens (20.0%)
+select_time: 0.252s
+
+Predicted:  Coffee Swamp is located on the northern edge of Washington Island, in Door County Wisconsin.
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/5: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.021657943725585938
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 19, 17]
+Oracle 选择了 209 个 tokens (20.0%)
+select_time: 0.224s
+
+Predicted:  Johan Ludvig Heiberg
+F1: 0.5714, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.024471521377563477
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~6.3 MB per layer (vs 503.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 15]
+Oracle 选择了 252 个 tokens (20.0%)
+select_time: 0.243s
+
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Predicted:  Johanne Luise Heiberg
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✓ Main question 4: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 5/5: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.021887779235839844
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~6.8 MB per layer (vs 428.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 19]
+Oracle 选择了 216 个 tokens (20.0%)
+select_time: 0.229s
+
+Predicted:  Joan de Geneville, Henry de Warenne, and Isabella de Warenne
+F1: 0.2353, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.030079364776611328
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 15, 18, 17]
+Oracle 选择了 385 个 tokens (20.0%)
+select_time: 0.329s
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 4/5 (80.00%)
+Sub Questions: 5/7 (71.43%)
+Average F1: 0.5345
+Average EM: 0.2857
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.2):
+  Sub Questions Accuracy: 71.43%, F1: 0.5345, EM: 0.2857
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -16.47%, F1: -0.0367, EM: +0.0518
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+⚠️  未找到结果文件: ./result/Oracle_global_topk_10_rate_0.2_revert_rope.csv
+
+====================================================================================================
+测试比例: 25%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.45it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.51it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.62it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.58it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Oracle method: Using main model for attention computation (no draft model needed)
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/Oracle_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/5: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.02541184425354004
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~6.1 MB per layer (vs 485.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 19, 22, 17]
+Oracle 选择了 315 个 tokens (24.9%)
+select_time: 0.238s
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/5: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.02343893051147461
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~5.6 MB per layer (vs 476.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 17, 19]
+Oracle 选择了 301 个 tokens (25.0%)
+select_time: 0.234s
+
+Predicted:  Corfe Mullen, Dorset, England
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/5: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.024461030960083008
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~5.1 MB per layer (vs 542.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 20, 17]
+Oracle 选择了 344 个 tokens (25.0%)
+select_time: 0.248s
+
+Predicted:  Coffee Swamp is located on the northern edge of Washington Island, in Door County Wisconsin.
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/5: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.021348953247070312
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 19, 17]
+Oracle 选择了 261 个 tokens (25.0%)
+select_time: 0.215s
+
+Predicted:  Johan Ludvig Heiberg
+F1: 0.5714, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.02420330047607422
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~6.3 MB per layer (vs 503.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 15]
+Oracle 选择了 315 个 tokens (25.0%)
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+select_time: 0.237s
+
+Predicted:  Johanne Luise Heiberg
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✓ Main question 4: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 5/5: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.021914005279541016
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~6.8 MB per layer (vs 428.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 19]
+Oracle 选择了 270 个 tokens (25.0%)
+select_time: 0.225s
+
+Predicted:  John of Gaunt, 1st Duke of Lancaster and Isabella of Angoulême
+F1: 0.0556, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.030668973922729492
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 15, 18, 17]
+Oracle 选择了 481 个 tokens (25.0%)
+select_time: 0.322s
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 4/5 (80.00%)
+Sub Questions: 5/7 (71.43%)
+Average F1: 0.5737
+Average EM: 0.4286
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.25):
+  Sub Questions Accuracy: 71.43%, F1: 0.5737, EM: 0.4286
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -16.47%, F1: +0.0026, EM: +0.1947
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+⚠️  未找到结果文件: ./result/Oracle_global_topk_10_rate_0.25_revert_rope.csv
+
+====================================================================================================
+测试比例: 30%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.45it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.52it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.62it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.58it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Oracle method: Using main model for attention computation (no draft model needed)
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/Oracle_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/5: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.025377511978149414
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~6.1 MB per layer (vs 485.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 19, 22, 17]
+Oracle 选择了 378 个 tokens (29.9%)
+select_time: 0.235s
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/5: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.023375749588012695
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~5.6 MB per layer (vs 476.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 17, 19]
+Oracle 选择了 361 个 tokens (30.0%)
+select_time: 0.233s
+
+Predicted:  Corfe Mullen, Dorset, England
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/5: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.029677152633666992
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~5.1 MB per layer (vs 542.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 20, 17]
+Oracle 选择了 413 个 tokens (30.0%)
+select_time: 0.250s
+
+Predicted:  Coffee Swamp is located on the northern edge of Washington Island, in Door County Wisconsin.
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/5: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.02167201042175293
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 18, 19, 17]
+Oracle 选择了 313 个 tokens (29.9%)
+select_time: 0.220s
+
+Predicted:  Johan Ludvig Heiberg
+F1: 0.5714, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.02441239356994629
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~6.3 MB per layer (vs 503.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 15]
+Oracle 选择了 378 个 tokens (30.0%)
+select_time: 0.241s
+
+Predicted:  Johanne Luise Heiberg
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✓ Main question 4: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 5/5: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.02175736427307129
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~6.8 MB per layer (vs 428.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 17, 18, 19]
+Oracle 选择了 324 个 tokens (29.9%)
+select_time: 0.227s
+
+Predicted:  John of Gaunt, 1st Duke of Lancaster and Isabella of Angoulême
+F1: 0.0556, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.03012681007385254
+
+============================================================
+Oracle: Using main model for attention computation
+============================================================
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Oracle 熵选层: 选择了 [16, 15, 18, 17]
+Oracle 选择了 578 个 tokens (30.0%)
+select_time: 0.327s
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 4/5 (80.00%)
+Sub Questions: 5/7 (71.43%)
+Average F1: 0.5737
+Average EM: 0.4286
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.3):
+  Sub Questions Accuracy: 71.43%, F1: 0.5737, EM: 0.4286
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -16.47%, F1: +0.0026, EM: +0.1947
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+⚠️  未找到结果文件: ./result/Oracle_global_topk_10_rate_0.3_revert_rope.csv
+
+====================================================================================================
+样例 5 的答案变化汇总
+====================================================================================================
+
+
+
+详细结果已保存到: ./ratio_test_summary_ex4.json
+
+建议的下一步：
+1. 运行 analyze_critical_ratio.py 分析 attention 分布特征
+2. 对比不同临界比例的样例，找出规律

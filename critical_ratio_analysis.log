@@ -1,0 +1,148 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+临界重算比例分析工具
+====================================================================================================
+样例: 3, 子问题: 0
+设备: cuda:0
+====================================================================================================
+
+加载模型...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.43it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.49it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.53it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.56it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+加载数据...
+Loading dataset from ./result_reflect.json...
+Limited to first 4 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 4
+  - Testable: 4
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 5
+  - Testable: 5
+  - Skipped: 0
+
+Total documents (across all questions): 41
+================================================================================
+
+====================================================================================================
+分析样例 3, 子问题 0
+====================================================================================================
+问题: Who is the child of Peter Andreas Heiberg?
+标准答案: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+====================================================================================================
+
+长度统计:
+  System: 792 tokens
+  Document: 1154 tokens
+  Query: 26 tokens
+  Total: 1972 tokens
+
+计算 Oracle attention 分布...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+选择的层: [16, 18, 19, 17]
+
+Attention 分布统计:
+  Mean: 0.000162
+  Std: 0.000404
+  Max: 0.005160
+  Min: 0.000001
+
+Top-k Concentration:
+  Top-1: 0.52%
+  Top-3: 1.21%
+  Top-5: 1.79%
+  Top-10: 2.98%
+  80% coverage: 1047 tokens (100.10%)
+  85% coverage: 1047 tokens (100.10%)
+  90% coverage: 1047 tokens (100.10%)
+  95% coverage: 1047 tokens (100.10%)
+
+Connected Components:
+  Number: 53
+  Largest: 19 tokens
+  High attention positions: 108
+
+Gini Coefficient: 0.7607
+
+====================================================================================================
+测试不同重算比例
+====================================================================================================
+
+
+--- 测试比例: 0% ---
+  选中 0 tokens (0.00%)
+
+--- 测试比例: 5% ---
+  选中 52 tokens (4.97%)
+  Attention 覆盖: 31.36%
+
+--- 测试比例: 10% ---
+  选中 104 tokens (9.94%)
+  Attention 覆盖: 55.38%
+
+--- 测试比例: 15% ---
+  选中 156 tokens (14.91%)
+  Attention 覆盖: 66.62%
+
+--- 测试比例: 20% ---
+  选中 209 tokens (19.98%)
+  Attention 覆盖: 74.20%
+
+--- 测试比例: 25% ---
+  选中 261 tokens (24.95%)
+  Attention 覆盖: 80.39%
+
+--- 测试比例: 30% ---
+  选中 313 tokens (29.92%)
+  Attention 覆盖: 85.63%
+
+--- 测试比例: 35% ---
+  选中 366 tokens (34.99%)
+  Attention 覆盖: 89.03%
+
+可视化已保存到: ./critical_ratio_analysis_ex3_sub0.png
+
+====================================================================================================
+分析总结
+====================================================================================================
+
+基于以上分析，建议的动态比例策略:
+  - 分布较均匀 → 建议 20-30%
+
+注意: 最终需要实际测试生成质量来验证！

@@ -28,6 +28,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 
+# Import dynamic ratio computation
+from compute_dynamic_ratio import compute_dynamic_ratio_from_attention
+
 
 def analyze_attention_distribution(layer_head_attention_scores, total_doc_len, output_dir='./attention_analysis'):
     """
@@ -2467,6 +2470,9 @@ def main_with_draft_model(
     example_idx=4,
     sub_question_idx=1,
     total_ratio=0.3,
+    use_dynamic_ratio=False,  # 新增：是否使用动态比例
+    min_ratio=0.20,  # 动态比例的最小值
+    max_ratio=0.50,  # 动态比例的最大值
     max_new_tokens=100,
     device="cuda:0",
     output_path='./draft_guided_generation_results.json'
@@ -2476,9 +2482,16 @@ def main_with_draft_model(
 
     流程:
     1. 加载小模型，运行完整 prefill 获得 attention 分布
-    2. 分析 attention 分布，选择重要 tokens
+    2. 分析 attention 分布，选择重要 tokens（固定比例或动态比例）
     3. 加载大模型的 KV cache
     4. 只对选中的 tokens 重算，然后生成
+
+    Args:
+        use_dynamic_ratio: 是否使用动态比例计算
+            - False: 使用固定的 total_ratio
+            - True: 基于 attention 分析动态计算比例
+        min_ratio: 动态比例的最小值（默认 0.20）
+        max_ratio: 动态比例的最大值（默认 0.50）
     """
 
     print(f"\n{'='*100}")
@@ -2486,7 +2499,10 @@ def main_with_draft_model(
     print(f"{'='*100}")
     print(f"  Target model: {target_model_path}")
     print(f"  Draft model: {draft_model_path}")
-    print(f"  Target ratio: {total_ratio}")
+    if use_dynamic_ratio:
+        print(f"  Ratio mode: DYNAMIC (range: [{min_ratio:.0%}, {max_ratio:.0%}])")
+    else:
+        print(f"  Ratio mode: FIXED ({total_ratio:.0%})")
     print(f"{'='*100}\n")
 
     from transformers import AutoConfig
@@ -2545,13 +2561,39 @@ def main_with_draft_model(
         draft_model, tokenizer, full_input, device
     )
 
+    # =========================================================================
+    # Step 1.5: Compute dynamic ratio (if enabled)
+    # =========================================================================
+    actual_ratio = total_ratio
+    dynamic_analysis = None
+
+    if use_dynamic_ratio:
+        print(f"\n{'='*100}")
+        print("[Step 1.5] Computing Dynamic Recomputation Ratio")
+        print(f"{'='*100}")
+
+        dynamic_ratio, dynamic_analysis = compute_dynamic_ratio_from_attention(
+            draft_attention,
+            system_len=system_len,
+            doc_len=doc_len,
+            query_len=query_len,
+            base_ratio=total_ratio,
+            min_ratio=min_ratio,
+            max_ratio=max_ratio
+        )
+
+        actual_ratio = dynamic_ratio
+        print(f"\nUsing DYNAMIC ratio: {actual_ratio:.2%}")
+    else:
+        print(f"\nUsing FIXED ratio: {actual_ratio:.2%}")
+
     # Select tokens based on draft attention
     selected_positions, attention_scores = select_tokens_from_draft_attention(
         draft_attention,
         system_len=system_len,
         doc_len=doc_len,
         query_len=query_len,
-        target_ratio=total_ratio,
+        target_ratio=actual_ratio,
         draft_num_layers=draft_model.config.num_hidden_layers,
         target_num_layers=28  # Qwen2.5-7B has 28 layers
     )
@@ -2747,13 +2789,20 @@ def main_with_draft_model(
         'question': sub_q_info['query'],
         'ground_truth': sub_q_info['answer'],
         'generated_answer': generated_text,
-        'total_ratio': total_ratio,
+        'ratio_config': {
+            'mode': 'dynamic' if use_dynamic_ratio else 'fixed',
+            'base_ratio': total_ratio,
+            'actual_ratio': actual_ratio,
+            'min_ratio': min_ratio if use_dynamic_ratio else None,
+            'max_ratio': max_ratio if use_dynamic_ratio else None,
+        },
         'method': 'draft_model_guided',
         'draft_model': draft_model_path,
         'target_model': target_model_path,
         'doc_len': doc_len,
         'selected_tokens': len(selected_positions),
-        'selection_ratio': len(selected_positions) / doc_len
+        'selection_ratio': len(selected_positions) / doc_len,
+        'dynamic_analysis': dynamic_analysis  # Will be None if use_dynamic_ratio=False
     }
 
     with open(output_path, 'w', encoding='utf-8') as f:
@@ -2770,32 +2819,32 @@ if __name__ == '__main__':
     if 'CUDA_VISIBLE_DEVICES' not in os.environ:
         os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
-    # 分析 DraftModel 选择了哪些 tokens
-    results = analyze_draft_model_selection(
-        draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
-        data_path='./result_reflect.json',
-        bge_model_path='/mnt/data/models/bge-m3-FP16',
-        example_idx=4,
-        sub_question_idx=1,
-        total_ratio=0.3,
-        device='cuda:0'
-    )
-
-    # # 使用小模型指导生成（注释掉）
-    # results = main_with_draft_model(
-    #     target_model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    # # 分析 DraftModel 选择了哪些 tokens
+    # results = analyze_draft_model_selection(
     #     draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
     #     data_path='./result_reflect.json',
-    #     cache_path='/mnt/data/reflect/',
-    #     model_name='Qwen2.5-7B-Instruct',
     #     bge_model_path='/mnt/data/models/bge-m3-FP16',
     #     example_idx=4,
     #     sub_question_idx=1,
     #     total_ratio=0.3,
-    #     max_new_tokens=100,
-    #     device='cuda:0',
-    #     output_path='./draft_guided_generation_results.json'
+    #     device='cuda:0'
     # )
+
+    # # 使用小模型指导生成（注释掉）
+    results = main_with_draft_model(
+        target_model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+        draft_model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+        data_path='./result_reflect.json',
+        cache_path='/mnt/data/reflect/',
+        model_name='Qwen2.5-7B-Instruct',
+        bge_model_path='/mnt/data/models/bge-m3-FP16',
+        example_idx=4,
+        sub_question_idx=1,
+        total_ratio=0.3,
+        max_new_tokens=100,
+        device='cuda:0',
+        output_path='./draft_guided_generation_results.json'
+    )
 
     # # 原方法（注释掉）
     # # 选择策略: "independent", "union_constrained", "greedy_union", "layer_wise", "nested", "threshold"

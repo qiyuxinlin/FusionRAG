@@ -1,0 +1,70 @@
+{
+  "example_idx": 4,
+  "sub_question_idx": 1,
+  "question": "When was King Henry III of England crowned?",
+  "ground_truth": "Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.",
+  "attention_features": {
+    "top1_ratio": 0.007491783704608679,
+    "top3_ratio": 0.014667056500911713,
+    "top5_ratio": 0.02112252451479435,
+    "num_components": 93,
+    "gini": 0.7735970331417346
+  },
+  "critical_ratio": null,
+  "results": [
+    {
+      "ratio": 0.0,
+      "num_selected": 0,
+      "actual_ratio": 0.0,
+      "answer": "ERROR: prefill_and_generate() got an unexpected keyword a",
+      "f1": 0.0,
+      "em": 0.0,
+      "correct": false
+    },
+    {
+      "ratio": 0.1,
+      "num_selected": 192,
+      "actual_ratio": 0.09963674104826155,
+      "answer": "ERROR: prefill_and_generate() got an unexpected keyword a",
+      "f1": 0.0,
+      "em": 0.0,
+      "correct": false
+    },
+    {
+      "ratio": 0.15,
+      "num_selected": 289,
+      "actual_ratio": 0.14997405293201868,
+      "answer": "ERROR: prefill_and_generate() got an unexpected keyword a",
+      "f1": 0.0,
+      "em": 0.0,
+      "correct": false
+    },
+    {
+      "ratio": 0.2,
+      "num_selected": 385,
+      "actual_ratio": 0.19979242345614945,
+      "answer": "ERROR: prefill_and_generate() got an unexpected keyword a",
+      "f1": 0.0,
+      "em": 0.0,
+      "correct": false
+    },
+    {
+      "ratio": 0.25,
+      "num_selected": 481,
+      "actual_ratio": 0.24961079398028022,
+      "answer": "ERROR: prefill_and_generate() got an unexpected keyword a",
+      "f1": 0.0,
+      "em": 0.0,
+      "correct": false
+    },
+    {
+      "ratio": 0.3,
+      "num_selected": 578,
+      "actual_ratio": 0.29994810586403736,
+      "answer": "ERROR: prefill_and_generate() got an unexpected keyword a",
+      "f1": 0.0,
+      "em": 0.0,
+      "correct": false
+    }
+  ]
+}

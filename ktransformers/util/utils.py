@@ -39,6 +39,380 @@ from filelock import FileLock
 # Smart Query Selection 辅助函数
 # ============================================================
 
+def compute_dynamic_budget(attention_scores, doc_len, epsilon=0.1, delta=0.05,
+                           base_sample_ratio=0.05, topk_ratio=0.5, min_rate=0.05, max_rate=0.5):
+    """
+    根据 attention 分布动态计算需要的 budget (参考 vAttention 论文)
+
+    核心思想 (vAttention 论文)：
+    1. Top-k 选择：找到覆盖 (1-ε) 累积权重需要的最少 token
+    2. 随机采样：对残差部分使用 CLT 采样理论估计需要的样本数
+       公式: n ≥ (z × CV / ε)²，其中 CV = σ/μ 是变异系数
+    3. 总 budget = top-k + random
+
+    - attention 集中（少数 token 占大部分权重）→ top-k 少，random 也少
+    - attention 分散（权重分布均匀）→ top-k 多，random 也多
+
+    Args:
+        attention_scores: torch.Tensor [doc_len], 每个 token 的 attention 分数
+        doc_len: 文档长度
+        epsilon: 误差容忍度 (如 0.1 = 10% 相对误差)
+        delta: 置信度 (如 0.05 = 95% 置信度)
+        base_sample_ratio: 保留参数兼容性
+        topk_ratio: 保留参数兼容性
+        min_rate: 最小重算比例
+        max_rate: 最大重算比例
+
+    Returns:
+        dict: 包含动态计算的 budget 信息
+    """
+    import scipy.stats as stats
+
+    if isinstance(attention_scores, torch.Tensor):
+        attention_scores = attention_scores.float().cpu()
+
+    # 确保 attention 分数归一化
+    attention_scores = attention_scores / attention_scores.sum()
+
+    # ========================================
+    # Step 1: 计算 top-k budget (基于累积覆盖率)
+    # ========================================
+    # 目标：找到覆盖 (1-ε) 权重需要的最少 token 数量
+
+    sorted_scores, sorted_indices = torch.sort(attention_scores, descending=True)
+    cumsum = torch.cumsum(sorted_scores, dim=0)
+
+    # 找到累积权重首次超过 (1-ε) 的位置
+    coverage_threshold = 1.0 - epsilon
+    coverage_mask = cumsum >= coverage_threshold
+
+    if coverage_mask.any():
+        topk_budget = (coverage_mask.int().argmax().item() + 1)  # +1 因为 argmax 返回的是索引
+    else:
+        topk_budget = doc_len
+
+    # 计算 top-k 覆盖的实际权重
+    topk_coverage = cumsum[topk_budget - 1].item() if topk_budget > 0 else 0.0
+
+    # ========================================
+    # Step 2: 计算 random budget (基于残差方差)
+    # ========================================
+    # 对于残差部分（未被 top-k 选中的），使用采样来估计
+
+    residual_scores = sorted_scores[topk_budget:]  # 残差部分的分数
+    residual_weight = 1.0 - topk_coverage  # 残差部分的总权重
+
+    if len(residual_scores) > 0 and residual_weight > 1e-10:
+        # 残差部分的统计量
+        residual_mean = residual_scores.mean().item()
+        residual_std = residual_scores.std().item()
+
+        if residual_mean > 1e-10:
+            residual_cv = residual_std / residual_mean
+        else:
+            residual_cv = 0.0
+
+        # 使用 CLT 计算需要的采样数量来估计残差
+        # 目标：残差估计的相对误差 < ε (相对于残差权重)
+        z = stats.norm.ppf(1 - delta / 2)
+
+        if residual_cv > 0:
+            # 需要的样本数 = (z * cv / ε_residual)²
+            # 其中 ε_residual 是残差部分允许的相对误差
+            # 由于残差权重本身就很小，我们允许更大的相对误差
+            epsilon_residual = epsilon / residual_weight if residual_weight > epsilon else 1.0
+            random_budget_theory = (z * residual_cv / epsilon_residual) ** 2
+            random_budget = min(int(random_budget_theory), len(residual_scores))
+        else:
+            random_budget = 0
+    else:
+        residual_cv = 0.0
+        residual_weight = 0.0
+        random_budget = 0
+
+    # 计算熵（衡量分布的均匀程度）
+    # 熵越高 = 分布越均匀 = 需要更多 token
+    entropy = -torch.sum(attention_scores * torch.log(attention_scores + 1e-10)).item()
+    max_entropy = np.log(doc_len)  # 均匀分布的熵
+    normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+
+    # ========================================
+    # Step 3: 计算基于覆盖率的 rate
+    # ========================================
+    total_budget = topk_budget + random_budget
+    coverage_based_rate = total_budget / doc_len
+
+    # ========================================
+    # Step 4: 直接使用 vAttention 的覆盖率+采样方法
+    # ========================================
+    # 纯粹按照 vAttention 论文：top-k (覆盖率) + random (CLT采样)
+    # 不额外添加熵自适应，保持方法的纯粹性
+
+    dynamic_rate = coverage_based_rate
+    rate_source = f"vAttention: topk={topk_budget}({topk_budget/doc_len:.1%}) + random={random_budget}({random_budget/doc_len:.1%})"
+
+    # 应用 min/max 限制
+    dynamic_rate = max(min_rate, min(max_rate, dynamic_rate))
+
+    # 重新计算 budget
+    total_budget = int(dynamic_rate * doc_len)
+
+    # 按比例分配 top-k 和 random
+    if topk_budget + random_budget > 0:
+        topk_ratio_actual = topk_budget / (topk_budget + random_budget)
+    else:
+        topk_ratio_actual = 1.0
+
+    topk_budget_final = int(total_budget * topk_ratio_actual)
+    random_budget_final = total_budget - topk_budget_final
+
+    return {
+        'total_budget': total_budget,
+        'topk_budget': topk_budget_final,
+        'random_budget': random_budget_final,
+        'dynamic_rate': dynamic_rate,
+        # 统计信息
+        'topk_coverage': topk_coverage,
+        'topk_count_for_coverage': topk_budget,  # 达到 (1-ε) 覆盖需要的原始 top-k 数量
+        'residual_weight': residual_weight,
+        'residual_cv': residual_cv,
+        'entropy': entropy,
+        'normalized_entropy': normalized_entropy,
+        'coverage_threshold': coverage_threshold,
+        'coverage_based_rate': coverage_based_rate,
+        'rate_source': rate_source,
+    }
+
+
+def compute_dynamic_ratio_comprehensive(
+    attention_scores,
+    doc_len,
+    base_ratio=0.3,
+    min_ratio=0.20,
+    max_ratio=0.50
+):
+    """
+    综合多特征的动态比例计算（新版本）
+
+    基于 draft model attention 分布的多个特征来动态计算重算比例：
+    1. Coverage-based ratio: 达到 85% attention 覆盖所需比例
+    2. Connected components: 高 attention 位置的分散程度
+    3. Spread factor: 高 attention 位置在文档中的跨度
+    4. Gini coefficient: Attention 集中度
+
+    核心思想：不依赖单一指标，综合多个分布特征来决定比例
+    - 高度集中 + 少量连通分量 → 可降低比例（但不低于 min_ratio）
+    - 分散 + 多个连通分量 → 需要提高比例
+    - 始终保证 safety buffer 捕获 long-tail tokens
+
+    Args:
+        attention_scores: torch.Tensor [doc_len], 每个 token 的 attention 分数
+        doc_len: 文档长度
+        base_ratio: 参考基准比例
+        min_ratio: 最小比例（默认 0.20，确保 long-tail）
+        max_ratio: 最大比例
+
+    Returns:
+        dict: 包含动态计算的比例和详细分析
+    """
+    if isinstance(attention_scores, torch.Tensor):
+        attention_scores = attention_scores.float().cpu().numpy()
+    else:
+        attention_scores = np.array(attention_scores)
+
+    # 归一化
+    attention_scores = attention_scores / (attention_scores.sum() + 1e-10)
+
+    # =========================================================================
+    # 特征 1: Coverage-based Ratio
+    # =========================================================================
+    sorted_indices = np.argsort(attention_scores)[::-1]
+    sorted_attn = attention_scores[sorted_indices]
+    cumsum_attn = np.cumsum(sorted_attn)
+
+    # 计算达到不同覆盖率所需的 token 比例
+    coverage_thresholds = [0.80, 0.85, 0.90]
+    coverage_ratios = {}
+
+    for threshold in coverage_thresholds:
+        tokens_needed = np.searchsorted(cumsum_attn, threshold) + 1
+        ratio = tokens_needed / doc_len
+        coverage_ratios[threshold] = ratio
+
+    # =========================================================================
+    # 特征 1b: Top-k Concentration（Top-k 集中度）
+    # =========================================================================
+    # 检查 top-1, top-3, top-5 tokens 的 attention 占比
+    top1_ratio = sorted_attn[0]
+    top3_ratio = sorted_attn[:min(3, len(sorted_attn))].sum()
+    top5_ratio = sorted_attn[:min(5, len(sorted_attn))].sum()
+
+    # =========================================================================
+    # 特征 2: Connected Components（连通分量）
+    # =========================================================================
+    mean_attn = np.mean(attention_scores)
+    std_attn = np.std(attention_scores)
+    threshold = mean_attn + 0.5 * std_attn
+
+    high_attn_positions = list(np.where(attention_scores > threshold)[0])
+    components = find_connected_components(high_attn_positions, max_gap=2)
+    num_components = len(components)
+
+    # 归一化分量数量（假设 1-20 个分量）
+    normalized_components = min(max(num_components - 1, 0) / 19.0, 1.0)
+
+    # =========================================================================
+    # 特征 3: Spread Factor（分散度）
+    # =========================================================================
+    if len(high_attn_positions) > 0:
+        positions_array = np.array(high_attn_positions)
+        position_span = positions_array.max() - positions_array.min() if len(positions_array) > 1 else 0
+        spread_ratio = position_span / doc_len
+    else:
+        spread_ratio = 0.0
+        position_span = 0
+
+    # =========================================================================
+    # 特征 4: Gini Coefficient（基尼系数）
+    # =========================================================================
+    sorted_attn_gini = np.sort(attention_scores)
+    n = len(sorted_attn_gini)
+    index = np.arange(1, n + 1)
+    gini = (2 * np.sum(index * sorted_attn_gini)) / (n * np.sum(sorted_attn_gini)) - (n + 1) / n
+    # Gini: 0 (平等) → 1 (不平等/集中)
+
+    # =========================================================================
+    # 综合计算动态比例（V2：真正连续、渐进的动态调整）
+    # =========================================================================
+
+    # ===== 核心思想 =====
+    # 1. 使用连续的函数而不是离散的阈值
+    # 2. 基于 Top-k concentration 直接决定主要比例
+    # 3. 其他特征作为微调
+
+    # ===== Step 1: 基于 Top-k Concentration 的核心比例 =====
+    # 核心观察：如果 top-k 占的比例越高，需要的重算比例越低
+
+    # 使用加权的 top-k 作为集中度指标
+    # top1 权重最高，top3 次之，top5 再次之
+    concentration_score = (
+        top1_ratio * 3.0 +      # top-1 权重 3
+        top3_ratio * 2.0 +      # top-3 权重 2
+        top5_ratio * 1.0        # top-5 权重 1
+    ) / 6.0  # 归一化
+
+    # 集中度越高，需要的比例越低
+    # 使用平滑的映射函数
+    # concentration_score ∈ [0, 1]
+    # - 0.7+: 高度集中 → 5-10%
+    # - 0.5-0.7: 中度集中 → 10-20%
+    # - 0.3-0.5: 低集中 → 20-30%
+    # - <0.3: 很分散 → 25-30%
+
+    if concentration_score > 0.6:
+        # 高度集中：线性映射 [0.6, 1.0] → [15%, 5%]
+        core_ratio = 0.15 - (concentration_score - 0.6) / 0.4 * 0.10
+    elif concentration_score > 0.4:
+        # 中度集中：线性映射 [0.4, 0.6] → [22%, 15%]
+        core_ratio = 0.22 - (concentration_score - 0.4) / 0.2 * 0.07
+    else:
+        # 分散：线性映射 [0, 0.4] → [30%, 22%]
+        core_ratio = 0.30 - concentration_score / 0.4 * 0.08
+
+    ratio = core_ratio
+
+    # ===== Step 2: 连通分量微调（渐进式）=====
+    # 分量越多，信息越分散，需要更多 tokens
+    # 使用平滑函数而不是阶梯
+
+    if num_components <= 3:
+        # 极少分量：降低 2-3%
+        component_adjustment = -0.02 - (3 - num_components) * 0.005
+    elif num_components <= 10:
+        # 中等分量：微调 -2% 到 +2%
+        component_adjustment = (num_components - 3) / 7.0 * 0.04 - 0.02
+    else:
+        # 很多分量：增加，但用平滑曲线
+        # 10-20 分量：+2% 到 +5%
+        # 20+ 分量：+5% 到 +8%
+        excess_components = num_components - 10
+        component_adjustment = 0.02 + min(excess_components / 10.0 * 0.03, 0.06)
+
+    ratio += component_adjustment
+
+    # ===== Step 3: Spread 微调（平滑）=====
+    # spread_ratio ∈ [0, 1]
+    # 0-0.3: -1%
+    # 0.3-0.7: 0%
+    # 0.7-1.0: +1% to +3%
+
+    if spread_ratio < 0.3:
+        spread_adjustment = -0.01
+    elif spread_ratio < 0.7:
+        spread_adjustment = 0.0
+    else:
+        # 线性映射 [0.7, 1.0] → [0%, 3%]
+        spread_adjustment = (spread_ratio - 0.7) / 0.3 * 0.03
+
+    ratio += spread_adjustment
+
+    # ===== Step 4: Gini 微调（平滑）=====
+    # gini ∈ [0, 1]
+    # 0.9+: 极度集中 → -3%
+    # 0.7-0.9: 中度集中 → -1% to -3%
+    # 0.5-0.7: 中等 → 0%
+    # <0.5: 均匀 → +2%
+
+    if gini > 0.9:
+        gini_adjustment = -0.03
+    elif gini > 0.7:
+        # 线性映射 [0.7, 0.9] → [-1%, -3%]
+        gini_adjustment = -0.01 - (gini - 0.7) / 0.2 * 0.02
+    elif gini > 0.5:
+        # 线性映射 [0.5, 0.7] → [0%, -1%]
+        gini_adjustment = -(gini - 0.5) / 0.2 * 0.01
+    else:
+        # 均匀分布，需要更多
+        gini_adjustment = 0.02
+
+    ratio += gini_adjustment
+
+    # ===== Step 5: 应用 min/max 限制 =====
+    ratio = max(ratio, min_ratio)
+    ratio = min(ratio, max_ratio)
+
+    # 四舍五入到 0.05 的倍数
+    dynamic_ratio = round(ratio * 20) / 20
+
+    return {
+        'dynamic_ratio': dynamic_ratio,
+        'base_coverage_ratio': float(base_coverage_ratio),
+        'coverage_analysis': {
+            f'{int(k*100)}%': float(v) for k, v in coverage_ratios.items()
+        },
+        'concentration': {
+            'top1_ratio': float(top1_ratio),
+            'top3_ratio': float(top3_ratio),
+            'top5_ratio': float(top5_ratio),
+            'concentration_factor': float(concentration_factor),
+        },
+        'num_components': num_components,
+        'normalized_components': float(normalized_components),
+        'position_span': int(position_span),
+        'spread_ratio': float(spread_ratio),
+        'gini_coefficient': float(gini),
+        'adjustments': {
+            'component': float(component_adjustment),
+            'spread': float(spread_adjustment),
+            'gini': float(gini_adjustment),
+        },
+        'raw_ratio': float(ratio),
+        'base_ratio': float(base_ratio),
+        'min_ratio': float(min_ratio),
+        'max_ratio': float(max_ratio),
+    }
+
+
 def find_connected_components(positions, max_gap=2):
     """
     找到位置列表中的连通分量（相邻 token 群组）
@@ -495,7 +869,17 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           draft_layer_selection='entropy',  # 'entropy' or 'last'
-                          group=False, device="cuda", chunk_ids=None, device_map=None):
+                          group=False, device="cuda", chunk_ids=None, device_map=None,
+                          vattention_topk_ratio=0.5,  # vAttention: top-k 占总 budget 的比例
+                          # OracleDynamic 参数
+                          epsilon=0.1,  # 误差容忍度 (如 0.1 = 10% 相对误差)
+                          delta=0.05,   # 置信度 (如 0.05 = 95% 置信)
+                          min_rate=0.05,  # 动态 budget 的最小比例
+                          max_rate=0.5,  # 动态 budget 的最大比例
+                          query_text='',  # 用于 DraftModelDynamic 的问题文本
+                          # DraftModelLayerwise 参数
+                          layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
+                          layerwise_final_rate=0.05):  # 最后一层的 rate
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
 
@@ -504,6 +888,16 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
     inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
     seq_length = passages[-1][query_prefix_len:].shape[0]
+
+    # 用于存储额外信息（如 OracleDynamic 的动态 rate）
+    extra_info = {
+        'dynamic_rate': None,
+        'topk_coverage': None,
+        'topk_count_for_coverage': None,
+        'normalized_entropy': None,
+        'total_budget': None,
+        'doc_len': None
+    }
 
     # load KV
 
@@ -782,13 +1176,18 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                 # 获取文档部分的 attention 分数
                 num_layers = len(past_key_values.importance_cache)
-                doc_len = sum(passages_len[1:-1])
+                # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
+                # 只从 文本块2 开始选择，即 passages_len[2:-1]
+                text_block1_len = passages_len[1]
+                doc_len = sum(passages_len[2:-1])
+                selection_start = system_len + text_block1_len  # 选择区域的起始位置
 
                 # 收集所有候选层的 attention（后 1/2 的层，用于熵选层）
+                # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
                 candidate_start = num_layers // 2
                 layer_attention_dict = {}
                 for layer_idx in range(candidate_start, num_layers):
-                    layer_attn = past_key_values.importance_cache[layer_idx][:, system_len:system_len + doc_len]
+                    layer_attn = past_key_values.importance_cache[layer_idx][:, selection_start:selection_start + doc_len]
                     layer_attn_avg = layer_attn.mean(dim=0).to(input_device)  # [doc_len]
                     layer_attention_dict[layer_idx] = layer_attn_avg
 
@@ -809,11 +1208,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
                 # 使用 smart_query_selection 进行选择
+                # 注意: selection_start 是选择区域的起始位置（跳过了 system 和 文本块1）
                 selected_indices = smart_query_selection(
                     attention_scores=multi_layer_attn,
                     doc_len=doc_len,
                     target_ratio=rate,
-                    system_len=system_len,
+                    system_len=selection_start,  # 使用 selection_start 作为偏移量
                     device=input_device
                 )
                 # 转成 tensor 以与后续 torch.sort 兼容
@@ -829,7 +1229,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
-            doc_len = sum(passages_len[1:-1])
+            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
+            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len  # 选择区域的起始位置
 
             # 如果没有传入 draft_attention，需要用 draft_model 计算
             if draft_attention is None:
@@ -844,11 +1248,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # 已经只包含 query positions 的 attention，不需要再切片 query 维度
 
             # 收集各层的 query→doc attention
+            # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
             layer_attention_dict = {}
             for layer_idx, layer_attn in draft_attention.items():
                 # layer_attn: [num_heads, query_len, seq_len]
-                # 提取 query→doc attention（只切片 key 维度）
-                query_to_doc = layer_attn[:, :, system_len:system_len + doc_len]
+                # 提取 query→doc attention（只切片 key 维度，跳过 system 和 文本块1）
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
                 # 对 heads 和 query positions 平均
                 doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
                 layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
@@ -873,11 +1278,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}, expected 'entropy' or 'last'")
 
             # 使用 smart_query_selection 进行选择
+            # 注意: selection_start 是选择区域的起始位置（跳过了 system 和 文本块1）
             selected_indices = smart_query_selection(
                 attention_scores=multi_layer_attn,
                 doc_len=doc_len,
                 target_ratio=rate,
-                system_len=system_len,
+                system_len=selection_start,  # 使用 selection_start 作为偏移量
                 device=input_device
             )
             k_need_index = torch.tensor(selected_indices, device='cpu')
@@ -885,11 +1291,667 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
             print(f'select_time: {time.time() - select_time:.3f}s')
 
+        elif reprocess_method == 'DraftModelDynamic':
+            # DraftModelDynamic: 用小模型 prefill 获取 attention，动态计算重算比例
+            select_time = time.time()
+
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len
+
+            # 如果没有传入 draft_attention，需要用 draft_model 计算
+            if draft_attention is None:
+                if draft_model is None:
+                    raise ValueError("Either draft_model or draft_attention must be provided for DraftModelDynamic method")
+                full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, input_device)
+                torch.cuda.empty_cache()
+
+            # 收集各层的 query→doc attention
+            layer_attention_dict = {}
+            all_layer_attentions = []  # 用于动态rate计算
+
+            for layer_idx, layer_attn in draft_attention.items():
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+                all_layer_attentions.append(doc_attention_avg)
+
+            # 基于熵选层
+            if draft_layer_selection == 'entropy':
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  DraftModelDynamic 熵选层: 选择了 {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            elif draft_layer_selection == 'last':
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  DraftModelDynamic 使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}")
+
+            # =========================================================================
+            # 动态计算 rate
+            # =========================================================================
+            aggregated_attn = multi_layer_attn.cpu().numpy()
+            attn_features = {}
+
+            # Feature 1: 归一化熵
+            p_agg = aggregated_attn / (aggregated_attn.sum() + 1e-10)
+            p_agg = np.clip(p_agg, 1e-10, 1.0)
+            attn_entropy = -np.sum(p_agg * np.log(p_agg))
+            max_entropy = np.log(doc_len) if doc_len > 0 else 1
+            attn_features['normalized_entropy'] = attn_entropy / max_entropy
+
+            # Feature 2: Coverage ratio
+            sorted_indices = np.argsort(aggregated_attn)[::-1]
+            sorted_attn = aggregated_attn[sorted_indices]
+            cumsum = np.cumsum(sorted_attn) / (sorted_attn.sum() + 1e-10)
+            coverage_count = np.searchsorted(cumsum, 0.85) + 1
+            attn_features['coverage_85_ratio'] = coverage_count / doc_len
+
+            # Feature 3: Gini coefficient
+            sorted_attn_asc = np.sort(aggregated_attn)
+            n = len(sorted_attn_asc)
+            index = np.arange(1, n + 1)
+            gini = ((2 * index - n - 1) * sorted_attn_asc).sum() / (n * sorted_attn_asc.sum() + 1e-10)
+            attn_features['gini_coefficient'] = gini
+
+            # Feature 4: 连通分量数量
+            mean_attn = np.mean(aggregated_attn)
+            std_attn = np.std(aggregated_attn)
+            threshold_positions = list(np.where(aggregated_attn > mean_attn + 0.5 * std_attn)[0])
+            components = find_connected_components(threshold_positions, max_gap=2)
+            attn_features['num_components'] = len(components)
+
+            # Feature 5: 高attention位置跨度
+            high_positions = np.where(aggregated_attn > mean_attn + std_attn)[0]
+            if len(high_positions) > 1:
+                attn_features['high_attn_span'] = (high_positions.max() - high_positions.min()) / doc_len
+            else:
+                attn_features['high_attn_span'] = 0
+
+            # =========================================================================
+            # 动态计算 rate（范围 min_rate ~ max_rate）
+            # =========================================================================
+            #
+            # 经过大量分析发现：
+            # - Attention 特征（gini, coverage, cross_doc_entropy 等）区分力都很弱
+            # - Easy 和 Medium 问题的特征分布高度重叠（分离度 < 0.5）
+            # - 问题的"难度"并不反映在 attention 分布中
+            #
+            # 因此采用简单优雅的公式，基于 coverage 的物理意义：
+            #
+            #   rate = coverage_90_ratio
+            #
+            # 物理意义：
+            #   "达到 90% attention 覆盖需要多少比例的 token，就用多少比例去重算"
+            #
+            # 这个公式简单、有理论依据，且不依赖于复杂的特征工程
+
+            # 计算 coverage_90
+            coverage_90_count = np.searchsorted(cumsum, 0.90) + 1
+            coverage_90_ratio = coverage_90_count / doc_len
+            attn_features['coverage_90_ratio'] = coverage_90_ratio
+
+            # 简洁公式：rate = coverage_90_ratio
+            # 但由于 coverage 计算的范围和实际需要的范围有差异，需要缩放
+            # 经验缩放系数：0.7（因为 coverage_90 平均约 40%，而最优 rate 约 20-30%）
+            scale_factor = 0.7
+
+            dynamic_rate = coverage_90_ratio * scale_factor
+
+            # 确保在范围内
+            dynamic_rate = np.clip(dynamic_rate, min_rate, max_rate)
+
+            print(f"\n  DraftModelDynamic Features:")
+            print(f"    normalized_entropy: {attn_features['normalized_entropy']:.3f}")
+            print(f"    coverage_85_ratio: {attn_features['coverage_85_ratio']:.3f}")
+            print(f"    coverage_90_ratio: {coverage_90_ratio:.3f}")
+            print(f"    gini_coefficient: {attn_features['gini_coefficient']:.3f}")
+            print(f"    num_components: {attn_features['num_components']}")
+            print(f"    high_attn_span: {attn_features['high_attn_span']:.3f}")
+            print(f"  Dynamic rate: {dynamic_rate:.3f} (min={min_rate}, max={max_rate})")
+
+            # 使用动态计算的 rate 进行 token 选择
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                target_ratio=dynamic_rate,
+                system_len=selection_start,
+                device=input_device
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            # 保存动态 rate 信息
+            extra_info['dynamic_rate'] = dynamic_rate
+            extra_info['normalized_entropy'] = attn_features['normalized_entropy']
+            extra_info['topk_coverage'] = attn_features['coverage_85_ratio']
+            extra_info['topk_count_for_coverage'] = coverage_count
+            extra_info['doc_len'] = doc_len
+            extra_info['total_budget'] = len(k_need_index)
+
+            print(f"DraftModelDynamic 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+            print(f'select_time: {time.time() - select_time:.3f}s')
+
+        elif reprocess_method == 'DraftModelLayerwise':
+            # DraftModelLayerwise: 用小模型 attention 指导选择，但每层使用不同的重算比例
+            # 逐层递减策略: 第0层用 initial_rate，逐层递减到 final_rate
+            select_time = time.time()
+
+            # 逐层参数已通过函数参数传入: layerwise_decay, layerwise_final_rate
+            initial_rate = rate  # rate 参数作为 initial_rate
+
+            query_start = sum(passages_len[:-1])
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len
+
+            print(f"\n{'='*60}")
+            print("DraftModelLayerwise: Layer-wise Dynamic Rate")
+            print(f"{'='*60}")
+            print(f"  Initial rate: {initial_rate:.1%}")
+            print(f"  Final rate: {layerwise_final_rate:.1%}")
+            print(f"  Decay type: {layerwise_decay}")
+
+            # 计算 draft model attention
+            if draft_attention is None:
+                if draft_model is None:
+                    raise ValueError("Either draft_model or draft_attention must be provided")
+                full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, input_device)
+                torch.cuda.empty_cache()
+
+            # 收集各层的 query→doc attention
+            layer_attention_dict = {}
+            for layer_idx, layer_attn in draft_attention.items():
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+
+            # 基于熵选层
+            if draft_layer_selection == 'entropy':
+                active_layers, _ = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  Draft 熵选层: {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            else:
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+
+            # 计算每层的 rate (使用递减策略)
+            num_layers = model.config.num_hidden_layers
+
+            def compute_layer_rate(layer_idx, num_layers, initial, final, decay_type):
+                progress = layer_idx / (num_layers - 1) if num_layers > 1 else 0
+                if decay_type == "linear":
+                    return initial - (initial - final) * progress
+                elif decay_type == "exponential":
+                    ratio = final / initial if initial > 0 else 1
+                    return initial * (ratio ** progress)
+                elif decay_type == "cosine":
+                    return final + (initial - final) * (1 + np.cos(np.pi * progress)) / 2
+                else:  # step
+                    if progress < 0.25: return initial
+                    elif progress < 0.5: return initial * 0.7
+                    elif progress < 0.75: return initial * 0.4
+                    else: return final
+
+            # 计算每层的 token selections
+            per_layer_selections = []
+            layer_rates = []
+            for layer_idx in range(num_layers):
+                layer_rate = compute_layer_rate(
+                    layer_idx, num_layers, initial_rate, layerwise_final_rate, layerwise_decay
+                )
+                layer_rates.append(layer_rate)
+
+                # 使用 smart_query_selection 为该层选择 tokens
+                selected_indices = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=doc_len,
+                    target_ratio=layer_rate,
+                    system_len=selection_start,
+                    device=input_device
+                )
+                per_layer_selections.append(selected_indices)
+
+            # 计算统计信息
+            avg_rate = np.mean(layer_rates)
+            total_selected = sum(len(s) for s in per_layer_selections)
+            total_possible = doc_len * num_layers
+
+            print(f"\n  Per-layer rate statistics:")
+            print(f"    Layer 0:  {layer_rates[0]:.1%} ({len(per_layer_selections[0])} tokens)")
+            print(f"    Layer {num_layers//2}:  {layer_rates[num_layers//2]:.1%} ({len(per_layer_selections[num_layers//2])} tokens)")
+            print(f"    Layer {num_layers-1}: {layer_rates[-1]:.1%} ({len(per_layer_selections[-1])} tokens)")
+            print(f"    Average rate: {avg_rate:.1%}")
+            print(f"    Total recomputation: {total_selected}/{total_possible} = {total_selected/total_possible*100:.1f}%")
+
+            # 对于 DraftModelLayerwise，我们需要使用自定义的逐层 prefill
+            # 但为了保持与现有框架兼容，我们用第 0 层的 selections 作为 k_need_index
+            # 然后在 prefill 时使用自定义的逐层处理
+            # 将 per_layer_selections 存储在 extra_info 中供后续使用
+            k_need_index = torch.tensor(per_layer_selections[0], device='cpu')
+
+            extra_info['layerwise_mode'] = True
+            extra_info['per_layer_selections'] = per_layer_selections
+            extra_info['layer_rates'] = layer_rates
+            extra_info['dynamic_rate'] = avg_rate
+
+            print(f"\nDraftModelLayerwise 完成逐层选择")
+            print(f'select_time: {time.time() - select_time:.3f}s')
+
+        elif reprocess_method == 'Oracle':
+            # Oracle: 用主模型本身 prefill 获取 attention，指导 token 选择
+            # 与 DraftModel 方法相同，唯一区别是使用主模型而非小模型
+            select_time = time.time()
+
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
+            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+
+            # 使用主模型计算 attention（复用 compute_draft_model_attention 函数）
+            print(f"\n{'='*60}")
+            print("Oracle: Using main model for attention computation")
+            print(f"{'='*60}")
+            full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+            oracle_attention = compute_draft_model_attention(model, full_input, query_start, input_device)
+            torch.cuda.empty_cache()
+
+            # oracle_attention 是 {layer_idx: attention [num_heads, query_len, seq_len]} 格式
+            # 已经只包含 query positions 的 attention
+
+            # 收集各层的 query→doc attention
+            # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
+            layer_attention_dict = {}
+            for layer_idx, layer_attn in oracle_attention.items():
+                # layer_attn: [num_heads, query_len, seq_len]
+                # 提取 query→doc attention（只切片 key 维度，跳过 system 和 文本块1）
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                # 对 heads 和 query positions 平均
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+
+            # 选择用于聚合的层
+            if draft_layer_selection == 'entropy':
+                # 基于熵动态选层
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  Oracle 熵选层: 选择了 {active_layers}")
+                # 聚合选中层的 attention
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+            elif draft_layer_selection == 'last':
+                # 只使用最后一层
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  Oracle 使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}, expected 'entropy' or 'last'")
+
+            # 使用 smart_query_selection 进行选择
+            # 注意: selection_start 是选择区域的起始位置（跳过了 system 和 文本块1）
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                target_ratio=rate,
+                system_len=selection_start,  # 使用 selection_start 作为偏移量
+                device=input_device
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            print(f"Oracle 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+            print(f'select_time: {time.time() - select_time:.3f}s')
+
+        elif reprocess_method == 'OracleAdaptive':
+            # OracleAdaptive: Oracle 选择方式 + 动态比例计算
+            # 与 Oracle 相同的选择逻辑 (smart_query_selection: 连通分量 + 边界扩展)
+            # 但比例是动态计算的，而非固定值
+            select_time = time.time()
+
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
+            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+
+            # 使用主模型计算 attention
+            print(f"\n{'='*60}")
+            print("OracleAdaptive: Oracle selection + Dynamic rate")
+            print(f"{'='*60}")
+            full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+            oracle_attention = compute_draft_model_attention(model, full_input, query_start, input_device)
+            torch.cuda.empty_cache()
+
+            # 收集各层的 query→doc attention
+            layer_attention_dict = {}
+            for layer_idx, layer_attn in oracle_attention.items():
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+
+            # 选择用于聚合的层
+            if draft_layer_selection == 'entropy':
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  熵选层: 选择了 {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            elif draft_layer_selection == 'last':
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}")
+
+            # 动态计算比例 (使用综合多特征方法)
+            budget_info = compute_dynamic_ratio_comprehensive(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                base_ratio=rate,  # 使用 rate 作为 base_ratio
+                min_ratio=min_rate,
+                max_ratio=max_rate
+            )
+
+            dynamic_rate = budget_info['dynamic_ratio']
+
+            print(f"  Parameters: base_ratio={rate:.0%}")
+            print(f"  Budget range: [{min_rate:.1%}, {max_rate:.1%}]")
+            print(f"\n  Attention 分布特征分析:")
+            print(f"    Coverage Analysis:")
+            for cov, ratio_val in budget_info['coverage_analysis'].items():
+                print(f"      {cov} coverage: {ratio_val:.2%}")
+            print(f"    Concentration (Top-k):")
+            print(f"      Top-1: {budget_info['concentration']['top1_ratio']:.2%}")
+            print(f"      Top-3: {budget_info['concentration']['top3_ratio']:.2%}")
+            print(f"      Top-5: {budget_info['concentration']['top5_ratio']:.2%}")
+            print(f"      → Concentration Factor: {budget_info['concentration']['concentration_factor']:.2f}")
+            print(f"    Connected Components: {budget_info['num_components']}")
+            print(f"    Position Span: {budget_info['position_span']} tokens")
+            print(f"    Spread Ratio: {budget_info['spread_ratio']:.4f}")
+            print(f"    Gini Coefficient: {budget_info['gini_coefficient']:.4f}")
+            print(f"\n  动态比例计算:")
+            print(f"    Base coverage ratio (80%): {budget_info['base_coverage_ratio']:.2%}")
+            print(f"    After concentration factor: {budget_info['base_coverage_ratio'] * budget_info['concentration']['concentration_factor']:.2%}")
+            print(f"    Adjustments:")
+            for adj_name, adj_value in budget_info['adjustments'].items():
+                print(f"      {adj_name}: {adj_value:+.4f}")
+            print(f"    Raw computed ratio: {budget_info['raw_ratio']:.2%}")
+            print(f"    FINAL DYNAMIC RATIO: {dynamic_rate:.2%}")
+
+            # 使用 smart_query_selection 进行选择 (与 Oracle 相同)
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                target_ratio=dynamic_rate,  # 使用动态计算的比例
+                system_len=selection_start,
+                device=input_device
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            print(f"\n  OracleAdaptive 选择结果:")
+            print(f"    选中 {len(k_need_index)} tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+            print(f"    (smart_query_selection: 连通分量 + 边界扩展)")
+            print(f"  select_time: {time.time() - select_time:.3f}s")
+
+            # 保存动态信息用于后续统计
+            extra_info['dynamic_rate'] = dynamic_rate
+            extra_info['base_coverage_ratio'] = budget_info['base_coverage_ratio']
+            extra_info['num_components'] = budget_info['num_components']
+            extra_info['gini_coefficient'] = budget_info['gini_coefficient']
+            extra_info['spread_ratio'] = budget_info['spread_ratio']
+            extra_info['concentration_factor'] = budget_info['concentration']['concentration_factor']
+            extra_info['top1_ratio'] = budget_info['concentration']['top1_ratio']
+            extra_info['total_budget'] = len(k_need_index)
+            extra_info['doc_len'] = doc_len
+
+        elif reprocess_method == 'vAttention':
+            # vAttention: 结合 top-k 选择和随机采样
+            # 参考论文 "vAttention: Verified Sparse Attention" (arXiv:2510.05688)
+            # 核心思想：一部分 budget 用于 top-k，一部分用于随机采样
+            select_time = time.time()
+
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
+            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+
+            # 计算总的需要选择的 token 数量
+            total_budget = int(rate * doc_len)
+
+            # vAttention 参数：topk_ratio 控制 top-k 和随机采样的比例
+            # 默认各占 50%（论文中推荐的配置）
+            topk_ratio = vattention_topk_ratio
+
+            topk_budget = int(total_budget * topk_ratio)
+            random_budget = total_budget - topk_budget
+
+            print(f"\n{'='*60}")
+            print("vAttention: Combining Top-k and Random Sampling")
+            print(f"{'='*60}")
+            print(f"  Total budget: {total_budget} tokens (rate={rate:.2%})")
+            print(f"  Top-k budget: {topk_budget} tokens ({topk_ratio:.0%})")
+            print(f"  Random budget: {random_budget} tokens ({1-topk_ratio:.0%})")
+
+            # 使用主模型计算 attention（复用 Oracle 的计算方式）
+            full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+            oracle_attention = compute_draft_model_attention(model, full_input, query_start, input_device)
+            torch.cuda.empty_cache()
+
+            # 收集各层的 query→doc attention
+            # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
+            layer_attention_dict = {}
+            for layer_idx, layer_attn in oracle_attention.items():
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+
+            # 选择用于聚合的层（使用熵选层）
+            if draft_layer_selection == 'entropy':
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  vAttention 熵选层: 选择了 {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            elif draft_layer_selection == 'last':
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  vAttention 使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}")
+
+            # Step 1: Top-k 选择
+            # 获取 attention 分数最高的 topk_budget 个 token
+            if topk_budget > 0:
+                topk_values, topk_indices = torch.topk(multi_layer_attn, min(topk_budget, doc_len))
+                topk_selected = set(topk_indices.cpu().tolist())
+            else:
+                topk_selected = set()
+
+            # Step 2: 随机采样
+            # 从剩余的 token 中随机采样 random_budget 个
+            all_indices = set(range(doc_len))
+            remaining_indices = list(all_indices - topk_selected)
+
+            if random_budget > 0 and len(remaining_indices) > 0:
+                # 设置随机种子以确保可复现性
+                torch.manual_seed(42)
+                random_sample_size = min(random_budget, len(remaining_indices))
+                random_indices = torch.randperm(len(remaining_indices))[:random_sample_size]
+                random_selected = set([remaining_indices[i] for i in random_indices.tolist()])
+            else:
+                random_selected = set()
+
+            # Step 3: 合并两者
+            combined_selected = topk_selected | random_selected
+
+            # 确保不超过总 budget
+            if len(combined_selected) > total_budget:
+                # 如果超过了，按 attention 分数排序，保留分数最高的
+                combined_list = list(combined_selected)
+                combined_scores = [(idx, multi_layer_attn[idx].item()) for idx in combined_list]
+                combined_scores.sort(key=lambda x: x[1], reverse=True)
+                combined_selected = set([idx for idx, _ in combined_scores[:total_budget]])
+
+            # 转换为全局索引（使用 selection_start 作为偏移量，跳过 system 和 文本块1）
+            selected_indices = [idx + selection_start for idx in sorted(combined_selected)]
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            print(f"\n  vAttention 选择结果:")
+            print(f"    Top-k 选中: {len(topk_selected)} tokens")
+            print(f"    随机采样选中: {len(random_selected)} tokens")
+            print(f"    总计选中: {len(combined_selected)} tokens ({len(combined_selected)/doc_len*100:.1f}%)")
+            print(f'  select_time: {time.time() - select_time:.3f}s')
+
+        elif reprocess_method == 'OracleDynamic':
+            # OracleDynamic: 动态计算重算比例
+            # 参考论文 "vAttention: Verified Sparse Attention" (arXiv:2510.05688)
+            # 核心思想：根据 attention 分布的方差动态决定需要重算多少 token
+            # 用户指定 epsilon (误差容忍度) 和 delta (置信度)，系统自动计算 budget
+            select_time = time.time()
+
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
+            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            text_block1_len = passages_len[1]
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+
+            print(f"\n{'='*60}")
+            print("OracleDynamic: Adaptive Budget Computation")
+            print(f"{'='*60}")
+            print(f"  Parameters: epsilon={epsilon}, delta={delta}")
+            print(f"  Budget range: [{min_rate:.1%}, {max_rate:.1%}]")
+
+            # Step 1: 使用主模型计算 attention
+            full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+            oracle_attention = compute_draft_model_attention(model, full_input, query_start, input_device)
+            torch.cuda.empty_cache()
+
+            # 收集各层的 query→doc attention
+            # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
+            layer_attention_dict = {}
+            for layer_idx, layer_attn in oracle_attention.items():
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+
+            # 选择用于聚合的层
+            if draft_layer_selection == 'entropy':
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  熵选层: 选择了 {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            elif draft_layer_selection == 'last':
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}")
+
+            # Step 2: 动态计算 budget
+            budget_info = compute_dynamic_budget(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                epsilon=epsilon,
+                delta=delta,
+                base_sample_ratio=0.05,
+                topk_ratio=vattention_topk_ratio,
+                min_rate=min_rate,
+                max_rate=max_rate
+            )
+
+            total_budget = budget_info['total_budget']
+            topk_budget = budget_info['topk_budget']
+            random_budget = budget_info['random_budget']
+            dynamic_rate = budget_info['dynamic_rate']
+
+            print(f"\n  Attention 分布分析:")
+            print(f"    覆盖阈值: {budget_info['coverage_threshold']:.1%}")
+            print(f"    达到覆盖需要的 top-k 数量: {budget_info['topk_count_for_coverage']} tokens ({budget_info['topk_count_for_coverage']/doc_len*100:.2f}%)")
+            print(f"    Top-k 实际覆盖权重: {budget_info['topk_coverage']:.2%}")
+            print(f"    残差权重: {budget_info['residual_weight']:.2%}")
+            print(f"    残差变异系数 (CV): {budget_info['residual_cv']:.4f}")
+            print(f"    归一化熵: {budget_info['normalized_entropy']:.4f} (0=极度集中, 1=均匀分布)")
+            print(f"\n  动态 Budget 计算结果:")
+            print(f"    原始覆盖率: {budget_info['coverage_based_rate']:.2%}")
+            print(f"    限制后比例: {dynamic_rate:.2%} (min={min_rate:.0%}, max={max_rate:.0%})")
+            print(f"    总 budget: {total_budget} tokens")
+
+            # Step 3: 纯 Top-k 选择 (和 Oracle 一样，只选 attention 最高的)
+            # 注意：不再使用随机采样，因为随机采样的低 attention token 会影响生成质量
+            if total_budget > 0:
+                topk_values, topk_indices = torch.topk(multi_layer_attn, min(total_budget, doc_len))
+                combined_selected = set(topk_indices.cpu().tolist())
+            else:
+                combined_selected = set()
+
+            # 记录选择信息（保持兼容性）
+            topk_selected = combined_selected
+            random_selected = set()  # 不再使用随机采样
+
+            # 转换为全局索引（使用 selection_start 作为偏移量，跳过 system 和 文本块1）
+            selected_indices = [idx + selection_start for idx in sorted(combined_selected)]
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            print(f"\n  OracleDynamic 选择结果:")
+            print(f"    选中 Top-{len(combined_selected)} tokens ({len(combined_selected)/doc_len*100:.1f}%)")
+            print(f"    (纯 top-k 选择，和 Oracle 相同策略，只是动态计算比例)")
+            print(f"  select_time: {time.time() - select_time:.3f}s")
+
+            # 保存动态信息用于后续统计
+            extra_info['dynamic_rate'] = dynamic_rate
+            extra_info['topk_coverage'] = budget_info['topk_coverage']
+            extra_info['topk_count_for_coverage'] = budget_info['topk_count_for_coverage']
+            extra_info['normalized_entropy'] = budget_info['normalized_entropy']
+            extra_info['total_budget'] = len(combined_selected)
+            extra_info['doc_len'] = doc_len
+
         else:
             raise NotImplementedError
 
         # reprocess kv cache and prefill question
-        k_need_index = torch.sort(k_need_index)[0].tolist()
+        # 对于 DraftModelLayerwise，使用所有层选择的并集
+        if extra_info.get('layerwise_mode') and extra_info.get('per_layer_selections'):
+            per_layer_selections = extra_info['per_layer_selections']
+            # 使用所有层选择的并集 (即第 0 层的选择，因为它包含最多 tokens)
+            all_positions = set()
+            for layer_sel in per_layer_selections:
+                all_positions.update(layer_sel)
+            k_need_index = sorted(list(all_positions))
+            print(f"\n  Layerwise union positions: {len(all_positions)} unique doc positions")
+            print(f"  (Note: Using union for forward pass; per-layer rates documented in extra_info)")
+        else:
+            k_need_index = torch.sort(k_need_index)[0].tolist()
         k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
     else:
         k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
@@ -976,7 +2038,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # print(f"eval duration:        {total_time}s")
     # print(f"eval rate:            {tokens_per_second} tokens/s")
 
-    return tokens, prefill_time
+    return tokens, prefill_time, extra_info
 
 def tf_logits_warper(temperature, top_k):
         """

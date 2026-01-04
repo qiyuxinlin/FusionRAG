@@ -118,7 +118,8 @@ def main(model_type='mistral',
          draft_model_path=None,
          entropy_top_k=4,
          device="cuda:0",
-         compare_with_full_recompute=False):
+         compare_with_full_recompute=False,
+         vattention_topk_ratio=0.5):
     """
     Main function for process cache experiments
 
@@ -135,12 +136,13 @@ def main(model_type='mistral',
         revert_rope: whether to revert rope
         topk: top-k for preprocessing
         preprocess: whether to use preprocessing
-        reprocess_method: reprocessing method ('cacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill', 'DraftModel')
+        reprocess_method: reprocessing method ('cacheBlend', 'processCache', 'Cache-Craft', 'speculative_prefill', 'DraftModel', 'Oracle', 'vAttention')
         bge_model_path: path to BGE model for embedding
         draft_model_path: path to draft model for speculative_prefill/DraftModel (optional)
         entropy_top_k: number of layers to select by entropy for DraftModel (default: 4)
         device: device to use for model
         compare_with_full_recompute: if True, run both current method and full recompute for comparison
+        vattention_topk_ratio: for vAttention method, the ratio of top-k selection vs random sampling (default: 0.5)
     """
 
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
@@ -206,7 +208,8 @@ def main(model_type='mistral',
         revert_rope=revert_rope, topk=topk, use_sparse_attention=use_sparse_attention,
         context_rank=context_rank, corpus_lens=corpus_lens, max_cache_len=max_cache_len,
         passage_len_config={'mistral': 32768, 'pangu': 32768, 'qwen': 32768, 'llama': 32768},
-        draft_model=draft_model, entropy_top_k=entropy_top_k, suffix=""
+        draft_model=draft_model, entropy_top_k=entropy_top_k, suffix="",
+        vattention_topk_ratio=vattention_topk_ratio
     )
 
     # If compare mode, print comparison results (quality metrics only)
@@ -270,7 +273,7 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                    save_path, preporcess_save_path, csv_path, device,
                    rate, preprocess, reprocess_method, revert_rope, topk, use_sparse_attention,
                    context_rank, corpus_lens, max_cache_len, passage_len_config,
-                   draft_model, entropy_top_k=4, suffix=""):
+                   draft_model, entropy_top_k=4, suffix="", vattention_topk_ratio=0.5):
     """
     Run a single experiment with given parameters
 
@@ -422,7 +425,8 @@ def run_experiment(model, tokenizer, config, tokens_data, question_list, real_an
                 model, tokenizer, past_key_values, iter, load_path, i+1,
                 max_new_tokens=50, revert_rope=revert_rope, reprocess_method=reprocess_method,
                 rate=rate, draft_model=draft_model, entropy_top_k=entropy_top_k,
-                draft_layer_selection='entropy', preprocess=preprocess, device=device
+                draft_layer_selection='entropy', preprocess=preprocess, device=device,
+                vattention_topk_ratio=vattention_topk_ratio
             )
 
             # Record prefill time (returned from function)
@@ -503,6 +507,21 @@ if __name__ == '__main__':
     #      reprocess_method='DraftModel',
     #      entropy_top_k=4)
 
+    # vAttention 方法: 结合 top-k 选择和随机采样
+    # 参考论文 "vAttention: Verified Sparse Attention" (arXiv:2510.05688)
+    # vattention_topk_ratio 控制 top-k 和随机采样的比例 (默认 0.5 = 各占 50%)
+    # main(model_type='qwen',
+    #      model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #      model_name='Qwen2.5-7B-Instruct',
+    #      cache_path='/mnt/data3/processCache/',
+    #      data_name='musique-200.jsonl',
+    #      rate=0.3,
+    #      preprocess=True,
+    #      revert_rope=True,
+    #      reprocess_method='vAttention',
+    #      entropy_top_k=4,
+    #      vattention_topk_ratio=0.5)  # 50% top-k + 50% random sampling
+
     # Mistral
     # main(model_type='mistral',
     #      model_path='/mnt/data/models/Mistral-7B-Instruct-v0.3',
@@ -531,7 +550,7 @@ if __name__ == '__main__':
     # Example: Run experiments
     for data_name in ['2wikimqa-200.jsonl']:
         for topk in [10]:
-            for rate in [0.15]:
+            for rate in [0.05, 0.1, 0.2 ]:
                 main(model_type='qwen',
                      model_path='/mnt/data/models/Qwen2.5-14B-Instruct/',
                      draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct/',

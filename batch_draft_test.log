@@ -1,0 +1,583 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+批量测试 - DraftModel 方法
+====================================================================================================
+样例范围: 0 - 9
+测试比例: ['0%', '10%', '15%', '20%', '25%', '30%']
+====================================================================================================
+
+
+====================================================================================================
+测试比例: 0%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.43it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.50it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.53it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.56it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  8.11it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00,  9.93it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/batch_test_draft_model.py", line 49, in batch_test_examples
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 621, in main
+    raise FileNotFoundError(
+FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+❌ 测试比例 0% 时出错: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+
+====================================================================================================
+测试比例: 10%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.44it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.50it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.54it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.61it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.57it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 63.73it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/batch_test_draft_model.py", line 49, in batch_test_examples
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 621, in main
+    raise FileNotFoundError(
+FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+❌ 测试比例 10% 时出错: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+
+====================================================================================================
+测试比例: 15%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.44it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.50it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.52it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.59it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.56it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 63.46it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/batch_test_draft_model.py", line 49, in batch_test_examples
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 621, in main
+    raise FileNotFoundError(
+FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+❌ 测试比例 15% 时出错: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+
+====================================================================================================
+测试比例: 20%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.42it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.49it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.53it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.56it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 63.27it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/batch_test_draft_model.py", line 49, in batch_test_examples
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 621, in main
+    raise FileNotFoundError(
+FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+❌ 测试比例 20% 时出错: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+
+====================================================================================================
+测试比例: 25%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.48it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.54it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.57it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.64it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 62.36it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/batch_test_draft_model.py", line 49, in batch_test_examples
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 621, in main
+    raise FileNotFoundError(
+FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+❌ 测试比例 25% 时出错: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+
+====================================================================================================
+测试比例: 30%
+====================================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Using multi-GPU with device_map='auto'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.45it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.51it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.62it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.58it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 62.82it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Traceback (most recent call last):
+  File "/mnt/data/wjh/FusionRAG/batch_test_draft_model.py", line 49, in batch_test_examples
+    main(
+  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 621, in main
+    raise FileNotFoundError(
+FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+❌ 测试比例 30% 时出错: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModel_global_topk_10_rate_1_revert_rope.csv
+Please run with rate=1 first to generate baseline results.
+
+====================================================================================================
+分析所有问题的临界比例
+====================================================================================================
+
+❌ 没有可用的结果数据

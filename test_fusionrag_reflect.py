@@ -499,7 +499,16 @@ def main(
     openai_api_key=None,
     openai_base_url="https://api.openai.com/v1",
     openai_model="gpt-4",
-    max_samples=None
+    max_samples=None,
+    vattention_topk_ratio=0.5,  # vAttention/OracleDynamic: top-k 占总 budget 的比例 (默认 0.5 = 各占 50%)
+    # OracleDynamic 动态 budget 参数
+    epsilon=0.1,     # 误差容忍度 (如 0.1 = 10% 相对误差)
+    delta=0.05,      # 置信度 (如 0.05 = 95% 置信度)
+    min_rate=0.05,   # 动态 budget 的最小比例
+    max_rate=0.5,    # 动态 budget 的最大比例
+    # DraftModelLayerwise 参数
+    layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
+    layerwise_final_rate=0.05  # 最后一层的 rate
 ):
     """
     Main function for FusionRAG testing on result_reflect.json
@@ -511,11 +520,11 @@ def main(
         cache_path: Path to save KV cache
         model_name: Model name for logging
         max_cache_len: Maximum cache length
-        rate: Compression rate (0=no compression, 1=full recompute)
+        rate: Compression rate (0=no compression, 1=full recompute). 对于 OracleDynamic 方法会被忽略
         topk: Top-k similar documents to fuse in preprocess
         preprocess: Whether to use FusionRAG preprocess
         preprocess_scope: Scope for document retrieval (GLOBAL, PER_EXAMPLE, SKIP_UNTESTED)
-        reprocess_method: Method name ('FusionRAG')
+        reprocess_method: Method name ('FusionRAG', 'Oracle', 'OracleAdaptive', 'vAttention', 'OracleDynamic', 'DraftModel', etc.)
         bge_model_path: Path to BGE model for computing similarity
         revert_rope: Whether to revert rope in preprocessing
         device: Device to use (for single GPU)
@@ -524,6 +533,11 @@ def main(
         openai_base_url: OpenAI API base URL
         openai_model: OpenAI model for judging
         max_samples: Maximum number of main questions to test (None = all)
+        vattention_topk_ratio: For vAttention/OracleDynamic, ratio of top-k vs random sampling (default: 0.5)
+        epsilon: For OracleDynamic, error tolerance (e.g., 0.1 = 10% relative error)
+        delta: For OracleDynamic, confidence level (e.g., 0.05 = 95% confidence)
+        min_rate: For OracleDynamic, minimum recompute ratio
+        max_rate: For OracleDynamic, maximum recompute ratio
     """
 
     # Create cache directories with model-specific subdirectories
@@ -562,11 +576,12 @@ def main(
         print("Using multi-GPU with device_map='auto'")
     model, device_map = load_model(model_type, model_path, config, device, use_multi_gpu)
 
-    # Load draft model if using DraftModel method
+    # Load draft model if using DraftModel, DraftModelDynamic, or DraftModelLayerwise method
+    # Note: Oracle method uses the main model itself, no need to load draft model
     draft_model = None
-    if reprocess_method == 'DraftModel':
+    if reprocess_method in ('DraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
         if draft_model_path is None:
-            raise ValueError("draft_model_path must be provided when using DraftModel method")
+            raise ValueError("draft_model_path must be provided when using DraftModel/DraftModelDynamic/DraftModelLayerwise method")
         print(f"\nLoading draft model from {draft_model_path}...")
         draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
         draft_config._attn_implementation = "sdpa"
@@ -574,6 +589,8 @@ def main(
         draft_model, _ = load_model('qwen', draft_model_path, draft_config, device, use_multi_gpu=False)
         draft_model.eval()
         print(f"Draft model loaded: {draft_model.config.num_hidden_layers} layers")
+    elif reprocess_method == 'Oracle':
+        print(f"\nOracle method: Using main model for attention computation (no draft model needed)")
 
     # Prepare data organized by main questions
     print("Preparing data organized by main questions...")
@@ -668,6 +685,9 @@ def main(
     correct_sub_questions = 0
     total_f1 = 0.0
     total_em = 0.0
+
+    # 收集 OracleDynamic 的动态 rate 信息
+    dynamic_rate_stats = []  # List of (main_q_idx, sub_q_idx, dynamic_rate, cv, doc_len)
 
     # Process each main question (on-demand cache generation)
     for example_id, q_data in enumerate(questions_data):
@@ -893,18 +913,41 @@ def main(
                     model, tokenizer, inputs, max_new_tokens=500, device=input_device, device_map=device_map
                 )
             else:
-                # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, etc.)
+                # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, Oracle, vAttention, OracleDynamic, etc.)
                 load_path = preprocess_save_path if preprocess else save_path
-                generated_tokens, _ = load_kv_and_generate(
+                generated_tokens, _, extra_info = load_kv_and_generate(
                     model, tokenizer, past_key_values, iter_tokens, load_path, example_id,
                     max_new_tokens=500, revert_rope=revert_rope,
                     reprocess_method=reprocess_method, rate=rate,
-                    draft_model=draft_model,  # DraftModel 方法会用到
+                    draft_model=draft_model,  # DraftModel/DraftModelLayerwise 方法会用到
                     use_entropy_selection=use_entropy_selection,
                     entropy_top_k=entropy_top_k,
-                    draft_layer_selection=draft_layer_selection,  # DraftModel 选层方式
-                    preprocess=preprocess, device=input_device, chunk_ids=kv_chunk_ids, device_map=device_map
+                    draft_layer_selection=draft_layer_selection,  # DraftModel/Oracle/vAttention/OracleDynamic/OracleAdaptive/DraftModelLayerwise 选层方式
+                    preprocess=preprocess, device=input_device, chunk_ids=kv_chunk_ids, device_map=device_map,
+                    vattention_topk_ratio=vattention_topk_ratio,  # vAttention/OracleDynamic/OracleAdaptive: top-k 比例
+                    # OracleDynamic/OracleAdaptive 参数
+                    epsilon=epsilon,
+                    delta=delta,
+                    min_rate=min_rate,
+                    max_rate=max_rate,
+                    # DraftModelLayerwise 参数
+                    layerwise_decay=layerwise_decay,
+                    layerwise_final_rate=layerwise_final_rate
                 )
+
+                # 收集 OracleDynamic/OracleAdaptive/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
+                if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DraftModelDynamic', 'DraftModelLayerwise') and extra_info.get('dynamic_rate') is not None:
+                    dynamic_rate_stats.append({
+                        'main_q_idx': example_id + 1,
+                        'sub_q_idx': sub_q_idx + 1,
+                        'question': sub_q_info['query'][:50] + '...',
+                        'dynamic_rate': extra_info['dynamic_rate'],
+                        'topk_coverage': extra_info['topk_coverage'],
+                        'topk_count_for_coverage': extra_info['topk_count_for_coverage'],
+                        'normalized_entropy': extra_info['normalized_entropy'],
+                        'doc_len': extra_info['doc_len'],
+                        'total_budget': extra_info['total_budget']
+                    })
 
             # Decode answer
             answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
@@ -1027,11 +1070,46 @@ def main(
 
     print(f"{'='*80}")
 
+    # 打印 OracleDynamic/OracleAdaptive 动态 rate 统计
+    if reprocess_method in ('OracleDynamic', 'OracleAdaptive') and len(dynamic_rate_stats) > 0:
+        print(f"\n{'='*80}")
+        print(f"{reprocess_method.upper()}: 动态重算比例统计")
+        print(f"{'='*80}")
+
+        rates = [s['dynamic_rate'] for s in dynamic_rate_stats]
+        entropies = [s['normalized_entropy'] for s in dynamic_rate_stats]
+        topk_coverages = [s['topk_coverage'] for s in dynamic_rate_stats]
+
+        print(f"\n总计 {len(dynamic_rate_stats)} 个子问题:")
+        print(f"  重算比例 - 平均: {np.mean(rates):.2%}, 最小: {np.min(rates):.2%}, 最大: {np.max(rates):.2%}, 标准差: {np.std(rates):.2%}")
+        print(f"  归一化熵 - 平均: {np.mean(entropies):.4f}, 最小: {np.min(entropies):.4f}, 最大: {np.max(entropies):.4f}")
+        print(f"  Top-k覆盖 - 平均: {np.mean(topk_coverages):.2%}, 最小: {np.min(topk_coverages):.2%}, 最大: {np.max(topk_coverages):.2%}")
+
+        # 打印每个问题的详细信息
+        print(f"\n详细列表:")
+        print(f"{'Main Q':<8} {'Sub Q':<8} {'Rate':<10} {'Entropy':<10} {'TopK Cov':<10} {'Budget':<10} {'Doc Len':<10} Question")
+        print("-" * 120)
+        for stat in dynamic_rate_stats:
+            print(f"{stat['main_q_idx']:<8} {stat['sub_q_idx']:<8} {stat['dynamic_rate']:.2%}     {stat['normalized_entropy']:<10.4f} {stat['topk_coverage']:.2%}     {stat['total_budget']:<10} {stat['doc_len']:<10} {stat['question']}")
+
+        print(f"{'='*80}")
+
     with open(result_file, 'w') as f:
         f.write(f"Main Questions Accuracy: {correct_main_questions}/{total_main_questions} ({main_q_acc:.4f})\n")
         f.write(f"Sub Questions Accuracy: {correct_sub_questions}/{total_sub_questions} ({sub_q_acc:.4f})\n")
         f.write(f"Average F1 Score: {avg_f1:.4f}\n")
         f.write(f"Average EM Score: {avg_em:.4f}\n")
+
+        # 保存 OracleDynamic/OracleAdaptive 统计到文件
+        if reprocess_method in ('OracleDynamic', 'OracleAdaptive') and len(dynamic_rate_stats) > 0:
+            rates = [s['dynamic_rate'] for s in dynamic_rate_stats]
+            entropies = [s['normalized_entropy'] for s in dynamic_rate_stats]
+            topk_coverages = [s['topk_coverage'] for s in dynamic_rate_stats]
+            f.write(f"\n--- {reprocess_method} 动态重算比例统计 ---\n")
+            f.write(f"子问题数量: {len(dynamic_rate_stats)}\n")
+            f.write(f"重算比例 - 平均: {np.mean(rates):.4f}, 最小: {np.min(rates):.4f}, 最大: {np.max(rates):.4f}, 标准差: {np.std(rates):.4f}\n")
+            f.write(f"归一化熵 - 平均: {np.mean(entropies):.4f}, 最小: {np.min(entropies):.4f}, 最大: {np.max(entropies):.4f}\n")
+            f.write(f"Top-k覆盖 - 平均: {np.mean(topk_coverages):.4f}, 最小: {np.min(topk_coverages):.4f}, 最大: {np.max(topk_coverages):.4f}\n")
 
         # Add rate=1 comparison to file
         if rate != 1 and len(rate1_results) > 0:
@@ -1057,7 +1135,100 @@ def main(
 
 if __name__ == '__main__':
 
-    # DraftModel 方法: 用小模型指导大模型的 token 选择
+    # OracleAdaptive 方法: Oracle 选择方式 + 综合多特征动态比例计算
+    # 核心思想：
+    # - 使用和 Oracle 完全相同的选择策略 (smart_query_selection: 连通分量 + 边界扩展)
+    # - 区别在于比例是动态计算的，综合考虑以下特征：
+    #   1. Coverage-based ratio: 达到 85% attention 覆盖所需比例
+    #   2. Connected components: 高 attention 位置的分散程度（连通分量数量）
+    #   3. Spread factor: 高 attention 位置在文档中的跨度
+    #   4. Gini coefficient: Attention 集中度
+    # - 保证 safety buffer (min_rate=0.20) 确保不遗漏 long-tail 重要信息
+    # main(
+    #     model_type='qwen',
+    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #     data_path='./result_reflect.json',
+    #     cache_path='/mnt/data/reflect/',
+    #     draft_model_path="/mnt/data/models/Qwen2.5-0.5B-Instruct",
+    #     model_name='Qwen2.5-7B-Instruct',
+    #     rate=0.3,  # 作为 base_ratio，用于动态计算的参考
+    #     topk=10,
+    #     preprocess=True,
+    #     use_entropy_selection=True,
+    #     reprocess_method='DraftModel',  # Oracle 选择 + 综合多特征动态比例
+    #     draft_layer_selection='entropy',
+    #     preprocess_scope=PreprocessScope.GLOBAL,
+    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #     revert_rope=False,
+    #     device="cuda:0",
+    #     use_multi_gpu=True,
+    #     openai_base_url="https://api.deepseek.com/v1",
+    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #     openai_model="deepseek-chat",
+    #     max_samples=200,
+    #     # OracleAdaptive 动态比例参数
+    #     epsilon=0.1,           # 保留参数兼容性（当前算法不使用）
+    #     delta=0.05,            # 保留参数兼容性（当前算法不使用）
+    #     min_rate=0.05,         # 最小重算比例 20% (确保 long-tail safety buffer)
+    #     max_rate=0.3,         # 最大重算比例 50%
+    # )
+
+    # # vAttention 方法: 结合 top-k 选择和随机采样 (固定 rate)
+    # # 参考论文 "vAttention: Verified Sparse Attention" (arXiv:2510.05688)
+    # # 核心思想：一部分 budget 用于 top-k 选择，一部分用于随机采样
+    # # vattention_topk_ratio 控制两者比例 (默认 0.5 = 各占 50%)
+    # main(
+    #     model_type='qwen',
+    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #     # draft_model_path 不需要，vAttention 使用主模型本身计算 attention
+    #     data_path='./result_reflect.json',
+    #     cache_path='/mnt/data/reflect/',
+    #     model_name='Qwen2.5-7B-Instruct',
+    #     rate=0.3,  # 30% token selection (总重算比例)
+    #     topk=10,
+    #     preprocess=True,
+    #     use_entropy_selection=True,
+    #     reprocess_method='vAttention',  # 使用 vAttention 方法
+    #     draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
+    #     preprocess_scope=PreprocessScope.GLOBAL,
+    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #     revert_rope=True,
+    #     device="cuda:0",
+    #     use_multi_gpu=True,
+    #     openai_base_url="https://api.deepseek.com/v1",
+    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #     openai_model="deepseek-chat",
+    #     max_samples=200,
+    #     vattention_topk_ratio=0.5  # 50% top-k + 50% random sampling
+    # )
+
+    # Oracle 方法: 用主模型自身做完整 prefill 获取 attention，指导 token 选择 (固定 rate)
+    # 与 DraftModel 方法相同，唯一区别是不需要加载额外的 draft model
+    # main(
+    #     model_type='qwen',
+    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #     # draft_model_path 不需要，Oracle 使用主模型本身
+    #     data_path='./result_reflect.json',
+    #     cache_path='/mnt/data/reflect/',
+    #     model_name='Qwen2.5-7B-Instruct',
+    #     rate=0.2,  # 30% token selection
+    #     topk=10,
+    #     preprocess=True,
+    #     use_entropy_selection=True,
+    #     reprocess_method='Oracle',  # 使用主模型自身做 prefill
+    #     draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
+    #     preprocess_scope=PreprocessScope.GLOBAL,
+    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #     revert_rope=True,
+    #     device="cuda:0",
+    #     use_multi_gpu=True,
+    #     openai_base_url="https://api.deepseek.com/v1",
+    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #     openai_model="deepseek-chat",
+    #     max_samples=200
+    # )
+
+    # # DraftModel 方法: 用小模型指导大模型的 token 选择
     main(
         model_type='qwen',
         model_path='/mnt/data/models/Qwen2.5-7B-Instruct',

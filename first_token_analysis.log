@@ -1,0 +1,294 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+Analyzing First Token Confidence
+====================================================================================================
+Loaded 250 results
+Using Draft Model: /mnt/data/models/Qwen2.5-3B-Instruct
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  1.07it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.41it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.35it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+Loading dataset from /mnt/data/wjh/FusionRAG/result_reflect.json...
+Limited to first 30 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+  Main question 11: 17 unique documents, 2 sub-questions
+  Main question 12: 19 unique documents, 2 sub-questions
+  Main question 13: 14 unique documents, 2 sub-questions
+  Main question 14: 18 unique documents, 2 sub-questions
+  Main question 15: 17 unique documents, 2 sub-questions
+  Main question 16: 19 unique documents, 2 sub-questions
+  Main question 17: 14 unique documents, 2 sub-questions
+  Main question 18: 14 unique documents, 2 sub-questions
+  Main question 19: 17 unique documents, 2 sub-questions
+  Main question 20: 16 unique documents, 2 sub-questions
+  Main question 21: 17 unique documents, 2 sub-questions
+  Main question 22: 15 unique documents, 2 sub-questions
+  Main question 23: 21 unique documents, 3 sub-questions
+  Main question 24: 19 unique documents, 3 sub-questions
+  Main question 25: 18 unique documents, 2 sub-questions
+  Main question 26: 17 unique documents, 2 sub-questions
+  Main question 27: 10 unique documents, 1 sub-questions
+  Main question 28: 19 unique documents, 2 sub-questions
+  Main question 29: 25 unique documents, 4 sub-questions
+  Main question 30: 17 unique documents, 4 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 30
+  - Testable: 24
+  - Skipped (llm_judge=False or problematic answers): 6
+
+Total sub-questions: 61
+  - Testable: 43
+  - Skipped: 18
+
+Total documents (across all questions): 481
+================================================================================
+
+Processing: What network is National Cycle Route 57 part of?...
+  Category: stayed_correct, top1_prob: 0.9140, top1_token: ' National'
+
+Processing: Where is the headquarters of Julia's House located...
+  Category: stayed_correct, top1_prob: 0.6026, top1_token: ' Cor'
+
+Processing: Where is Coffee Swamp located?...
+  Category: stayed_correct, top1_prob: 0.5325, top1_token: ' Door'
+
+Processing: Who is the child of Peter Andreas Heiberg?...
+  Category: became_wrong, top1_prob: 0.3914, top1_token: ' Johan'
+
+Processing: Who is the spouse of Johan Ludvig Heiberg?...
+  Category: stayed_correct, top1_prob: 0.7182, top1_token: ' Joh'
+
+Processing: Who were the siblings of Alice de Lusignan, Counte...
+  Category: stayed_correct, top1_prob: 0.5849, top1_token: ' Henry'
+
+Processing: When was King Henry III of England crowned?...
+  Category: became_wrong, top1_prob: 1.0000, top1_token: '1'
+
+Processing: What company did Compaq merge with in 2002?...
+  Category: stayed_correct, top1_prob: 0.5761, top1_token: ' Hew'
+
+Processing: Which university employed Ernst Mach?...
+  Category: stayed_correct, top1_prob: 0.8223, top1_token: ' Charles'
+
+Processing: Who is the physicist that the Mach number is named...
+  Category: stayed_correct, top1_prob: 0.9939, top1_token: ' Ernst'
+
+Processing: Who was Ernst Mach's employer or academic institut...
+  Category: stayed_correct, top1_prob: 0.9525, top1_token: ' Charles'
+
+Processing: Which English king trusted William de Longchamp?...
+  Category: stayed_correct, top1_prob: 0.9955, top1_token: ' Richard'
+
+Processing: What specific naval expedition or fleet did King R...
+  Category: stayed_correct, top1_prob: 0.9997, top1_token: '1'
+
+Processing: Who is the author of The Unwinding?...
+  Category: stayed_correct, top1_prob: 0.8388, top1_token: ' George'
+
+Processing: Which organization did George Packer volunteer for...
+  Category: stayed_correct, top1_prob: 0.8824, top1_token: ' Peace'
+
+Processing: Which band performed the song 'Bang Bang Rock & Ro...
+  Category: stayed_correct, top1_prob: 0.9933, top1_token: ' Art'
+
+Processing: Who is the lead singer of the band Art Brut?...
+  Category: stayed_correct, top1_prob: 1.0000, top1_token: ' Eddie'
+
+Processing: Which company initiated a successful price war amo...
+  Category: stayed_correct, top1_prob: 0.3051, top1_token: ' Com'
+
+Processing: Which company did Compaq merge with in 2002?...
+  Category: stayed_correct, top1_prob: 0.6749, top1_token: ' Hew'
+
+Processing: Who is Katherine of England?...
+  Category: stayed_correct, top1_prob: 0.4032, top1_token: ' Katherine'
+
+Processing: What year was King Henry III of England crowned?...
+  Category: stayed_correct, top1_prob: 1.0000, top1_token: '1'
+
+Processing: Who played the little girl in the 1947 film Miracl...
+  Category: stayed_correct, top1_prob: 0.4352, top1_token: ' Natalie'
+
+Processing: Who is the sibling of actress Natalie Wood?...
+  Category: became_wrong, top1_prob: 0.6723, top1_token: ' Lana'
+
+Processing: In which county is Pine Springs located?...
+  Category: became_wrong, top1_prob: 0.9992, top1_token: ' Cul'
+
+Processing: What is the county seat of Culberson County, Texas...
+  Category: stayed_correct, top1_prob: 0.8629, top1_token: ' Van'
+
+Processing: Who was the top PC manufacturer in 1994?...
+  Category: stayed_correct, top1_prob: 0.8421, top1_token: ' Com'
+
+Processing: What company did Compaq merge with in 2002?...
+  Category: stayed_correct, top1_prob: 0.7094, top1_token: ' Hew'
+
+Processing: Who was the King of England in 1950?...
+  Category: stayed_correct, top1_prob: 0.7355, top1_token: '乔治'
+
+Processing: Which actor played King George VI in the film 'The...
+  Category: stayed_correct, top1_prob: 0.9999, top1_token: ' Colin'
+
+Processing: Who played Susie in Miracle on 34th Street?...
+  Category: stayed_correct, top1_prob: 0.4348, top1_token: '	N'
+
+Processing: Who is Natalie Wood's brother?...
+  Category: became_wrong, top1_prob: 0.4061, top1_token: ' Robert'
+
+Processing: Who is Anna Benson's husband?...
+  Category: stayed_correct, top1_prob: 0.4441, top1_token: ' Kris'
+
+Processing: What team did Kris Benson play for in Major League...
+  Category: stayed_correct, top1_prob: 0.7948, top1_token: ' Pittsburgh'
+
+Processing: Who originally sang the song You Belong To Me?...
+  Category: stayed_correct, top1_prob: 0.3487, top1_token: '1'
+
+Processing: What record label was Joni James signed to when sh...
+  Category: stayed_wrong, top1_prob: 0.7521, top1_token: '7'
+
+Processing: Who was the person under whom the Chapter House wa...
+  Category: stayed_correct, top1_prob: 0.9311, top1_token: ' Henry'
+
+Processing: When was Henry III crowned?...
+  Category: became_wrong, top1_prob: 1.0000, top1_token: '1'
+
+Processing: Who sang the song 'You Belong to Me'?...
+  Category: stayed_correct, top1_prob: 0.7889, top1_token: ' Jon'
+
+Processing: What record label is Joni James signed to?...
+  Category: stayed_correct, top1_prob: 0.9023, top1_token: '7'
+
+Processing: What is the administrative territorial entity that...
+  Category: stayed_correct, top1_prob: 0.8272, top1_token: ' Federal'
+
+Processing: What places share a border with Central Equatoria?...
+  Category: stayed_wrong, top1_prob: 0.4994, top1_token: ' Eastern'
+
+Processing: Who played King George VI in The King's Speech?...
+  Category: stayed_correct, top1_prob: 1.0000, top1_token: ' Colin'
+
+Processing: Who are the cast members of King of the Mountain?...
+  Category: became_wrong, top1_prob: 0.6483, top1_token: ' Steve'
+
+Processing: Who is Harry Hamlin's spouse?...
+  Category: stayed_correct, top1_prob: 0.9919, top1_token: ' Lisa'
+
+====================================================================================================
+GROUP COMPARISON: First Token Confidence
+====================================================================================================
+
+Sample sizes:
+  stayed_correct: 35
+  became_wrong: 7
+
+Feature         Stayed Correct            Became Wrong              Diff         Separation  
+------------------------------------------------------------------------------------------
+top1_prob         0.7668 ± 0.2191       0.7311 ± 0.2732      -0.0358     0.1445
+top5_prob         0.9361 ± 0.0866       0.9085 ± 0.1078      -0.0276     0.2824
+top10_prob        0.9535 ± 0.0680       0.9333 ± 0.0762      -0.0203     0.2806
+entropy           1.0192 ± 0.9717       1.1954 ± 1.2464      +0.1762     0.1577
+norm_entropy      0.0854 ± 0.0814       0.1002 ± 0.1045      +0.0148     0.1577
+
+====================================================================================================
+EXAMPLES: became_wrong (低置信度?)
+====================================================================================================
+
+Q: Who is the child of Peter Andreas Heiberg?...
+  top1_prob: 0.3914, top1_token: ' Johan'
+  Ground truth: Johan Ludvig Heiberg is the child of Peter Andreas
+  Predicted@0.05:  Sigrid Sture (also known as Sigrid Sture Banér) i
+
+Q: When was King Henry III of England crowned?...
+  top1_prob: 1.0000, top1_token: '1'
+  Ground truth: Henry III was first crowned in 1216 at Gloucester 
+  Predicted@0.05: 1220
+
+Q: Who is the sibling of actress Natalie Wood?...
+  top1_prob: 0.6723, top1_token: ' Lana'
+  Ground truth: Lana Wood is the sibling of actress Natalie Wood.
+  Predicted@0.05:  Phylicia Rashad
+
+Q: In which county is Pine Springs located?...
+  top1_prob: 0.9992, top1_token: ' Cul'
+  Ground truth: Culberson County, Texas
+  Predicted@0.05:  Pine Springs is located in Falls County, Texas.
+
+Q: Who is Natalie Wood's brother?...
+  top1_prob: 0.4061, top1_token: ' Robert'
+  Ground truth: Natalie Wood's sister is Lana Wood. The documents 
+  Predicted@0.05:  John Payne
+
+Q: When was Henry III crowned?...
+  top1_prob: 1.0000, top1_token: '1'
+  Ground truth: Henry III was first crowned in 1216 at Gloucester 
+  Predicted@0.05: 1220
+
+Q: Who are the cast members of King of the Mountain?...
+  top1_prob: 0.6483, top1_token: ' Steve'
+  Ground truth: The cast includes Harry Hamlin as Steve and Debora
+  Predicted@0.05:  Harry Hamlin, Deborah Van Valkenburgh
+
+====================================================================================================
+EXAMPLES: stayed_correct (高置信度?)
+====================================================================================================
+
+Q: What network is National Cycle Route 57 part of?...
+  top1_prob: 0.9140, top1_token: ' National'
+
+Q: Where is the headquarters of Julia's House located?...
+  top1_prob: 0.6026, top1_token: ' Cor'
+
+Q: Where is Coffee Swamp located?...
+  top1_prob: 0.5325, top1_token: ' Door'
+
+Q: Who is the spouse of Johan Ludvig Heiberg?...
+  top1_prob: 0.7182, top1_token: ' Joh'
+
+Q: Who were the siblings of Alice de Lusignan, Countess of Surr...
+  top1_prob: 0.5849, top1_token: ' Henry'
+
+Q: What company did Compaq merge with in 2002?...
+  top1_prob: 0.5761, top1_token: ' Hew'
+
+Q: Which university employed Ernst Mach?...
+  top1_prob: 0.8223, top1_token: ' Charles'
+
+Q: Who is the physicist that the Mach number is named after?...
+  top1_prob: 0.9939, top1_token: ' Ernst'
+
+Q: Who was Ernst Mach's employer or academic institution during...
+  top1_prob: 0.9525, top1_token: ' Charles'
+
+Q: Which English king trusted William de Longchamp?...
+  top1_prob: 0.9955, top1_token: ' Richard'
+
+Results saved to ./first_token_confidence_analysis.json

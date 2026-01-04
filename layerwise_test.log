@@ -1,0 +1,719 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+================================================================================
+TEST 2: Layerwise Linear Decay (0.30 -> 0.05)
+================================================================================
+
+Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
+  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
+  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
+  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 160.41it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 64.31it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from /mnt/data/wjh/FusionRAG/result_reflect.json...
+Limited to first 10 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 10
+  - Testable: 8
+  - Skipped (llm_judge=False or problematic answers): 2
+
+Total sub-questions: 16
+  - Testable: 12
+  - Skipped: 4
+
+Total documents (across all questions): 138
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3...
+Encoding 138 documents for FAISS index...
+Corpus embeddings shape: (138, 1024)
+FAISS index built with 138 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (138, 10)
+
+Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/DraftModelLayerwise_global_topk_10_rate_1_revert_rope.csv...
+Loaded 248 rate=1 results for comparison
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+
+================================================================================
+Main Question 1/10: What is the network which National Cycle Route 57 is part of an example of?
+================================================================================
+
+Sub-question 1/1
+Question: What network is National Cycle Route 57 part of?
+Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+storage_time: 0.0590059757232666
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~3.5 MB per layer (vs 277.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 19, 27, 21]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (378 tokens)
+    Layer 14:  17.0% (215 tokens)
+    Layer 27: 5.0% (63 tokens)
+    Average rate: 17.5%
+    Total recomputation: 6175/35364 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.210s
+
+  Layerwise union positions: 378 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  National Cycle Network
+F1: 0.2353, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - What network is National Cycle Route 57 part of?...
+
+✓ Main question 1: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 2/10: What district is the headquarter of Julia's House located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is the headquarters of Julia's House located?
+Ground Truth: Corfe Mullen, Dorset, England
+storage_time: 0.025768280029296875
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~3.2 MB per layer (vs 272.2 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 27, 18, 24]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (361 tokens)
+    Layer 14:  17.0% (205 tokens)
+    Layer 27: 5.0% (60 tokens)
+    Average rate: 17.5%
+    Total recomputation: 5891/33740 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.134s
+
+  Layerwise union positions: 361 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Corfe Mullen, Dorset, England
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is the headquarters of Julia's House located...
+
+✓ Main question 2: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 3/10: What body of water includes the terrain feature where Coffee Swamp is located?
+================================================================================
+
+Sub-question 1/1
+Question: Where is Coffee Swamp located?
+Ground Truth: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+storage_time: 0.026901960372924805
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~2.9 MB per layer (vs 310.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 27, 24, 19]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (413 tokens)
+    Layer 14:  17.0% (234 tokens)
+    Layer 27: 5.0% (68 tokens)
+    Average rate: 17.5%
+    Total recomputation: 6734/38556 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.140s
+
+  Layerwise union positions: 413 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Washington Island, Door County Wisconsin
+F1: 0.5000, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Where is Coffee Swamp located?...
+
+✓ Main question 3: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 4/10: Who is the spouse of the child of Peter Andreas Heiberg?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the child of Peter Andreas Heiberg?
+Ground Truth: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+storage_time: 0.023834943771362305
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~3.1 MB per layer (vs 237.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [24, 23, 27, 18]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (313 tokens)
+    Layer 14:  17.0% (178 tokens)
+    Layer 27: 5.0% (52 tokens)
+    Average rate: 17.5%
+    Total recomputation: 5112/29288 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.130s
+
+  Layerwise union positions: 313 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Johan Ludvig Heiberg
+F1: 0.5714, EM: 0.0000
+
+Sub-question 2/2
+Question: Who is the spouse of Johan Ludvig Heiberg?
+Ground Truth: Johanne Luise Heiberg
+storage_time: 0.02573847770690918
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~3.6 MB per layer (vs 287.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 24, 19, 18]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (378 tokens)
+    Layer 14:  17.0% (214 tokens)
+    Layer 27: 5.0% (63 tokens)
+    Average rate: 17.5%
+    Total recomputation: 6165/35308 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.134s
+
+  Layerwise union positions: 378 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Johanne Luise Heiberg
+F1: 1.0000, EM: 1.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Who is the child of Peter Andreas Heiberg?...
+Sub-Q 2: ✓ CORRECT - Who is the spouse of Johan Ludvig Heiberg?...
+
+✓ Main question 4: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 5/10: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+================================================================================
+
+Sub-question 1/2
+Question: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+Ground Truth: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+storage_time: 0.024038076400756836
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~3.9 MB per layer (vs 244.6 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [24, 23, 21, 19]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (324 tokens)
+    Layer 14:  17.0% (184 tokens)
+    Layer 27: 5.0% (54 tokens)
+    Average rate: 17.5%
+    Total recomputation: 5292/30296 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.133s
+
+  Layerwise union positions: 324 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Isabella de Lusignan, Geoffrey de Lusignan, Maud de Lusignan, Piers de Lusignan
+F1: 0.2128, EM: 0.0000
+
+Sub-question 2/2
+Question: When was King Henry III of England crowned?
+Ground Truth: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+storage_time: 0.03187990188598633
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~4.2 MB per layer (vs 510.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 24, 20, 25]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (578 tokens)
+    Layer 14:  17.0% (328 tokens)
+    Layer 27: 5.0% (96 tokens)
+    Average rate: 17.5%
+    Total recomputation: 9429/53956 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.186s
+
+  Layerwise union positions: 578 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted: 1220
+F1: 0.1538, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✗ INCORRECT - Who were the siblings of Alice de Lusignan, Counte...
+Sub-Q 2: ✗ INCORRECT - When was King Henry III of England crowned?...
+
+✗ Main question 5: Some sub-questions INCORRECT
+
+================================================================================
+Main Question 6/10: What company merged in 2002 with the CEMM developer?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 7/10: Which university employed the person that Mach bands are named after?
+================================================================================
+
+Sub-question 1/1
+Question: Which university employed Ernst Mach?
+Ground Truth: Ernst Mach was employed at Charles University in Prague.
+storage_time: 0.02653336524963379
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2303, Query len: 21 (from pos 2282)
+  Memory: ~3.0 MB per layer (vs 323.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [24, 23, 26, 27]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (392 tokens)
+    Layer 14:  17.0% (222 tokens)
+    Layer 27: 5.0% (65 tokens)
+    Average rate: 17.5%
+    Total recomputation: 6389/36596 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.156s
+
+  Layerwise union positions: 392 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Charles University in Prague
+F1: 0.6250, EM: 0.0000
+
+⏳ Waiting for 1 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Which university employed Ernst Mach?...
+
+✓ Main question 7: ALL 1 sub-questions CORRECT
+
+================================================================================
+Main Question 8/10: Who is the employer of the physicist who Mach number is named after?
+================================================================================
+
+Sub-question 1/2
+Question: Who is the physicist that the Mach number is named after?
+Ground Truth: The Mach number is named after the Austrian physicist and philosopher Ernst Mach.
+storage_time: 0.02776193618774414
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2406, Query len: 27 (from pos 2379)
+  Memory: ~4.0 MB per layer (vs 353.3 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 21, 27, 25]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (429 tokens)
+    Layer 14:  17.0% (244 tokens)
+    Layer 27: 5.0% (71 tokens)
+    Average rate: 17.5%
+    Total recomputation: 7007/40124 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.152s
+
+  Layerwise union positions: 429 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Ernst Mach
+F1: 0.2857, EM: 0.0000
+
+Sub-question 2/2
+Question: Who was Ernst Mach's employer or academic institution during his career?
+Ground Truth: Ernst Mach was a professor at Charles University in Prague.
+storage_time: 0.02688455581665039
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2286, Query len: 28 (from pos 2258)
+  Memory: ~3.9 MB per layer (vs 319.0 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 24, 27, 25]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (414 tokens)
+    Layer 14:  17.0% (235 tokens)
+    Layer 27: 5.0% (68 tokens)
+    Average rate: 17.5%
+    Total recomputation: 6749/38640 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.142s
+
+  Layerwise union positions: 414 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Charles University in Prague
+F1: 0.6250, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Who is the physicist that the Mach number is named...
+Sub-Q 2: ✓ CORRECT - Who was Ernst Mach's employer or academic institut...
+
+✓ Main question 8: ALL 2 sub-questions CORRECT
+
+================================================================================
+Main Question 9/10: What record label did the performer of The Place and the Time belong to?
+================================================================================
+⊘ SKIPPED (llm_judge=False or contains problematic answers)
+  Note: Documents still included in global corpus for similarity computation
+
+================================================================================
+Main Question 10/10: When did a storm disperse the fleet led by the English king who trusted William de Longchamp?
+================================================================================
+
+Sub-question 1/2
+Question: Which English king trusted William de Longchamp?
+Ground Truth: King Richard I of England
+storage_time: 0.03012228012084961
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2815, Query len: 25 (from pos 2790)
+  Memory: ~4.3 MB per layer (vs 483.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 24, 21, 25]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (537 tokens)
+    Layer 14:  17.0% (305 tokens)
+    Layer 27: 5.0% (89 tokens)
+    Average rate: 17.5%
+    Total recomputation: 8772/50204 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.176s
+
+  Layerwise union positions: 537 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Richard I
+F1: 0.5000, EM: 0.0000
+
+Sub-question 2/2
+Question: What specific naval expedition or fleet did King Richard I lead that was dispersed by a storm?
+Ground Truth: King Richard I led a large fleet from Messina to Acre in April 1191, which was dispersed by a storm.
+storage_time: 0.03577113151550293
+
+============================================================
+DraftModelLayerwise: Layer-wise Dynamic Rate
+============================================================
+  Initial rate: 30.0%
+  Final rate: 5.0%
+  Decay type: linear
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 3547, Query len: 33 (from pos 3514)
+  Memory: ~7.1 MB per layer (vs 767.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  Draft 熵选层: [23, 24, 27, 21]
+
+  Per-layer rate statistics:
+    Layer 0:  30.0% (771 tokens)
+    Layer 14:  17.0% (437 tokens)
+    Layer 27: 5.0% (128 tokens)
+    Average rate: 17.5%
+    Total recomputation: 12581/71960 = 17.5%
+
+DraftModelLayerwise 完成逐层选择
+select_time: 0.239s
+
+  Layerwise union positions: 771 unique doc positions
+  (Note: Using union for forward pass; per-layer rates documented in extra_info)
+
+Predicted:  Richard the Lion-hearted left Messina with a large fleet in order to reach Acre, but a storm dispersed the fleet.
+F1: 0.4762, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Which English king trusted William de Longchamp?...
+Sub-Q 2: ✓ CORRECT - What specific naval expedition or fleet did King R...
+
+✓ Main question 10: ALL 2 sub-questions CORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 7/8 (87.50%)
+Sub Questions: 10/12 (83.33%)
+Average F1: 0.5154
+Average EM: 0.1667
+
+================================================================================
+COMPARISON WITH RATE=1 BASELINE
+================================================================================
+Current (rate=0.3):
+  Sub Questions Accuracy: 83.33%, F1: 0.5154, EM: 0.1667
+Baseline (rate=1):
+  Sub Questions Accuracy: 87.90%, F1: 0.5711, EM: 0.2339
+Delta:
+  Accuracy: -4.57%, F1: -0.0557, EM: -0.0672
+================================================================================
+================================================================================
+
+Results saved to /mnt/data/reflect/Qwen2.5-7B-Instruct/results
+
+================================================================================
+ALL TESTS COMPLETED
+================================================================================

@@ -1,0 +1,817 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+Analyzing rate=0.05 correct vs incorrect examples
+====================================================================================================
+Loaded 250 results
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.25it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.39it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:02<00:00,  1.46it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.54it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.48it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Model loaded with device_map across GPUs:
+  : 0
+Loading dataset from /mnt/data/wjh/FusionRAG/result_reflect.json...
+Limited to first 30 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+  Main question 6: 19 unique documents, 2 sub-questions
+  Main question 7: 10 unique documents, 1 sub-questions
+  Main question 8: 15 unique documents, 2 sub-questions
+  Main question 9: 19 unique documents, 2 sub-questions
+  Main question 10: 15 unique documents, 2 sub-questions
+  Main question 11: 17 unique documents, 2 sub-questions
+  Main question 12: 19 unique documents, 2 sub-questions
+  Main question 13: 14 unique documents, 2 sub-questions
+  Main question 14: 18 unique documents, 2 sub-questions
+  Main question 15: 17 unique documents, 2 sub-questions
+  Main question 16: 19 unique documents, 2 sub-questions
+  Main question 17: 14 unique documents, 2 sub-questions
+  Main question 18: 14 unique documents, 2 sub-questions
+  Main question 19: 17 unique documents, 2 sub-questions
+  Main question 20: 16 unique documents, 2 sub-questions
+  Main question 21: 17 unique documents, 2 sub-questions
+  Main question 22: 15 unique documents, 2 sub-questions
+  Main question 23: 21 unique documents, 3 sub-questions
+  Main question 24: 19 unique documents, 3 sub-questions
+  Main question 25: 18 unique documents, 2 sub-questions
+  Main question 26: 17 unique documents, 2 sub-questions
+  Main question 27: 10 unique documents, 1 sub-questions
+  Main question 28: 19 unique documents, 2 sub-questions
+  Main question 29: 25 unique documents, 4 sub-questions
+  Main question 30: 17 unique documents, 4 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 30
+  - Testable: 24
+  - Skipped (llm_judge=False or problematic answers): 6
+
+Total sub-questions: 61
+  - Testable: 43
+  - Skipped: 18
+
+Total documents (across all questions): 481
+================================================================================
+
+Processing: What network is National Cycle Route 57 part of?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2132, Query len: 27 (from pos 2105)
+  Memory: ~6.1 MB per layer (vs 485.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.147, gini: 0.842
+
+Processing: Where is the headquarters of Julia's House located...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2112, Query len: 25 (from pos 2087)
+  Memory: ~5.6 MB per layer (vs 476.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.173, gini: 0.825
+
+Processing: Where is Coffee Swamp located?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2254, Query len: 21 (from pos 2233)
+  Memory: ~5.1 MB per layer (vs 542.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.106, gini: 0.869
+
+Processing: Who is the child of Peter Andreas Heiberg?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1972, Query len: 26 (from pos 1946)
+  Memory: ~5.5 MB per layer (vs 415.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.247, gini: 0.761
+
+Processing: Who is the spouse of Johan Ludvig Heiberg?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2172, Query len: 27 (from pos 2145)
+  Memory: ~6.3 MB per layer (vs 503.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.176, gini: 0.808
+
+Processing: Who were the siblings of Alice de Lusignan, Counte...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2002, Query len: 32 (from pos 1970)
+  Memory: ~6.8 MB per layer (vs 428.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.268, gini: 0.754
+
+Processing: When was King Henry III of England crowned?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.235, gini: 0.774
+
+Processing: What company did Compaq merge with in 2002?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2648, Query len: 30 (from pos 2618)
+  Memory: ~8.5 MB per layer (vs 749.0 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.225, gini: 0.784
+
+Processing: Which university employed Ernst Mach?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2303, Query len: 21 (from pos 2282)
+  Memory: ~5.2 MB per layer (vs 566.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.184, gini: 0.815
+
+Processing: Who is the physicist that the Mach number is named...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2406, Query len: 27 (from pos 2379)
+  Memory: ~6.9 MB per layer (vs 618.3 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.140, gini: 0.851
+
+Processing: Who was Ernst Mach's employer or academic institut...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2286, Query len: 28 (from pos 2258)
+  Memory: ~6.8 MB per layer (vs 558.2 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.191, gini: 0.802
+
+Processing: Which English king trusted William de Longchamp?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2815, Query len: 25 (from pos 2790)
+  Memory: ~7.5 MB per layer (vs 846.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.165, gini: 0.830
+
+Processing: What specific naval expedition or fleet did King R...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 3547, Query len: 33 (from pos 3514)
+  Memory: ~12.5 MB per layer (vs 1343.8 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.201, gini: 0.802
+
+Processing: Who is the author of The Unwinding?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2322, Query len: 25 (from pos 2297)
+  Memory: ~6.2 MB per layer (vs 575.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.160, gini: 0.831
+
+Processing: Which organization did George Packer volunteer for...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2554, Query len: 24 (from pos 2530)
+  Memory: ~6.5 MB per layer (vs 696.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.205, gini: 0.793
+
+Processing: Which band performed the song 'Bang Bang Rock & Ro...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2049, Query len: 27 (from pos 2022)
+  Memory: ~5.9 MB per layer (vs 448.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.243, gini: 0.767
+
+Processing: Who is the lead singer of the band Art Brut?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2023, Query len: 26 (from pos 1997)
+  Memory: ~5.6 MB per layer (vs 437.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.131, gini: 0.857
+
+Processing: Which company initiated a successful price war amo...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2835, Query len: 32 (from pos 2803)
+  Memory: ~9.7 MB per layer (vs 858.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.224, gini: 0.788
+
+Processing: Which company did Compaq merge with in 2002?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2923, Query len: 30 (from pos 2893)
+  Memory: ~9.4 MB per layer (vs 912.6 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.226, gini: 0.785
+
+Processing: Who is Katherine of England?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1955, Query len: 21 (from pos 1934)
+  Memory: ~4.4 MB per layer (vs 408.2 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.161, gini: 0.836
+
+Processing: What year was King Henry III of England crowned?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2900, Query len: 25 (from pos 2875)
+  Memory: ~7.7 MB per layer (vs 898.3 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.247, gini: 0.766
+
+Processing: Who played the little girl in the 1947 film Miracl...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1885, Query len: 36 (from pos 1849)
+  Memory: ~7.2 MB per layer (vs 379.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.323, gini: 0.706
+
+Processing: Who is the sibling of actress Natalie Wood?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2497, Query len: 24 (from pos 2473)
+  Memory: ~6.4 MB per layer (vs 666.0 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.173, gini: 0.833
+
+Processing: In which county is Pine Springs located?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1493, Query len: 23 (from pos 1470)
+  Memory: ~3.7 MB per layer (vs 238.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.243, gini: 0.762
+
+Processing: What is the county seat of Culberson County, Texas...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1941, Query len: 28 (from pos 1913)
+  Memory: ~5.8 MB per layer (vs 402.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.282, gini: 0.733
+
+Processing: Who was the top PC manufacturer in 1994?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2335, Query len: 28 (from pos 2307)
+  Memory: ~7.0 MB per layer (vs 582.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.211, gini: 0.794
+
+Processing: What company did Compaq merge with in 2002?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 3011, Query len: 30 (from pos 2981)
+  Memory: ~9.6 MB per layer (vs 968.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.221, gini: 0.791
+
+Processing: Who was the King of England in 1950?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2235, Query len: 28 (from pos 2207)
+  Memory: ~6.7 MB per layer (vs 533.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.214, gini: 0.793
+
+Processing: Which actor played King George VI in the film 'The...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2758, Query len: 30 (from pos 2728)
+  Memory: ~8.8 MB per layer (vs 812.5 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.176, gini: 0.822
+
+Processing: Who played Susie in Miracle on 34th Street?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1840, Query len: 28 (from pos 1812)
+  Memory: ~5.5 MB per layer (vs 361.6 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.249, gini: 0.760
+
+Processing: Who is Natalie Wood's brother?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2020, Query len: 22 (from pos 1998)
+  Memory: ~4.7 MB per layer (vs 435.8 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.172, gini: 0.827
+
+Processing: Who is Anna Benson's husband?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1848, Query len: 22 (from pos 1826)
+  Memory: ~4.3 MB per layer (vs 364.8 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.145, gini: 0.846
+
+Processing: What team did Kris Benson play for in Major League...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2399, Query len: 27 (from pos 2372)
+  Memory: ~6.9 MB per layer (vs 614.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.246, gini: 0.761
+
+Processing: Who originally sang the song You Belong To Me?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2337, Query len: 26 (from pos 2311)
+  Memory: ~6.5 MB per layer (vs 583.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.257, gini: 0.759
+
+Processing: What record label was Joni James signed to when sh...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 3098, Query len: 41 (from pos 3057)
+  Memory: ~13.6 MB per layer (vs 1025.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_wrong, cov_85: 0.287, gini: 0.725
+
+Processing: Who was the person under whom the Chapter House wa...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2568, Query len: 27 (from pos 2541)
+  Memory: ~7.4 MB per layer (vs 704.4 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.255, gini: 0.769
+
+Processing: When was Henry III crowned?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2931, Query len: 21 (from pos 2910)
+  Memory: ~6.6 MB per layer (vs 917.6 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.206, gini: 0.795
+
+Processing: Who sang the song 'You Belong to Me'?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2374, Query len: 26 (from pos 2348)
+  Memory: ~6.6 MB per layer (vs 602.0 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.246, gini: 0.767
+
+Processing: What record label is Joni James signed to?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2814, Query len: 25 (from pos 2789)
+  Memory: ~7.5 MB per layer (vs 845.8 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.245, gini: 0.763
+
+Processing: What is the administrative territorial entity that...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1607, Query len: 26 (from pos 1581)
+  Memory: ~4.5 MB per layer (vs 275.8 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.274, gini: 0.737
+
+Processing: What places share a border with Central Equatoria?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 1944, Query len: 25 (from pos 1919)
+  Memory: ~5.2 MB per layer (vs 403.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_wrong, cov_85: 0.307, gini: 0.724
+
+Processing: Who played King George VI in The King's Speech?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2352, Query len: 26 (from pos 2326)
+  Memory: ~6.5 MB per layer (vs 590.9 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.177, gini: 0.819
+
+Processing: Who are the cast members of King of the Mountain?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2155, Query len: 26 (from pos 2129)
+  Memory: ~6.0 MB per layer (vs 496.0 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: became_wrong, cov_85: 0.213, gini: 0.794
+
+Processing: Who is Harry Hamlin's spouse?...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2259, Query len: 23 (from pos 2236)
+  Memory: ~5.5 MB per layer (vs 545.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+  Category: stayed_correct, cov_85: 0.108, gini: 0.876
+
+====================================================================================================
+GROUP COMPARISON: stayed_correct vs became_wrong
+====================================================================================================
+
+Sample sizes:
+  stayed_correct: 35
+  became_wrong: 7
+
+Feature              Stayed Correct       Became Wrong         Diff            Separation     
+------------------------------------------------------------------------------------------
+cov_50                 0.0422 ± 0.0128     0.0427 ± 0.0130      +0.0005      0.0397
+cov_70                 0.0991 ± 0.0284     0.1027 ± 0.0244      +0.0037      0.1384
+cov_80                 0.1575 ± 0.0424     0.1629 ± 0.0286      +0.0054      0.1502
+cov_85                 0.2058 ± 0.0518     0.2126 ± 0.0311      +0.0068      0.1587
+cov_90                 0.2820 ± 0.0618     0.2908 ± 0.0354      +0.0088      0.1742
+cov_95                 0.4275 ± 0.0694     0.4364 ± 0.0395      +0.0090      0.1588
+top5_ratio             0.1228 ± 0.0332     0.1356 ± 0.0353      +0.0128      0.3720
+top10_ratio            0.1989 ± 0.0452     0.2166 ± 0.0513      +0.0176      0.3650
+top20_ratio            0.3024 ± 0.0615     0.3229 ± 0.0735      +0.0205      0.3032
+top50_ratio            0.4828 ± 0.0796     0.4962 ± 0.0934      +0.0134      0.1541
+max_attn               0.0325 ± 0.0127     0.0412 ± 0.0152      +0.0087      0.6223
+gini                   0.7971 ± 0.0405     0.7922 ± 0.0292      -0.0049      0.1394
+norm_entropy           0.7929 ± 0.0343     0.7937 ± 0.0295      +0.0008      0.0256
+sparsity               0.8200 ± 0.0276     0.8134 ± 0.0257      -0.0066      0.2487
+peak_sharpness         1.1794 ± 0.1907     1.5256 ± 0.4066      +0.3463      1.0904
+doc_len              1412.0286 ± 374.0893 1368.8571 ± 503.7938   -43.1714      0.0973
+
+====================================================================================================
+MOST DISCRIMINATIVE FEATURES (sorted by separation score)
+====================================================================================================
+  peak_sharpness: 1.0904
+  max_attn: 0.6223
+  top5_ratio: 0.3720
+  top10_ratio: 0.3650
+  top20_ratio: 0.3032
+  sparsity: 0.2487
+  cov_90: 0.1742
+  cov_95: 0.1588
+  cov_85: 0.1587
+  top50_ratio: 0.1541
+
+Results saved to ./low_rate_analysis_features.json and ./low_rate_analysis_result.json

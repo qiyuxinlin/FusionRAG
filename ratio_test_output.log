@@ -1,0 +1,167 @@
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+====================================================================================================
+单样例多比例测试工具
+====================================================================================================
+样例: 4, 子问题: 1
+设备: cuda:0
+====================================================================================================
+
+加载模型...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.43it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.50it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.53it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.56it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+
+Model loaded with device_map across GPUs:
+  : 0
+加载数据...
+Loading dataset from ./result_reflect.json...
+Limited to first 5 main questions
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 10 unique documents, 1 sub-questions
+  Main question 2: 10 unique documents, 1 sub-questions
+  Main question 3: 10 unique documents, 1 sub-questions
+  Main question 4: 11 unique documents, 2 sub-questions
+  Main question 5: 19 unique documents, 2 sub-questions
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+Total main questions: 5
+  - Testable: 5
+  - Skipped (llm_judge=False or problematic answers): 0
+
+Total sub-questions: 7
+  - Testable: 7
+  - Skipped: 0
+
+Total documents (across all questions): 60
+================================================================================
+
+================================================================================
+Computing document similarity with BGE + FAISS (scope: global)...
+================================================================================
+Loading BGE model from /mnt/data/models/bge-m3-FP16...
+Encoding 60 documents for FAISS index...
+Corpus embeddings shape: (60, 1024)
+FAISS index built with 60 vectors
+Searching for top-10 similar documents for each document...
+Context rank computed: (60, 10)
+
+====================================================================================================
+测试样例 4, 子问题 1
+====================================================================================================
+问题: When was King Henry III of England crowned?
+标准答案: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+====================================================================================================
+
+长度统计:
+  System: 792 tokens
+  Document: 2075 tokens
+  Query: 24 tokens
+  Total: 2891 tokens
+
+计算 Oracle attention 分布...
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 28, Heads: 28
+  Seq len: 2891, Query len: 24 (from pos 2867)
+  Memory: ~7.4 MB per layer (vs 892.7 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 27 done
+Draft model attention computed
+选择的层: [16, 15, 18, 17]
+
+====================================================================================================
+Attention 分布特征
+====================================================================================================
+
+Top-k Concentration:
+  Top-1: 0.75%
+  Top-3: 1.47%
+  Top-5: 2.11%
+
+Connected Components: 93
+Gini Coefficient: 0.7736
+80% coverage: 1928 tokens (100.05%)
+85% coverage: 1928 tokens (100.05%)
+90% coverage: 1928 tokens (100.05%)
+
+====================================================================================================
+测试不同重算比例下的答案生成
+====================================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+测试比例: 0%
+────────────────────────────────────────────────────────────────────────────────
+选中 0 tokens (0.00%)
+❌ 生成失败: prefill_and_generate() got an unexpected keyword argument 'passages'
+
+────────────────────────────────────────────────────────────────────────────────
+测试比例: 10%
+────────────────────────────────────────────────────────────────────────────────
+选中 192 tokens (9.96%)
+❌ 生成失败: prefill_and_generate() got an unexpected keyword argument 'passages'
+
+────────────────────────────────────────────────────────────────────────────────
+测试比例: 15%
+────────────────────────────────────────────────────────────────────────────────
+选中 289 tokens (15.00%)
+❌ 生成失败: prefill_and_generate() got an unexpected keyword argument 'passages'
+
+────────────────────────────────────────────────────────────────────────────────
+测试比例: 20%
+────────────────────────────────────────────────────────────────────────────────
+选中 385 tokens (19.98%)
+❌ 生成失败: prefill_and_generate() got an unexpected keyword argument 'passages'
+
+────────────────────────────────────────────────────────────────────────────────
+测试比例: 25%
+────────────────────────────────────────────────────────────────────────────────
+选中 481 tokens (24.96%)
+❌ 生成失败: prefill_and_generate() got an unexpected keyword argument 'passages'
+
+────────────────────────────────────────────────────────────────────────────────
+测试比例: 30%
+────────────────────────────────────────────────────────────────────────────────
+选中 578 tokens (29.99%)
+❌ 生成失败: prefill_and_generate() got an unexpected keyword argument 'passages'
+
+====================================================================================================
+结果汇总
+====================================================================================================
+
+标准答案: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Ratio    Tokens     F1         EM       Correct    Answer
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0%       0          0.0000     0.00     ✗          ERROR: prefill_and_generate() got an unexpected keyword a
+10%      192        0.0000     0.00     ✗          ERROR: prefill_and_generate() got an unexpected keyword a
+15%      289        0.0000     0.00     ✗          ERROR: prefill_and_generate() got an unexpected keyword a
+20%      385        0.0000     0.00     ✗          ERROR: prefill_and_generate() got an unexpected keyword a
+25%      481        0.0000     0.00     ✗          ERROR: prefill_and_generate() got an unexpected keyword a
+30%      578        0.0000     0.00     ✗          ERROR: prefill_and_generate() got an unexpected keyword a
+
+✗ 所有比例都答错（包括 30%）
+
+详细结果已保存到: ./ratio_test_ex4_sub1.json
+
+✓ 测试完成！
