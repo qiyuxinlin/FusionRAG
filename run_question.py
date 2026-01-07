@@ -87,17 +87,22 @@ class FusionRAGModel:
             cache_path='/mnt/data3/reflect/',
             model_name='Qwen2.5-7B-Instruct',
             preprocess=False,
+            preprocess_method="default",
             file_input="",
             preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
     ):
-
+        print(f"init FusionRAGModel")
+        self.model_name=model_name
         self.model_cache_root = os.path.join(cache_path, model_name)
         self.save_path = os.path.join(self.model_cache_root, 'kv_cache')
         self.preprocess_save_path = os.path.join(self.model_cache_root, 'preprocess_kv_cache')
+        self.preprocess_empty_prefix_save_path = os.path.join(self.model_cache_root, 'empty_prefix_preprocess_kv_cache')
+        self.preprocess_method=preprocess_method
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(self.preprocess_save_path, exist_ok=True)
+        os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
         self.preprocess=preprocess
-        if preprocess:
+        if preprocess and self.preprocess_method == "default":
             dataset_name = os.path.basename(file_input).split(".")[0]
             similar_index_save_path = os.path.join(self.preprocess_save_path, "similar_index")
             self.similar_index_file_path = os.path.join(similar_index_save_path, f"{dataset_name}.npy")
@@ -146,22 +151,15 @@ class FusionRAGModel:
             self.input_device = device
 
     def levenshtein_distance(self, s1: str, s2: str) -> int:
-        """
-        计算两个字符串之间的编辑距离（Levenshtein距离）
-        """
         if len(s1) < len(s2):
             return self.levenshtein_distance(s2, s1)
-
         if len(s2) == 0:
             return len(s1)
-
         previous_row = range(len(s2) + 1)
-
         for i, c1 in enumerate(s1):
             current_row = [i + 1]
 
             for j, c2 in enumerate(s2):
-                # 计算插入、删除、替换的代价
                 insertions = previous_row[j + 1] + 1
                 deletions = current_row[j] + 1
                 substitutions = previous_row[j] + (c1 != c2)
@@ -178,18 +176,6 @@ class FusionRAGModel:
             if re.sub(r'\s+', '', text) == re.sub(r'\s+', '', target):
                 print(f"find_closest_by_edit_distance found {idx}")
                 return idx
-        """
-        从字符串列表中找出与目标字符串编辑距离最近的文本
-
-        参数:
-            texts: 字符串列表
-            target: 目标字符串
-            return_all_min: 是否返回所有最小距离的索引，默认为False（只返回第一个）
-
-        返回:
-            如果return_all_min为False: 返回最小编辑距离的索引
-            如果return_all_min为True: 返回所有最小编辑距离的索引列表
-        """
         if not texts:
             raise ValueError("字符串列表不能为空")
 
@@ -210,51 +196,81 @@ class FusionRAGModel:
         else:
             return min_indices[0]
 
-    def preprocess_one_document(self, system_prompt: str, document: str, reprocess_method: str, revert_rope: bool):
+    def clean_kv_cache(self):
+        # clean all past tokens
+        for layer_idx in range(len(self.past_key_values.key_cache)):
+            self.past_key_values.past_tokens[layer_idx] = 0
+            self.past_key_values.key_cache[layer_idx].zero_()
+            self.past_key_values.value_cache[layer_idx].zero_()
+
+    def prepare_system_kvcache(self, system_prompt: str, reprocess_method: str):
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
         system_len = system_tensor.shape[0]
         hash_key = hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()
-        system_cache_path = f'{self.save_path}/{hash_key}_key.pt'
+        system_cache_paths = [self.save_path, self.preprocess_save_path, self.preprocess_empty_prefix_save_path]
         ## first generate system cache, this should already be there.
+        for system_cache_path in system_cache_paths:
+            if not os.path.exists(f'{system_cache_path}/{hash_key}_key.pt'):
+                print(f"Generating system KV cache...")
+                input_tensor = system_tensor.unsqueeze(0)
+                prefill_and_save_kv_cache(
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    past_key_values=self.past_key_values,
+                    inputs=input_tensor.to(self.input_device),
+                    save_path=system_cache_path,
+                    chunk_id=0,
+                    hash_key=hash_key,
+                    system_len=system_len,
+                    passage_len=system_len,
+                    reprocess_method=reprocess_method,
+                    device=self.input_device,
+                    device_map=self.device_map
+                )
+
+        return system_len, system_tensor
+
+    def preprocess_one_document_with_empty(self, system_prompt: str, document: str, all_document: list[str], reprocess_method: str, revert_rope: bool):
+        system_len, system_tensor = self.prepare_system_kvcache(system_prompt=system_prompt, reprocess_method=reprocess_method)
+        document_index = all_document.index(document)
+        prefill_len = 0
+        system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
+        irrelevant_tokens = self.tokenizer.encode(". "*10000, add_special_tokens=True)
+        system_tensor = torch.tensor(system_tokens, dtype=torch.long)
+        system_len = system_tensor.shape[0]
+        for i in range(document_index):
+            tokens = self.tokenizer.encode(all_document[i], add_special_tokens=True)
+            prefill_len += len(tokens)
+        doc_tokens = self.tokenizer.encode(document, add_special_tokens=False)
+        doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
+        prefill_space_tensor = torch.tensor(irrelevant_tokens[:prefill_len], dtype=torch.long)
+        input_tensor = torch.cat((system_tensor, prefill_space_tensor, doc_tensor)).unsqueeze(0)
+        hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
+        system_cache_path = f'{self.preprocess_empty_prefix_save_path}/{hash_key}_key.pt'
+        prefill_space_len = prefill_space_tensor.shape[0]
+        passage_len = doc_tensor.shape[0]
         if not os.path.exists(system_cache_path):
-            print(f"Generating system KV cache...")
-            input_tensor = system_tensor.unsqueeze(0)
+            print(f"[preprocess_one_document_with_empty] generate for hash={hash_key}")
             prefill_and_save_kv_cache(
                 model=self.model,
                 tokenizer=self.tokenizer,
                 past_key_values=self.past_key_values,
                 inputs=input_tensor.to(self.input_device),
-                save_path=self.save_path,
-                chunk_id=0,
                 hash_key=hash_key,
-                system_len=system_len,
-                passage_len=system_len,
+                save_path=self.preprocess_empty_prefix_save_path,
+                chunk_id=1,
+                system_len=system_len + prefill_space_len,
+                passage_len=passage_len,
                 reprocess_method=reprocess_method,
                 device=self.input_device,
                 device_map=self.device_map
             )
+            self.clean_kv_cache()
 
-        ## also put in preprocess_save_path
-        system_cache_path = f'{self.preprocess_save_path}/{hash_key}_key.pt'
-        if not os.path.exists(system_cache_path):
-            input_tensor = system_tensor.unsqueeze(0)
-            prefill_and_save_kv_cache(
-                model=self.model,
-                tokenizer=self.tokenizer,
-                past_key_values=self.past_key_values,
-                inputs=input_tensor.to(self.input_device),
-                save_path=self.preprocess_save_path,
-                chunk_id=0,
-                hash_key=hash_key,
-                system_len=system_len,
-                passage_len=system_len,
-                reprocess_method=reprocess_method,
-                device=self.input_device,
-                device_map=self.device_map
-            )
-        time_start = time.time()
 
+    def preprocess_one_document(self, system_prompt: str, document: str, reprocess_method: str, revert_rope: bool):
+        system_len, system_tensor = self.prepare_system_kvcache(system_prompt=system_prompt, reprocess_method=reprocess_method)
         time_start = time.time()
         current_doc = document
         try:
@@ -267,7 +283,7 @@ class FusionRAGModel:
         current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
         current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
-        print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
+        # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
         if os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_value.pt') \
                 and os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_key.pt'):
             print(f"preprocess_all_documents skipping doc {current_doc}.")
@@ -312,15 +328,13 @@ class FusionRAGModel:
                     device_map=self.device_map
                 )
 
-        # clean all past tokens
-        for layer_idx in range(len(self.past_key_values.key_cache)):
-            self.past_key_values.past_tokens[layer_idx] = 0
+            self.clean_kv_cache()
         ## 2. load all kv caches
         for doc_idx, doc_tensor in enumerate(all_doc_tensors):
             hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
             cache_key_path = f'{self.save_path}/{hash_key}_key.pt'
             cache_value_path = f'{self.save_path}/{hash_key}_value.pt'
-            print(f"cache_key_path = {cache_key_path}")
+            # print(f"cache_key_path = {cache_key_path}")
             chunk_key_cache = torch.load(cache_key_path, weights_only=True)
             chunk_value_cache = torch.load(cache_value_path, weights_only=True)
             past_len = sum(all_doc_len[:doc_idx])
@@ -343,6 +357,7 @@ class FusionRAGModel:
             reprocess_method=reprocess_method, device=self.input_device, device_map=self.device_map,
             hash_key=current_hash_key
         )
+        self.clean_kv_cache()
         print(f"[preprocess_all_documents] takes {time.time()-time_start} seconds")
 
 
@@ -399,7 +414,7 @@ class FusionRAGModel:
             current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
             current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
             current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
-            print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
+            # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
             if os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_value.pt') \
                     and os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_key.pt'):
                 print(f"preprocess_all_documents skipping doc {current_doc}.")
@@ -452,7 +467,7 @@ class FusionRAGModel:
                 hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
                 cache_key_path = f'{self.save_path}/{hash_key}_key.pt'
                 cache_value_path = f'{self.save_path}/{hash_key}_value.pt'
-                print(f"cache_key_path = {cache_key_path}")
+                # print(f"cache_key_path = {cache_key_path}")
                 chunk_key_cache = torch.load(cache_key_path, weights_only=True)
                 chunk_value_cache = torch.load(cache_value_path, weights_only=True)
                 past_len = sum(all_doc_len[:doc_idx])
@@ -566,9 +581,11 @@ class FusionRAGModel:
             use_entropy_selection=False,
             entropy_top_k=4,
     ) -> (int, int, int, int, str, list[int]):
-        print(f"recomputing using recomputation_rate={rate}")
+
+        print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
+        empty_token = self.tokenizer.encode(" ", add_special_tokens=True)
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
         system_len = system_tensor.shape[0]
@@ -583,7 +600,7 @@ class FusionRAGModel:
             doc_tensors.append(doc_tensor)
             doc_tensors_len.append(len(doc_tensor))
             hash_keys.append(hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest())
-            print(f"for doc={doc_text}\n current_hash_key={hash_keys[-1]}")
+            # print(f"for doc={doc_text}\n current_hash_key={hash_keys[-1]}")
 
 
         if rate != 1:  # Skip if full recompute
@@ -608,6 +625,7 @@ class FusionRAGModel:
                     device=self.input_device,
                     device_map=self.device_map
                 )
+                self.clean_kv_cache()
 
             # Generate KV cache for each document in THIS main question
             for doc_idx, doc_tensor in enumerate(doc_tensors):
@@ -635,15 +653,29 @@ class FusionRAGModel:
                         device=self.input_device,
                         device_map=self.device_map
                     )
+                    self.clean_kv_cache()
                     print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
             if self.preprocess:
-                for doc_text in retrieved_docs:
-                    self.preprocess_one_document(
-                        system_prompt=DEFAULT_SYSTEM_PROMPT,
-                        document=doc_text,
-                        reprocess_method=reprocess_method,
-                        revert_rope=revert_rope,
-                    )
+                if self.preprocess_method == "default":
+                    for doc_text in retrieved_docs:
+                        self.preprocess_one_document(
+                            system_prompt=DEFAULT_SYSTEM_PROMPT,
+                            document=doc_text,
+                            reprocess_method=reprocess_method,
+                            revert_rope=revert_rope,
+                        )
+                elif self.preprocess_method == "space":
+                    for doc_text in retrieved_docs:
+                        self.preprocess_one_document_with_empty(
+                            system_prompt=DEFAULT_SYSTEM_PROMPT,
+                            document=doc_text,
+                            all_document=retrieved_docs,
+                            reprocess_method=reprocess_method,
+                            revert_rope=revert_rope,
+                        )
+                else:
+                    print(f"no method={self.preprocess_method}")
+                    exit(1)
 
         if model_type == 'qwen3':
             question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
@@ -670,7 +702,16 @@ class FusionRAGModel:
             )
         else:
             # Load preprocessed KV cache and generate
-            load_path = self.preprocess_save_path if self.preprocess else self.save_path
+            if self.preprocess:
+                if self.preprocess_method == "default":
+                    load_path = self.preprocess_save_path
+                elif self.preprocess_method == "space":
+                    load_path = self.preprocess_empty_prefix_save_path
+                else:
+                    print(f"no method={self.preprocess_method}")
+                    exit(1)
+            else:
+                load_path = self.save_path
             ## check if all preprocess cache is there.
             for doc_index, hash_key in enumerate(hash_keys):
                 key_cache_path = f'{load_path}/{hash_key}_key.pt'
@@ -680,6 +721,7 @@ class FusionRAGModel:
                         print(f"retrieved_docs {retrieved_docs[doc_index]} not preprocessed before. 字符串不存在")
                     load_path = self.save_path
                     break
+            print(f"load_path={load_path}")
             generated_tokens, _ = load_kv_and_generate(
                 self.model,
                 self.tokenizer,
@@ -736,7 +778,7 @@ def test_question(fusion_rag_model):
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
         model_type='qwen3',
-        rate=0.3,
+        rate=0,
         reprocess_method='DraftModel',
         revert_rope=True,
         max_new_tokens=250,
@@ -748,10 +790,12 @@ def test_question(fusion_rag_model):
     print(f"decode_len={decode_len}")
 
 if __name__ == '__main__':
-    os.environ["CUDA_VISIBLE_DEVICES"]="4,5,6,7"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4,5,6,7"
+    print(f"start testing run_question")
 
 
     # preprocess_all_docs(file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json")
+
 
     fusion_rag_model = FusionRAGModel(
         model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
@@ -765,7 +809,8 @@ if __name__ == '__main__':
         draft_model_type="qwen",
         preprocess=True,
         file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
-        preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3"
+        preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
+        preprocess_method="space"
     )
     test_question(fusion_rag_model)
 

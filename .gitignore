@@ -1,5 +1,7 @@
 __pycache__
 build
+test_data/
+results/
 .vscode
 *.so
 *.cache

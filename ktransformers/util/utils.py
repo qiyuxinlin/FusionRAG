@@ -357,16 +357,17 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
             key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
             value_path = f'{save_path}/{example_id}_{chunk_id}_value.pt'
             lock_path = f'{save_path}/{example_id}_{chunk_id}.lock'
-        print(f'hashkey: {hash_key}, chunk_id: {chunk_id}')
+        # print(f'hashkey: {hash_key}, chunk_id: {chunk_id}')
 
         with FileLock(lock_path, timeout=60):
             # Double-check if file exists (another process might have created it)
             if not os.path.exists(key_path):
                 torch.save(key_cache.clone(), key_path)
                 torch.save(value_cache.clone(), value_path)
-                print(f'example_id: {example_id}, chunk_id: {chunk_id} (saved by current process)')
+                # print(f'example_id: {example_id}, chunk_id: {chunk_id} (saved by current process)')
             else:
-                print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
+                ""
+                # print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
         return key_cache, value_cache
 
 def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs):
@@ -926,6 +927,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
             generated_ids[:, cache_position] = next_token.int()
             tokens.append(next_token.int())
+            # print(f"mengyao_debug current token is {tokenizer.decode(torch.tensor(tokens[:-1]))}")
             seq_length += 1
             
             if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>':
@@ -939,7 +941,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     tokens_generated = len(tokens)
     tokens_per_second = tokens_generated / total_time
 
-    print("")
+    print(f"decode_time={total_time}")
 
     # print(f"prompt eval count:    {prefill_count} token(s)")
     # print(f"prompt eval duration: {prefill_time}s")
