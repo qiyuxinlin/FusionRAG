@@ -131,11 +131,16 @@ class FusionRAGModel:
             print("Using multi-GPU with device_map='auto'")
         self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu)
         if draft_model_path != "":
+            print(f"Initialize draft model.")
             draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
             draft_config._attn_implementation = "sdpa"
             self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False)
             self.draft_model.eval()
             self.draft_model_device=draft_model_device
+        else:
+            print(f"Skipping draft model.")
+            self.draft_model = None
+            self.draft_model_device = ""
 
         cache_device = self.device_map if use_multi_gpu else device
         self.past_key_values = StaticCache(
@@ -584,7 +589,7 @@ class FusionRAGModel:
             entropy_top_k=4,
     ) -> (int, int, int, int, str, list[int]):
 
-        print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}")
+        print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
         empty_token = self.tokenizer.encode(" ", add_special_tokens=True)

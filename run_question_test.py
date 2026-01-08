@@ -168,8 +168,14 @@ def run_test_process(
         file_lock=None,
         result_queue=None,
         preprocess_method="",
-        questions_to_run=[]
+        questions_to_run=[],
+        last_time_result_file="",
 ):
+    last_questions = []
+    if last_time_result_file != "":
+        print(f"rerun last_time_result_file={last_time_result_file}")
+        with open(last_time_result_file, 'r') as f:
+            last_questions = json.load(f)
     """单个测试进程的运行函数"""
     print(f"Process {process_id}: Starting with GPUs {gpu_ids}")
 
@@ -184,6 +190,9 @@ def run_test_process(
         main_device = "cuda:0"
         draft_device = "cuda:0"
 
+    draft_model_path = "/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct"
+    if reprocess_method != "DraftModel":
+        draft_model_path = ""
     fusion_rag_model = FusionRAGModel(
         model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
         use_multi_gpu=True,
@@ -192,7 +201,7 @@ def run_test_process(
         device=main_device,
         cache_path='/data2/qy_tmp/xumengyao/fusionrag/',
         draft_model_device=draft_device,
-        draft_model_path='/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct',
+        draft_model_path=draft_model_path,
         draft_model_type="qwen",
         file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
         preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
@@ -214,6 +223,13 @@ def run_test_process(
         start_idx=start_idx,
         end_idx=end_idx
     )
+    if len(last_questions) > 0:
+        all_questions_wrong = []
+        for q in all_questions:
+            for last_q in last_questions:
+                if q["query"] == last_q["query"] and q["answer"] == last_q["answer"] and last_q["llm_judge"] is False:
+                    all_questions_wrong.append(q)
+        all_questions = all_questions_wrong
 
     print(f"Process {process_id}: Processing {len(all_questions)} questions (main questions {start_idx} to {end_idx})")
 
@@ -339,8 +355,16 @@ def real_time_monitor(result_queue, total_processes, keyword_base):
     return all_results
 
 
-def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="",
-                               preprocess_method="", questions_to_run=[], sep=2):
+def test_question_multiprocess(total_run=200,
+                               rate=0.3,
+                               reprocess_method="",
+                               preprocess_method="",
+                               last_rate=0.3,
+                               last_reprocess_method="",
+                               last_preprocess_method="",
+                               questions_to_run=[],
+                               sep=2,
+                               test_last_wrong=False):
     """多进程测试主函数（改进版：支持动态GPU分配）
 
     Args:
@@ -393,8 +417,15 @@ def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="",
 
     print(f"数据划分: {data_ranges}")
 
+
     # 创建共享结果文件路径
     keyword_base = f"model_Qwen3-32B_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{preprocess_method}"
+    keyword_base_last_time = f"model_Qwen3-32B_rate_{last_rate}_reprocess_method_{last_reprocess_method}_preprocess_{last_preprocess_method}"
+    if test_last_wrong:
+        keyword_base = f"{keyword_base}_last_wrong"
+        last_time_result_file = f"./results/summary_{keyword_base_last_time}_interim.json"
+    else:
+        last_time_result_file = ""
 
     # 创建管理器和锁
     manager = Manager()
@@ -419,7 +450,8 @@ def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="",
                 file_lock,
                 result_queue,
                 preprocess_method,
-                questions_to_run
+                questions_to_run,
+                last_time_result_file
             )
         )
         processes.append(p)
@@ -454,19 +486,17 @@ if __name__ == '__main__':
     # 运行多进程测试
     all_results = test_question_multiprocess(
         total_run=200,
-        rate=0.2, ## change this
+        rate=1.0, ## change this
         reprocess_method="average", ## change this  1. DraftModel 2. DraftModel_ppr 3. average
         preprocess_method="default", ## change this  1. space 2. default
         questions_to_run=questions_to_run,
-        sep=2
+        sep=4,
+
+        # test_last_wrong=True, ##change this
+        # last_rate=0.2,  ## change this to the lasttime running
+        # last_reprocess_method="average",  ## change this  1. DraftModel 2. DraftModel_ppr 3. average
+        # last_preprocess_method="default",  ## change this  1. space 2. default
     )
 
-    # all_results = test_question_multiprocess(
-    #     total_run=200,
-    #     rate=0.2,
-    #     reprocess_method="DraftModel",
-    #     preprocess_method="space",
-    #     questions_to_run=[]
-    # )
 
     print("All tests completed!")
