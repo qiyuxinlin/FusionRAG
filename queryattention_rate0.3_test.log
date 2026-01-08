@@ -1,367 +1,0 @@
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
-  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
-  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
-  - Results: /mnt/data/reflect/Qwen2.5-7B-Instruct/results
-Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
-Loading qwen model...
-Using multi-GPU with device_map='auto'
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:02,  1.37it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.39it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:02<00:00,  1.39it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.45it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.42it/s]
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-
-Model loaded with device_map across GPUs:
-  model.embed_tokens: 0
-  model.layers.0: 1
-  model.layers.1: 1
-  model.layers.2: 1
-  model.layers.3: 1
-  model.layers.4: 1
-  model.layers.5: 2
-  model.layers.6: 2
-  model.layers.7: 2
-  model.layers.8: 2
-  model.layers.9: 2
-  model.layers.10: 3
-  model.layers.11: 3
-  model.layers.12: 3
-  model.layers.13: 3
-  model.layers.14: 3
-  model.layers.15: 4
-  model.layers.16: 4
-  model.layers.17: 4
-  model.layers.18: 4
-  model.layers.19: 4
-  model.layers.20: 5
-  model.layers.21: 5
-  model.layers.22: 5
-  model.layers.23: 5
-  model.layers.24: 5
-  model.layers.25: 6
-  model.layers.26: 6
-  model.layers.27: 6
-  model.norm: 6
-  lm_head: 6
-Preparing data organized by main questions...
-Loading dataset from ./result_reflect.json...
-Limited to first 200 main questions
-
-================================================================================
-Building document corpus with scope: global
-================================================================================
-  Main question 1: 10 unique documents, 1 sub-questions
-  Main question 2: 10 unique documents, 1 sub-questions
-  Main question 3: 10 unique documents, 1 sub-questions
-  Main question 4: 11 unique documents, 2 sub-questions
-  Main question 5: 19 unique documents, 2 sub-questions
-  Main question 6: 19 unique documents, 2 sub-questions
-  Main question 7: 10 unique documents, 1 sub-questions
-  Main question 8: 15 unique documents, 2 sub-questions
-  Main question 9: 19 unique documents, 2 sub-questions
-  Main question 10: 15 unique documents, 2 sub-questions
-  Main question 11: 17 unique documents, 2 sub-questions
-  Main question 12: 19 unique documents, 2 sub-questions
-  Main question 13: 14 unique documents, 2 sub-questions
-  Main question 14: 18 unique documents, 2 sub-questions
-  Main question 15: 17 unique documents, 2 sub-questions
-  Main question 16: 19 unique documents, 2 sub-questions
-  Main question 17: 14 unique documents, 2 sub-questions
-  Main question 18: 14 unique documents, 2 sub-questions
-  Main question 19: 17 unique documents, 2 sub-questions
-  Main question 20: 16 unique documents, 2 sub-questions
-  Main question 21: 17 unique documents, 2 sub-questions
-  Main question 22: 15 unique documents, 2 sub-questions
-  Main question 23: 21 unique documents, 3 sub-questions
-  Main question 24: 19 unique documents, 3 sub-questions
-  Main question 25: 18 unique documents, 2 sub-questions
-  Main question 26: 17 unique documents, 2 sub-questions
-  Main question 27: 10 unique documents, 1 sub-questions
-  Main question 28: 19 unique documents, 2 sub-questions
-  Main question 29: 25 unique documents, 4 sub-questions
-  Main question 30: 17 unique documents, 4 sub-questions
-  Main question 31: 29 unique documents, 4 sub-questions
-  Main question 32: 14 unique documents, 2 sub-questions
-  Main question 33: 14 unique documents, 2 sub-questions
-  Main question 34: 10 unique documents, 1 sub-questions
-  Main question 35: 24 unique documents, 4 sub-questions
-  Main question 36: 17 unique documents, 2 sub-questions
-  Main question 37: 19 unique documents, 2 sub-questions
-  Main question 38: 12 unique documents, 2 sub-questions
-  Main question 39: 18 unique documents, 2 sub-questions
-  Main question 40: 15 unique documents, 2 sub-questions
-  Main question 41: 16 unique documents, 2 sub-questions
-  Main question 42: 30 unique documents, 4 sub-questions
-  Main question 43: 21 unique documents, 4 sub-questions
-  Main question 44: 17 unique documents, 2 sub-questions
-  Main question 45: 20 unique documents, 3 sub-questions
-  Main question 46: 16 unique documents, 2 sub-questions
-  Main question 47: 15 unique documents, 2 sub-questions
-  Main question 48: 20 unique documents, 4 sub-questions
-  Main question 49: 13 unique documents, 4 sub-questions
-  Main question 50: 14 unique documents, 4 sub-questions
-  Main question 51: 13 unique documents, 4 sub-questions
-  Main question 52: 16 unique documents, 2 sub-questions
-  Main question 53: 25 unique documents, 3 sub-questions
-  Main question 54: 10 unique documents, 1 sub-questions
-  Main question 55: 18 unique documents, 2 sub-questions
-  Main question 56: 10 unique documents, 1 sub-questions
-  Main question 57: 10 unique documents, 1 sub-questions
-  Main question 58: 10 unique documents, 1 sub-questions
-  Main question 59: 19 unique documents, 2 sub-questions
-  Main question 60: 18 unique documents, 2 sub-questions
-  Main question 61: 14 unique documents, 2 sub-questions
-  Main question 62: 22 unique documents, 4 sub-questions
-  Main question 63: 25 unique documents, 4 sub-questions
-  Main question 64: 19 unique documents, 2 sub-questions
-  Main question 65: 19 unique documents, 2 sub-questions
-  Main question 66: 27 unique documents, 4 sub-questions
-  Main question 67: 10 unique documents, 1 sub-questions
-  Main question 68: 13 unique documents, 4 sub-questions
-  Main question 69: 19 unique documents, 2 sub-questions
-  Main question 70: 19 unique documents, 2 sub-questions
-  Main question 71: 19 unique documents, 2 sub-questions
-  Main question 72: 18 unique documents, 2 sub-questions
-  Main question 73: 19 unique documents, 2 sub-questions
-  Main question 74: 21 unique documents, 4 sub-questions
-  Main question 75: 14 unique documents, 2 sub-questions
-  Main question 76: 10 unique documents, 1 sub-questions
-  Main question 77: 18 unique documents, 2 sub-questions
-  Main question 78: 14 unique documents, 2 sub-questions
-  Main question 79: 19 unique documents, 2 sub-questions
-  Main question 80: 18 unique documents, 3 sub-questions
-  Main question 81: 10 unique documents, 1 sub-questions
-  Main question 82: 18 unique documents, 2 sub-questions
-  Main question 83: 14 unique documents, 2 sub-questions
-  Main question 84: 14 unique documents, 4 sub-questions
-  Main question 85: 20 unique documents, 2 sub-questions
-  Main question 86: 10 unique documents, 1 sub-questions
-  Main question 87: 19 unique documents, 2 sub-questions
-  Main question 88: 19 unique documents, 4 sub-questions
-  Main question 89: 24 unique documents, 3 sub-questions
-  Main question 90: 18 unique documents, 2 sub-questions
-  Main question 91: 15 unique documents, 3 sub-questions
-  Main question 92: 18 unique documents, 2 sub-questions
-  Main question 93: 22 unique documents, 4 sub-questions
-  Main question 94: 14 unique documents, 2 sub-questions
-  Main question 95: 21 unique documents, 4 sub-questions
-  Main question 96: 10 unique documents, 1 sub-questions
-  Main question 97: 17 unique documents, 2 sub-questions
-  Main question 98: 18 unique documents, 2 sub-questions
-  Main question 99: 17 unique documents, 2 sub-questions
-  Main question 100: 17 unique documents, 4 sub-questions
-  Main question 101: 16 unique documents, 2 sub-questions
-  Main question 102: 16 unique documents, 2 sub-questions
-  Main question 103: 19 unique documents, 2 sub-questions
-  Main question 104: 17 unique documents, 2 sub-questions
-  Main question 105: 10 unique documents, 1 sub-questions
-  Main question 106: 13 unique documents, 2 sub-questions
-  Main question 107: 30 unique documents, 4 sub-questions
-  Main question 108: 17 unique documents, 4 sub-questions
-  Main question 109: 13 unique documents, 4 sub-questions
-  Main question 110: 10 unique documents, 1 sub-questions
-  Main question 111: 28 unique documents, 4 sub-questions
-  Main question 112: 15 unique documents, 4 sub-questions
-  Main question 113: 19 unique documents, 2 sub-questions
-  Main question 114: 17 unique documents, 2 sub-questions
-  Main question 115: 20 unique documents, 2 sub-questions
-  Main question 116: 21 unique documents, 3 sub-questions
-  Main question 117: 25 unique documents, 4 sub-questions
-  Main question 118: 19 unique documents, 2 sub-questions
-  Main question 119: 10 unique documents, 1 sub-questions
-  Main question 120: 19 unique documents, 2 sub-questions
-  Main question 121: 10 unique documents, 1 sub-questions
-  Main question 122: 19 unique documents, 2 sub-questions
-  Main question 123: 14 unique documents, 4 sub-questions
-  Main question 124: 18 unique documents, 4 sub-questions
-  Main question 125: 14 unique documents, 4 sub-questions
-  Main question 126: 10 unique documents, 1 sub-questions
-  Main question 127: 14 unique documents, 2 sub-questions
-  Main question 128: 10 unique documents, 1 sub-questions
-  Main question 129: 10 unique documents, 1 sub-questions
-  Main question 130: 10 unique documents, 1 sub-questions
-  Main question 131: 15 unique documents, 2 sub-questions
-  Main question 132: 19 unique documents, 2 sub-questions
-  Main question 133: 14 unique documents, 4 sub-questions
-  Main question 134: 13 unique documents, 2 sub-questions
-  Main question 135: 12 unique documents, 3 sub-questions
-  Main question 136: 19 unique documents, 2 sub-questions
-  Main question 137: 17 unique documents, 2 sub-questions
-  Main question 138: 16 unique documents, 2 sub-questions
-  Main question 139: 18 unique documents, 2 sub-questions
-  Main question 140: 10 unique documents, 1 sub-questions
-  Main question 141: 30 unique documents, 4 sub-questions
-  Main question 142: 17 unique documents, 2 sub-questions
-  Main question 143: 14 unique documents, 2 sub-questions
-  Main question 144: 18 unique documents, 2 sub-questions
-  Main question 145: 16 unique documents, 2 sub-questions
-  Main question 146: 18 unique documents, 2 sub-questions
-  Main question 147: 19 unique documents, 2 sub-questions
-  Main question 148: 20 unique documents, 2 sub-questions
-  Main question 149: 23 unique documents, 4 sub-questions
-  Main question 150: 10 unique documents, 1 sub-questions
-  Main question 151: 18 unique documents, 2 sub-questions
-  Main question 152: 16 unique documents, 2 sub-questions
-  Main question 153: 15 unique documents, 2 sub-questions
-  Main question 154: 10 unique documents, 1 sub-questions
-  Main question 155: 10 unique documents, 1 sub-questions
-  Main question 156: 19 unique documents, 2 sub-questions
-  Main question 157: 17 unique documents, 2 sub-questions
-  Main question 158: 20 unique documents, 4 sub-questions
-  Main question 159: 18 unique documents, 2 sub-questions
-  Main question 160: 18 unique documents, 4 sub-questions
-  Main question 161: 19 unique documents, 2 sub-questions
-  Main question 162: 12 unique documents, 2 sub-questions
-  Main question 163: 10 unique documents, 1 sub-questions
-  Main question 164: 18 unique documents, 2 sub-questions
-  Main question 165: 18 unique documents, 2 sub-questions
-  Main question 166: 10 unique documents, 1 sub-questions
-  Main question 167: 14 unique documents, 2 sub-questions
-  Main question 168: 19 unique documents, 2 sub-questions
-  Main question 169: 29 unique documents, 4 sub-questions
-  Main question 170: 19 unique documents, 2 sub-questions
-  Main question 171: 21 unique documents, 3 sub-questions
-  Main question 172: 16 unique documents, 4 sub-questions
-  Main question 173: 18 unique documents, 4 sub-questions
-  Main question 174: 13 unique documents, 2 sub-questions
-  Main question 175: 19 unique documents, 2 sub-questions
-  Main question 176: 29 unique documents, 4 sub-questions
-  Main question 177: 10 unique documents, 1 sub-questions
-  Main question 178: 25 unique documents, 4 sub-questions
-  Main question 179: 18 unique documents, 2 sub-questions
-  Main question 180: 17 unique documents, 2 sub-questions
-  Main question 181: 17 unique documents, 2 sub-questions
-  Main question 182: 16 unique documents, 3 sub-questions
-  Main question 183: 22 unique documents, 4 sub-questions
-  Main question 184: 19 unique documents, 2 sub-questions
-  Main question 185: 21 unique documents, 4 sub-questions
-  Main question 186: 20 unique documents, 4 sub-questions
-  Main question 187: 13 unique documents, 2 sub-questions
-  Main question 188: 20 unique documents, 3 sub-questions
-  Main question 189: 18 unique documents, 2 sub-questions
-  Main question 190: 20 unique documents, 4 sub-questions
-  Main question 191: 23 unique documents, 4 sub-questions
-  Main question 192: 19 unique documents, 2 sub-questions
-  Main question 193: 26 unique documents, 3 sub-questions
-  Main question 194: 21 unique documents, 4 sub-questions
-  Main question 195: 17 unique documents, 4 sub-questions
-  Main question 196: 26 unique documents, 4 sub-questions
-  Main question 197: 16 unique documents, 4 sub-questions
-  Main question 198: 21 unique documents, 4 sub-questions
-  Main question 199: 25 unique documents, 4 sub-questions
-  Main question 200: 16 unique documents, 4 sub-questions
-
-================================================================================
-DATASET STATISTICS
-================================================================================
-Total main questions: 200
-  - Testable: 135
-  - Skipped (llm_judge=False or problematic answers): 65
-
-Total sub-questions: 485
-  - Testable: 250
-  - Skipped: 235
-
-Total documents (across all questions): 3408
-================================================================================
-
-================================================================================
-Computing document similarity with BGE + FAISS (scope: global)...
-================================================================================
-Loading BGE model from /mnt/data/models/bge-m3-FP16...
-Encoding 3408 documents for FAISS index...
-initial target device:   0%|          | 0/8 [00:00<?, ?it/s]initial target device:  12%|█▎        | 1/8 [00:03<00:27,  3.93s/it]initial target device:  25%|██▌       | 2/8 [00:07<00:23,  3.92s/it]initial target device:  38%|███▊      | 3/8 [00:11<00:19,  3.89s/it]initial target device:  50%|█████     | 4/8 [00:15<00:15,  3.90s/it]initial target device:  62%|██████▎   | 5/8 [00:19<00:11,  3.89s/it]initial target device:  75%|███████▌  | 6/8 [00:23<00:07,  3.89s/it]initial target device:  88%|████████▊ | 7/8 [00:27<00:03,  3.87s/it]initial target device: 100%|██████████| 8/8 [00:31<00:00,  3.87s/it]initial target device: 100%|██████████| 8/8 [00:31<00:00,  3.88s/it]
-Chunks:   0%|          | 0/8 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:  50%|█████     | 1/2 [00:00<00:00,  4.87it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00,  7.35it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 32.69it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 30.76it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.59it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 31.40it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.82it/s]
-Chunks:  12%|█▎        | 1/8 [00:06<00:48,  6.91s/it]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 34.33it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 38.88it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 28.60it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 37.32it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.62it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.64it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.80it/s]
-Chunks:  25%|██▌       | 2/8 [00:08<00:21,  3.66s/it]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  3.21it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.80it/s]
-Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.52it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.60it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.66it/s]
-Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.78it/s]
-Chunks:  50%|█████     | 4/8 [00:08<00:05,  1.46s/it]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.90it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  3.27it/s]
-Chunks:  75%|███████▌  | 6/8 [00:08<00:01,  1.26it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.55it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.74it/s]
-Chunks:  88%|████████▊ | 7/8 [00:08<00:00,  1.52it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.54it/s]Inference Embeddings: 100%|██████████| 2/2 [00:00<00:00,  2.68it/s]
-Chunks: 100%|██████████| 8/8 [00:09<00:00,  1.94it/s]Chunks: 100%|██████████| 8/8 [00:09<00:00,  1.13s/it]
-Corpus embeddings shape: (3408, 1024)
-FAISS index built with 3408 vectors
-Searching for top-10 similar documents for each document...
-Chunks:   0%|          | 0/8 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize:   0%|          | 0/2 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 26.71it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 25.23it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 24.52it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 24.01it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 24.60it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 24.01it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 21.87it/s]
-pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 18.88it/s]pre tokenize: 100%|██████████| 2/2 [00:00<00:00, 18.84it/s]
-Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:   0%|          | 0/2 [00:00<?, ?it/s]Inference Embeddings:  50%|█████     | 1/2 [00:00<00:00,  1.03it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.89it/s]
-Chunks:  12%|█▎        | 1/8 [00:01<00:08,  1.20s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.09s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.11s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.13s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.16s/it]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.68it/s]
-Chunks:  25%|██▌       | 2/8 [00:01<00:03,  1.75it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.66it/s]
-Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.20s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.21s/it]Inference Embeddings:  50%|█████     | 1/2 [00:01<00:01,  1.19s/it]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.89it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.62it/s]
-Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.61it/s]
-Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.55it/s]
-Chunks:  75%|███████▌  | 6/8 [00:01<00:00,  6.62it/s]Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.55it/s]
-Inference Embeddings: 100%|██████████| 2/2 [00:01<00:00,  1.56it/s]
-Chunks: 100%|██████████| 8/8 [00:01<00:00,  5.47it/s]
-Context rank computed: (3408, 10)
-
-Loading rate=1 baseline results from /mnt/data/reflect/Qwen2.5-7B-Instruct/results/QueryAttention_global_topk_10_rate_1.csv...
-Loaded 248 rate=1 results for comparison
-
-================================================================================
-Answering sub-questions with on-demand KV cache generation
-================================================================================
-
-================================================================================
-Main Question 1/200: What is the network which National Cycle Route 57 is part of an example of?
-================================================================================
-
-Sub-question 1/1
-Question: What network is National Cycle Route 57 part of?
-Ground Truth: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
-Traceback (most recent call last):
-  File "/mnt/data/wjh/FusionRAG/ktransformers/util/utils.py", line 356, in load_kv_and_generate
-    cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_cache[layer_idx], position_ids)
-  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "/mnt/data/wjh/FusionRAG/ktransformers/models/modeling_qwen2.py", line 121, in forward
-    freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
-RuntimeError: Expected all tensors to be on the same device, but got mat2 is on cuda:0, different from other tensors on cuda:1 (when checking argument in method wrapper_CUDA_bmm)
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 1004, in <module>
-    main(
-  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 873, in main
-    generated_tokens, _ = load_kv_and_generate(
-  File "/mnt/data/wjh/FusionRAG/ktransformers/util/utils.py", line 358, in load_kv_and_generate
-    cos, sin = model.model.rotary_emb(chunk_key_cache[layer_idx], position_ids)
-  File "/mnt/data/wjh/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1964, in __getattr__
-    raise AttributeError(
-AttributeError: 'Qwen2Model' object has no attribute 'rotary_emb'
-/home/qujing/.local/share/uv/python/cpython-3.10.17-linux-x86_64-gnu/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 8 leaked semaphore objects to clean up at shutdown
-  warnings.warn('resource_tracker: There appear to be %d '

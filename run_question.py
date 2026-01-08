@@ -19,6 +19,7 @@ from ktransformers.util.utils import (
     rotate_half,
     find_group_and_index
 )
+from ktransformers.util.run_ppr import LOQUACIOUS_TEXT
 import hashlib
 import faiss
 from FlagEmbedding import FlagModel
@@ -236,7 +237,7 @@ class FusionRAGModel:
         document_index = all_document.index(document)
         prefill_len = 0
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
-        irrelevant_tokens = self.tokenizer.encode(". "*10000, add_special_tokens=True)
+        irrelevant_tokens = self.tokenizer.encode(LOQUACIOUS_TEXT*30, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
         system_len = system_tensor.shape[0]
         for i in range(document_index):
@@ -346,8 +347,8 @@ class FusionRAGModel:
                 self.past_key_values.value_cache[layer_idx].narrow(2, past_len, all_doc_len[doc_idx]).copy_(
                     chunk_value_cache[layer_idx])
                 self.past_key_values.past_tokens[layer_idx] += all_doc_len[doc_idx]
-                if layer_idx == 0:
-                    print(f"past_tokens += {all_doc_len[doc_idx]}, ={self.past_key_values.past_tokens[layer_idx]}")
+                # if layer_idx == 0:
+                    # print(f"past_tokens += {all_doc_len[doc_idx]}, ={self.past_key_values.past_tokens[layer_idx]}")
 
         all_doc_tensors.append(current_doc_tensor)
         prefill_with_cache_and_save_preprocess(

@@ -19,4 +19,12 @@ def csv_to_json(csv_file_path, json_file_path):
 
 
 # 使用示例
-csv_to_json('./DraftModel_global_topk_10_rate_0.3_draft_Qwen2.5-3B-Instruct.csv', './DraftModel_global_topk_10_rate_0.3_draft_Qwen2.5-3B-Instruct.json')
+def compare(file1: str, file2: str):
+    all_questions = []
+    with open(file1, 'r', encoding='utf-8') as f:
+        res1 = json.load(f)
+        for result in res1:
+            if "Sub Question" in result:
+                all_questions.append(result[result["Sub Question"]])
+    with open(file2, 'r', encoding='utf-8') as f:
+        res2 = json.load(f)

@@ -16,6 +16,7 @@ import string
 import json
 import collections
 import numpy as np
+from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 from ktransformers.util.textstream import TextStreamer
@@ -806,7 +807,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 print(f"使用了 {len(active_layers)} 个层: {active_layers}")
                 print(f'select_time: {time.time() - select_time:.3f}s')
 
-        elif reprocess_method == 'DraftModel':
+        elif 'DraftModel' in reprocess_method:
             # DraftModel: 用小模型 prefill 获取 attention，指导 token 选择
             select_time = time.time()
 
@@ -827,10 +828,14 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # 收集各层的 query→doc attention
             layer_attention_dict = {}
+            doc_to_doc_attns = []
             for layer_idx, layer_attn in draft_attention.items():
                 # layer_attn: [num_heads, seq_len, seq_len]
                 # 提取 query→doc attention
                 query_to_doc = layer_attn[:, query_start:total_len, system_len:system_len + doc_len]
+                doc_to_doc_attn = layer_attn[:, system_len:system_len + doc_len, system_len:system_len + doc_len]
+                doc_to_doc_attn_avg = doc_to_doc_attn.mean(axis=(0))
+                doc_to_doc_attns.append(doc_to_doc_attn_avg)
                 # 对 heads 和 query positions 平均
                 doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
                 layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
@@ -843,6 +848,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # 聚合选中层的 attention
             layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+            doc_to_doc_attns = [doc_to_doc_attns[idx-draft_model.config.num_hidden_layers//2] for idx in active_layers]
+            doc_to_doc_attns = np.mean(np.stack(doc_to_doc_attns, axis=0), axis=0)
+            doc_to_doc_attns = torch.tensor(doc_to_doc_attns)
             multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
             # 使用 smart_query_selection 进行选择
@@ -854,6 +862,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 device=draft_model_device
             )
             k_need_index = torch.tensor(selected_indices, device='cpu')
+            if reprocess_method == 'DraftModel_ppr':
+                print(f"using ppr to draft.")
+                scores = personalized_pagerank(attention_matrix=doc_to_doc_attns,
+                                               initial_scores=multi_layer_attn.to('cpu'))
+                top_indices, top_scores = get_top_tokens(scores=scores, top_n=int(rate * doc_len))
+                k_need_index = top_indices
 
             print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
             print(f'select_time: {time.time() - select_time:.3f}s')
