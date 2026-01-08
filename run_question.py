@@ -237,7 +237,7 @@ class FusionRAGModel:
         document_index = all_document.index(document)
         prefill_len = 0
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
-        irrelevant_tokens = self.tokenizer.encode(LOQUACIOUS_TEXT*30, add_special_tokens=True)
+        irrelevant_tokens = self.tokenizer.encode(" ."*10000, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
         system_len = system_tensor.shape[0]
         for i in range(document_index):
@@ -248,10 +248,11 @@ class FusionRAGModel:
         prefill_space_tensor = torch.tensor(irrelevant_tokens[:prefill_len], dtype=torch.long)
         input_tensor = torch.cat((system_tensor, prefill_space_tensor, doc_tensor)).unsqueeze(0)
         hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
-        system_cache_path = f'{self.preprocess_empty_prefix_save_path}/{hash_key}_key.pt'
+        empty_prefix_cache_path = f'{self.preprocess_empty_prefix_save_path}/{hash_key}_key.pt'
         prefill_space_len = prefill_space_tensor.shape[0]
         passage_len = doc_tensor.shape[0]
-        if not os.path.exists(system_cache_path):
+        ## this has to be computed everytime.
+        if True or not os.path.exists(empty_prefix_cache_path):
             print(f"[preprocess_one_document_with_empty] generate for hash={hash_key}")
             prefill_and_save_kv_cache(
                 model=self.model,

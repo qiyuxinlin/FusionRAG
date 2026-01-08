@@ -28,3 +28,6 @@ def compare(file1: str, file2: str):
                 all_questions.append(result[result["Sub Question"]])
     with open(file2, 'r', encoding='utf-8') as f:
         res2 = json.load(f)
+
+
+csv_to_json("./DraftModel_global_topk_10_rate_0.3_Qwen3_32B.csv", "./DraftModel_global_topk_10_rate_0.3_Qwen3_32B.json")

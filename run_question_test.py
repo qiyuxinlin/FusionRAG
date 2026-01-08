@@ -55,6 +55,7 @@ def prepare_reflect_data(
                 if colon_pos != -1:
                     query = query[colon_pos + 1:].strip()
 
+
             # Remove "Intermediate answerXXX:" prefix from answer
             answer = sub_q['answer']
             if answer.startswith("Intermediate answer"):
@@ -136,28 +137,6 @@ def judge_answer_with_openai(
         print(error_msg)
         return False, error_msg
 
-
-def write_result_to_shared_file(result, shared_file_path, file_lock):
-    """将结果写入共享文件（线程安全）"""
-    with file_lock:
-        # 读取现有结果
-        existing_results = []
-        if os.path.exists(shared_file_path):
-            try:
-                with open(shared_file_path, 'r', encoding='utf-8') as f:
-                    existing_results = json.load(f)
-            except json.JSONDecodeError:
-                # 如果文件为空或格式错误，重新开始
-                existing_results = []
-
-        # 添加新结果
-        existing_results.append(result)
-
-        # 写入文件
-        with open(shared_file_path, 'w', encoding='utf-8') as f:
-            json.dump(existing_results, f, ensure_ascii=False, indent=4)
-
-
 def write_result_to_individual_file(result, individual_file_path):
     """将结果写入单个进程的独立文件"""
     # 读取现有结果
@@ -186,7 +165,6 @@ def run_test_process(
         total_run=200,
         rate=0.3,
         reprocess_method="",
-        shared_file_path=None,
         file_lock=None,
         result_queue=None,
         preprocess_method="",
@@ -251,14 +229,20 @@ def run_test_process(
         if len(questions_to_run)>0:
             if question["query"] not in questions_to_run:
                 continue
+
+        gold_docs = []
+        ## keep the suquence
+        for doc in question["gold_docs"]:
+            if doc not in gold_docs:
+                gold_docs.append(doc)
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
-            query=f'{question["query"]}',
-            retrieved_docs=[f"Document: {doc}" for doc in question["gold_docs"]],
+            query=f'Given these documents, generate an appropriate answer for the query. question is {question["query"]}.',
+            retrieved_docs=gold_docs,
             model_type='qwen3',
             rate=rate,
             reprocess_method=reprocess_method,
             revert_rope=revert_rope,
-            max_new_tokens=300,
+            max_new_tokens=150,
         )
         if "</think>" in answer:
             answer = answer.split("</think>")[1].replace("\n\n", "")
@@ -282,17 +266,11 @@ def run_test_process(
         question_copy["timestamp"] = time.time()
 
         print(f"Process {process_id} - Judgment: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} ")
-        print(f"Process {process_id} - Question: {question['query'][:100]}...")
-        print(f"Process {process_id} - Answer: {question['answer'][:100]}...")
-        print(f"Process {process_id} - Fusionrag answer: {answer[:100]}...")
+        print(f"Process {process_id} - Question: {question['query']}")
+        print(f"Process {process_id} - Answer: {question['answer']}")
+        print(f"Process {process_id} - Fusionrag answer: {answer}")
         print("=" * 80)
 
-        # 写入独立文件
-        # write_result_to_individual_file(question_copy, individual_file_path)
-
-        # 写入共享文件
-        # if shared_file_path and file_lock:
-        #     write_result_to_shared_file(question_copy, shared_file_path, file_lock)
 
         # 将结果放入队列（如果需要进一步处理）
         if result_queue:
@@ -361,29 +339,62 @@ def real_time_monitor(result_queue, total_processes, keyword_base):
     return all_results
 
 
-def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="", preprocess_method="", questions_to_run=[]):
-    """多进程测试主函数"""
-    print("Starting multiprocess testing")
+def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="",
+                               preprocess_method="", questions_to_run=[], sep=2):
+    """多进程测试主函数（改进版：支持动态GPU分配）
+
+    Args:
+        sep: GPU分割方式
+            1: 8张卡一起用，启动1个进程
+            2: 4+4两张卡，启动2个进程
+            4: 2+2+2+2四张卡，启动4个进程
+            8: 1*8八张卡，启动8个进程
+    """
+    print(f"Starting multiprocess testing with sep={sep}")
 
     # 确保结果目录存在
     os.makedirs("./results", exist_ok=True)
 
-    # 定义两个进程的GPU分配
-    gpu_configs = [
-        ([0, 1, 2, 3], 0),  # 进程1: 使用0-3号GPU，处理前半部分数据
-        ([4, 5, 6, 7], 1),  # 进程2: 使用4-7号GPU，处理后半部分数据
-    ]
+    # 根据sep参数确定进程数量和GPU分配
+    total_gpus = 8  # 总GPU数量
+
+    if sep <= 0 or sep > total_gpus:
+        raise ValueError(f"sep参数必须为1-8之间的整数，当前sep={sep}")
+
+    if total_gpus % sep != 0:
+        raise ValueError(f"sep参数必须能整除8，当前sep={sep}")
+
+    num_processes = sep  # 进程数等于sep
+    gpus_per_process = total_gpus // sep  # 每个进程分配的GPU数量
+
+    print(f"进程数: {num_processes}, 每个进程GPU数: {gpus_per_process}")
+
+    # 生成GPU配置
+    gpu_configs = []
+    for i in range(num_processes):
+        start_gpu = i * gpus_per_process
+        end_gpu = (i + 1) * gpus_per_process
+        gpu_ids = list(range(start_gpu, end_gpu))
+        gpu_configs.append((gpu_ids, i))
+
+    print(f"GPU配置: {gpu_configs}")
 
     # 计算每个进程处理的数据范围
-    half_run = total_run // 2
-    data_ranges = [
-        (0, half_run),  # 进程1处理0到half_run
-        (half_run, total_run),  # 进程2处理half_run到total_run
-    ]
+    data_ranges = []
+    chunk_size = total_run // num_processes
+
+    for i in range(num_processes):
+        start_idx = i * chunk_size
+        if i == num_processes - 1:  # 最后一个进程处理剩余数据
+            end_idx = total_run
+        else:
+            end_idx = (i + 1) * chunk_size
+        data_ranges.append((start_idx, end_idx))
+
+    print(f"数据划分: {data_ranges}")
 
     # 创建共享结果文件路径
     keyword_base = f"model_Qwen3-32B_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{preprocess_method}"
-    shared_file_path = f"./results/result_shared_{keyword_base}.json"
 
     # 创建管理器和锁
     manager = Manager()
@@ -405,7 +416,6 @@ def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="", pre
                 total_run,
                 rate,
                 reprocess_method,
-                shared_file_path,
                 file_lock,
                 result_queue,
                 preprocess_method,
@@ -418,7 +428,7 @@ def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="", pre
     # 启动实时监控线程
     monitor_thread = threading.Thread(
         target=real_time_monitor,
-        args=(result_queue, len(processes), keyword_base)
+        args=(result_queue, num_processes, keyword_base)
     )
     monitor_thread.start()
 
@@ -426,38 +436,29 @@ def test_question_multiprocess(total_run=200, rate=0.3, reprocess_method="", pre
     for p in processes:
         p.join()
 
+    # 发送结束信号给监控线程
+    result_queue.put(None)  # 添加结束信号
+
     # 等待监控线程完成
     monitor_thread.join()
 
-    # 合并共享文件中的所有结果（作为备份）
-    if os.path.exists(shared_file_path):
-        with open(shared_file_path, 'r', encoding='utf-8') as f:
-            all_results = json.load(f)
-
-        merged_file = f"./results/result_merged_{keyword_base}.json"
-        with open(merged_file, 'w', encoding='utf-8') as f:
-            json.dump(all_results, f, ensure_ascii=False, indent=4)
-
-        print(f"Merged results saved to {merged_file}")
-
-        return all_results
 
     return []
-
 
 if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
     questions_to_run = [
-        "What is the Federation Cup in sports?"
+        "Who was Ernst Mach's employer or academic institution during his career?"
     ]
     questions_to_run = []
     # 运行多进程测试
     all_results = test_question_multiprocess(
         total_run=200,
-        rate=0.0,
-        reprocess_method="DraftModel",
-        preprocess_method="space",
-        questions_to_run=questions_to_run
+        rate=0.2, ## change this
+        reprocess_method="average", ## change this  1. DraftModel 2. DraftModel_ppr 3. average
+        preprocess_method="default", ## change this  1. space 2. default
+        questions_to_run=questions_to_run,
+        sep=2
     )
 
     # all_results = test_question_multiprocess(

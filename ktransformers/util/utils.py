@@ -16,7 +16,7 @@ import string
 import json
 import collections
 import numpy as np
-from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens
+from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 from ktransformers.util.textstream import TextStreamer
@@ -807,6 +807,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 print(f"使用了 {len(active_layers)} 个层: {active_layers}")
                 print(f'select_time: {time.time() - select_time:.3f}s')
 
+        elif reprocess_method == "average":
+            ""
+            k_need_index = torch.tensor(list(range(0, sum(passages_len[:-1]), int(1/rate))))
+
         elif 'DraftModel' in reprocess_method:
             # DraftModel: 用小模型 prefill 获取 attention，指导 token 选择
             select_time = time.time()
@@ -877,6 +881,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # reprocess kv cache and prefill question
         k_need_index = torch.sort(k_need_index)[0].tolist()
+        ## add query itself
         k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
     else:
         k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
@@ -896,7 +901,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         use_sparse_attention = False
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
     cache_position = torch.tensor(k_need_index, device=input_device)
-
+    highlight_tokens_compare(k_need_index, passages, tokenizer)
     with torch.no_grad():
         without_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
