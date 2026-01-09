@@ -170,6 +170,7 @@ def run_test_process(
         preprocess_method="",
         questions_to_run=[],
         last_time_result_file="",
+        max_memory=None,
 ):
     last_questions = []
     if last_time_result_file != "":
@@ -185,7 +186,7 @@ def run_test_process(
     # 根据GPU分配情况设置设备
     if len(gpu_ids) > 0:
         main_device = f"cuda:0"
-        draft_device = f"cuda:{min(1, len(gpu_ids) - 1)}" if len(gpu_ids) > 1 else "cuda:0"
+        draft_device = "cuda:0"
     else:
         main_device = "cuda:0"
         draft_device = "cuda:0"
@@ -206,7 +207,8 @@ def run_test_process(
         file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
         preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
         preprocess=True,
-        preprocess_method=preprocess_method
+        preprocess_method=preprocess_method,
+        max_memory=max_memory,
     )
 
     # 创建结果文件名
@@ -385,7 +387,7 @@ def test_question_multiprocess(total_run=200,
     if sep <= 0 or sep > total_gpus:
         raise ValueError(f"sep参数必须为1-8之间的整数，当前sep={sep}")
 
-    if total_gpus % sep != 0:
+    if total_gpus % sep != 0 and sep!=3: ## 3 is allowed
         raise ValueError(f"sep参数必须能整除8，当前sep={sep}")
 
     num_processes = sep  # 进程数等于sep
@@ -395,11 +397,21 @@ def test_question_multiprocess(total_run=200,
 
     # 生成GPU配置
     gpu_configs = []
-    for i in range(num_processes):
-        start_gpu = i * gpus_per_process
-        end_gpu = (i + 1) * gpus_per_process
-        gpu_ids = list(range(start_gpu, end_gpu))
-        gpu_configs.append((gpu_ids, i))
+    max_memory = None
+    if num_processes == 3:
+        "special case"
+        gpu_configs = [
+            ([0, 1, 2], 0),
+            ([3, 4, 5], 1),
+            ([3, 6, 7], 2)
+        ]
+        max_memory={0: "0GiB", 1: "40GiB", 2: "40GiB"}
+    else:
+        for i in range(num_processes):
+            start_gpu = i * gpus_per_process
+            end_gpu = (i + 1) * gpus_per_process
+            gpu_ids = list(range(start_gpu, end_gpu))
+            gpu_configs.append((gpu_ids, i))
 
     print(f"GPU配置: {gpu_configs}")
 
@@ -451,7 +463,8 @@ def test_question_multiprocess(total_run=200,
                 result_queue,
                 preprocess_method,
                 questions_to_run,
-                last_time_result_file
+                last_time_result_file,
+                max_memory
             )
         )
         processes.append(p)
@@ -486,11 +499,11 @@ if __name__ == '__main__':
     # 运行多进程测试
     all_results = test_question_multiprocess(
         total_run=200,
-        rate=1.0, ## change this
-        reprocess_method="average", ## change this  1. DraftModel 2. DraftModel_ppr 3. average
+        rate=0.3, ## change this
+        reprocess_method="DraftModel", ## change this  1. DraftModel 2. DraftModel_ppr 3. average
         preprocess_method="default", ## change this  1. space 2. default
         questions_to_run=questions_to_run,
-        sep=4,
+        sep=2,
 
         # test_last_wrong=True, ##change this
         # last_rate=0.2,  ## change this to the lasttime running

@@ -91,6 +91,7 @@ class FusionRAGModel:
             preprocess_method="default",
             file_input="",
             preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
+            max_memory=None,
     ):
         print(f"init FusionRAGModel")
         self.model_name=model_name
@@ -129,7 +130,7 @@ class FusionRAGModel:
         print(f"Loading {model_type} model...")
         if use_multi_gpu:
             print("Using multi-GPU with device_map='auto'")
-        self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu)
+        self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu, max_memory)
         if draft_model_path != "":
             print(f"Initialize draft model.")
             draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
@@ -512,7 +513,7 @@ class FusionRAGModel:
             )
 
 
-    def load_model(self, model_type, model_path, config, device="cuda:0", use_multi_gpu=False):
+    def load_model(self, model_type, model_path, config, device="cuda:0", use_multi_gpu=False, max_memory=None):
         """
         Load model based on model type (same as unified_process_cache.py)
 
@@ -531,6 +532,9 @@ class FusionRAGModel:
             'config': config,
             'torch_dtype': config.torch_dtype
         }
+        if max_memory is not None:
+            print(f"using max_memory={max_memory}")
+            load_kwargs["max_memory"] = max_memory
 
         # Add device_map for multi-GPU
         if use_multi_gpu:

@@ -301,7 +301,7 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
     batch_size, seq_length = inputs.shape
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
-    input_device = "cuda:0" if device_map is not None else device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
     inputs = inputs.to(input_device)
 
     tokens = []
@@ -401,7 +401,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     past_len = past_key_values.past_tokens[0]
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
-    input_device = "cuda:0" if device_map is not None else device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
     # prefill context
     inputs = passages[-1].unsqueeze(0).to(input_device)
@@ -470,7 +470,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
-    input_device = "cuda:0" if device_map is not None else device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
     passages_len = [passage.shape[0] for passage in passages]
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
@@ -998,7 +998,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
     batch_size, seq_length = inputs.shape
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
-    input_device = "cuda:0" if device_map is not None else device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
     inputs = inputs.to(input_device)
 
     tokens = []
