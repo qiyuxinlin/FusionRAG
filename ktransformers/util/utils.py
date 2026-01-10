@@ -12,6 +12,7 @@ import itertools
 import time
 import enum
 import re
+import math
 import string
 import json
 import collections
@@ -464,48 +465,74 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     else:
         torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
-def load_kv_and_generate(model, tokenizer, past_key_values, passages,
-                          load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
-                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
-                          draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
-                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None):
-    # Determine input device: use first GPU if device_map provided, otherwise use device
-    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
+def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k, draft_attention, query_start, system_len, doc_len, total_len):
+    # 如果没有传入 draft_attention，需要用 draft_model 计算
+    if draft_attention is None:
+        if draft_model is None:
+            raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
+        # 构建完整输入
+        full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)
+        draft_attention = compute_draft_model_attention(draft_model, full_input, draft_model_device)
+    layer_attention_dict = {}
+    doc_to_doc_attns = []
+    for layer_idx, layer_attn in draft_attention.items():
+        # layer_attn: [num_heads, seq_len, seq_len]
+        query_to_doc = layer_attn[:, query_start:total_len, system_len:system_len + doc_len]
+        doc_to_doc_attn = layer_attn[:, system_len:system_len + doc_len, system_len:system_len + doc_len]
+        doc_to_doc_attn_avg = doc_to_doc_attn.mean(axis=(0))
+        doc_to_doc_attns.append(doc_to_doc_attn_avg)
+        # 对 heads 和 query positions 平均
+        doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
+        layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
 
-    passages_len = [passage.shape[0] for passage in passages]
-    passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
-    query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
-    inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
-    seq_length = passages[-1][query_prefix_len:].shape[0]
+    # 基于熵动态选层（DraftModel 默认使用熵选层）
+    active_layers, layer_entropy = entropy_layer_selection(
+        layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+    )
+    print(f"  DraftModel 熵选层: 选择了 {active_layers}")
 
-    # load KV
+    # 聚合选中层的 attention
+    layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+    doc_to_doc_attns = [doc_to_doc_attns[idx - draft_model.config.num_hidden_layers // 2] for idx in active_layers]
+    doc_to_doc_attns = np.mean(np.stack(doc_to_doc_attns, axis=0), axis=0)
+    doc_to_doc_attns = torch.tensor(doc_to_doc_attns)
+    multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
+    return multi_layer_attn, doc_to_doc_attns
+
+
+def get_multilayer_attn_sep(passages, draft_model, draft_model_device, entropy_top_k):
+    system_tensor = passages[0]
+    system_len = len(system_tensor)
+    doc_tensors = passages[1:-1]
+    query_tensor = passages[-1]
+    query_len = len(query_tensor)
+    multi_layer_attns = []
+    for doc_idx, doc_tensor in enumerate(doc_tensors):
+        layer_attention_dict = {}
+        full_input = torch.cat([system_tensor, doc_tensor, query_tensor]).unsqueeze(0).to(draft_model_device)
+        draft_attention = compute_draft_model_attention(draft_model, full_input, draft_model_device)
+        doc_len = len(doc_tensor)
+        for layer_idx, layer_attn in draft_attention.items():
+            query_to_doc = layer_attn[:, system_len + doc_len:system_len + doc_len + query_len,
+                           system_len:system_len + doc_len]
+            doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+            layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
+        active_layers, layer_entropy = entropy_layer_selection(
+            layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+        )
+        if doc_idx == 0:
+            print(f"  DraftModel 熵选层: 选择了 {active_layers}")
+        layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+        multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+        multi_layer_attns.append(multi_layer_attn)
+    return multi_layer_attns
+
+def load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len):
+    past_len = 0
+    start_time = time.time()
     for layer_idx in range(len(past_key_values.key_cache)):
         past_key_values.past_tokens[layer_idx] = 0
-    past_len = 0
-    system_len = passages[0].shape[0]
-
-    key_cache = []
-    value_cache = []
-    all_position_ids = [torch.arange(0,system_len).unsqueeze(0).to(input_device)]
-
-    # If chunk_ids is provided, use it; otherwise use sequential indices (backward compatible)
-    if chunk_ids is None:
-        chunk_ids = list(range(len(passages) - 1))
-
-    for idx, passage in enumerate(passages[:-1]):
-        chunk_id = chunk_ids[idx]
-        passage_len = passage.shape[0]
-
-        if isinstance(hash_keys, list):
-            chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
-            chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
-        else:
-            chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
-            chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
-        key_cache.append(chunk_key_cache)
-        value_cache.append(chunk_value_cache)
-    start_time = time.time()
     for idx, passage in enumerate(passages[:-1]):
         chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
@@ -531,15 +558,61 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             sin = sin.unsqueeze(1).to(input_device)
             chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
         elif chunk_id > 0:
-            all_position_ids.append(torch.arange(system_len,system_len+passage_len).to(input_device).unsqueeze(0))
+            all_position_ids.append(torch.arange(system_len, system_len + passage_len).to(input_device).unsqueeze(0))
 
         for layer_idx in range(len(past_key_values.key_cache)):
-            past_key_values.key_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_key_cache[layer_idx])
-            past_key_values.value_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_value_cache[layer_idx])
+            past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
+            past_key_values.value_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_value_cache[layer_idx])
             past_key_values.past_tokens[layer_idx] += passage_len
         past_len += passage_len
-    storage_time = time.time() - start_time 
-    print(f'storage_time: {storage_time}')
+    storage_time = time.time() - start_time
+    print(f'KV cache load time={storage_time}')
+    return past_len
+
+def load_kv_and_generate(model, tokenizer, past_key_values, passages,
+                          load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
+                          reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
+                          draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
+                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None):
+    # Determine input device: use first GPU if device_map provided, otherwise use device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
+
+    passages_len = [passage.shape[0] for passage in passages]
+    passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
+    query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
+    inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
+    seq_length = passages[-1][query_prefix_len:].shape[0]
+
+    # load KV
+
+    for layer_idx in range(len(past_key_values.key_cache)):
+        past_key_values.past_tokens[layer_idx] = 0
+
+    system_len = passages[0].shape[0]
+
+    key_cache = []
+    value_cache = []
+    all_position_ids = [torch.arange(0,system_len).unsqueeze(0).to(input_device)]
+
+    # If chunk_ids is provided, use it; otherwise use sequential indices (backward compatible)
+    if chunk_ids is None:
+        chunk_ids = list(range(len(passages) - 1))
+
+    for idx, passage in enumerate(passages[:-1]):
+        chunk_id = chunk_ids[idx]
+        passage_len = passage.shape[0]
+
+        if isinstance(hash_keys, list):
+            chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
+            chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
+        else:
+            chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
+            chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
+        key_cache.append(chunk_key_cache)
+        value_cache.append(chunk_value_cache)
+    ## load kv cache
+    past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len)
+
     if rate != 0:
         if reprocess_method == 'cacheBlend':
             without_attn_key = past_key_values.key_cache[1].narrow(2,0,past_len).clone()
@@ -810,53 +883,81 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         elif reprocess_method == "average":
             ""
             k_need_index = torch.tensor(list(range(0, sum(passages_len[:-1]), int(1/rate))))
+        elif reprocess_method == "DraftModel_choose":
+            doc_len = sum(passages_len[1:-1])
+            query_start = sum(passages_len[:-1])
+            total_len = sum(passages_len)
+            multi_layer_attn, doc_to_doc_attns = get_multilayer_attn(passages, draft_model, draft_model_device,
+                                                                     entropy_top_k, draft_attention, query_start,
+                                                                     system_len, doc_len, total_len)
+            multi_layer_attns_sum = []
+            for idx in range(1, len(passages_len)-1):
+                sum_segment = multi_layer_attn[sum(passages_len[:idx]):sum(passages_len[:idx+1])].sum()
+                multi_layer_attns_sum.append(sum_segment/passages_len[idx])
+            k = math.ceil(len(multi_layer_attns_sum) * rate)  # 向上取整
+            multi_layer_attns_sum = torch.stack(multi_layer_attns_sum)
+            topk_values, topk_indices = torch.topk(multi_layer_attns_sum, k)
+            top30_percent_indices = topk_indices.tolist()
+            top30_percent_indices = [x+1 for x in top30_percent_indices]
+            ## add system prompt at front
+            top30_percent_indices.insert(0, 0)
+            key_cache = [key_cache[idx] for idx in top30_percent_indices]
+            value_cache = [value_cache[idx] for idx in top30_percent_indices]
+            ## add query at back
+            top30_percent_indices.append(len(passages)-1)
+            passages = [passages[idx] for idx in top30_percent_indices]
+            passages_len = [passage.shape[0] for passage in passages]
+            chunk_ids = list(range(len(passages) - 1))
+            # kv needs to be reloaded
+            load_kv(
+                model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len
+            )
+            #
+            doc_len = sum(passages_len[1:-1])
+            query_start = sum(passages_len[:-1])
+            total_len = sum(passages_len)
+            # generate again
+            multi_layer_attn, doc_to_doc_attns = get_multilayer_attn(passages, draft_model, draft_model_device,
+                                                                     entropy_top_k, draft_attention, query_start,
+                                                                     system_len, doc_len, total_len)
+            ## now we choose again
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                target_ratio=rate,
+                system_len=system_len,
+                device=draft_model_device
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+            print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+
+        elif reprocess_method == "DraftModel_sep":
+            multi_layer_attns = get_multilayer_attn_sep(
+                passages=passages,
+                draft_model=draft_model,
+                entropy_top_k=entropy_top_k,
+                draft_model_device=draft_model_device
+            )
+            multi_layer_attns = torch.cat(multi_layer_attns)
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attns,
+                doc_len=sum(passages_len[1:-1]),
+                target_ratio=rate,
+                system_len=system_len,
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
 
         elif 'DraftModel' in reprocess_method:
             # DraftModel: 用小模型 prefill 获取 attention，指导 token 选择
             select_time = time.time()
 
-            # 如果没有传入 draft_attention，需要用 draft_model 计算
-            if draft_attention is None:
-                if draft_model is None:
-                    raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
-                # 构建完整输入
-                full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)
-                draft_attention = compute_draft_model_attention(draft_model, full_input, draft_model_device)
-
             doc_len = sum(passages_len[1:-1])
-
-            # draft_attention 是 {layer_idx: attention [num_heads, seq_len, seq_len]} 格式
-            # 需要提取 query→doc attention
             query_start = sum(passages_len[:-1])
             total_len = sum(passages_len)
-
-            # 收集各层的 query→doc attention
-            layer_attention_dict = {}
-            doc_to_doc_attns = []
-            for layer_idx, layer_attn in draft_attention.items():
-                # layer_attn: [num_heads, seq_len, seq_len]
-                # 提取 query→doc attention
-                query_to_doc = layer_attn[:, query_start:total_len, system_len:system_len + doc_len]
-                doc_to_doc_attn = layer_attn[:, system_len:system_len + doc_len, system_len:system_len + doc_len]
-                doc_to_doc_attn_avg = doc_to_doc_attn.mean(axis=(0))
-                doc_to_doc_attns.append(doc_to_doc_attn_avg)
-                # 对 heads 和 query positions 平均
-                doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
-                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
-
-            # 基于熵动态选层（DraftModel 默认使用熵选层）
-            active_layers, layer_entropy = entropy_layer_selection(
-                layer_attention_dict, top_k=entropy_top_k, return_entropy=True
-            )
-            print(f"  DraftModel 熵选层: 选择了 {active_layers}")
-
-            # 聚合选中层的 attention
-            layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
-            doc_to_doc_attns = [doc_to_doc_attns[idx-draft_model.config.num_hidden_layers//2] for idx in active_layers]
-            doc_to_doc_attns = np.mean(np.stack(doc_to_doc_attns, axis=0), axis=0)
-            doc_to_doc_attns = torch.tensor(doc_to_doc_attns)
-            multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
-
+            multi_layer_attn, doc_to_doc_attns = get_multilayer_attn(passages, draft_model, draft_model_device,
+                                                                     entropy_top_k, draft_attention, query_start,
+                                                                     system_len, doc_len, total_len)
             # 使用 smart_query_selection 进行选择
             selected_indices = smart_query_selection(
                 attention_scores=multi_layer_attn,
@@ -901,24 +1002,21 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         use_sparse_attention = False
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
     cache_position = torch.tensor(k_need_index, device=input_device)
-    highlight_tokens_compare(k_need_index, passages, tokenizer)
+    if rate > 0.0:
+        highlight_tokens_compare(k_need_index, passages, tokenizer)
     with torch.no_grad():
         without_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
 
         # Don't force move to input_device - keep on the device where model output is
         # This avoids cross-GPU transfer deadlock in PP mode
+        start_time = time.time()
         model_output = model(
             inputs_embeds = inputs_embeds, cache_position=cache_position,
             past_key_values=past_key_values, return_dict=False, use_cache=True, use_sparse_attention=use_sparse_attention,
         )[0]
 
         logits = model_output[:,-1,:].unsqueeze(0).clone()
-        with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
-        v_sub_all = without_attn_value - with_attn_value
-        v_sub_all = v_sub_all.squeeze(0)
-        v_sub_all = v_sub_all.transpose(0, 1)
-        v_sum = torch.sum(v_sub_all**2, dim=[1,2])   
         
         first_token_time = time.time() - start_time
         stream = TextStreamer(tokenizer)
@@ -927,7 +1025,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         next_token = torch.argmax(next_token_scores, dim=-1)
         prefill_count = seq_length
         prefill_time = first_token_time
-        # print(stream.put(next_token.item()), end="", flush=True)
         generated_ids[:, past_len+1] = next_token
         tokens.append(next_token)
 
@@ -937,8 +1034,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         cache_position = torch.tensor([past_len], device=output_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
-        
- 
         
         decode_time = time.time()
         for _ in range(1, max_new_tokens):

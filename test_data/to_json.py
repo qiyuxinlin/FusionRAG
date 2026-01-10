@@ -1,10 +1,17 @@
 import csv
 import json
+import chardet
 
 
 def csv_to_json(csv_file_path, json_file_path):
+    with open(csv_file_path, 'rb') as f:
+        raw_data = f.read(10000)
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+        confidence = result['confidence']
+        print(f"检测到编码: {encoding} (可信度: {confidence * 100:.1f}%)")
     # 读取CSV文件
-    with open(csv_file_path, 'r', encoding='utf-8') as csv_file:
+    with open(csv_file_path, 'r', encoding='GB18030') as csv_file:
         # 使用csv.DictReader读取，第一行作为键
         csv_reader = csv.DictReader(csv_file)
 
@@ -30,4 +37,4 @@ def compare(file1: str, file2: str):
         res2 = json.load(f)
 
 
-csv_to_json("./DraftModel_global_topk_10_rate_0.3_Qwen3_32B.csv", "./DraftModel_global_topk_10_rate_0.3_Qwen3_32B.json")
+csv_to_json("./DraftModel_global_topk_10_rate_0.3_draft_Qwen2.5-3B-Instruct_revert_rope_long_decode_new.csv", "./DraftModel_global_topk_10_rate_0.3_draft_Qwen2.5-3B-Instruct_revert_rope_long_decode_new.json")

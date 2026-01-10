@@ -665,7 +665,7 @@ class FusionRAGModel:
                         device_map=self.device_map
                     )
                     self.clean_kv_cache()
-                    print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
+                    print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensor)}")
             if self.preprocess:
                 if self.preprocess_method == "default":
                     for doc_text in retrieved_docs:

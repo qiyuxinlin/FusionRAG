@@ -12,7 +12,7 @@ import threading
 
 def prepare_reflect_data(
         data_path: str,
-        max_main_questions=200,
+        max_main_questions=None,
         start_idx=0,
         end_idx=None
 ):
@@ -156,6 +156,24 @@ def write_result_to_individual_file(result, individual_file_path):
     with open(individual_file_path, 'w', encoding='utf-8') as f:
         json.dump(existing_results, f, ensure_ascii=False, indent=4)
 
+def prepare_locomo_data(category=2, start_idx=-1, end_index=-1):
+    conversation = []
+    for i in range(10):
+        filename = f"./data/locomo/locomo_input_{i}.json"
+        with open(filename, 'r') as f:
+            data = json.load(f)
+            conversation.append(
+                "".join([x["text"] for x in data])
+            )
+    question_filename = f"./data/locomo/locomo_questions_category_{category}.json"
+    with open(question_filename, 'r') as f:
+        questions = json.load(f)
+        for question in questions:
+            question["gold_docs"] = [conversation[question["conversation_index"]]]
+            question["query"] = question["question"]
+    if start_idx!=-1 and end_index!=-1:
+        return questions[start_idx: end_index]
+    return questions
 
 def run_test_process(
         process_id,
@@ -171,12 +189,19 @@ def run_test_process(
         questions_to_run=[],
         last_time_result_file="",
         max_memory=None,
+        dataset="musique",
+        preprocess=True,
+        test_last_wrong=False,
+        test_last_keep=False,
 ):
     last_questions = []
-    if last_time_result_file != "":
-        print(f"rerun last_time_result_file={last_time_result_file}")
-        with open(last_time_result_file, 'r') as f:
-            last_questions = json.load(f)
+    try:
+        if last_time_result_file != "":
+            print(f"rerun last_time_result_file={last_time_result_file}")
+            with open(last_time_result_file, 'r') as f:
+                last_questions = json.load(f)
+    except Exception as E:
+        print(f"fail to load last time questions.")
     """单个测试进程的运行函数"""
     print(f"Process {process_id}: Starting with GPUs {gpu_ids}")
 
@@ -192,7 +217,7 @@ def run_test_process(
         draft_device = "cuda:0"
 
     draft_model_path = "/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct"
-    if reprocess_method != "DraftModel":
+    if "DraftModel" not in reprocess_method:
         draft_model_path = ""
     fusion_rag_model = FusionRAGModel(
         model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
@@ -206,37 +231,48 @@ def run_test_process(
         draft_model_type="qwen",
         file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
         preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
-        preprocess=True,
+        preprocess=preprocess,
         preprocess_method=preprocess_method,
         max_memory=max_memory,
     )
 
-    # 创建结果文件名
-    keyword = f"model_{fusion_rag_model.model_name}_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{fusion_rag_model.preprocess_method}_process_{process_id}"
-    individual_file_path = f"./results/result_{keyword}.json"
 
     openai_client = OpenAI(api_key="sk-27b5e2809a7148aaba768b6ea0de76b5",
                            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1/")
+    all_questions = []
+    if dataset == "musique":
+        # 获取该进程需要处理的问题
+        all_questions = prepare_reflect_data(
+            data_path=f"./result_reflect.json",
+            max_main_questions=total_run,
+            start_idx=start_idx,
+            end_idx=end_idx
+        )
 
-    # 获取该进程需要处理的问题
-    all_questions = prepare_reflect_data(
-        data_path=f"./result_reflect.json",
-        max_main_questions=total_run,
-        start_idx=start_idx,
-        end_idx=end_idx
-    )
-    if len(last_questions) > 0:
-        all_questions_wrong = []
-        for q in all_questions:
-            for last_q in last_questions:
-                if q["query"] == last_q["query"] and q["answer"] == last_q["answer"] and last_q["llm_judge"] is False:
-                    all_questions_wrong.append(q)
-        all_questions = all_questions_wrong
+        print(f"Process {process_id}: Processing {len(all_questions)} questions (main questions {start_idx} to {end_idx})")
+    elif dataset == "locomo":
+        all_questions = prepare_locomo_data(category=2, start_idx=start_idx, end_index=end_idx)
 
-    print(f"Process {process_id}: Processing {len(all_questions)} questions (main questions {start_idx} to {end_idx})")
+    if test_last_wrong:
+        if len(last_questions) > 0:
+            print(f"running the last time wrong questions.")
+            all_questions_wrong = []
+            for q in all_questions:
+                for last_q in last_questions:
+                    if q["query"] == last_q["query"] and q["answer"] == last_q["answer"] and last_q[
+                        "llm_judge"] is False:
+                        all_questions_wrong.append(q)
+            all_questions = all_questions_wrong
+    if test_last_keep:
+        if len(last_questions) > 0:
+            last_questions = [q["query"] for q in last_questions]
+            all_questions = [q for q in all_questions if q["query"] not in last_questions]
+        print(f"keep running the last time questions. all_questions_len={len(all_questions)}")
 
     revert_rope = True
     if fusion_rag_model.preprocess == True and fusion_rag_model.preprocess_method == "space":
+        revert_rope = False
+    if rate == 0.0:
         revert_rope = False
     print(f"Process {process_id}: revert_rope={revert_rope}")
 
@@ -253,8 +289,19 @@ def run_test_process(
         for doc in question["gold_docs"]:
             if doc not in gold_docs:
                 gold_docs.append(doc)
+        prefix = ""
+        format_postfix = """
+        output using json format:
+        {
+        "reason": "",
+        "answer": ""
+        }
+        """
+        if dataset == "locomo":
+            prefix = "If the question ask to find a date, give an absolute time like February 2022 or The weekend before 17 July 2023."
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
-            query=f'Given these documents, generate an appropriate answer for the query. question is {question["query"]}.',
+            query=f'Given these documents, generate an appropriate answer for the query. Output a concise reason first, and then the answer. '
+                  f'{prefix} question is {question["query"]}. {format_postfix}',
             retrieved_docs=gold_docs,
             model_type='qwen3',
             rate=rate,
@@ -264,6 +311,13 @@ def run_test_process(
         )
         if "</think>" in answer:
             answer = answer.split("</think>")[1].replace("\n\n", "")
+
+        try:
+            response_json = json.loads(answer.replace("```json", "").replace("```", "").strip())
+            reason = response_json["reason"]
+            answer = response_json["answer"]
+        except:
+            reason = ""
 
         is_correct, judge_reason = judge_answer_with_openai(
             openai_client=openai_client,
@@ -277,6 +331,7 @@ def run_test_process(
 
         question_copy = copy.deepcopy(question)
         question_copy["llm_answer"] = answer
+        question_copy["llm_reason"] = reason
         question_copy["llm_judge"] = is_correct
         question_copy["llm_judge_reason"] = judge_reason
         question_copy["process_id"] = process_id
@@ -285,6 +340,7 @@ def run_test_process(
 
         print(f"Process {process_id} - Judgment: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} ")
         print(f"Process {process_id} - Question: {question['query']}")
+        print(f"Process {process_id} - Reason: {reason}")
         print(f"Process {process_id} - Answer: {question['answer']}")
         print(f"Process {process_id} - Fusionrag answer: {answer}")
         print("=" * 80)
@@ -301,10 +357,18 @@ def run_test_process(
         result_queue.put({"process_id": process_id, "status": "completed"})
 
 
-def real_time_monitor(result_queue, total_processes, keyword_base):
+def real_time_monitor(result_queue, total_processes, keyword_base, test_last_keep=False):
     """实时监控队列并更新统计信息"""
     completed_processes = 0
     all_results = []
+    if test_last_keep is True:
+        try:
+            summary_file = f"./results/summary_{keyword_base}_interim.json"
+            with open(summary_file, 'r', encoding='utf-8') as f:
+                all_results = json.load(f)
+        except Exception as E:
+            print(f"fail to load last time questions")
+
 
     while completed_processes < total_processes:
         try:
@@ -357,7 +421,15 @@ def real_time_monitor(result_queue, total_processes, keyword_base):
     return all_results
 
 
-def test_question_multiprocess(total_run=200,
+def get_data_length(dataset="musique", category=2) -> int:
+    if dataset == "musique":
+        return len(prepare_reflect_data(
+            data_path=f"./result_reflect.json",
+        ))
+    elif dataset == "locomo":
+        return len(prepare_locomo_data(category=category))
+
+def test_question_multiprocess(total_run=-1,
                                rate=0.3,
                                reprocess_method="",
                                preprocess_method="",
@@ -366,7 +438,11 @@ def test_question_multiprocess(total_run=200,
                                last_preprocess_method="",
                                questions_to_run=[],
                                sep=2,
-                               test_last_wrong=False):
+                               dataset="musique",
+                               test_last_wrong=False,
+                               test_last_keep=False,
+                               preprocess=True,
+                               gpu_configs=None):
     """多进程测试主函数（改进版：支持动态GPU分配）
 
     Args:
@@ -396,26 +472,44 @@ def test_question_multiprocess(total_run=200,
     print(f"进程数: {num_processes}, 每个进程GPU数: {gpus_per_process}")
 
     # 生成GPU配置
-    gpu_configs = []
-    max_memory = None
-    if num_processes == 3:
-        "special case"
-        gpu_configs = [
-            ([0, 1, 2], 0),
-            ([3, 4, 5], 1),
-            ([3, 6, 7], 2)
-        ]
-        max_memory={0: "0GiB", 1: "40GiB", 2: "40GiB"}
-    else:
-        for i in range(num_processes):
-            start_gpu = i * gpus_per_process
-            end_gpu = (i + 1) * gpus_per_process
-            gpu_ids = list(range(start_gpu, end_gpu))
-            gpu_configs.append((gpu_ids, i))
+    max_memories = [None for i in range(1000)]
+    if gpu_configs is None:
+        gpu_configs = []
+        if num_processes == 3:
+            "special case"
+            gpu_configs = [
+                ([1, 2, 3], 0),
+                ([1, 4, 5], 1),
+                ([1, 6, 7], 2)
+            ]
+            if dataset == "musique":
+                max_memories=[
+                    {0: "0GiB", 1: "40GiB", 2: "40GiB"},
+                    {0: "0GiB", 1: "40GiB", 2: "40GiB"},
+                    {0: "0GiB", 1: "40GiB", 2: "40GiB"},
+                ]
+            elif dataset == "locomo":
+                max_memories=[
+                    {0: "20GiB", 1: "40GiB", 2: "40GiB"},
+                    {0: "20GiB", 1: "40GiB", 2: "40GiB"},
+                    {0: "20GiB", 1: "40GiB", 2: "40GiB"},
+                ]
+        else:
+            for i in range(num_processes):
+                start_gpu = i * gpus_per_process
+                end_gpu = (i + 1) * gpus_per_process
+                gpu_ids = list(range(start_gpu, end_gpu))
+                gpu_configs.append((gpu_ids, i))
 
-    print(f"GPU配置: {gpu_configs}")
+        print(f"GPU配置: {gpu_configs}")
+
 
     # 计算每个进程处理的数据范围
+    if total_run < 0:
+        total_run = get_data_length(dataset=dataset)
+    print(f"总运行问题={total_run}")
+
+
     data_ranges = []
     chunk_size = total_run // num_processes
 
@@ -431,11 +525,13 @@ def test_question_multiprocess(total_run=200,
 
 
     # 创建共享结果文件路径
-    keyword_base = f"model_Qwen3-32B_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{preprocess_method}"
-    keyword_base_last_time = f"model_Qwen3-32B_rate_{last_rate}_reprocess_method_{last_reprocess_method}_preprocess_{last_preprocess_method}"
+    keyword_base = f"dataset_{dataset}_model_Qwen3-32B_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{preprocess_method}"
+    keyword_base_last_time = f"dataset_{dataset}_model_Qwen3-32B_rate_{last_rate}_reprocess_method_{last_reprocess_method}_preprocess_{last_preprocess_method}"
     if test_last_wrong:
         keyword_base = f"{keyword_base}_last_wrong"
         last_time_result_file = f"./results/summary_{keyword_base_last_time}_interim.json"
+    elif test_last_keep:
+        last_time_result_file = f"./results/summary_{keyword_base}_interim.json"
     else:
         last_time_result_file = ""
 
@@ -448,7 +544,7 @@ def test_question_multiprocess(total_run=200,
     processes = []
 
     # 启动所有进程
-    for (gpu_ids, process_id), (start_idx, end_idx) in zip(gpu_configs, data_ranges):
+    for (gpu_ids, process_id), (start_idx, end_idx), max_memory in zip(gpu_configs, data_ranges, max_memories):
         p = Process(
             target=run_test_process,
             args=(
@@ -464,7 +560,11 @@ def test_question_multiprocess(total_run=200,
                 preprocess_method,
                 questions_to_run,
                 last_time_result_file,
-                max_memory
+                max_memory,
+                dataset,
+                preprocess,
+                test_last_wrong,
+                test_last_keep,
             )
         )
         processes.append(p)
@@ -473,7 +573,7 @@ def test_question_multiprocess(total_run=200,
     # 启动实时监控线程
     monitor_thread = threading.Thread(
         target=real_time_monitor,
-        args=(result_queue, num_processes, keyword_base)
+        args=(result_queue, num_processes, keyword_base, test_last_keep)
     )
     monitor_thread.start()
 
@@ -498,12 +598,19 @@ if __name__ == '__main__':
     questions_to_run = []
     # 运行多进程测试
     all_results = test_question_multiprocess(
-        total_run=200,
+        total_run=200, ## -1 means run all
         rate=0.3, ## change this
         reprocess_method="DraftModel", ## change this  1. DraftModel 2. DraftModel_ppr 3. average
         preprocess_method="default", ## change this  1. space 2. default
         questions_to_run=questions_to_run,
-        sep=2,
+        sep=3, ## 1/2/3/4
+        dataset= "musique", ## 1. locomo 2. musique
+        preprocess=False, ## if locomo then false, otherwise True
+        test_last_keep=False, ## set=True if keep running
+
+        # gpu_configs = [([1, 2, 3], 0), ([4,5,6], 1)] ## personalize if need
+
+
 
         # test_last_wrong=True, ##change this
         # last_rate=0.2,  ## change this to the lasttime running
