@@ -92,6 +92,7 @@ class FusionRAGModel:
             file_input="",
             preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
             max_memory=None,
+            use_origin_draft_model=False
     ):
         print(f"init FusionRAGModel")
         self.model_name=model_name
@@ -105,6 +106,7 @@ class FusionRAGModel:
         os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
         self.preprocess=preprocess
         if preprocess and self.preprocess_method == "default":
+            print(f"file_input={file_input}")
             dataset_name = os.path.basename(file_input).split(".")[0]
             similar_index_save_path = os.path.join(self.preprocess_save_path, "similar_index")
             self.similar_index_file_path = os.path.join(similar_index_save_path, f"{dataset_name}.npy")
@@ -135,7 +137,7 @@ class FusionRAGModel:
             print(f"Initialize draft model.")
             draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
             draft_config._attn_implementation = "sdpa"
-            self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False)
+            self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False, use_origin_model=use_origin_draft_model)
             self.draft_model.eval()
             self.draft_model_device=draft_model_device
         else:
@@ -513,7 +515,7 @@ class FusionRAGModel:
             )
 
 
-    def load_model(self, model_type, model_path, config, device="cuda:0", use_multi_gpu=False, max_memory=None):
+    def load_model(self, model_type, model_path, config, device="cuda:0", use_multi_gpu=False, max_memory=None, use_origin_model=False):
         """
         Load model based on model type (same as unified_process_cache.py)
 

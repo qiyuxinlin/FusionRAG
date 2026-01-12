@@ -263,7 +263,7 @@ class Qwen2Attention(nn.Module):
                     "with a layer index."
                 )
             kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        cos, sin = self.rotary_emb(value_states, seq_len=position_ids)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 
         if past_key_value is not None:
@@ -976,17 +976,17 @@ class Qwen2Model(Qwen2PreTrainedModel):
             last_length = 0
             chunk_hidden_states = torch.zeros_like(hidden_states)
             for lengths in range(chunk_size, q_len, chunk_size):
-                chunk_hidden_states[:, last_length:lengths] = self.forward_chunk(hidden_states[:, last_length:lengths], causal_mask[:,:,last_length:lengths],
+                chunk_hidden_states[:, last_length:lengths], all_self_attns = self.forward_chunk(hidden_states[:, last_length:lengths], causal_mask[:,:,last_length:lengths],
                                    position_ids[:, last_length:lengths], past_key_values, output_attentions, use_cache,
                                    cache_position[last_length:lengths], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
                 last_length = lengths
             if lengths < q_len:
-                chunk_hidden_states[:, lengths:q_len] = self.forward_chunk(hidden_states[:, lengths:q_len], causal_mask[:,:,lengths:q_len],
+                chunk_hidden_states[:, lengths:q_len], all_self_attns = self.forward_chunk(hidden_states[:, lengths:q_len], causal_mask[:,:,lengths:q_len],
                                    position_ids[:, lengths:q_len], past_key_values, output_attentions, use_cache,
                                    cache_position[lengths:q_len], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
             hidden_states = self.norm(chunk_hidden_states)
         else:
-            hidden_states= self.forward_chunk(hidden_states, causal_mask,
+            hidden_states, all_self_attns = self.forward_chunk(hidden_states, causal_mask,
                                    position_ids, past_key_values, output_attentions, use_cache,
                                    cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
             hidden_states = self.norm(hidden_states)
@@ -1008,6 +1008,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         )
 
     def forward_chunk(self, hidden_states, causal_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer=None):
+        attentions = ()
         for layer_idx, decoder_layer in enumerate(self.layers):
 
             layer_outputs = decoder_layer(
@@ -1027,12 +1028,14 @@ class Qwen2Model(Qwen2PreTrainedModel):
             )
 
             hidden_states = layer_outputs[0]
+            if output_attentions:
+                attentions += (layer_outputs[1],)
 
             # Early exit if specified (for CacheBlend)
             if early_exit_layer is not None and layer_idx + 1 >= early_exit_layer:
                 break
 
-        return hidden_states
+        return hidden_states, attentions
     # Copied from transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask
     def _update_causal_mask(
         self,

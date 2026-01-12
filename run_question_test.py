@@ -219,6 +219,14 @@ def run_test_process(
     draft_model_path = "/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct"
     if "DraftModel" not in reprocess_method:
         draft_model_path = ""
+
+    if dataset == "musique":
+        file_input = "/home/qy_tmp/xumengyao/all_data/musique_input.json"
+    elif dataset == "locomo":
+        file_input = "/home/qy_tmp/xumengyao/work/DATASET/locomo/locomo_input.json"
+    else:
+        file_input = ""
+
     fusion_rag_model = FusionRAGModel(
         model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
         use_multi_gpu=True,
@@ -229,11 +237,12 @@ def run_test_process(
         draft_model_device=draft_device,
         draft_model_path=draft_model_path,
         draft_model_type="qwen",
-        file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
+        file_input=file_input,
         preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
         preprocess=preprocess,
         preprocess_method=preprocess_method,
         max_memory=max_memory,
+        use_origin_draft_model=reprocess_method=="DraftModel_with_answer",
     )
 
 
@@ -251,7 +260,13 @@ def run_test_process(
 
         print(f"Process {process_id}: Processing {len(all_questions)} questions (main questions {start_idx} to {end_idx})")
     elif dataset == "locomo":
-        all_questions = prepare_locomo_data(category=2, start_idx=start_idx, end_index=end_idx)
+        all_questions = prepare_reflect_data(
+            data_path=f"./data/locomo/result_locomo_category_2_no_detail.json",
+            max_main_questions=total_run,
+            start_idx=start_idx,
+            end_idx=end_idx
+        )
+        # all_questions = prepare_locomo_data(category=2, start_idx=start_idx, end_index=end_idx)
 
     if test_last_wrong:
         if len(last_questions) > 0:
@@ -297,8 +312,7 @@ def run_test_process(
         "answer": ""
         }
         """
-        if dataset == "locomo":
-            prefix = "If the question ask to find a date, give an absolute time like February 2022 or The weekend before 17 July 2023."
+
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
             query=f'Given these documents, generate an appropriate answer for the query. Output a concise reason first, and then the answer. '
                   f'{prefix} question is {question["query"]}. {format_postfix}',
@@ -442,7 +456,8 @@ def test_question_multiprocess(total_run=-1,
                                test_last_wrong=False,
                                test_last_keep=False,
                                preprocess=True,
-                               gpu_configs=None):
+                               gpu_configs=None,
+                               max_memories=None):
     """多进程测试主函数（改进版：支持动态GPU分配）
 
     Args:
@@ -472,7 +487,10 @@ def test_question_multiprocess(total_run=-1,
     print(f"进程数: {num_processes}, 每个进程GPU数: {gpus_per_process}")
 
     # 生成GPU配置
-    max_memories = [None for i in range(1000)]
+    if max_memories == None:
+        max_memories = [None for i in range(1000)]
+
+
     if gpu_configs is None:
         gpu_configs = []
         if num_processes == 3:
@@ -593,24 +611,27 @@ def test_question_multiprocess(total_run=-1,
 if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
     questions_to_run = [
-        "Who was Ernst Mach's employer or academic institution during his career?"
+        " When did Caroline draw a self-portrait?"
     ]
-    questions_to_run = []
+    # questions_to_run = []
     # 运行多进程测试
     all_results = test_question_multiprocess(
-        total_run=200, ## -1 means run all
-        rate=0.3, ## change this
-        reprocess_method="DraftModel", ## change this  1. DraftModel 2. DraftModel_ppr 3. average
+        total_run=400, ## -1 means run all
+        rate=0.1, ## change this
+        reprocess_method="DraftModel_with_answer", ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
         preprocess_method="default", ## change this  1. space 2. default
         questions_to_run=questions_to_run,
-        sep=3, ## 1/2/3/4
-        dataset= "musique", ## 1. locomo 2. musique
+        sep=1, ## 1/2/3/4
+        dataset= "locomo", ## 1. locomo 2. musique
         preprocess=False, ## if locomo then false, otherwise True
         test_last_keep=False, ## set=True if keep running
+        gpu_configs = [([1,2,4,6], 0)], ## personalize if need
 
-        # gpu_configs = [([1, 2, 3], 0), ([4,5,6], 1)] ## personalize if need
 
-
+        max_memories = [
+            {0: "0GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB"}
+            # {0: "0GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB"},
+        ]
 
         # test_last_wrong=True, ##change this
         # last_rate=0.2,  ## change this to the lasttime running

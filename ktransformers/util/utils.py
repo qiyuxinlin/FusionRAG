@@ -465,6 +465,56 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     else:
         torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
+
+def get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, tokenizer, entropy_top_k=4):
+    full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)
+    query_start = sum([passage.shape[0] for passage in passages[:-1]])
+    total_len = sum([passage.shape[0] for passage in passages])
+    document_start = passages[0].shape[0]
+    # 存储所有生成的token
+    generated_tokens = []
+    max_tokens = 50
+    attention = None
+    for i in range(max_tokens):  # 生成20个token
+        inputs_embeds = draft_model.model.embed_tokens(full_input).to(draft_model_device)
+        position_ids = torch.arange(full_input.shape[1], device=draft_model_device).unsqueeze(0)
+
+        result = draft_model(
+            inputs_embeds=inputs_embeds,
+            use_cache=False,
+            position_ids=position_ids,
+            output_attentions=True,
+            return_dict=True
+        )
+
+        logits = result.logits
+        attention = result.attentions
+        next_token_logits = logits[0, -1, :]
+        token_id = torch.argmax(next_token_logits).item()
+        if token_id == tokenizer.eos_token_id:
+            max_tokens = i+1
+            break
+        generated_tokens.append(token_id)
+        new_token_tensor = torch.tensor([[token_id]], device=draft_model_device)
+        full_input = torch.cat([full_input, new_token_tensor], dim=1)
+
+    output = tokenizer.decode(full_input[0])
+    print(output)
+    layer_attention_dict = {}
+    for layer_idx, layer_attn in enumerate(attention):
+        layer_attn = layer_attn.squeeze(dim=0)
+        query_to_doc = layer_attn[:, query_start:total_len+max_tokens, document_start:query_start]
+        doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
+        layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
+
+    active_layers, layer_entropy = entropy_layer_selection(
+        layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+    )
+    layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+    multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+    return generated_tokens, multi_layer_attn
+
 def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k, draft_attention, query_start, system_len, doc_len, total_len):
     # 如果没有传入 draft_attention，需要用 draft_model 计算
     if draft_attention is None:
@@ -883,7 +933,22 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         elif reprocess_method == "average":
             ""
             k_need_index = torch.tensor(list(range(0, sum(passages_len[:-1]), int(1/rate))))
-        elif reprocess_method == "DraftModel_choose":
+        elif reprocess_method == "DraftModel_with_answer":
+            doc_len = sum(passages_len[1:-1])
+            query_start = sum(passages_len[:-1])
+            total_len = sum(passages_len)
+            _, multi_layer_attn = get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, tokenizer)
+
+            selected_indices = smart_query_selection(
+                attention_scores=multi_layer_attn,
+                doc_len=doc_len,
+                target_ratio=rate,
+                system_len=system_len,
+                device=draft_model_device
+            )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+        elif reprocess_method == "DraftModel_choose": ## first use the attention to score to choose the articles, and then recompute in those articles.
             doc_len = sum(passages_len[1:-1])
             query_start = sum(passages_len[:-1])
             total_len = sum(passages_len)
