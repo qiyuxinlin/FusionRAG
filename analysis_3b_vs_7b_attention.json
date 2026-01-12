@@ -1,0 +1,182 @@
+[
+  {
+    "case": {
+      "main_question": "Who is the spouse of the child of Peter Andreas Heiberg?",
+      "sub_question": "Who is the child of Peter Andreas Heiberg?",
+      "ground_truth": "Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.",
+      "pred_3b": " Johanne Luise Heiberg",
+      "pred_7b": " Johan Ludvig Heiberg",
+      "f1_3b": "0.27272727272727276",
+      "f1_7b": "0.5714285714285715",
+      "reason_3b": "预测答案“Johanne Luise Heiberg”与标准答案“Johan Ludvig Heiberg”在关键信息上不一致，两者并非同一个人。虽然两者都是彼得·安德烈亚斯·海贝尔格（Peter Andreas Heiberg）的子女，但预测答案错误地指向了女儿约翰娜·路易丝·海贝尔格，而标准答案明确要求的是儿子约翰·路德维格·海贝尔格。因此，预测答案未能正确识别问题所询问的具体子女身份，违反了语义等价的原则，属于信息错误。",
+      "reason_7b": "预测答案“Johan Ludvig Heiberg”直接提供了标准答案中的核心信息，即彼得·安德烈亚斯·海贝尔格的孩子是谁。虽然预测答案省略了标准答案中的完整句子结构“Johan Ludvig Heiberg is the child of Peter Andreas Heiberg”，但两者在语义上完全等价，都准确指出了同一人物关系。预测答案以简洁的形式呈现关键事实，符合允许措辞差异的要求，且未引入任何错误或歧义信息，因此正确回答了问题。"
+    },
+    "comparison": {
+      "overlap": 179,
+      "only_3b": 51,
+      "only_7b": 51,
+      "iou": 0.637010676156357,
+      "correlation": 0.7336368085423451,
+      "only_7b_avg_rank_in_3b": 473.3921568627451,
+      "layer_overlap": 0,
+      "7b_entropy_diff": "0.130095"
+    },
+    "selection_3b_layers": [
+      23,
+      24,
+      27,
+      21
+    ],
+    "selection_7b_layers": [
+      16,
+      22,
+      19,
+      18
+    ],
+    "doc_len": 1154
+  },
+  {
+    "case": {
+      "main_question": "When was the sibling of Alice de Lusignan, Countess of Surrey crowned?",
+      "sub_question": "Who were the siblings of Alice de Lusignan, Countess of Surrey?",
+      "ground_truth": "Alice de Lusignan had a uterine half-brother, King Henry III of England.",
+      "pred_3b": " John de Lusignan, Joan de Lusignan, and Geoffrey de Lusignan",
+      "pred_7b": " Isabella of Angoulême",
+      "f1_3b": "0.25",
+      "f1_7b": "0.08333333333333333",
+      "reason_3b": "预测答案中提到的John、Joan和Geoffrey de Lusignan并非Alice de Lusignan的兄弟姐妹，而是她与丈夫John de Warenne所生的子女。标准答案明确指出她的同母异父兄弟是英格兰国王亨利三世，这属于完全不同的亲属关系。预测答案不仅遗漏了关键信息，还提供了错误的人物关系，导致语义上与标准答案完全不一致，无法正确回答问题。",
+      "reason_7b": "预测答案“Isabella of Angoulême”并未正确回答问题。问题询问的是Alice de Lusignan的兄弟姐妹，标准答案明确指出她的同母异父兄弟是英格兰国王亨利三世。而Isabella of Angoulême实际上是Alice de Lusignan的母亲，并非她的兄弟姐妹，因此预测答案在关键信息上完全错误，与标准答案在语义上毫无等价性，无法满足任何判断标准。"
+    },
+    "comparison": {
+      "overlap": 167,
+      "only_3b": 68,
+      "only_7b": 68,
+      "iou": 0.5511551155113693,
+      "correlation": 0.8271662311613909,
+      "only_7b_avg_rank_in_3b": 466.29411764705884,
+      "layer_overlap": 0,
+      "7b_entropy_diff": "0.2520361"
+    },
+    "selection_3b_layers": [
+      20,
+      23,
+      21,
+      24
+    ],
+    "selection_7b_layers": [
+      16,
+      22,
+      19,
+      17
+    ],
+    "doc_len": 1178
+  },
+  {
+    "case": {
+      "main_question": "Whose sister played Susie in miracle on 34th street?",
+      "sub_question": "Who played Susie in Miracle on 34th Street?",
+      "ground_truth": "Natalie Wood played Susan Walker in Miracle on 34th Street.",
+      "pred_3b": " Maureen O'Hara",
+      "pred_7b": " Natalie Wood",
+      "f1_3b": "0",
+      "f1_7b": "0.25",
+      "reason_3b": "预测答案“Maureen O'Hara”与标准答案“Natalie Wood”在关键信息上完全不一致。在电影《Miracle on 34th Street》中，Maureen O'Hara饰演的是母亲Doris Walker，而Susie（全名Susan Walker）这一角色是由Natalie Wood扮演的。预测答案错误地识别了演员与角色的对应关系，未能提供与标准答案语义等价的信息，因此无法正确回答问题。",
+      "reason_7b": "预测答案“Natalie Wood”直接提供了标准答案中的核心信息，即演员的名字。虽然预测答案省略了角色全名“Susan Walker”和电影名称“Miracle on 34th Street”，但问题明确询问的是“谁扮演了Susie”，而“Susie”是“Susan Walker”的简称，因此预测答案在语义上与标准答案等价，准确回答了问题。允许措辞差异下，关键信息一致，故判断为正确。"
+    },
+    "comparison": {
+      "overlap": 139,
+      "only_3b": 65,
+      "only_7b": 65,
+      "iou": 0.5167286245351239,
+      "correlation": 0.6068372753397653,
+      "only_7b_avg_rank_in_3b": 394.1384615384615,
+      "layer_overlap": 2,
+      "7b_entropy_diff": "0.01072979"
+    },
+    "selection_3b_layers": [
+      23,
+      24,
+      19,
+      18
+    ],
+    "selection_7b_layers": [
+      19,
+      16,
+      18,
+      15
+    ],
+    "doc_len": 1020
+  },
+  {
+    "case": {
+      "main_question": "Who is the spouse of a cast member from King of the Mountain?",
+      "sub_question": "Who are the cast members of King of the Mountain?",
+      "ground_truth": "The cast includes Harry Hamlin as Steve and Deborah Van Valkenburgh as Tina.",
+      "pred_3b": " The cast members of King of the Mountain include Kaki King, Christopher Walken, Stephen Tobolowsky, Daryl Mitchell, M.C. Gainey, Diedrich Bader, Alex Rocco, Meagen Fay, Eli Marienthal, Diedrich Bader, Candy Ford, James Gammon, Brad Garrett, Toby Huss, Kevin Michael Richardson, and Stephen.",
+      "pred_7b": " Steve (Harry Hamlin) and Tina (Deborah Van Valkenburgh)",
+      "f1_3b": "0.022727272727272728",
+      "f1_7b": "0.8823529411764706",
+      "reason_3b": "预测答案与标准答案的关键信息完全不一致。标准答案明确指出《King of the Mountain》的演员包括Harry Hamlin和Deborah Van Valkenburgh，而预测答案列出了一系列不同的演员名字，如Kaki King、Christopher Walken等，这些名字在标准答案中并未提及。这表明预测答案可能混淆了另一部作品或提供了错误信息，无法在语义上与标准答案等价，因此未能正确回答问题。",
+      "reason_7b": "Steve由Harry Hamlin饰演，Tina由Deborah Van Valkenburgh饰演。这些信息在语义上与标准答案完全一致，且没有遗漏任何核心内容。措辞上的差异（如直接列出角色与演员对应关系）并未改变答案的本质，因此预测答案正确回答了问题。"
+    },
+    "comparison": {
+      "overlap": 164,
+      "only_3b": 103,
+      "only_7b": 103,
+      "iou": 0.4432432432431235,
+      "correlation": 0.6708599195622709,
+      "only_7b_avg_rank_in_3b": 668.8737864077669,
+      "layer_overlap": 1,
+      "7b_entropy_diff": "0.17149258"
+    },
+    "selection_3b_layers": [
+      23,
+      19,
+      24,
+      18
+    ],
+    "selection_7b_layers": [
+      16,
+      19,
+      14,
+      17
+    ],
+    "doc_len": 1337
+  },
+  {
+    "case": {
+      "main_question": "What county shares a border with Cedar Springs?",
+      "sub_question": "Which counties share a border with Falls County, Texas?",
+      "ground_truth": "Bell County shares a border with Falls County.",
+      "pred_3b": " Bell County and Knox County share a border with Falls County, Texas.",
+      "pred_7b": " Bell County and Cedar County share a border with Falls County, Texas. However, there seems to be an inconsistency as Cedar County is not a valid county in Texas. The correct answer based on the provided documents is that Bell County extends into a small portion of Falls County, but no other specific county bordering Falls County is mentioned. Therefore, with the given information, we can only confirm Bell County as sharing a border with Falls County.",
+      "f1_3b": "0.5882352941176471",
+      "f1_7b": "0.13333333333333333",
+      "reason_3b": "预测答案声称贝尔县和诺克斯县都与福尔斯县接壤，但标准答案仅确认贝尔县与福尔斯县接壤。诺克斯县实际上并不与福尔斯县相邻，两者之间至少相隔一个县（如林县），因此预测答案包含了错误的地理信息，与标准答案在语义上不等价，未能正确回答问题。",
+      "reason_7b": "预测答案明确包含了标准答案的关键信息，即确认贝尔县（Bell County）与福尔斯县（Falls County）接壤，并在语义上与标准答案等价。尽管预测答案额外提到了雪松县（Cedar County）并指出其不准确性，但这部分内容是对信息的澄清和补充，并未否定核心事实。整体上，预测答案在关键信息上保持一致，且措辞差异不影响语义的正确性，因此正确回答了问题。"
+    },
+    "comparison": {
+      "overlap": 145,
+      "only_3b": 53,
+      "only_7b": 53,
+      "iou": 0.5776892430276583,
+      "correlation": 0.5900760751282987,
+      "only_7b_avg_rank_in_3b": 366.49056603773585,
+      "layer_overlap": 1,
+      "7b_entropy_diff": "0.20354366"
+    },
+    "selection_3b_layers": [
+      23,
+      18,
+      24,
+      19
+    ],
+    "selection_7b_layers": [
+      20,
+      16,
+      17,
+      18
+    ],
+    "doc_len": 991
+  }
+]

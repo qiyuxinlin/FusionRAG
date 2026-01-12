@@ -279,6 +279,9 @@ def prepare_reflect_data(
             global_corpus.extend(question_docs)
             corpus_lens.append(len(question_docs))
 
+        # 获取 gold_docs（用于 long_decode 模式的支撑材料评估）
+        gold_docs = data_item.get('gold_docs', [])
+
         questions_data.append({
             'main_question': main_question,
             'main_answer': main_answer,
@@ -286,6 +289,7 @@ def prepare_reflect_data(
             'docs': question_docs,
             'doc_tensors': doc_tensors,
             'should_test': should_test_main_question,  # Whether to test this main question
+            'gold_docs': gold_docs,  # 用于 long_decode 模式的支撑材料评估
         })
 
     # Statistics
@@ -397,6 +401,33 @@ def prepare_reflect_data(
     return questions_data, system_tensor, context_rank, corpus_lens
 
 
+# 全局缓存：存储评判结果
+_judge_cache = {}
+_judge_cache_file = None
+
+def _load_judge_cache(cache_path: str):
+    """加载评判缓存"""
+    global _judge_cache, _judge_cache_file
+    _judge_cache_file = os.path.join(cache_path, 'judge_cache_v2.json')  # v2 版本，使用修复后的解析逻辑
+    if os.path.exists(_judge_cache_file):
+        try:
+            with open(_judge_cache_file, 'r', encoding='utf-8') as f:
+                _judge_cache = json.load(f)
+            print(f"Loaded {len(_judge_cache)} cached judgments from {_judge_cache_file}")
+        except:
+            _judge_cache = {}
+
+def _save_judge_cache():
+    """保存评判缓存"""
+    global _judge_cache, _judge_cache_file
+    if _judge_cache_file:
+        try:
+            with open(_judge_cache_file, 'w', encoding='utf-8') as f:
+                json.dump(_judge_cache, f, ensure_ascii=False, indent=2)
+        except:
+            pass
+
+
 def judge_answer_with_openai(
     openai_client: OpenAI,
     openai_model: str,
@@ -410,6 +441,17 @@ def judge_answer_with_openai(
     Returns:
         Tuple[bool, str]: (is_correct, reason)
     """
+    # 对输入做 strip() 预处理，避免空格造成的不一致
+    question = question.strip()
+    predicted_answer = predicted_answer.strip()
+    ground_truth_answer = ground_truth_answer.strip()
+
+    # 生成缓存 key 并查询缓存
+    cache_key = f"{question}|||{predicted_answer}|||{ground_truth_answer}"
+    if cache_key in _judge_cache:
+        cached = _judge_cache[cache_key]
+        return cached['is_correct'], cached['reason']
+
     judge_prompt = f"""你是一个答案评估专家。你的任务是判断预测答案是否正确地回答了问题。
 
 问题: {question}
@@ -444,15 +486,22 @@ def judge_answer_with_openai(
         is_correct = False
         reason = result
 
-        # 尝试解析格式化的回答
+        # 尝试解析格式化的回答 - 只提取判断值，避免原因文本干扰
         lines = result.split('\n')
         for i, line in enumerate(lines):
-            if '判断' in line or 'judgment' in line.lower():
-                if '正确' in line or 'YES' in line.upper() or '对' in line:
+            line_stripped = line.strip()
+            # 查找判断行：必须以"判断"开头，避免匹配到原因文本中的"判断标准"等词
+            if (line_stripped.startswith('判断') or line_stripped.lower().startswith('judgment')) and (':' in line or '：' in line):
+                # 提取冒号后的判断值部分
+                judgment_value = line.split(':', 1)[-1].split('：', 1)[-1].strip()
+                # 只检查判断值部分（通常只有"正确"或"错误"几个字）
+                if '正确' in judgment_value or '对' in judgment_value:
                     is_correct = True
-                elif '错误' in line or 'NO' in line.upper() or '错' in line:
+                elif '错误' in judgment_value or '错' in judgment_value:
                     is_correct = False
-            if '原因' in line or 'reason' in line.lower():
+                # 找到判断后继续找原因
+                continue
+            if line_stripped.startswith('原因') or line_stripped.lower().startswith('reason'):
                 # 获取原因部分
                 if ':' in line or '：' in line:
                     reason_start = line.split(':', 1)[-1].split('：', 1)[-1].strip()
@@ -468,12 +517,206 @@ def judge_answer_with_openai(
         if not reason or len(reason) < 10:
             reason = result
 
+        # 保存到缓存
+        _judge_cache[cache_key] = {'is_correct': is_correct, 'reason': reason}
+        _save_judge_cache()
+
         return is_correct, reason
 
     except Exception as e:
         error_msg = f"调用 OpenAI API 时出错: {e}"
         print(error_msg)
         return False, error_msg
+
+
+def judge_evidence_with_openai(
+    openai_client: OpenAI,
+    openai_model: str,
+    question: str,
+    predicted_evidence: str,
+    gold_docs: List[str],
+    retrieve_docs: List[str] = None
+) -> Tuple[bool, str]:
+    """
+    Use OpenAI API to judge if the predicted evidence matches gold_docs
+
+    Args:
+        question: The question being answered
+        predicted_evidence: The evidence/supporting material extracted from model output
+        gold_docs: List of gold documents that contain the correct information
+        retrieve_docs: List of all retrieved documents (optional, for context)
+
+    Returns:
+        Tuple[bool, str]: (is_matched, reason)
+    """
+    question = question.strip()
+    predicted_evidence = predicted_evidence.strip()
+
+    # 将 gold_docs 拼接成字符串
+    gold_docs_text = "\n\n".join([f"[标准文档{i+1}] {doc}" for i, doc in enumerate(gold_docs)])
+
+    # 将 retrieve_docs 拼接成字符串（如果提供）
+    retrieve_docs_text = ""
+    if retrieve_docs:
+        retrieve_docs_text = "\n\n".join([f"[检索文档{i+1}] {doc[:500]}..." if len(doc) > 500 else f"[检索文档{i+1}] {doc}" for i, doc in enumerate(retrieve_docs)])
+
+    # 生成缓存 key
+    cache_key = f"evidence_v2|||{question}|||{predicted_evidence[:200]}|||{gold_docs_text[:300]}|||{retrieve_docs_text[:200] if retrieve_docs_text else ''}"
+    if cache_key in _judge_cache:
+        cached = _judge_cache[cache_key]
+        return cached['is_correct'], cached['reason']
+
+    # 构建 prompt，包含检索文档上下文
+    if retrieve_docs_text:
+        judge_prompt = f"""你是一个支撑材料评估专家。你的任务是判断模型输出的支撑材料是否正确。
+
+问题: {question}
+
+标准文档 (Gold Docs，包含正确答案的文档):
+{gold_docs_text}
+
+完整检索上下文 (模型可见的所有检索文档):
+{retrieve_docs_text}
+
+模型输出的支撑材料:
+{predicted_evidence}
+
+请判断模型输出的支撑材料是否正确。判断标准：
+1. 支撑材料是否包含标准文档中的关键信息（最重要）
+2. 支撑材料中引用的其他内容是否来自检索文档（而非幻觉）
+3. 如果支撑材料包含检索文档中不存在的内容，则为幻觉，应判断为不匹配
+4. 允许措辞上的细微差异和信息的合理简化
+
+请按照以下格式回答：
+判断: [匹配/不匹配]
+原因: [详细说明为什么匹配或不匹配，至少30字]"""
+    else:
+        judge_prompt = f"""你是一个支撑材料评估专家。你的任务是判断模型输出的支撑材料是否与标准文档匹配。
+
+问题: {question}
+
+标准文档 (Gold Docs):
+{gold_docs_text}
+
+模型输出的支撑材料:
+{predicted_evidence}
+
+请判断模型输出的支撑材料是否正确引用了标准文档中的关键信息。判断标准：
+1. 支撑材料是否包含标准文档中的关键信息
+2. 支撑材料是否与标准文档在语义上一致
+3. 允许措辞上的细微差异和信息的合理简化
+
+请按照以下格式回答：
+判断: [匹配/不匹配]
+原因: [详细说明为什么匹配或不匹配，至少30字]"""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model=openai_model,
+            messages=[
+                {"role": "system", "content": "你是一个专业的支撑材料评估专家。"},
+                {"role": "user", "content": judge_prompt}
+            ],
+            temperature=0,
+            max_tokens=300
+        )
+
+        result = response.choices[0].message.content.strip()
+
+        # 解析返回结果
+        is_matched = False
+        reason = result
+
+        lines = result.split('\n')
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if (line_stripped.startswith('判断') or line_stripped.lower().startswith('judgment')) and (':' in line or '：' in line):
+                judgment_value = line.split(':', 1)[-1].split('：', 1)[-1].strip()
+                if '匹配' in judgment_value and '不匹配' not in judgment_value:
+                    is_matched = True
+                elif '不匹配' in judgment_value:
+                    is_matched = False
+                continue
+            if line_stripped.startswith('原因') or line_stripped.lower().startswith('reason'):
+                if ':' in line or '：' in line:
+                    reason_start = line.split(':', 1)[-1].split('：', 1)[-1].strip()
+                    if len(lines) > i + 1 and not reason_start:
+                        reason = '\n'.join(lines[i+1:]).strip()
+                    else:
+                        reason = reason_start + '\n' + '\n'.join(lines[i+1:]).strip()
+                    reason = reason.strip()
+                    break
+
+        if not reason or len(reason) < 10:
+            reason = result
+
+        # 保存到缓存
+        _judge_cache[cache_key] = {'is_correct': is_matched, 'reason': reason}
+        _save_judge_cache()
+
+        return is_matched, reason
+
+    except Exception as e:
+        error_msg = f"调用 OpenAI API 时出错: {e}"
+        print(error_msg)
+        return False, error_msg
+
+
+def parse_long_decode_output(output: str) -> Tuple[str, str]:
+    """
+    Parse model output in long_decode mode to extract answer and evidence
+
+    Expected format:
+    答案: xxx
+    支撑材料: xxx
+
+    Returns:
+        Tuple[str, str]: (answer, evidence)
+    """
+    answer = ""
+    evidence = ""
+
+    lines = output.strip().split('\n')
+    current_section = None
+
+    for line in lines:
+        line_stripped = line.strip()
+
+        # 检测答案部分
+        if line_stripped.startswith('答案:') or line_stripped.startswith('答案：'):
+            current_section = 'answer'
+            answer = line_stripped.split(':', 1)[-1].split('：', 1)[-1].strip()
+            continue
+        elif line_stripped.lower().startswith('answer:'):
+            current_section = 'answer'
+            answer = line_stripped.split(':', 1)[-1].strip()
+            continue
+
+        # 检测支撑材料部分
+        if line_stripped.startswith('支撑材料:') or line_stripped.startswith('支撑材料：'):
+            current_section = 'evidence'
+            evidence = line_stripped.split(':', 1)[-1].split('：', 1)[-1].strip()
+            continue
+        elif line_stripped.lower().startswith('evidence:') or line_stripped.lower().startswith('supporting evidence:'):
+            current_section = 'evidence'
+            evidence = line_stripped.split(':', 1)[-1].strip()
+            continue
+
+        # 追加到当前部分
+        if current_section == 'answer' and not evidence:
+            answer += ' ' + line_stripped
+        elif current_section == 'evidence':
+            evidence += ' ' + line_stripped
+
+    # 清理
+    answer = answer.strip()
+    evidence = evidence.strip()
+
+    # 如果没有解析到格式化的输出，把整个输出作为答案
+    if not answer and not evidence:
+        answer = output.strip()
+
+    return answer, evidence
 
 
 def main(
@@ -483,6 +726,7 @@ def main(
     data_path='/mnt/data/ktransformers-dev/result_reflect.json',
     cache_path='/mnt/data3/reflect/',
     model_name='Qwen2.5-7B-Instruct',
+    dataset_name='2wikimqa',  # 数据集名称，用于结果分文件夹存储
     max_cache_len=32768,
     rate=0.2,
     topk=10,
@@ -491,7 +735,9 @@ def main(
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
     entropy_top_k=4,  # 熵选层选择的层数
-    draft_layer_selection='entropy',  # DraftModel 选层方式: 'entropy' (熵选层) 或 'last' (最后一层)
+    draft_layer_selection='entropy',  # DraftModel 选层方式: 'entropy' (熵选层), 'last' (最后一层), 'fixed' (固定层), 或 'middle' (中间层)
+    draft_fixed_layer=3,  # 固定层选择时使用的层号 (当 draft_layer_selection='fixed' 时生效)
+    draft_threshold_factor=0.5,  # smart_query_selection 阈值因子 (默认 0.5，较小值会选择更多位置进入连通分量分析)
     bge_model_path='/mnt/data/models/bge-m3-FP16',
     revert_rope=True,
     device="cuda:0",
@@ -508,7 +754,13 @@ def main(
     max_rate=0.5,    # 动态 budget 的最大比例
     # DraftModelLayerwise 参数
     layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
-    layerwise_final_rate=0.05  # 最后一层的 rate
+    layerwise_final_rate=0.05,  # 最后一层的 rate
+    # DraftModel 相似度重排序改进
+    use_similarity_rerank=False,  # 使用 query-doc 相似度重排序改进 DraftModel 选择
+    rerank_multiplier=2.0,  # 重排序时先选择多少倍候选
+    # Long decode 模式参数
+    long_decode=False,  # 是否启用长 decode 模式（要求输出答案和支撑材料）
+    long_decode_max_tokens=1000,  # long_decode 模式下的最大生成 token 数
 ):
     """
     Main function for FusionRAG testing on result_reflect.json
@@ -540,9 +792,10 @@ def main(
         max_rate: For OracleDynamic, maximum recompute ratio
     """
 
-    # Create cache directories with model-specific subdirectories
+    # Create cache directories with model-specific and dataset-specific subdirectories
     # Different preprocess_scope uses different preprocess cache directories
-    model_cache_root = os.path.join(cache_path, model_name)
+    # 按数据集区分缓存目录，避免不同数据集的缓存冲突
+    model_cache_root = os.path.join(cache_path, model_name, dataset_name)
     save_path = os.path.join(model_cache_root, 'kv_cache')
 
     # Separate preprocess cache for different scopes
@@ -555,10 +808,14 @@ def main(
     else:
         preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache')
 
+    # 结果目录也在数据集目录下
     csv_path = os.path.join(model_cache_root, 'results')
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(preprocess_save_path, exist_ok=True)
     os.makedirs(csv_path, exist_ok=True)
+
+    # 初始化评判缓存
+    _load_judge_cache(csv_path)
 
     print(f"Cache directories created under: {model_cache_root}")
     print(f"  - KV cache: {save_path}")
@@ -576,12 +833,12 @@ def main(
         print("Using multi-GPU with device_map='auto'")
     model, device_map = load_model(model_type, model_path, config, device, use_multi_gpu)
 
-    # Load draft model if using DraftModel, DraftModelDynamic, or DraftModelLayerwise method
+    # Load draft model if using DraftModel, DynamicDraftModel, DraftModelDynamic, or DraftModelLayerwise method
     # Note: Oracle method uses the main model itself, no need to load draft model
     draft_model = None
-    if reprocess_method in ('DraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+    if reprocess_method in ('DraftModel', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
         if draft_model_path is None:
-            raise ValueError("draft_model_path must be provided when using DraftModel/DraftModelDynamic/DraftModelLayerwise method")
+            raise ValueError("draft_model_path must be provided when using DraftModel/DynamicDraftModel/DraftModelDynamic/DraftModelLayerwise method")
         print(f"\nLoading draft model from {draft_model_path}...")
         draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
         draft_config._attn_implementation = "sdpa"
@@ -608,23 +865,57 @@ def main(
 
     # CSV file for results (include preprocess_scope and revert_rope in filename)
     rope_suffix = "_revert_rope" if revert_rope else ""
+    long_decode_suffix = "_long_decode" if long_decode else ""
+
+    # Extract draft model name for DraftModel methods
+    # Note: rate=1 baseline files don't include draft model name (since draft model doesn't affect rate=1)
+    draft_model_suffix = ""
+    if reprocess_method in ('DraftModel', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise') and draft_model_path:
+        draft_model_name = os.path.basename(draft_model_path.rstrip('/'))
+        draft_model_suffix = f"_draft_{draft_model_name}"
+
     if preprocess:
-        csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{rope_suffix}.csv"
-        result_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{rope_suffix}.txt"
-        rate1_csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_1{rope_suffix}.csv"
+        csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.csv"
+        result_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.txt"
+        # rate=1 baseline: no draft model suffix (draft model doesn't matter when recomputing all tokens)
+        # long_decode baseline 需要单独的 rate=1 文件
+        rate1_csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_1{rope_suffix}{long_decode_suffix}.csv"
     else:
-        csv_file = f"{csv_path}/{reprocess_method}_rate_{rate}{rope_suffix}.csv"
-        result_file = f"{csv_path}/{reprocess_method}_rate_{rate}{rope_suffix}.txt"
-        rate1_csv_file = f"{csv_path}/{reprocess_method}_rate_1{rope_suffix}.csv"
+        csv_file = f"{csv_path}/{reprocess_method}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.csv"
+        result_file = f"{csv_path}/{reprocess_method}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.txt"
+        rate1_csv_file = f"{csv_path}/{reprocess_method}_rate_1{rope_suffix}{long_decode_suffix}.csv"
 
     # Load rate=1 results for comparison if rate != 1
     rate1_results = {}
     if rate != 1:
         if not os.path.exists(rate1_csv_file):
-            raise FileNotFoundError(
-                f"Rate=1 results file not found: {rate1_csv_file}\n"
-                f"Please run with rate=1 first to generate baseline results."
-            )
+            # 尝试查找其他 rate=1 文件
+            import glob
+            rate1_pattern = f"{csv_path}/*_rate_1*.csv"
+            rate1_files = glob.glob(rate1_pattern)
+            if rate1_files:
+                # 优先选择匹配当前模式的文件
+                # long_decode 模式优先选择包含 _long_decode 的文件
+                if long_decode:
+                    long_decode_files = [f for f in rate1_files if '_long_decode' in f]
+                    if long_decode_files:
+                        rate1_csv_file = long_decode_files[0]
+                    else:
+                        rate1_csv_file = rate1_files[0]
+                else:
+                    # 非 long_decode 模式优先选择不包含 _long_decode 的文件
+                    non_long_decode_files = [f for f in rate1_files if '_long_decode' not in f]
+                    if non_long_decode_files:
+                        rate1_csv_file = non_long_decode_files[0]
+                    else:
+                        rate1_csv_file = rate1_files[0]
+                print(f"[INFO] Using alternative rate=1 file: {rate1_csv_file}")
+            else:
+                raise FileNotFoundError(
+                    f"Rate=1 results file not found: {rate1_csv_file}\n"
+                    f"No rate=1 files found in {csv_path}\n"
+                    f"Please run with rate=1 first to generate baseline results."
+                )
 
         print(f"\nLoading rate=1 baseline results from {rate1_csv_file}...")
         with open(rate1_csv_file, mode='r', newline='', encoding='utf-8') as file:
@@ -636,21 +927,62 @@ def main(
                     'correct': row['Correct'],
                     'f1': row['F1'],
                     'em': row['EM'],
-                    'reason': row['Reason']
+                    'reason': row['Reason'],
+                    # long_decode 模式额外读取 evidence 相关字段
+                    'evidence': row.get('Evidence', 'N/A'),
+                    'evidence_matched': row.get('Evidence_Matched', 'N/A'),
+                    'evidence_reason': row.get('Evidence_Reason', 'N/A'),
                 }
         print(f"Loaded {len(rate1_results)} rate=1 results for comparison")
 
     # Write CSV header
     with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        if rate != 1:
-            writer.writerow([
-                'Main Question', 'Sub Question', 'Ground Truth',
-                'Predicted', 'Correct', 'F1', 'EM', 'Reason',
-                'Rate1_Predicted', 'Rate1_Correct', 'Rate1_F1', 'Rate1_EM', 'Rate1_Reason'
-            ])
+        if long_decode:
+            # long_decode 模式：额外添加 Evidence, Evidence_Matched, Evidence_Reason, Gold_Docs 列
+            if rate != 1:
+                if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+                    writer.writerow([
+                        'Main Question', 'Sub Question', 'Ground Truth', 'Gold_Docs',
+                        'Predicted', 'Correct', 'F1', 'EM', 'Reason',
+                        'Evidence', 'Evidence_Matched', 'Evidence_Reason',
+                        'Dynamic_Rate', 'Dispersion_Score',
+                        'Rate1_Predicted', 'Rate1_Correct', 'Rate1_F1', 'Rate1_EM', 'Rate1_Reason',
+                        'Rate1_Evidence', 'Rate1_Evidence_Matched', 'Rate1_Evidence_Reason'
+                    ])
+                else:
+                    writer.writerow([
+                        'Main Question', 'Sub Question', 'Ground Truth', 'Gold_Docs',
+                        'Predicted', 'Correct', 'F1', 'EM', 'Reason',
+                        'Evidence', 'Evidence_Matched', 'Evidence_Reason',
+                        'Rate1_Predicted', 'Rate1_Correct', 'Rate1_F1', 'Rate1_EM', 'Rate1_Reason',
+                        'Rate1_Evidence', 'Rate1_Evidence_Matched', 'Rate1_Evidence_Reason'
+                    ])
+            else:
+                writer.writerow([
+                    'Main Question', 'Sub Question', 'Ground Truth', 'Gold_Docs',
+                    'Predicted', 'Correct', 'F1', 'EM', 'Reason',
+                    'Evidence', 'Evidence_Matched', 'Evidence_Reason'
+                ])
         else:
-            writer.writerow(['Main Question', 'Sub Question', 'Ground Truth', 'Predicted', 'Correct', 'F1', 'EM', 'Reason'])
+            # 原有逻辑
+            if rate != 1:
+                # 对于动态 rate 方法，额外添加 dynamic_rate 列
+                if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+                    writer.writerow([
+                        'Main Question', 'Sub Question', 'Ground Truth',
+                        'Predicted', 'Correct', 'F1', 'EM', 'Reason',
+                        'Dynamic_Rate', 'Dispersion_Score',
+                        'Rate1_Predicted', 'Rate1_Correct', 'Rate1_F1', 'Rate1_EM', 'Rate1_Reason'
+                    ])
+                else:
+                    writer.writerow([
+                        'Main Question', 'Sub Question', 'Ground Truth',
+                        'Predicted', 'Correct', 'F1', 'EM', 'Reason',
+                        'Rate1_Predicted', 'Rate1_Correct', 'Rate1_F1', 'Rate1_EM', 'Rate1_Reason'
+                    ])
+            else:
+                writer.writerow(['Main Question', 'Sub Question', 'Ground Truth', 'Predicted', 'Correct', 'F1', 'EM', 'Reason'])
 
     # Initialize static cache
     # For multi-GPU, pass device_map; for single GPU, pass device string
@@ -685,6 +1017,10 @@ def main(
     correct_sub_questions = 0
     total_f1 = 0.0
     total_em = 0.0
+
+    # long_decode 模式的 evidence 统计
+    total_evidence = 0
+    matched_evidence = 0
 
     # 收集 OracleDynamic 的动态 rate 信息
     dynamic_rate_stats = []  # List of (main_q_idx, sub_q_idx, dynamic_rate, cv, doc_len)
@@ -887,10 +1223,22 @@ def main(
 
             # Build tokens: system + docs + question
             # Add /no_think for Qwen3 models to disable chain-of-thought
-            if model_type == 'qwen3':
-                question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\nQuestion: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            if long_decode:
+                # long_decode 模式：要求输出答案和支撑材料
+                long_decode_format = """请按照以下格式回答问题：
+答案: [你的答案]
+支撑材料: [从文档中找到支持答案的关键句子或段落]
+
+"""
+                if model_type == 'qwen3':
+                    question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\n{long_decode_format}Question: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\n"
+                else:
+                    question_text = f"<|im_end|>\n<|im_start|>user\n{long_decode_format}Question: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\n"
             else:
-                question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+                if model_type == 'qwen3':
+                    question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\nQuestion: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+                else:
+                    question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\nAnswer: "
             question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
             question_tensor = torch.tensor(question_tokens, dtype=torch.long)
 
@@ -905,24 +1253,31 @@ def main(
             kv_chunk_ids = [0] + doc_chunk_ids
 
             # Generate answer using this main question's KV cache
+            # long_decode 模式使用更多 tokens
+            current_max_new_tokens = long_decode_max_tokens if long_decode else 500
+
             if rate == 1:
                 # Full recompute
                 inputs = torch.cat(iter_tokens).to(input_device).unsqueeze(0)
                 from ktransformers.util.utils import prefill_and_generate
                 generated_tokens, _, _ = prefill_and_generate(
-                    model, tokenizer, inputs, max_new_tokens=500, device=input_device, device_map=device_map
+                    model, tokenizer, inputs, max_new_tokens=current_max_new_tokens, device=input_device, device_map=device_map
                 )
             else:
                 # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, Oracle, vAttention, OracleDynamic, etc.)
                 load_path = preprocess_save_path if preprocess else save_path
                 generated_tokens, _, extra_info = load_kv_and_generate(
                     model, tokenizer, past_key_values, iter_tokens, load_path, example_id,
-                    max_new_tokens=500, revert_rope=revert_rope,
+                    max_new_tokens=current_max_new_tokens, revert_rope=revert_rope,
                     reprocess_method=reprocess_method, rate=rate,
                     draft_model=draft_model,  # DraftModel/DraftModelLayerwise 方法会用到
                     use_entropy_selection=use_entropy_selection,
                     entropy_top_k=entropy_top_k,
                     draft_layer_selection=draft_layer_selection,  # DraftModel/Oracle/vAttention/OracleDynamic/OracleAdaptive/DraftModelLayerwise 选层方式
+                    draft_fixed_layer=draft_fixed_layer,  # 固定层选择时使用的层号
+                    draft_threshold_factor=draft_threshold_factor,  # smart_query_selection 阈值因子
+                    use_similarity_rerank=use_similarity_rerank,  # DraftModel 相似度重排序
+                    rerank_multiplier=rerank_multiplier,
                     preprocess=preprocess, device=input_device, chunk_ids=kv_chunk_ids, device_map=device_map,
                     vattention_topk_ratio=vattention_topk_ratio,  # vAttention/OracleDynamic/OracleAdaptive: top-k 比例
                     # OracleDynamic/OracleAdaptive 参数
@@ -932,30 +1287,56 @@ def main(
                     max_rate=max_rate,
                     # DraftModelLayerwise 参数
                     layerwise_decay=layerwise_decay,
-                    layerwise_final_rate=layerwise_final_rate
+                    layerwise_final_rate=layerwise_final_rate,
+                    # 文本块1用原始KV cache (prefix cache hit)
+                    original_kv_path=save_path if preprocess else None
                 )
 
-                # 收集 OracleDynamic/OracleAdaptive/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
-                if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DraftModelDynamic', 'DraftModelLayerwise') and extra_info.get('dynamic_rate') is not None:
+                # 收集 OracleDynamic/OracleAdaptive/DynamicDraftModel/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
+                if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise') and extra_info.get('dynamic_rate') is not None:
                     dynamic_rate_stats.append({
                         'main_q_idx': example_id + 1,
                         'sub_q_idx': sub_q_idx + 1,
                         'question': sub_q_info['query'][:50] + '...',
                         'dynamic_rate': extra_info['dynamic_rate'],
-                        'topk_coverage': extra_info['topk_coverage'],
-                        'topk_count_for_coverage': extra_info['topk_count_for_coverage'],
-                        'normalized_entropy': extra_info['normalized_entropy'],
-                        'doc_len': extra_info['doc_len'],
-                        'total_budget': extra_info['total_budget']
+                        # 兼容不同方法的 coverage 字段名
+                        'topk_coverage': extra_info.get('topk_coverage') or extra_info.get('coverage_50_ratio', 0),
+                        'topk_count_for_coverage': extra_info.get('topk_count_for_coverage', 0),
+                        'normalized_entropy': extra_info.get('normalized_entropy', 0),
+                        'doc_len': extra_info.get('doc_len', 0),
+                        'total_budget': extra_info.get('total_budget', 0)
                     })
 
             # Decode answer
-            answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
-            print(f"Predicted: {answer}")
+            raw_output = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
+            raw_output = raw_output.strip() if raw_output else ""
+
+            # long_decode 模式：解析输出，提取答案和支撑材料
+            if long_decode:
+                answer, evidence = parse_long_decode_output(raw_output)
+                if not answer:
+                    answer = "[EMPTY]"
+                    print(f"Predicted Answer: {answer} (WARNING: empty answer)")
+                else:
+                    print(f"Predicted Answer: {answer}")
+                print(f"Extracted Evidence: {evidence[:200]}..." if len(evidence) > 200 else f"Extracted Evidence: {evidence}")
+            else:
+                answer = raw_output
+                evidence = ""
+                if not answer:
+                    answer = "[EMPTY]"
+                    print(f"Predicted: {answer} (WARNING: empty answer)")
+                else:
+                    print(f"Predicted: {answer}")
 
             # Compute F1 and EM (这个很快，同步计算)
-            f1_score = compute_f1(answer, sub_q_info['answer'], tokenizer)
-            em_score = 1.0 if _exact_match_score(answer, sub_q_info['answer']) else 0.0
+            try:
+                f1_score = compute_f1(answer, sub_q_info['answer'], tokenizer)
+                em_score = 1.0 if _exact_match_score(answer, sub_q_info['answer']) else 0.0
+            except Exception as e:
+                print(f"Warning: F1/EM computation failed: {e}")
+                f1_score = 0.0
+                em_score = 0.0
             print(f"F1: {f1_score:.4f}, EM: {em_score:.4f}")
 
             # 提交判断任务到线程池（异步执行，不阻塞主线程）
@@ -964,6 +1345,18 @@ def main(
                 openai_client, openai_model,
                 sub_q_info['query'], answer, sub_q_info['answer']
             )
+
+            # long_decode 模式：提交支撑材料判断任务
+            evidence_future = None
+            if long_decode and evidence:
+                # 获取当前子问题使用的检索文档
+                retrieve_docs_for_subq = [q_data['docs'][chunk_id - 1] for chunk_id in doc_chunk_ids]
+                evidence_future = judge_executor.submit(
+                    judge_evidence_with_openai,
+                    openai_client, openai_model,
+                    sub_q_info['query'], evidence, q_data['gold_docs'],
+                    retrieve_docs_for_subq  # 传入完整检索上下文
+                )
             judge_futures.append(future)
 
             # 保存结果信息，等待判断完成后更新
@@ -973,7 +1366,12 @@ def main(
                 'answer': answer,
                 'f1_score': f1_score,
                 'em_score': em_score,
-                'future': future
+                'future': future,
+                'dynamic_rate': extra_info.get('dynamic_rate') if rate != 1 else None,
+                'dispersion_score': extra_info.get('dispersion_score') if rate != 1 else None,
+                # long_decode 模式额外字段
+                'evidence': evidence if long_decode else None,
+                'evidence_future': evidence_future if long_decode else None,
             })
 
             torch.cuda.empty_cache()
@@ -990,7 +1388,6 @@ def main(
             answer = result['answer']
             f1_score = result['f1_score']
             em_score = result['em_score']
-
             print(f"Sub-Q {result['sub_q_idx']+1}: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} - {sub_q_info['query'][:50]}...")
 
             total_sub_questions += 1
@@ -1001,30 +1398,110 @@ def main(
             else:
                 all_sub_correct = False
 
+            # long_decode 模式：获取 evidence 判断结果
+            evidence_matched = False
+            evidence_reason = ""
+            if long_decode:
+                evidence = result.get('evidence', '')
+                evidence_future = result.get('evidence_future')
+                if evidence_future:
+                    evidence_matched, evidence_reason = evidence_future.result()
+                    print(f"  Evidence: {'✓ MATCHED' if evidence_matched else '✗ NOT MATCHED'}")
+                    total_evidence += 1
+                    if evidence_matched:
+                        matched_evidence += 1
+                else:
+                    evidence_reason = "No evidence extracted"
+
             # Save to CSV
             with open(csv_file, mode='a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                if rate != 1:
-                    # Get rate=1 results for comparison
-                    key = (q_data['main_question'], sub_q_info['query'])
-                    rate1_data = rate1_results.get(key, {
-                        'predicted': 'N/A',
-                        'correct': 'N/A',
-                        'f1': 'N/A',
-                        'em': 'N/A',
-                        'reason': 'N/A'
-                    })
-                    writer.writerow([
-                        q_data['main_question'], sub_q_info['query'],
-                        sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason,
-                        rate1_data['predicted'], rate1_data['correct'],
-                        rate1_data['f1'], rate1_data['em'], rate1_data['reason']
-                    ])
+                if long_decode:
+                    # long_decode 模式的 CSV 写入
+                    evidence = result.get('evidence', '')
+                    # 将 gold_docs 列表转换为字符串（用 ||| 分隔）
+                    gold_docs_str = ' ||| '.join(q_data.get('gold_docs', []))
+                    if rate != 1:
+                        key = (q_data['main_question'], sub_q_info['query'])
+                        rate1_data = rate1_results.get(key, {
+                            'predicted': 'N/A',
+                            'correct': 'N/A',
+                            'f1': 'N/A',
+                            'em': 'N/A',
+                            'reason': 'N/A',
+                            'evidence': 'N/A',
+                            'evidence_matched': 'N/A',
+                            'evidence_reason': 'N/A'
+                        })
+                        if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+                            dynamic_rate = result.get('dynamic_rate', 'N/A')
+                            dispersion_score = result.get('dispersion_score', 'N/A')
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], gold_docs_str,
+                                answer, is_correct, f1_score, em_score, judge_reason,
+                                evidence, evidence_matched, evidence_reason,
+                                dynamic_rate, dispersion_score,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason'],
+                                rate1_data.get('evidence', 'N/A'),
+                                rate1_data.get('evidence_matched', 'N/A'),
+                                rate1_data.get('evidence_reason', 'N/A')
+                            ])
+                        else:
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], gold_docs_str,
+                                answer, is_correct, f1_score, em_score, judge_reason,
+                                evidence, evidence_matched, evidence_reason,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason'],
+                                rate1_data.get('evidence', 'N/A'),
+                                rate1_data.get('evidence_matched', 'N/A'),
+                                rate1_data.get('evidence_reason', 'N/A')
+                            ])
+                    else:
+                        writer.writerow([
+                            q_data['main_question'], sub_q_info['query'],
+                            sub_q_info['answer'], gold_docs_str,
+                            answer, is_correct, f1_score, em_score, judge_reason,
+                            evidence, evidence_matched, evidence_reason
+                        ])
                 else:
-                    writer.writerow([
-                        q_data['main_question'], sub_q_info['query'],
-                        sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason
-                    ])
+                    # 原有逻辑
+                    if rate != 1:
+                        # Get rate=1 results for comparison
+                        key = (q_data['main_question'], sub_q_info['query'])
+                        rate1_data = rate1_results.get(key, {
+                            'predicted': 'N/A',
+                            'correct': 'N/A',
+                            'f1': 'N/A',
+                            'em': 'N/A',
+                            'reason': 'N/A'
+                        })
+                        # 对于动态 rate 方法，额外保存 dynamic_rate 和 dispersion_score
+                        if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+                            dynamic_rate = result.get('dynamic_rate', 'N/A')
+                            dispersion_score = result.get('dispersion_score', 'N/A')
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason,
+                                dynamic_rate, dispersion_score,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason']
+                            ])
+                        else:
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason']
+                            ])
+                    else:
+                        writer.writerow([
+                            q_data['main_question'], sub_q_info['query'],
+                            sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason
+                        ])
 
         # Main question result
         total_main_questions += 1
@@ -1048,6 +1525,11 @@ def main(
     print(f"Average F1: {avg_f1:.4f}")
     print(f"Average EM: {avg_em:.4f}")
 
+    # long_decode 模式：输出 evidence 统计
+    if long_decode and total_evidence > 0:
+        evidence_acc = matched_evidence / total_evidence
+        print(f"Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.2%})")
+
     # Show comparison with rate=1 if applicable
     if rate != 1 and len(rate1_results) > 0:
         # Calculate rate=1 statistics
@@ -1066,12 +1548,26 @@ def main(
         print(f"  Sub Questions Accuracy: {rate1_acc:.2%}, F1: {rate1_avg_f1:.4f}, EM: {rate1_avg_em:.4f}")
         print(f"Delta:")
         print(f"  Accuracy: {sub_q_acc - rate1_acc:+.2%}, F1: {avg_f1 - rate1_avg_f1:+.4f}, EM: {avg_em - rate1_avg_em:+.4f}")
+
+        # long_decode 模式：输出 evidence 对比
+        if long_decode and total_evidence > 0:
+            # 计算 rate=1 的 evidence 准确率
+            rate1_evidence_matched = sum(1 for v in rate1_results.values() if str(v.get('evidence_matched', '')).lower() == 'true')
+            rate1_evidence_total = sum(1 for v in rate1_results.values() if v.get('evidence_matched', 'N/A') != 'N/A')
+            rate1_evidence_acc = rate1_evidence_matched / rate1_evidence_total if rate1_evidence_total > 0 else 0
+            evidence_acc = matched_evidence / total_evidence
+
+            print(f"\nEvidence Comparison:")
+            print(f"  Current (rate={rate}): {matched_evidence}/{total_evidence} ({evidence_acc:.2%})")
+            print(f"  Baseline (rate=1): {rate1_evidence_matched}/{rate1_evidence_total} ({rate1_evidence_acc:.2%})")
+            print(f"  Evidence Delta: {evidence_acc - rate1_evidence_acc:+.2%}")
+
         print(f"{'='*80}")
 
     print(f"{'='*80}")
 
-    # 打印 OracleDynamic/OracleAdaptive 动态 rate 统计
-    if reprocess_method in ('OracleDynamic', 'OracleAdaptive') and len(dynamic_rate_stats) > 0:
+    # 打印 OracleDynamic/OracleAdaptive/DynamicDraftModel 动态 rate 统计
+    if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel') and len(dynamic_rate_stats) > 0:
         print(f"\n{'='*80}")
         print(f"{reprocess_method.upper()}: 动态重算比例统计")
         print(f"{'='*80}")
@@ -1095,13 +1591,64 @@ def main(
         print(f"{'='*80}")
 
     with open(result_file, 'w') as f:
+        # 保存所有配置参数
+        f.write("=" * 80 + "\n")
+        f.write("CONFIGURATION\n")
+        f.write("=" * 80 + "\n")
+        f.write(f"model_type: {model_type}\n")
+        f.write(f"model_path: {model_path}\n")
+        f.write(f"draft_model_path: {draft_model_path}\n")
+        f.write(f"data_path: {data_path}\n")
+        f.write(f"cache_path: {cache_path}\n")
+        f.write(f"model_name: {model_name}\n")
+        f.write(f"dataset_name: {dataset_name}\n")
+        f.write(f"max_cache_len: {max_cache_len}\n")
+        f.write(f"rate: {rate}\n")
+        f.write(f"topk: {topk}\n")
+        f.write(f"preprocess: {preprocess}\n")
+        f.write(f"preprocess_scope: {preprocess_scope}\n")
+        f.write(f"reprocess_method: {reprocess_method}\n")
+        f.write(f"use_entropy_selection: {use_entropy_selection}\n")
+        f.write(f"entropy_top_k: {entropy_top_k}\n")
+        f.write(f"draft_layer_selection: {draft_layer_selection}\n")
+        f.write(f"draft_fixed_layer: {draft_fixed_layer}\n")
+        f.write(f"draft_threshold_factor: {draft_threshold_factor}\n")
+        f.write(f"bge_model_path: {bge_model_path}\n")
+        f.write(f"revert_rope: {revert_rope}\n")
+        f.write(f"device: {device}\n")
+        f.write(f"use_multi_gpu: {use_multi_gpu}\n")
+        f.write(f"openai_base_url: {openai_base_url}\n")
+        f.write(f"openai_model: {openai_model}\n")
+        f.write(f"max_samples: {max_samples}\n")
+        f.write(f"vattention_topk_ratio: {vattention_topk_ratio}\n")
+        f.write(f"epsilon: {epsilon}\n")
+        f.write(f"delta: {delta}\n")
+        f.write(f"min_rate: {min_rate}\n")
+        f.write(f"max_rate: {max_rate}\n")
+        f.write(f"layerwise_decay: {layerwise_decay}\n")
+        f.write(f"layerwise_final_rate: {layerwise_final_rate}\n")
+        f.write(f"use_similarity_rerank: {use_similarity_rerank}\n")
+        f.write(f"rerank_multiplier: {rerank_multiplier}\n")
+        f.write(f"long_decode: {long_decode}\n")
+        f.write(f"long_decode_max_tokens: {long_decode_max_tokens}\n")
+        f.write("\n")
+
+        # 保存结果
+        f.write("=" * 80 + "\n")
+        f.write("RESULTS\n")
+        f.write("=" * 80 + "\n")
         f.write(f"Main Questions Accuracy: {correct_main_questions}/{total_main_questions} ({main_q_acc:.4f})\n")
         f.write(f"Sub Questions Accuracy: {correct_sub_questions}/{total_sub_questions} ({sub_q_acc:.4f})\n")
         f.write(f"Average F1 Score: {avg_f1:.4f}\n")
         f.write(f"Average EM Score: {avg_em:.4f}\n")
 
-        # 保存 OracleDynamic/OracleAdaptive 统计到文件
-        if reprocess_method in ('OracleDynamic', 'OracleAdaptive') and len(dynamic_rate_stats) > 0:
+        # long_decode 模式的 evidence 统计
+        if long_decode and total_evidence > 0:
+            evidence_acc = matched_evidence / total_evidence
+            f.write(f"Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.4f})\n")
+
+        # 保存 OracleDynamic/OracleAdaptive/DynamicDraftModel 统计到文件
+        if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel') and len(dynamic_rate_stats) > 0:
             rates = [s['dynamic_rate'] for s in dynamic_rate_stats]
             entropies = [s['normalized_entropy'] for s in dynamic_rate_stats]
             topk_coverages = [s['topk_coverage'] for s in dynamic_rate_stats]
@@ -1127,10 +1674,385 @@ def main(
             f.write(f"F1 Delta: {avg_f1 - rate1_avg_f1:+.4f}\n")
             f.write(f"EM Delta: {avg_em - rate1_avg_em:+.4f}\n")
 
+            # long_decode 模式：添加 evidence 对比到文件
+            if long_decode and total_evidence > 0:
+                rate1_evidence_matched = sum(1 for v in rate1_results.values() if str(v.get('evidence_matched', '')).lower() == 'true')
+                rate1_evidence_total = sum(1 for v in rate1_results.values() if v.get('evidence_matched', 'N/A') != 'N/A')
+                rate1_evidence_acc = rate1_evidence_matched / rate1_evidence_total if rate1_evidence_total > 0 else 0
+                evidence_acc = matched_evidence / total_evidence
+
+                f.write(f"\n--- Evidence Comparison ---\n")
+                f.write(f"Current Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.4f})\n")
+                f.write(f"Rate=1 Evidence Matched: {rate1_evidence_matched}/{rate1_evidence_total} ({rate1_evidence_acc:.4f})\n")
+                f.write(f"Evidence Delta: {evidence_acc - rate1_evidence_acc:+.4f}\n")
+
     # 关闭线程池
     judge_executor.shutdown(wait=True)
 
     print(f"\nResults saved to {csv_path}")
+
+
+def collect_optimal_rate(
+    model_type='qwen',
+    model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+    data_path='/mnt/data/wjh/FusionRAG/data/result_reflect.json',
+    cache_path='/mnt/data/reflect/',
+    model_name='Qwen2.5-7B-Instruct',
+    dataset_name='musique',
+    max_cache_len=32768,
+    topk=10,
+    preprocess=True,
+    preprocess_scope=PreprocessScope.GLOBAL,
+    revert_rope=True,
+    bge_model_path='/mnt/data/models/bge-m3-FP16',
+    device="cuda:0",
+    use_multi_gpu=False,
+    openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    openai_base_url="https://api.deepseek.com/v1",
+    openai_model="deepseek-chat",
+    max_samples=None,
+    output_dir="/mnt/data/wjh/FusionRAG/optimal_rate_search",
+):
+    """
+    收集每个问题在 DraftModel 方法下的最小正确重算比例和 attention 分布特征
+
+    使用早停策略：从低到高尝试 rates，一旦答对就停止搜索
+    """
+    import pickle
+    from ktransformers.util.utils import (
+        compute_draft_model_attention,
+        entropy_layer_selection,
+        prefill_and_generate,
+    )
+
+    # 打印配置
+    print("="*80)
+    print("Configuration - Collect Optimal Rate Data")
+    print("="*80)
+    print(f"Main Model: {model_path}")
+    print(f"Draft Model: {draft_model_path}")
+    print(f"Data Path: {data_path}")
+    print(f"Output Dir: {output_dir}")
+    print(f"Reprocess Method: DraftModel")
+    print(f"Draft Layer Selection: entropy")
+    print(f"Preprocess: {preprocess}")
+    print(f"Revert RoPE: {revert_rope}")
+    print(f"TopK: {topk}")
+    print(f"Judgment: DeepSeek API ({openai_model})")
+    print("="*80)
+    print()
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 要尝试的 rates: 0, 0.05, 0.10, ..., 1.0
+    rates_to_try = [round(r * 0.05, 2) for r in range(21)]
+    print(f"Rates to try: {rates_to_try}")
+
+    # 缓存路径
+    model_cache_root = os.path.join(cache_path, model_name, dataset_name)
+    save_path = os.path.join(model_cache_root, 'kv_cache')
+    preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_global')
+
+    # 加载模型
+    print("\n加载模型...")
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    config._attn_implementation = "sdpa"
+
+    model, device_map = load_model(model_type, model_path, config, device, use_multi_gpu)
+    model.eval()
+
+    print(f"加载 Draft 模型: {draft_model_path}")
+    draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
+    draft_config._attn_implementation = "sdpa"
+    draft_model, _ = load_model('qwen', draft_model_path, draft_config, device, use_multi_gpu=False)
+    draft_model.eval()
+
+    # 准备数据
+    print("\n准备数据...")
+    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
+    )
+    system_len = system_tensor.shape[0]
+
+    # 初始化 KV cache
+    past_key_values = StaticCache(
+        config=config, max_batch_size=1, max_cache_len=max_cache_len,
+        device=device, dtype=config.torch_dtype, passage_len=max_cache_len
+    )
+
+    # 初始化 OpenAI client
+    openai_client = OpenAI(api_key=openai_api_key, base_url=openai_base_url)
+
+    # 收集结果
+    all_results = []
+    total_questions = sum(len(q['sub_questions']) for q in questions_data)
+    processed = 0
+
+    input_device = device
+
+    print(f"\n开始处理 {total_questions} 个子问题...")
+    print("="*80)
+
+    for example_id, q_data in enumerate(questions_data):
+        doc_tensors = q_data['doc_tensors']
+
+        for sub_q_idx, sub_q_info in enumerate(q_data['sub_questions']):
+            processed += 1
+            ground_truth = sub_q_info['answer']
+            query = sub_q_info['query']
+            chunk_ids = sub_q_info['chunk_ids']
+
+            question_id = f"Q{example_id+1}_Sub{sub_q_idx+1}"
+
+            print(f"\n{'='*60}")
+            print(f"[{processed}/{total_questions}] {question_id}")
+            print(f"Query: {query}")
+            print(f"Ground Truth: {ground_truth}")
+            print(f"{'='*60}")
+
+            # 构建输入
+            sub_q_doc_tensors = [doc_tensors[cid - 1] for cid in chunk_ids]
+            question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
+            question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+
+            passages = [system_tensor] + sub_q_doc_tensors + [question_tensor]
+            passages_len = [p.shape[0] for p in passages]
+            kv_chunk_ids = [0] + chunk_ids
+
+            # Step 0: 检查必要的缓存是否存在
+            cache_missing = False
+            # 检查预处理缓存
+            for chunk_id in kv_chunk_ids:
+                key_cache_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt"
+                if not os.path.exists(key_cache_path):
+                    print(f"  跳过: 预处理缓存不存在 {key_cache_path}")
+                    cache_missing = True
+                    break
+            # 检查原始 KV cache (chunk_id=1 用原始缓存)
+            if not cache_missing and len(chunk_ids) > 0:
+                orig_key_path = f"{save_path}/{example_id}_{chunk_ids[0]}_key.pt"
+                if not os.path.exists(orig_key_path):
+                    print(f"  跳过: 原始KV缓存不存在 {orig_key_path}")
+                    cache_missing = True
+            if cache_missing:
+                continue
+
+            # Step 1: 计算 Draft Model Attention 并提取特征
+            query_start = sum(passages_len[:-1])
+            full_input = torch.cat(passages).unsqueeze(0).to(device)
+
+            try:
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, device)
+            except Exception as e:
+                print(f"  计算 attention 失败: {e}")
+                continue
+
+            # 提取 attention 特征
+            attention_features = extract_attention_features_for_rate(
+                draft_attention, query_start, system_len, passages_len, device
+            )
+            if attention_features is None:
+                print(f"  提取特征失败")
+                continue
+
+            # Step 2: 从低到高测试 rates，找到第一个正确的就停止
+            rate_results = []
+            min_correct_rate = None
+
+            for rate in rates_to_try:
+                # 重置 KV cache
+                for layer_idx in range(len(past_key_values.key_cache)):
+                    past_key_values.past_tokens[layer_idx] = 0
+
+                try:
+                    if rate == 1.0:
+                        inputs = torch.cat(passages).to(input_device).unsqueeze(0)
+                        generated_tokens, _, _ = prefill_and_generate(
+                            model, tokenizer, inputs, max_new_tokens=100,
+                            device=input_device, device_map=device_map
+                        )
+                    else:
+                        generated_tokens, _, _ = load_kv_and_generate(
+                            model, tokenizer, past_key_values, passages,
+                            preprocess_save_path, example_id,
+                            max_new_tokens=100, revert_rope=revert_rope,
+                            reprocess_method='DraftModel', rate=max(rate, 0.001),
+                            draft_model=draft_model,
+                            draft_layer_selection='entropy',
+                            preprocess=preprocess,
+                            chunk_ids=kv_chunk_ids, device=input_device, device_map=device_map,
+                            original_kv_path=save_path
+                        )
+
+                    answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True).strip()
+                    if not answer:
+                        answer = "[EMPTY]"
+
+                    # 使用 DeepSeek API 判断答案正确性
+                    is_correct, reason = judge_answer_with_openai(
+                        openai_client, openai_model, query, answer, ground_truth
+                    )
+
+                    result = {
+                        'rate': rate,
+                        'answer': answer,
+                        'correct': is_correct,
+                        'reason': reason,
+                        'error': None
+                    }
+
+                except Exception as e:
+                    import traceback
+                    result = {
+                        'rate': rate,
+                        'answer': None,
+                        'correct': False,
+                        'reason': str(e),
+                        'error': traceback.format_exc()
+                    }
+                    is_correct = False
+                    answer = f"[ERROR: {str(e)[:50]}]"
+
+                rate_results.append(result)
+
+                # 打印结果（完整答案，不截断）
+                status = "✓ CORRECT" if is_correct else "✗ wrong"
+                print(f"  rate={rate:.2f}: {status}")
+                print(f"    Answer: {answer}")
+
+                # 早停：答对就停止
+                if is_correct:
+                    min_correct_rate = rate
+                    print(f"  >>> 找到 min_correct_rate = {rate:.2f}, 停止搜索")
+                    break
+
+            if min_correct_rate is None:
+                print(f"  >>> 所有 rate 都答错")
+
+            # 保存结果
+            question_result = {
+                'question_id': question_id,
+                'example_id': example_id,
+                'sub_q_idx': sub_q_idx,
+                'query': query,
+                'ground_truth': ground_truth,
+                'attention_features': attention_features,
+                'rate_results': rate_results,
+                'min_correct_rate': min_correct_rate,
+            }
+            all_results.append(question_result)
+
+            # 定期保存 checkpoint
+            if len(all_results) % 20 == 0:
+                checkpoint_path = os.path.join(output_dir, 'checkpoint.pkl')
+                with open(checkpoint_path, 'wb') as f:
+                    pickle.dump(all_results, f)
+                print(f"  [Checkpoint saved: {len(all_results)} questions]")
+
+            torch.cuda.empty_cache()
+
+    # 保存最终结果
+    print("\n" + "="*80)
+    print("保存结果")
+    print("="*80)
+
+    output_path = os.path.join(output_dir, 'full_results.pkl')
+    with open(output_path, 'wb') as f:
+        pickle.dump(all_results, f)
+    print(f"完整数据已保存到: {output_path}")
+
+    # 统计
+    min_rates = [r['min_correct_rate'] for r in all_results if r['min_correct_rate'] is not None]
+    failed = [r for r in all_results if r['min_correct_rate'] is None]
+
+    print(f"\n总问题数: {len(all_results)}")
+    print(f"有正确答案的问题数: {len(min_rates)}")
+    print(f"所有 rate 都答错的问题数: {len(failed)}")
+
+    if min_rates:
+        print(f"\n最小正确 rate 分布:")
+        print(f"  平均值: {np.mean(min_rates):.3f}")
+        print(f"  中位数: {np.median(min_rates):.3f}")
+        print(f"  最小值: {np.min(min_rates):.3f}")
+        print(f"  最大值: {np.max(min_rates):.3f}")
+
+    return all_results
+
+
+def extract_attention_features_for_rate(draft_attention, query_start, system_len, passages_len, device="cuda:0"):
+    """
+    从 draft model attention 中提取特征用于分析
+    """
+    from ktransformers.util.utils import entropy_layer_selection
+
+    text_block1_len = passages_len[1] if len(passages_len) > 1 else 0
+    selection_start = system_len + text_block1_len
+    doc_len = sum(passages_len[2:-1]) if len(passages_len) > 2 else 0
+
+    if doc_len == 0:
+        return None
+
+    # 收集各层的 query→doc attention
+    layer_attention_dict = {}
+    for layer_idx, layer_attn in draft_attention.items():
+        query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+        doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+        layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=device)
+
+    # 熵选层
+    active_layers, layer_entropy = entropy_layer_selection(
+        layer_attention_dict, top_k=4, return_entropy=True
+    )
+    layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+    aggregated_attn = torch.stack(layer_attentions).mean(dim=0).cpu().numpy()
+
+    # 计算特征
+    features = {}
+
+    # 基本统计
+    features['peak_strength'] = float(aggregated_attn.max())
+    features['attention_mean'] = float(aggregated_attn.mean())
+    features['attention_std'] = float(aggregated_attn.std())
+
+    # Top-k concentration
+    sorted_attn = np.sort(aggregated_attn)[::-1]
+    total = sorted_attn.sum()
+
+    for k in [5, 10, 20, 50]:
+        features[f'top{k}_concentration'] = float(sorted_attn[:k].sum() / total) if total > 0 else 0
+
+    # Coverage ratios
+    cumsum = np.cumsum(sorted_attn)
+    for coverage in [0.5, 0.7, 0.8, 0.9, 0.95]:
+        coverage_idx = np.where(cumsum >= coverage * total)[0]
+        tokens_needed = coverage_idx[0] + 1 if len(coverage_idx) > 0 else len(aggregated_attn)
+        features[f'coverage_{int(coverage*100)}_ratio'] = float(tokens_needed / len(aggregated_attn))
+
+    # Normalized entropy
+    p = aggregated_attn / (aggregated_attn.sum() + 1e-10)
+    p = np.clip(p, 1e-10, 1.0)
+    entropy = -(p * np.log(p)).sum()
+    max_entropy = np.log(len(aggregated_attn))
+    features['normalized_entropy'] = float(entropy / max_entropy) if max_entropy > 0 else 0
+
+    # Gini coefficient
+    sorted_p = np.sort(p)
+    n = len(sorted_p)
+    gini = (2 * np.sum(np.arange(1, n+1) * sorted_p) / (n * sorted_p.sum()) - (n + 1) / n)
+    features['gini'] = float(gini)
+
+    # 文档长度
+    features['doc_len'] = doc_len
+    features['log_doc_len'] = float(np.log(doc_len + 1))
+    features['active_layers'] = active_layers
+
+    # 保存原始分布供后续分析
+    features['attention_distribution'] = aggregated_attn.tolist()
+
+    return features
 
 
 if __name__ == '__main__':
@@ -1228,31 +2150,133 @@ if __name__ == '__main__':
     #     max_samples=200
     # )
 
-    # # DraftModel 方法: 用小模型指导大模型的 token 选择
-    main(
-        model_type='qwen',
-        model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-        draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',  # Draft model for guidance
-        data_path='./result_reflect.json',
-        cache_path='/mnt/data/reflect/',
-        model_name='Qwen2.5-7B-Instruct',
-        rate=0.3,  # 30% token selection
-        topk=10,
-        preprocess=True,
-        use_entropy_selection=True,
-        reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
-        draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
-        preprocess_scope=PreprocessScope.GLOBAL,
-        bge_model_path='/mnt/data/models/bge-m3-FP16',
-        revert_rope=False,
-        device="cuda:0",
-        use_multi_gpu=True,
-        openai_base_url="https://api.deepseek.com/v1",
-        openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-        openai_model="deepseek-chat",
-        max_samples=200
-    )
+    # DraftModel 方法: 用小模型指导大模型的 token 选择
+    # for rate in [0.3]:
+    #     main(
+    #         model_type='qwen3',
+    #         model_path='/mnt/data/models/Qwen3-32B',
+    #         draft_model_path='/mnt/data/models/Qwen2.5-7B-Instruct',  # Draft model for guidance
+    #         data_path='./data/2wikimqa_reflect.json',
+    #         cache_path='/mnt/data/reflect/',
+    #         model_name='Qwen3-32B',
+    #         dataset_name='2wikimqa',
+    #         rate=rate,  # 30% token selection
+    #         topk=10,
+    #         preprocess=True,
+    #         use_entropy_selection=False,
+    #         reprocess_method='Oracle',  # 使用 Draft Model 指导的方法
+    #         draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
+    #         preprocess_scope=PreprocessScope.GLOBAL,
+    #         bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #         revert_rope=True,
+    #         device="cuda:0",
+    #         use_multi_gpu=True,
+    #         openai_base_url="https://api.deepseek.com/v1",
+    #         openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #         openai_model="deepseek-chat",
+    #         max_samples=200
+    #     )
 
+    for rate in [0.2]:
+        for draft_model in ["Qwen2.5-3B-Instruct"]:
+            main(
+                model_type='qwen',
+                model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+                draft_model_path=f'/mnt/data/models/{draft_model}',  # Draft model for guidance
+                data_path='./data/result_reflect.json',
+                cache_path='/mnt/data/reflect/',
+                model_name='Qwen2.5-7B-Instruct',
+                dataset_name='musique',
+                rate=rate,  # 30% token selection
+                topk=10,
+                preprocess=True,
+                use_entropy_selection=True,
+                reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
+                draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
+                preprocess_scope=PreprocessScope.GLOBAL,
+                bge_model_path='/mnt/data/models/bge-m3-FP16',
+                revert_rope=True,
+                device="cuda:0",
+                use_multi_gpu=True,
+                openai_base_url="https://api.deepseek.com/v1",
+                openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+                openai_model="deepseek-chat",
+                max_samples=200,
+                min_rate=0.05,
+                max_rate=0.3,
+                long_decode=True,  # 启用长 decode 模式
+                long_decode_max_tokens=1000,  # 允许更长的输出
+            )
+    # for rate in [0.2]:
+    #     main(
+    #         model_type='qwen',
+    #         model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #         draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',  # Draft model for guidance
+    #         data_path='./data/2wikimqa_reflect.json',
+    #         cache_path='/mnt/data/reflect/',
+    #         model_name='Qwen2.5-7B-Instruct',
+    #         dataset_name='2wikimqa',
+    #         rate=rate,  # 30% token selection
+    #         topk=10,
+    #         preprocess=True,
+    #         use_entropy_selection=True,
+    #         reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
+    #         draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
+    #         preprocess_scope=PreprocessScope.GLOBAL,
+    #         bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #         revert_rope=True,
+    #         device="cuda:0",
+    #         use_multi_gpu=True,
+    #         openai_base_url="https://api.deepseek.com/v1",
+    #         openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #         openai_model="deepseek-chat",
+    #         max_samples=200
+    #     )
+    # for rate in [1, 0.3]:
+    #     main(
+    #         model_type='qwen3',
+    #         model_path='/mnt/data/models/Qwen3-32B',
+    #         draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',  # Draft model for guidance
+    #         data_path='./data/result_locomo_category_2.json',
+    #         cache_path='/mnt/data/reflect/',
+    #         model_name='Qwen3-32B',
+    #         dataset_name='locomo_temporal',
+    #         rate=rate,  # 30% token selection
+    #         topk=10,
+    #         preprocess=True,
+    #         use_entropy_selection=False,
+    #         reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
+    #         draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
+    #         preprocess_scope=PreprocessScope.GLOBAL,
+    #         bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #         revert_rope=True,
+    #         device="cuda:0",
+    #         use_multi_gpu=True,
+    #         openai_base_url="https://api.deepseek.com/v1",
+    #         openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    #         openai_model="deepseek-chat",
+    #         max_samples=None
+    #     )
+
+    # 收集 DraftModel 方法下每个问题的最小正确重算比例和 attention 分布特征
+    # collect_optimal_rate(
+    #     model_type='qwen',
+    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    #     draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+    #     data_path='./data/result_reflect.json',
+    #     cache_path='/mnt/data/reflect/',
+    #     model_name='Qwen2.5-7B-Instruct',
+    #     dataset_name='musique',
+    #     topk=10,
+    #     preprocess=True,
+    #     preprocess_scope=PreprocessScope.GLOBAL,
+    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
+    #     revert_rope=True,
+    #     device="cuda:0",
+    #     use_multi_gpu=False,  # 单 GPU 运行
+    #     max_samples=None,  # 处理所有样本
+    #     output_dir="/mnt/data/wjh/FusionRAG/optimal_rate_search",
+    # )
     # # QueryAttention 方法
     # main(
     #     model_type='qwen3',

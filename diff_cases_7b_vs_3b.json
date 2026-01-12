@@ -1,0 +1,83 @@
+[
+  {
+    "main_question": "When was the sibling of Alice de Lusignan, Countess of Surrey crowned?",
+    "sub_question": "Who were the siblings of Alice de Lusignan, Countess of Surrey?",
+    "ground_truth": "Alice de Lusignan had a uterine half-brother, King Henry III of England.",
+    "predicted_7b": " King Henry III of England",
+    "predicted_3b": " John of England and Joan de Geneville, 2nd Baroness of March",
+    "f1_7b": 0.4799999999999999,
+    "f1_3b": 0.2777777777777777
+  },
+  {
+    "main_question": "When did a storm disperse the fleet led by the English king who trusted William de Longchamp?",
+    "sub_question": "What specific naval expedition or fleet did King Richard I lead that was dispersed by a storm?",
+    "ground_truth": "King Richard I led a large fleet from Messina to Acre in April 1191, which was dispersed by a storm.",
+    "predicted_7b": " Richard the Lion-hearted left Messina with a large fleet in order to reach Acre, but a storm dispersed the fleet.",
+    "predicted_3b": " Richard's fleet in order to reach Acre",
+    "f1_7b": 0.4761904761904761,
+    "f1_3b": 0.2666666666666666
+  },
+  {
+    "main_question": "Whose sister played Susie in miracle on 34th street?",
+    "sub_question": "Who is Natalie Wood's brother?",
+    "ground_truth": "Natalie Wood's sister is Lana Wood. The documents do not mention a brother.",
+    "predicted_7b": " The information provided does not mention Natalie Wood's brother.",
+    "predicted_3b": " Edmund Gwenn",
+    "f1_7b": 0.4761904761904762,
+    "f1_3b": 0.0
+  },
+  {
+    "main_question": "Who is the other child of Chian Hsiao-chang's father?",
+    "sub_question": "What are all the children of Chiang Ching-kuo?",
+    "ground_truth": "Chiang Ching-kuo had four legitimate children with his wife Faina Ipatyevna Vakhreva (Chiang Fang-liang): Chiang Hsiao-wen (eldest son), Chiang Hsiao-chang (daughter), Chiang Hsiao-wu (second son), and Chiang Hsiao-yung (youngest son). He also had two half-brothers with other mothers: Winston Chang and John Chiang.",
+    "predicted_7b": " Chiang Hsiao-chang, Chiang Hsiao-wu, Chiang Hsiao-wen, Chiang Hsiao-chang's one older brother Hsiao-wen, and two younger brothers Hsiao-wu and Hsiao-yung. He also had two half-brothers, Winston Chang and John Chiang.",
+    "predicted_3b": " Chiang Hsiao-chang, Chiang Hsiao-wen, Chiang Hsiao-wu, Hsiao-wen's brother Hsiao-yung, Hsiao-wen's brother Hsiao-wu, Hsiao-wen's sister Hsiao-chang, Hsiao-wen's half-brother Winston Chang, and Hsiao-wen's half-brother John Chiang.",
+    "f1_7b": 0.5671641791044776,
+    "f1_3b": 0.4366197183098592
+  },
+  {
+    "main_question": "Who is the child of the actor who is a cast member of Love in Pawn?",
+    "sub_question": "Who is the child of Bernard Braden or Barbara Kelly?",
+    "ground_truth": "Kim Braden is the daughter of Bernard Braden and Barbara Kelly.",
+    "predicted_7b": " Kim Braden",
+    "predicted_3b": " Daisy-May Bates",
+    "f1_7b": 0.25,
+    "f1_3b": 0.0
+  },
+  {
+    "main_question": "Who was the spouse of a leading speaker against slavery and publisher of an antislavery newspaper?",
+    "sub_question": "Who was Frederick Douglass's spouse?",
+    "ground_truth": "Frederick Douglass had two spouses: his first wife was Anna Murray Douglass, and his second wife was Helen Pitts Douglass.",
+    "predicted_7b": " Helen Pitts and Anna Murray",
+    "predicted_3b": " Helen Pitts",
+    "f1_7b": 0.4736842105263158,
+    "f1_3b": 0.2424242424242424
+  },
+  {
+    "main_question": "The city which contains Broadhurst Park shares a border with what town?",
+    "sub_question": "Which towns share a border with the city of Manchester, England?",
+    "ground_truth": "Moston shares a border with the city of Manchester.",
+    "predicted_7b": " Middleton and Moston",
+    "predicted_3b": " Middleton and Moston share a border with the city of Manchester, England.",
+    "f1_7b": 0.1666666666666666,
+    "f1_3b": 0.6666666666666667
+  },
+  {
+    "main_question": "In which state is Póvoa de Santa Iria's municipality located?",
+    "sub_question": "What is the municipality of Póvoa de Santa Iria?",
+    "ground_truth": "Vila Franca de Xira",
+    "predicted_7b": " Vila Franca de Xira",
+    "predicted_3b": " Póvoa de Santa Iria is a municipality in the Lisbon District in Portugal.",
+    "f1_7b": 1.0,
+    "f1_3b": 0.0952380952380952
+  },
+  {
+    "main_question": "How old was Mary when engaged to the person from whom São José dos Campos takes it's name?",
+    "sub_question": "Who is São José dos Campos named after?",
+    "ground_truth": "São José dos Campos é nomeada em homenagem a São José (Saint Joseph).",
+    "predicted_7b": " Saint Joseph of the Fields",
+    "predicted_3b": " José",
+    "f1_7b": 0.1818181818181818,
+    "f1_3b": 0.1111111111111111
+  }
+]

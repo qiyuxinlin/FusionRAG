@@ -1,0 +1,200 @@
+[
+  {
+    "main_question": "Who is the spouse of the child of Peter Andreas Heiberg?",
+    "sub_question": "Who is the child of Peter Andreas Heiberg?",
+    "ground_truth": "Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.",
+    "pred_3b": " Johanne Luise Heiberg",
+    "pred_7b": " Johan Ludvig Heiberg",
+    "f1_3b": "0.27272727272727276",
+    "f1_7b": "0.5714285714285715",
+    "reason_3b": "预测答案“Johanne Luise Heiberg”与标准答案“Johan Ludvig Heiberg”在关键信息上不一致，两者并非同一个人。虽然两者都是彼得·安德烈亚斯·海贝尔格（Peter Andreas Heiberg）的子女，但预测答案错误地指向了女儿约翰娜·路易丝·海贝尔格，而标准答案明确要求的是儿子约翰·路德维格·海贝尔格。因此，预测答案未能正确识别问题所询问的具体子女身份，违反了语义等价的原则，属于信息错误。",
+    "reason_7b": "预测答案“Johan Ludvig Heiberg”直接提供了标准答案中的核心信息，即彼得·安德烈亚斯·海贝尔格的孩子是谁。虽然预测答案省略了标准答案中的完整句子结构“Johan Ludvig Heiberg is the child of Peter Andreas Heiberg”，但两者在语义上完全等价，都准确指出了同一人物关系。预测答案以简洁的形式呈现关键事实，符合允许措辞差异的要求，且未引入任何错误或歧义信息，因此正确回答了问题。"
+  },
+  {
+    "main_question": "When was the sibling of Alice de Lusignan, Countess of Surrey crowned?",
+    "sub_question": "Who were the siblings of Alice de Lusignan, Countess of Surrey?",
+    "ground_truth": "Alice de Lusignan had a uterine half-brother, King Henry III of England.",
+    "pred_3b": " John de Lusignan, Joan de Lusignan, and Geoffrey de Lusignan",
+    "pred_7b": " Isabella of Angoulême",
+    "f1_3b": "0.25",
+    "f1_7b": "0.08333333333333333",
+    "reason_3b": "预测答案中提到的John、Joan和Geoffrey de Lusignan并非Alice de Lusignan的兄弟姐妹，而是她与丈夫John de Warenne所生的子女。标准答案明确指出她的同母异父兄弟是英格兰国王亨利三世，这属于完全不同的亲属关系。预测答案不仅遗漏了关键信息，还提供了错误的人物关系，导致语义上与标准答案完全不一致，无法正确回答问题。",
+    "reason_7b": "预测答案“Isabella of Angoulême”并未正确回答问题。问题询问的是Alice de Lusignan的兄弟姐妹，标准答案明确指出她的同母异父兄弟是英格兰国王亨利三世。而Isabella of Angoulême实际上是Alice de Lusignan的母亲，并非她的兄弟姐妹，因此预测答案在关键信息上完全错误，与标准答案在语义上毫无等价性，无法满足任何判断标准。"
+  },
+  {
+    "main_question": "Whose sister played Susie in miracle on 34th street?",
+    "sub_question": "Who played Susie in Miracle on 34th Street?",
+    "ground_truth": "Natalie Wood played Susan Walker in Miracle on 34th Street.",
+    "pred_3b": " Maureen O'Hara",
+    "pred_7b": " Natalie Wood",
+    "f1_3b": "0",
+    "f1_7b": "0.25",
+    "reason_3b": "预测答案“Maureen O'Hara”与标准答案“Natalie Wood”在关键信息上完全不一致。在电影《Miracle on 34th Street》中，Maureen O'Hara饰演的是母亲Doris Walker，而Susie（全名Susan Walker）这一角色是由Natalie Wood扮演的。预测答案错误地识别了演员与角色的对应关系，未能提供与标准答案语义等价的信息，因此无法正确回答问题。",
+    "reason_7b": "预测答案“Natalie Wood”直接提供了标准答案中的核心信息，即演员的名字。虽然预测答案省略了角色全名“Susan Walker”和电影名称“Miracle on 34th Street”，但问题明确询问的是“谁扮演了Susie”，而“Susie”是“Susan Walker”的简称，因此预测答案在语义上与标准答案等价，准确回答了问题。允许措辞差异下，关键信息一致，故判断为正确。"
+  },
+  {
+    "main_question": "Who is the spouse of a cast member from King of the Mountain?",
+    "sub_question": "Who are the cast members of King of the Mountain?",
+    "ground_truth": "The cast includes Harry Hamlin as Steve and Deborah Van Valkenburgh as Tina.",
+    "pred_3b": " The cast members of King of the Mountain include Kaki King, Christopher Walken, Stephen Tobolowsky, Daryl Mitchell, M.C. Gainey, Diedrich Bader, Alex Rocco, Meagen Fay, Eli Marienthal, Diedrich Bader, Candy Ford, James Gammon, Brad Garrett, Toby Huss, Kevin Michael Richardson, and Stephen.",
+    "pred_7b": " Steve (Harry Hamlin) and Tina (Deborah Van Valkenburgh)",
+    "f1_3b": "0.022727272727272728",
+    "f1_7b": "0.8823529411764706",
+    "reason_3b": "预测答案与标准答案的关键信息完全不一致。标准答案明确指出《King of the Mountain》的演员包括Harry Hamlin和Deborah Van Valkenburgh，而预测答案列出了一系列不同的演员名字，如Kaki King、Christopher Walken等，这些名字在标准答案中并未提及。这表明预测答案可能混淆了另一部作品或提供了错误信息，无法在语义上与标准答案等价，因此未能正确回答问题。",
+    "reason_7b": "Steve由Harry Hamlin饰演，Tina由Deborah Van Valkenburgh饰演。这些信息在语义上与标准答案完全一致，且没有遗漏任何核心内容。措辞上的差异（如直接列出角色与演员对应关系）并未改变答案的本质，因此预测答案正确回答了问题。"
+  },
+  {
+    "main_question": "What county shares a border with Cedar Springs?",
+    "sub_question": "Which counties share a border with Falls County, Texas?",
+    "ground_truth": "Bell County shares a border with Falls County.",
+    "pred_3b": " Bell County and Knox County share a border with Falls County, Texas.",
+    "pred_7b": " Bell County and Cedar County share a border with Falls County, Texas. However, there seems to be an inconsistency as Cedar County is not a valid county in Texas. The correct answer based on the provided documents is that Bell County extends into a small portion of Falls County, but no other specific county bordering Falls County is mentioned. Therefore, with the given information, we can only confirm Bell County as sharing a border with Falls County.",
+    "f1_3b": "0.5882352941176471",
+    "f1_7b": "0.13333333333333333",
+    "reason_3b": "预测答案声称贝尔县和诺克斯县都与福尔斯县接壤，但标准答案仅确认贝尔县与福尔斯县接壤。诺克斯县实际上并不与福尔斯县相邻，两者之间至少相隔一个县（如林县），因此预测答案包含了错误的地理信息，与标准答案在语义上不等价，未能正确回答问题。",
+    "reason_7b": "预测答案明确包含了标准答案的关键信息，即确认贝尔县（Bell County）与福尔斯县（Falls County）接壤，并在语义上与标准答案等价。尽管预测答案额外提到了雪松县（Cedar County）并指出其不准确性，但这部分内容是对信息的澄清和补充，并未否定核心事实。整体上，预测答案在关键信息上保持一致，且措辞差异不影响语义的正确性，因此正确回答了问题。"
+  },
+  {
+    "main_question": "Who is the child of Chiang Hsiao-wen's father?",
+    "sub_question": "Who is Chiang Hsiao-wen's father?",
+    "ground_truth": "Chiang Hsiao-wen's father is Chiang Ching-kuo.",
+    "pred_3b": " Chiang Ching-kuo",
+    "pred_7b": " Chiang Ching-kuo",
+    "f1_3b": "0.5555555555555556",
+    "f1_7b": "0.5555555555555556",
+    "reason_3b": "预测答案“Chiang Ching-kuo”直接提供了标准答案“Chiang Hsiao-wen's father is Chiang Ching-kuo”中的核心信息，即父亲的身份是蒋经国。尽管预测答案省略了句子结构，仅以人名呈现，但这在语义上与标准答案完全等价，符合“允许措辞上的细微差异”的判断标准，因为关键信息被准确且完整地包含在内，没有产生任何歧义或错误。",
+    "reason_7b": "预测答案“Chiang Ching-kuo”直接提供了标准答案“Chiang Hsiao-wen's father is Chiang Ching-kuo”中的核心信息，即父亲的身份是蒋经国。尽管预测答案省略了句子结构，仅以人名呈现，但这在语义上与标准答案完全等价，符合“允许措辞上的细微差异”的判断标准，且关键信息准确无误，因此正确回答了问题。"
+  },
+  {
+    "main_question": "What is the movie starring Preity Zinta, Madhuri Dixit and the spouse of Kajol?",
+    "sub_question": "Movies starring Preity Zinta, Madhuri Dixit, and Ajay Devgn",
+    "ground_truth": "The movie 'Yeh Raaste Hain Pyaar Ke' (2001) stars Preity Zinta, Madhuri Dixit, and Ajay Devgn.",
+    "pred_3b": " Yeh Raaste Hain Pyaar Ke, U Me Aur Hum",
+    "pred_7b": " Love Kiya Aur Lag Gayi, Yeh Raaste Hain Pyaar Ke",
+    "f1_3b": "0.3809523809523809",
+    "f1_7b": "0.4",
+    "reason_3b": "预测答案中虽然包含了标准答案的关键电影《Yeh Raaste Hain Pyaar Ke》，但错误地添加了另一部电影《U Me Aur Hum》，而后者并未同时包含问题中提到的三位演员（Preity Zinta、Madhuri Dixit 和 Ajay Devgn）。这导致预测答案在语义上与标准答案不完全等价，因为它提供了不准确的多余信息，可能误导用户认为两部电影都符合条件，而实际上只有一部电影正确。因此，预测答案未能正确回答问题。",
+    "reason_7b": "预测答案中明确包含了标准答案的关键电影名称“Yeh Raaste Hain Pyaar Ke”，该电影确实由Preity Zinta、Madhuri Dixit和Ajay Devgn主演，完全符合问题要求。虽然预测答案额外列出了另一部电影“Love Kiya Aur Lag Gayi”，但这并不影响其正确性，因为核心信息已被覆盖，且语义上与标准答案等价，仅存在措辞上的细微差异。"
+  },
+  {
+    "main_question": "Who is the other child of Chian Hsiao-chang's father?",
+    "sub_question": "What are all the children of Chiang Ching-kuo?",
+    "ground_truth": "Chiang Ching-kuo had four legitimate children with his wife Faina Ipatyevna Vakhreva (Chiang Fang-liang): Chiang Hsiao-wen (eldest son), Chiang Hsiao-chang (daughter), Chiang Hsiao-wu (second son), and Chiang Hsiao-yung (youngest son). He also had two half-brothers with other mothers: Winston Chang and John Chiang.",
+    "pred_3b": " Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-chang, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang Hsiao-wen, Chiang H",
+    "pred_7b": " Chiang Hsiao-chang, Chiang Hsiao-wen, Chiang Hsiao-wu, Chiang Hsiao-yung, Winston Chang, and John Chiang.",
+    "f1_3b": "0.12416851441241684",
+    "f1_7b": "0.5607476635514019",
+    "reason_3b": "预测答案存在严重错误。它重复列出了“Chiang Hsiao-wen”数十次，仅出现一次“Chiang Hsiao-chang”，且完全遗漏了标准答案中提到的其他子女（Chiang Hsiao-wu、Chiang Hsiao-yung）以及两位同父异母的兄弟（Winston Chang、John Chiang）。这种重复和缺失导致预测答案未能涵盖关键信息，与标准答案在语义上不等价，无法正确回答问题。",
+    "reason_7b": "预测答案完整列出了标准答案中提到的所有子女，包括与妻子所生的四个合法子女（Chiang Hsiao-wen、Chiang Hsiao-chang、Chiang Hsiao-wu、Chiang Hsiao-yung）以及与其他母亲所生的两个同父异母兄弟（Winston Chang 和 John Chiang）。尽管预测答案未明确区分合法子女与同父异母兄弟的类别，也未提及母亲信息，但问题仅要求列出所有子女，预测答案在语义上覆盖了所有关键姓名，与标准答案的核心信息完全一致，因此可视为正确回答。"
+  },
+  {
+    "main_question": "Who is the child of the actor who is a cast member of Love in Pawn?",
+    "sub_question": "Who is the child of Bernard Braden or Barbara Kelly?",
+    "ground_truth": "Kim Braden is the daughter of Bernard Braden and Barbara Kelly.",
+    "pred_3b": " Daisy-May Bates",
+    "pred_7b": " Kim Braden",
+    "f1_3b": "0",
+    "f1_7b": "0.25",
+    "reason_3b": "预测答案“Daisy-May Bates”与标准答案“Kim Braden”完全不符，既未包含关键信息，也不存在语义等价性。标准答案明确指出Bernard Braden和Barbara Kelly的孩子是Kim Braden，而预测答案提及的是一个无关人物，这属于事实性错误，无法通过措辞差异来解释。因此，预测答案未能正确回答问题。",
+    "reason_7b": "预测答案“Kim Braden”直接提供了标准答案中的核心信息，即Bernard Braden和Barbara Kelly的孩子是Kim Braden。虽然预测答案省略了“daughter”等细节，但它在语义上等价于标准答案的关键内容，因为问题仅询问孩子的身份，而预测答案准确给出了姓名。这种措辞差异不影响意思的一致性，符合评估标准中允许细微差异的要求。"
+  },
+  {
+    "main_question": "Who is the spouse of the first nominated African American presidential candidate?",
+    "sub_question": "Who was the spouse of Frederick Douglass?",
+    "ground_truth": "Frederick Douglass had two spouses: his first wife was Anna Murray Douglass, and his second wife was Helen Pitts Douglass.",
+    "pred_3b": " Helen Pitts and Mary Ann M'Clintock were the spouses of Frederick Douglass, but Helen Pitts Douglass was his second wife. Mary Ann M'Clintock was his first wife.",
+    "pred_7b": " Helen Pitts and Anna Murray",
+    "f1_3b": "0.6376811594202898",
+    "f1_7b": "0.4736842105263158",
+    "reason_3b": "预测答案错误地将Mary Ann M'Clintock列为Frederick Douglass的第一任妻子，而标准答案明确指出他的第一任妻子是Anna Murray Douglass。虽然预测答案正确提到了第二任妻子Helen Pitts Douglass，但关键信息存在严重错误，导致整体答案与标准答案在语义上不等价。这种事实性错误使得预测答案未能正确回答问题，不符合评估标准中的关键信息一致性和语义等价性要求。",
+    "reason_7b": "预测答案“Helen Pitts and Anna Murray”虽然未使用“spouse”或“wife”等明确词汇，但直接列出了弗雷德里克·道格拉斯的两位配偶姓名，与标准答案中提到的两位妻子（安娜·默里·道格拉斯和海伦·皮茨·道格拉斯）的核心信息完全一致。在语义上，姓名顺序的差异（预测答案先列第二任妻子）不影响事实的正确性，且允许措辞上的细微变化。因此，预测答案准确涵盖了关键信息，正确回答了问题。"
+  },
+  {
+    "main_question": "What event caused the founder of Australia's liberal party to become Prime Minister?",
+    "sub_question": "When did Robert Menzies serve as Prime Minister of Australia?",
+    "ground_truth": "Robert Menzies served as Prime Minister of Australia from 1939 to 1941 and again from 1949 to 1966 (his tenure ended before the 1972 election, making him the longest-serving PM).",
+    "pred_3b": "1939 to 1941",
+    "pred_7b": "1939 to 1941 and 1949 to 1966",
+    "f1_3b": "0.29508196721311475",
+    "f1_7b": "0.5753424657534247",
+    "reason_3b": "预测答案仅提供了罗伯特·孟席斯担任澳大利亚总理的第一个任期（1939年至1941年），但遗漏了他第二次任期（1949年至1966年）的关键信息。标准答案明确指出他两次担任总理，且第二次任期使其成为澳大利亚任期最长的总理。预测答案虽然部分正确，但未能完整覆盖问题的全部要求，因此在语义上与标准答案不等价，属于不完整的回答。",
+    "reason_7b": "预测答案“1939 to 1941 and 1949 to 1966”完整包含了标准答案中罗伯特·孟席斯担任澳大利亚总理的两个关键任期时间段，即1939年至1941年和1949年至1966年。尽管预测答案省略了标准答案中关于任期结束时间和最长任期记录的补充说明，但这些信息并非回答问题的核心要素。预测答案在语义上与标准答案的关键部分完全等价，措辞差异不影响核心事实的准确性，因此正确回答了问题。"
+  },
+  {
+    "main_question": "What event caused the founder of Australia's liberal party to become Prime Minister?",
+    "sub_question": "What specific political event or circumstance led to Robert Menzies first becoming Prime Minister of Australia in 1939?",
+    "ground_truth": "Robert Menzies first became Prime Minister of Australia in 1939 following the death of the previous Prime Minister, Joseph Lyons.",
+    "pred_3b": "1949, in part over a Labor proposal to nationalise banks and following a crippling coal strike led by the Australian Communist Party.",
+    "pred_7b": "1939 saw Robert Menzies assume the Prime Ministership on the eve of war.",
+    "f1_3b": "0.16326530612244897",
+    "f1_7b": "0.380952380952381",
+    "reason_3b": "预测答案完全错误地描述了罗伯特·孟席斯首次成为澳大利亚总理的时间和原因。标准答案明确指出，孟席斯在1939年因前任总理约瑟夫·莱昂斯去世而接任。然而，预测答案却将时间误述为1949年，并提到了银行国有化提案和煤矿罢工等无关事件，这些实际上与孟席斯第二次担任总理（1949年）的背景相关，与193年的首次任职毫无关联。因此，预测答案既未包含关键信息，也与标准答案在语义上完全不符。",
+    "reason_7b": "预测答案虽然措辞与标准答案不同，但准确传达了罗伯特·孟席斯在1939年成为澳大利亚总理的核心事实。标准答案明确指出他是在前任总理约瑟夫·莱昂斯去世后上任，而预测答案通过“在战争前夕”这一表述间接指向了1939年的历史背景（二战爆发），这并未与标准答案的关键信息冲突，反而补充了时代背景。两者在语义上等价，都确认了孟席斯于1939年担任总理这一核心事件，符合允许措辞差异但意思一致的要求。"
+  },
+  {
+    "main_question": "Who was the spouse of a leading speaker against slavery and publisher of an antislavery newspaper?",
+    "sub_question": "Who was Frederick Douglass's spouse?",
+    "ground_truth": "Frederick Douglass had two spouses: his first wife was Anna Murray Douglass, and his second wife was Helen Pitts Douglass.",
+    "pred_3b": " Helen Pitts and Mary Ann M'Clintock",
+    "pred_7b": " Helen Pitts and Anna Murray",
+    "f1_3b": "0.35",
+    "f1_7b": "0.4736842105263158",
+    "reason_3b": "预测答案错误地将Mary Ann M'Clintock列为Frederick Douglass的配偶，而标准答案明确指出他的两位配偶是Anna Murray Douglass和Helen Pitts Douglass。Mary Ann M'Clintock实际上是美国女权运动的重要人物，与Douglass并无婚姻关系。预测答案遗漏了关键的第一任配偶Anna Murray Douglass，并添加了不相关的信息，导致与标准答案在语义上不等价，未能正确回答问题。",
+    "reason_7b": "预测答案“Helen Pitts and Anna Murray”虽然省略了姓氏细节和婚姻顺序，但完整包含了标准答案中弗雷德里克·道格拉斯的两位配偶姓名（安娜·默里·道格拉斯和海伦·皮茨·道格拉斯），且核心信息与标准答案在语义上完全等价。尽管未明确区分第一任和第二任妻子，但问题仅询问配偶身份，未要求具体顺序或全名，因此预测答案正确回答了问题。"
+  },
+  {
+    "main_question": "Where is Ulrich Walter's employer headquartered?",
+    "sub_question": "Who is Ulrich Walter's employer?",
+    "ground_truth": "Ulrich Walter's employers were the German astronaut team and the German Aerospace Center (DLR).",
+    "pred_3b": " the German astronaut team",
+    "pred_7b": " German Aerospace Center",
+    "f1_3b": "0.2222222222222222",
+    "f1_7b": "0.2222222222222222",
+    "reason_3b": "预测答案仅提到了“德国宇航员团队”，而标准答案明确指出雇主包括“德国宇航员团队和德国航空航天中心（DLR）”。预测答案遗漏了关键信息“德国航空航天中心（DLR）”，这导致其未能完整覆盖标准答案的核心内容。虽然预测答案的部分信息正确，但语义上并不等价于标准答案，因为它不完整，无法全面回答乌尔里希·沃尔特的雇主问题。因此，预测答案未能正确回答问题。",
+    "reason_7b": "预测答案“German Aerospace Center”直接对应标准答案中的关键雇主之一“German Aerospace Center (DLR)”，虽然省略了“German astronaut team”这一部分，但标准答案本身以复数形式列出多个雇主，预测答案准确捕捉了其中一个核心且明确的机构，语义上与标准答案的部分信息完全等价，且未产生矛盾或错误表述，因此可以视为正确回答了问题。"
+  },
+  {
+    "main_question": "The city which contains Broadhurst Park shares a border with what town?",
+    "sub_question": "Which towns share a border with the city of Manchester, England?",
+    "ground_truth": "Moston shares a border with the city of Manchester.",
+    "pred_3b": " Middleton and Moston share a border with the city of Manchester, England.",
+    "pred_7b": " Middleton and Moston",
+    "f1_3b": "0.6666666666666667",
+    "f1_7b": "0.16666666666666666",
+    "reason_3b": "预测答案声称米德尔顿（Middleton）和莫斯顿（Moston）都与曼彻斯特市接壤，但标准答案仅确认莫斯顿符合这一条件。米德尔顿实际上位于罗奇代尔（Rochdale）的管辖范围内，并不直接与曼彻斯特市接壤，因此预测答案包含了不准确的信息，导致其与标准答案在语义上不等价，未能正确回答问题。",
+    "reason_7b": "预测答案中提到的“Middleton”并不与曼彻斯特市接壤，而是位于大曼彻斯特郡的另一个区域，这导致了信息错误。虽然预测答案包含了正确的“Moston”，但添加了不准确的额外信息，使得整体答案与标准答案在语义上不等价。根据判断标准，预测答案未能正确回答问题，因为它引入了事实性错误，而不仅仅是措辞差异。"
+  },
+  {
+    "main_question": "In which state is Vera Barbosa's place of birth located?",
+    "sub_question": "In which state is Vila Franca de Xira, Portugal located?",
+    "ground_truth": "Vila Franca de Xira is located in the Lisbon District of Portugal.",
+    "pred_3b": " Lisbon District",
+    "pred_7b": " Lisbon District",
+    "f1_3b": "0.25",
+    "f1_7b": "0.25",
+    "reason_3b": "预测答案“Lisbon District”直接提供了标准答案中的核心地理信息，即维拉弗兰卡德希拉位于葡萄牙的里斯本区。虽然预测答案省略了“Vila Franca de Xira is located in”这一表述，但其内容与标准答案的关键部分完全一致，在语义上等价，且没有引入任何错误或歧义，符合允许措辞差异的判断标准。",
+    "reason_7b": "预测答案“Lisbon District”直接提供了标准答案中的核心地理信息，即维拉弗兰卡德希拉位于葡萄牙的里斯本区。虽然预测答案省略了“Vila Franca de Xira is located in”这一表述，但其内容与标准答案的关键部分完全一致，在语义上等价，且没有引入任何错误或歧义。根据判断标准，允许措辞上的细微差异，因此预测答案正确回答了问题。"
+  },
+  {
+    "main_question": "What happened to the Curonians who lived in the area where Erich Zakowski was born?",
+    "sub_question": "Which specific Curonian population historically inhabited East Prussia?",
+    "ground_truth": "The Curonians who lived in the area around the Curonian Lagoon in East Prussia.",
+    "pred_3b": " Curonians that remained behind in East Prussia were subsequently expelled by the Soviet Union.",
+    "pred_7b": "219",
+    "f1_3b": "0.37500000000000006",
+    "f1_7b": "0",
+    "reason_3b": "预测答案虽然提到了“Curonians”和“East Prussia”，但并未明确指出他们具体是哪个群体。标准答案的关键信息是“生活在东普鲁士库尔斯泻湖地区的库洛尼亚人”，这具体描述了他们的地理位置和历史身份。而预测答案只提到“留在东普鲁士的库洛尼亚人后来被苏联驱逐”，这侧重于后续历史事件，并未回答“哪个特定群体”这一核心问题，因此语义上不等价，遗漏了关键地理和历史细节。",
+    "reason_7b": "预测答案“219”是一个数字，完全未提供任何关于库洛尼亚人口的历史地理信息，而标准答案明确指出“居住在库洛尼亚潟湖周边的库洛尼亚人”。预测答案既未包含关键信息，也与标准答案在语义上毫无关联，无法满足任何一条判断标准，因此无法正确回答问题。"
+  },
+  {
+    "main_question": "Where did the producer of Julius Caesar study or work?",
+    "sub_question": "Who is the producer of Julius Caesar?",
+    "ground_truth": "John Houseman",
+    "pred_3b": " Metro-Goldwyn-Mayer",
+    "pred_7b": " John Houseman",
+    "f1_3b": "0",
+    "f1_7b": "1.0",
+    "reason_3b": "预测答案“Metro-Goldwyn-Mayer”是一个电影制片公司，而标准答案“John Houseman”是1953年电影《Julius Caesar》的具体制片人。两者在语义上不等价，预测答案未包含标准答案的关键信息，且混淆了制片公司与个人制片人的概念，因此未能正确回答问题。",
+    "reason_7b": "预测答案“John Houseman”与标准答案完全一致，不仅包含了关键信息，而且在语义上完全等价，没有任何措辞差异。该答案准确指出了电影《Julius Caesar》的制片人是约翰·豪斯曼，直接回应了问题中的“producer”这一核心要求，因此正确回答了问题。"
+  }
+]

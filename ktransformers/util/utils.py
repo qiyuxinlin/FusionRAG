@@ -442,7 +442,7 @@ def find_connected_components(positions, max_gap=2):
     return components
 
 
-def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
+def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', threshold_factor=0.5):
     """
     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
 
@@ -452,6 +452,8 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
         target_ratio: 目标选择比例
         system_len: system prompt 长度
         device: 计算设备
+        threshold_factor: 阈值因子，用于确定高 attention 位置 (默认 0.5)
+                         较小的值会选择更多位置进入连通分量分析
 
     Returns:
         List of selected positions (global indices, including system_len offset)
@@ -461,10 +463,10 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     target_count = int(doc_len * target_ratio)
 
-    # Step 1: 找到高 attention 位置
+    # Step 1: 找到高 attention 位置 (使用可配置的 threshold_factor)
     mean_attn = np.mean(attention_scores)
     std_attn = np.std(attention_scores)
-    threshold = mean_attn + 0.5 * std_attn
+    threshold = mean_attn + threshold_factor * std_attn
 
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
 
@@ -561,7 +563,8 @@ def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
     return selected_layers
 
 
-def compute_draft_model_attention(draft_model, input_ids, query_start, device="cuda:0"):
+def compute_draft_model_attention(draft_model, input_ids, query_start, device="cuda:0",
+                                   extra_layers=None):
     """
     用 draft model 完整 prefill 获取 attention 分布（内存优化版本）
 
@@ -573,6 +576,7 @@ def compute_draft_model_attention(draft_model, input_ids, query_start, device="c
         input_ids: 输入 token ids [1, seq_len]
         query_start: query 的起始位置（只计算 query positions 的 attention）
         device: 设备
+        extra_layers: 额外需要计算 attention 的层列表（用于固定层选择）
 
     Returns:
         layer_attention_scores: {layer_idx: attention_matrix [num_heads, query_len, seq_len]}
@@ -642,8 +646,12 @@ def compute_draft_model_attention(draft_model, input_ids, query_start, device="c
             key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
             value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
 
-            # 对于后 50% 的层，只计算 query→all 的 attention
-            if layer_idx >= num_layers // 2:
+            # 对于后 50% 的层（以及 extra_layers 中指定的层），计算 query→all 的 attention
+            should_compute_attn = layer_idx >= num_layers // 2
+            if extra_layers is not None and layer_idx in extra_layers:
+                should_compute_attn = True
+
+            if should_compute_attn:
                 # 只计算 query positions 的 attention: [bsz, num_heads, query_len, seq_len]
                 query_states_subset = query_states[:, :, query_start:, :]  # [1, num_heads, query_len, head_dim]
                 attn_weights_subset = torch.matmul(
@@ -861,14 +869,66 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
 
+def compute_query_doc_similarity(draft_model, input_ids, doc_start, doc_end, query_start, device="cuda:0"):
+    """
+    计算 query tokens 和 document tokens 的语义相似度
 
-    
+    使用 draft model 中间层的 hidden states 来计算余弦相似度
+
+    Args:
+        draft_model: draft model
+        input_ids: 输入 token ids [1, seq_len]
+        doc_start: 文档起始位置
+        doc_end: 文档结束位置
+        query_start: query 起始位置
+        device: 计算设备
+
+    Returns:
+        similarity: (doc_len,) query-doc 相似度分数 [0, 1]
+    """
+    import torch.nn.functional as F
+
+    draft_model.eval()
+
+    with torch.no_grad():
+        # 获取 hidden states
+        outputs = draft_model(
+            input_ids=input_ids.to(device),
+            output_hidden_states=True,
+            use_cache=False
+        )
+
+        # 使用中间层的 hidden states (比最后一层更通用)
+        num_layers = len(outputs.hidden_states)
+        mid_layer = num_layers // 2
+        hidden_states = outputs.hidden_states[mid_layer][0]  # (seq_len, hidden_dim)
+
+        # Query tokens embedding (平均)
+        query_emb = hidden_states[query_start:].mean(dim=0)  # (hidden_dim,)
+
+        # Document tokens embedding
+        doc_emb = hidden_states[doc_start:doc_end]  # (doc_len, hidden_dim)
+
+        # 计算余弦相似度
+        query_emb = F.normalize(query_emb.unsqueeze(0), dim=-1)  # (1, hidden_dim)
+        doc_emb = F.normalize(doc_emb, dim=-1)  # (doc_len, hidden_dim)
+        similarity = torch.mm(doc_emb, query_emb.T).squeeze()  # (doc_len,)
+
+        # 转换为正值 [0, 1]
+        similarity = (similarity + 1) / 2
+
+    return similarity.cpu()
+
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
-                          draft_layer_selection='entropy',  # 'entropy' or 'last'
+                          draft_layer_selection='entropy',  # 'entropy', 'last', 'fixed', or 'middle'
+                          draft_fixed_layer=3,  # 固定使用哪一层 (当 draft_layer_selection='fixed' 时生效)
+                          draft_threshold_factor=0.5,  # smart_query_selection 阈值因子 (default 0.5)
+                          use_similarity_rerank=False,  # 使用 query-doc 相似度重排序改进选择
+                          rerank_multiplier=2.0,  # 重排序时先选择多少倍候选
                           group=False, device="cuda", chunk_ids=None, device_map=None,
                           vattention_topk_ratio=0.5,  # vAttention: top-k 占总 budget 的比例
                           # OracleDynamic 参数
@@ -879,7 +939,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           query_text='',  # 用于 DraftModelDynamic 的问题文本
                           # DraftModelLayerwise 参数
                           layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
-                          layerwise_final_rate=0.05):  # 最后一层的 rate
+                          layerwise_final_rate=0.05,  # 最后一层的 rate
+                          # 文本块1用原始KV cache (prefix cache)
+                          original_kv_path=None):  # 原始KV cache路径，用于文本块1 (chunk_id=0)
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
 
@@ -918,8 +980,15 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
 
-        chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
-        chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
+        # 对于 chunk_id=0 (system + 文本块1)，如果提供了 original_kv_path，则从原始路径加载
+        # 这样文本块1可以使用没有 preprocess 的 KV cache (prefix cache hit)
+        if chunk_id <= 1 and original_kv_path is not None:
+            kv_path = original_kv_path
+        else:
+            kv_path = load_path
+
+        chunk_key_cache = torch.load(f'{kv_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
+        chunk_value_cache = torch.load(f'{kv_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
     start_time = time.time()
@@ -1176,11 +1245,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                 # 获取文档部分的 attention 分数
                 num_layers = len(past_key_values.importance_cache)
-                # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
-                # 只从 文本块2 开始选择，即 passages_len[2:-1]
+                # 文本块1 长度 (用于 prefix cache，不参与重算)
                 text_block1_len = passages_len[1]
+                # 从文本块2开始选择 (文本块1直接用原始KV cache)
                 doc_len = sum(passages_len[2:-1])
-                selection_start = system_len + text_block1_len  # 选择区域的起始位置
+                selection_start = system_len + text_block1_len
 
                 # 收集所有候选层的 attention（后 1/2 的层，用于熵选层）
                 # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
@@ -1229,11 +1298,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
-            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
-            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
-            doc_len = sum(passages_len[2:-1])
-            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+            # 从文本块2开始选择 (文本块1直接用原始KV cache，不参与重算选择)
+            # doc_len = 文本块2 + 文本块3 + ... + 文本块n
+            doc_len = sum(passages_len[1:-1])
+            # selection_start 跳过 system_prompt 和 文本块1
+            selection_start = system_len 
 
             # 如果没有传入 draft_attention，需要用 draft_model 计算
             if draft_attention is None:
@@ -1241,14 +1312,21 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
                 # 构建完整输入
                 full_input = torch.cat(passages).unsqueeze(0).to(input_device)
-                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, input_device)
+                # 如果使用固定层且层号在前 50%，需要额外计算该层的 attention
+                extra_layers = None
+                if draft_layer_selection == 'fixed':
+                    num_layers = draft_model.config.num_hidden_layers
+                    if draft_fixed_layer < num_layers // 2:
+                        extra_layers = [draft_fixed_layer]
+                        print(f"  固定层 {draft_fixed_layer} 在前半部分，额外计算其 attention")
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, input_device, extra_layers=extra_layers)
                 torch.cuda.empty_cache()
 
             # draft_attention 是 {layer_idx: attention [num_heads, query_len, seq_len]} 格式（内存优化版本）
             # 已经只包含 query positions 的 attention，不需要再切片 query 维度
 
             # 收集各层的 query→doc attention
-            # 注意: 从 selection_start 开始，长度为 doc_len（只包括文本块2到文本块n）
+            # 注意: 从 selection_start 开始，长度为 doc_len（包括文本块1到文本块n）
             layer_attention_dict = {}
             for layer_idx, layer_attn in draft_attention.items():
                 # layer_attn: [num_heads, query_len, seq_len]
@@ -1274,21 +1352,299 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 active_layers = [last_layer_idx]
                 print(f"  DraftModel 使用最后一层: Layer {last_layer_idx}")
                 multi_layer_attn = layer_attention_dict[last_layer_idx]
+            elif draft_layer_selection == 'fixed':
+                # 使用固定层
+                if draft_fixed_layer in layer_attention_dict:
+                    active_layers = [draft_fixed_layer]
+                    print(f"  DraftModel 使用固定层: Layer {draft_fixed_layer}")
+                    multi_layer_attn = layer_attention_dict[draft_fixed_layer]
+                else:
+                    # 如果指定层不在 attention dict 中，回退到使用最接近的层
+                    available_layers = sorted(layer_attention_dict.keys())
+                    closest_layer = min(available_layers, key=lambda x: abs(x - draft_fixed_layer))
+                    active_layers = [closest_layer]
+                    print(f"  DraftModel 固定层 {draft_fixed_layer} 不可用, 使用最接近的层: Layer {closest_layer}")
+                    multi_layer_attn = layer_attention_dict[closest_layer]
+            elif draft_layer_selection == 'middle':
+                # 使用中间层 (40%-60% 位置的层)
+                # 实验发现中间层与 7B 模型选择更相似
+                available_layers = sorted(layer_attention_dict.keys())
+                num_layers = draft_model.config.num_hidden_layers if draft_model is not None else max(available_layers) + 1
+                mid_start = int(0.4 * num_layers)
+                mid_end = int(0.6 * num_layers)
+                middle_layers = [l for l in range(mid_start, mid_end + 1) if l in available_layers]
+                if len(middle_layers) >= entropy_top_k:
+                    active_layers = middle_layers[:entropy_top_k]
+                elif len(middle_layers) > 0:
+                    active_layers = middle_layers
+                else:
+                    # fallback: 如果中间层不可用，使用可用层中最接近中间的
+                    mid_point = num_layers // 2
+                    active_layers = sorted(available_layers, key=lambda x: abs(x - mid_point))[:entropy_top_k]
+                print(f"  DraftModel 使用中间层: {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
             else:
-                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}, expected 'entropy' or 'last'")
+                raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}, expected 'entropy', 'last', 'fixed', or 'middle'")
 
             # 使用 smart_query_selection 进行选择
             # 注意: selection_start 是选择区域的起始位置（跳过了 system 和 文本块1）
+
+            if use_similarity_rerank and draft_model is not None:
+                # 使用相似度重排序改进选择
+                # 关键改进: 先用 smart_query_selection 选候选，保留连通分量和边界扩展
+                print(f"  使用相似度重排序 (multiplier={rerank_multiplier})...")
+
+                # 计算 query-doc 相似度
+                similarity_scores = compute_query_doc_similarity(
+                    draft_model, full_input, selection_start, selection_start + doc_len,
+                    query_start, input_device
+                )
+
+                target_count = int(doc_len * rate)
+
+                # 先用 smart_query_selection 选择 rerank_multiplier 倍候选
+                # 这样保留了连通分量分析和边界扩展的优势
+                candidate_ratio = min(rate * rerank_multiplier, 1.0)
+                candidates_global = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=doc_len,
+                    target_ratio=candidate_ratio,
+                    system_len=selection_start,
+                    device=input_device,
+                    threshold_factor=draft_threshold_factor
+                )
+
+                # 转换为相对于 doc 的位置
+                candidates_local = [pos - selection_start for pos in candidates_global]
+
+                # 在候选中按相似度排序
+                candidate_sim = [(pos, similarity_scores[pos].item()) for pos in candidates_local]
+                candidate_sim.sort(key=lambda x: x[1], reverse=True)
+
+                # 选择相似度最高的 target_count 个
+                selected_local = [pos for pos, _ in candidate_sim[:target_count]]
+                selected_indices = [pos + selection_start for pos in sorted(selected_local)]
+
+                print(f"  相似度重排序完成: {len(candidates_global)} 候选 -> {len(selected_indices)} 最终选择")
+            else:
+                # 原始方法 (使用可配置的 threshold_factor)
+                selected_indices = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=doc_len,
+                    target_ratio=rate,
+                    system_len=selection_start,  # 使用 selection_start 作为偏移量
+                    device=input_device,
+                    threshold_factor=draft_threshold_factor
+                )
+            k_need_index = torch.tensor(selected_indices, device='cpu')
+
+            print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens (从文本块2-n中选{len(k_need_index)/doc_len*100:.1f}%), 文本块1({text_block1_len}tokens)用prefix cache, threshold={draft_threshold_factor}")
+            print(f'select_time: {time.time() - select_time:.3f}s')
+
+        elif reprocess_method == 'DynamicDraftModel':
+            # DynamicDraftModel: 基于 3B 模型 attention 分布特征的动态重算比例
+            #
+            # 核心发现（来自 Type A vs Type B 分析，effect size > 0.4）：
+            # - Type B（需要高rate）: attention 更分散，peak 更低，concentration 更低
+            # - Type A（不需要高rate）: attention 更集中，peak 更高
+            #
+            # 正确策略：
+            # - 当 attention 分散（peak 低，concentration 低，entropy 高）→ 需要高 rate
+            # - 当 attention 集中 → 可以用低 rate
+            #
+            # 关键指标（按 effect size 排序）：
+            # 1. top10_concentration: Type A=0.1448, Type B=0.1284 (effect=0.615)
+            # 2. coverage_50: Type A=0.0659, Type B=0.0760 (effect=0.590)
+            # 3. peak_strength: Type A=0.0044, Type B=0.0038 (effect=0.526)
+
+            select_time = time.time()
+
+            # query_start 用于 compute_draft_model_attention
+            query_start = sum(passages_len[:-1])
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
+            text_block1_len = passages_len[1]
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
+            doc_len = sum(passages_len[2:-1])
+            selection_start = system_len + text_block1_len
+
+            # 如果没有传入 draft_attention，需要用 draft_model 计算
+            if draft_attention is None:
+                if draft_model is None:
+                    raise ValueError("Either draft_model or draft_attention must be provided for DynamicDraftModel method")
+                full_input = torch.cat(passages).unsqueeze(0).to(input_device)
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, input_device)
+                torch.cuda.empty_cache()
+
+            # 收集各层的 query→doc attention
+            layer_attention_dict = {}
+            all_layer_attentions = []
+
+            for layer_idx, layer_attn in draft_attention.items():
+                query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+                doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+                layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
+                all_layer_attentions.append(doc_attention_avg)
+
+            # 基于熵选层
+            if draft_layer_selection == 'entropy':
+                active_layers, layer_entropy = entropy_layer_selection(
+                    layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+                )
+                print(f"  DynamicDraftModel 熵选层: 选择了 {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            elif draft_layer_selection == 'last':
+                last_layer_idx = max(layer_attention_dict.keys())
+                active_layers = [last_layer_idx]
+                print(f"  DynamicDraftModel 使用最后一层: Layer {last_layer_idx}")
+                multi_layer_attn = layer_attention_dict[last_layer_idx]
+            else:
+                # 默认使用熵选层
+                active_layers, _ = entropy_layer_selection(layer_attention_dict, top_k=entropy_top_k)
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+
+            # =========================================================================
+            # 计算 3B 模型的不确定性特征
+            # =========================================================================
+            aggregated_attn = multi_layer_attn.cpu()
+            uncertainty_features = {}
+
+            # Feature 1: Peak strength (attention 峰值强度)
+            # 低 peak = attention 分散 → 需要高 rate (Type B: 0.0038, Type A: 0.0044)
+            peak_strength = aggregated_attn.max().item()
+            uncertainty_features['peak_strength'] = peak_strength
+
+            # Feature 2: Top-10 concentration (前10个token占总attention的比例)
+            # 低 concentration = attention 分散 → 需要高 rate (Type B: 0.1284, Type A: 0.1448)
+            sorted_attn, _ = torch.sort(aggregated_attn, descending=True)
+            total = sorted_attn.sum()
+            top10_concentration = sorted_attn[:10].sum().item() / total.item() if total > 0 else 0
+            uncertainty_features['top10_concentration'] = top10_concentration
+
+            # Feature 3: Coverage 50% ratio (覆盖50% attention所需token比例)
+            # 高 coverage = attention 分散 → 需要高 rate (Type B: 0.0760, Type A: 0.0659)
+            cumsum = torch.cumsum(sorted_attn, dim=0)
+            coverage_50 = (cumsum >= 0.5 * total).nonzero(as_tuple=True)[0]
+            if len(coverage_50) > 0:
+                tokens_for_50 = coverage_50[0].item() + 1
+            else:
+                tokens_for_50 = len(aggregated_attn)
+            coverage_50_ratio = tokens_for_50 / len(aggregated_attn)
+            uncertainty_features['coverage_50_ratio'] = coverage_50_ratio
+
+            # Feature 4: Normalized entropy
+            # 高 entropy = attention 分散 → 需要高 rate (Type B: 0.8610, Type A: 0.8504)
+            p = aggregated_attn / (aggregated_attn.sum() + 1e-10)
+            p = torch.clamp(p, min=1e-10)
+            entropy = -(p * torch.log(p)).sum()
+            max_entropy = np.log(len(aggregated_attn))
+            normalized_entropy = (entropy / max_entropy).item()
+            uncertainty_features['normalized_entropy'] = normalized_entropy
+
+            # 保留 layer consistency 用于分析
+            top_k_per_layer = min(50, doc_len)
+            layer_top_tokens = []
+            for idx in active_layers:
+                top_indices = torch.topk(layer_attention_dict[idx], top_k_per_layer).indices
+                layer_top_tokens.append(set(top_indices.tolist()))
+
+            layer_consistency_scores = []
+            for i in range(len(layer_top_tokens) - 1):
+                intersection = len(layer_top_tokens[i] & layer_top_tokens[i+1])
+                union = len(layer_top_tokens[i] | layer_top_tokens[i+1])
+                if union > 0:
+                    layer_consistency_scores.append(intersection / union)
+
+            layer_consistency = np.mean(layer_consistency_scores) if layer_consistency_scores else 0.5
+            uncertainty_features['layer_consistency'] = layer_consistency
+
+            # =========================================================================
+            # 基于 attention 分散程度计算动态 rate
+            # =========================================================================
+            # 阈值（来自 Type A vs Type B 分析，取建议阈值）
+            # Type A (不需要高rate): peak=0.0044, top10=0.1448, coverage_50=0.0659, entropy=0.8504
+            # Type B (需要高rate):   peak=0.0038, top10=0.1284, coverage_50=0.0760, entropy=0.8610
+
+            peak_threshold = 0.0041  # 低于此值 → 需要高 rate
+            top10_threshold = 0.1366  # 低于此值 → 需要高 rate
+            coverage_50_threshold = 0.0710  # 高于此值 → 需要高 rate
+            entropy_threshold = 0.8557  # 高于此值 → 需要高 rate
+
+            # 计算 dispersion score (0-1)
+            # 越高表示 attention 越分散，需要越高的 rate
+            dispersion = 0.0
+            reasons = []
+
+            # Peak strength contribution (低 peak = 分散)
+            # effect size: 0.526, weight: 0.30
+            if peak_strength < peak_threshold:
+                peak_factor = min((peak_threshold - peak_strength) / 0.001, 1.0)
+                dispersion += 0.30 * peak_factor
+                reasons.append(f"low_peak({peak_strength:.4f})")
+
+            # Top-10 concentration contribution (低 concentration = 分散)
+            # effect size: 0.615 (最高), weight: 0.35
+            if top10_concentration < top10_threshold:
+                conc_factor = min((top10_threshold - top10_concentration) / 0.02, 1.0)
+                dispersion += 0.35 * conc_factor
+                reasons.append(f"low_top10({top10_concentration:.4f})")
+
+            # Coverage 50% contribution (高 coverage = 分散)
+            # effect size: 0.590, weight: 0.25
+            if coverage_50_ratio > coverage_50_threshold:
+                cov_factor = min((coverage_50_ratio - coverage_50_threshold) / 0.02, 1.0)
+                dispersion += 0.25 * cov_factor
+                reasons.append(f"high_cov50({coverage_50_ratio:.4f})")
+
+            # Normalized entropy contribution (高 entropy = 分散)
+            # effect size: 0.470, weight: 0.10
+            if normalized_entropy > entropy_threshold:
+                ent_factor = min((normalized_entropy - entropy_threshold) / 0.02, 1.0)
+                dispersion += 0.10 * ent_factor
+                reasons.append(f"high_entropy({normalized_entropy:.4f})")
+
+            # Map dispersion to rate
+            # rate 作为 base_rate，min_rate 和 max_rate 作为范围
+            base_rate = rate
+            dynamic_rate = base_rate + dispersion * (max_rate - base_rate)
+            dynamic_rate = max(min_rate, min(max_rate, dynamic_rate))
+
+            reason_str = ", ".join(reasons) if reasons else "concentrated"
+
+            print(f"\n  DynamicDraftModel Attention Dispersion Features:")
+            print(f"    peak_strength: {peak_strength:.5f} (threshold: <{peak_threshold})")
+            print(f"    top10_concentration: {top10_concentration:.4f} (threshold: <{top10_threshold})")
+            print(f"    coverage_50_ratio: {coverage_50_ratio:.4f} (threshold: >{coverage_50_threshold})")
+            print(f"    normalized_entropy: {normalized_entropy:.4f} (threshold: >{entropy_threshold})")
+            print(f"    dispersion_score: {dispersion:.3f}")
+            print(f"  Dynamic rate: {dynamic_rate:.3f} ({reason_str})")
+            print(f"  Rate range: base={base_rate}, min={min_rate}, max={max_rate}")
+
+            # 使用动态计算的 rate 进行 token 选择
             selected_indices = smart_query_selection(
                 attention_scores=multi_layer_attn,
                 doc_len=doc_len,
-                target_ratio=rate,
-                system_len=selection_start,  # 使用 selection_start 作为偏移量
-                device=input_device
+                target_ratio=dynamic_rate,
+                system_len=selection_start,
+                device=input_device,
+                threshold_factor=draft_threshold_factor
             )
             k_need_index = torch.tensor(selected_indices, device='cpu')
 
-            print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
+            # 保存动态 rate 信息
+            extra_info['dynamic_rate'] = dynamic_rate
+            extra_info['dispersion_score'] = dispersion
+            extra_info['peak_strength'] = peak_strength
+            extra_info['top10_concentration'] = top10_concentration
+            extra_info['coverage_50_ratio'] = coverage_50_ratio
+            extra_info['normalized_entropy'] = normalized_entropy
+            extra_info['layer_consistency'] = layer_consistency
+            extra_info['doc_len'] = doc_len
+            extra_info['total_budget'] = len(k_need_index)
+
+            print(f"DynamicDraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
             print(f'select_time: {time.time() - select_time:.3f}s')
 
         elif reprocess_method == 'DraftModelDynamic':
@@ -1297,7 +1653,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
             doc_len = sum(passages_len[2:-1])
             selection_start = system_len + text_block1_len
 
@@ -1332,6 +1690,34 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 active_layers = [last_layer_idx]
                 print(f"  DraftModelDynamic 使用最后一层: Layer {last_layer_idx}")
                 multi_layer_attn = layer_attention_dict[last_layer_idx]
+            elif draft_layer_selection == 'middle':
+                # 使用中间层 (40%-60% 位置的层)
+                available_layers = sorted(layer_attention_dict.keys())
+                num_layers = draft_model.config.num_hidden_layers if draft_model is not None else max(available_layers) + 1
+                mid_start = int(0.4 * num_layers)
+                mid_end = int(0.6 * num_layers)
+                middle_layers = [l for l in range(mid_start, mid_end + 1) if l in available_layers]
+                if len(middle_layers) >= entropy_top_k:
+                    active_layers = middle_layers[:entropy_top_k]
+                elif len(middle_layers) > 0:
+                    active_layers = middle_layers
+                else:
+                    mid_point = num_layers // 2
+                    active_layers = sorted(available_layers, key=lambda x: abs(x - mid_point))[:entropy_top_k]
+                print(f"  DraftModelDynamic 使用中间层: {active_layers}")
+                layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+                multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)
+            elif draft_layer_selection == 'fixed':
+                if draft_fixed_layer in layer_attention_dict:
+                    active_layers = [draft_fixed_layer]
+                    print(f"  DraftModelDynamic 使用固定层: Layer {draft_fixed_layer}")
+                    multi_layer_attn = layer_attention_dict[draft_fixed_layer]
+                else:
+                    available_layers = sorted(layer_attention_dict.keys())
+                    closest_layer = min(available_layers, key=lambda x: abs(x - draft_fixed_layer))
+                    active_layers = [closest_layer]
+                    print(f"  DraftModelDynamic 固定层 {draft_fixed_layer} 不可用, 使用最接近的层: Layer {closest_layer}")
+                    multi_layer_attn = layer_attention_dict[closest_layer]
             else:
                 raise ValueError(f"Unknown draft_layer_selection: {draft_layer_selection}")
 
@@ -1448,7 +1834,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             initial_rate = rate  # rate 参数作为 initial_rate
 
             query_start = sum(passages_len[:-1])
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
             doc_len = sum(passages_len[2:-1])
             selection_start = system_len + text_block1_len
 
@@ -1558,11 +1946,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
-            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
-            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
-            doc_len = sum(passages_len[2:-1])
-            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
+            doc_len = sum(passages_len[1:-1])
+            selection_start = system_len
 
             # 使用主模型计算 attention（复用 compute_draft_model_attention 函数）
             print(f"\n{'='*60}")
@@ -1627,11 +2015,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
-            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
-            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
             doc_len = sum(passages_len[2:-1])
-            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+            selection_start = system_len + text_block1_len
 
             # 使用主模型计算 attention
             print(f"\n{'='*60}")
@@ -1733,11 +2121,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
-            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
-            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
             doc_len = sum(passages_len[2:-1])
-            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+            selection_start = system_len + text_block1_len
 
             # 计算总的需要选择的 token 数量
             total_budget = int(rate * doc_len)
@@ -1837,11 +2225,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # query_start 用于 compute_draft_model_attention
             query_start = sum(passages_len[:-1])
-            # 注意: 文本块1 (passages_len[1]) 也被 prefix cache 命中，不需要选择
-            # 只从 文本块2 开始选择，即 passages_len[2:-1]
+            # 文本块1 长度 (用于 prefix cache，不参与重算)
             text_block1_len = passages_len[1]
+            # 从文本块2开始选择 (文本块1直接用原始KV cache)
             doc_len = sum(passages_len[2:-1])
-            selection_start = system_len + text_block1_len  # 选择区域的起始位置
+            selection_start = system_len + text_block1_len
 
             print(f"\n{'='*60}")
             print("OracleDynamic: Adaptive Budget Computation")

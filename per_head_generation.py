@@ -2079,6 +2079,62 @@ def compute_draft_model_attention(
     return layer_attention_scores
 
 
+def compute_query_doc_similarity(
+    draft_model,
+    input_ids,
+    doc_start,
+    doc_end,
+    query_start,
+    device="cuda:0"
+):
+    """
+    计算 query tokens 和 document tokens 的语义相似度
+
+    使用 draft model 中间层的 hidden states 来计算
+
+    Args:
+        draft_model: draft model
+        input_ids: 输入 token ids [1, seq_len]
+        doc_start: 文档起始位置
+        doc_end: 文档结束位置
+        query_start: query 起始位置
+        device: 计算设备
+
+    Returns:
+        similarity: (doc_len,) query-doc 相似度分数
+    """
+    draft_model.eval()
+
+    with torch.no_grad():
+        # 获取 hidden states
+        outputs = draft_model(
+            input_ids=input_ids.to(device),
+            output_hidden_states=True,
+            use_cache=False
+        )
+
+        # 使用中间层的 hidden states (比最后一层更通用)
+        num_layers = len(outputs.hidden_states)
+        mid_layer = num_layers // 2
+        hidden_states = outputs.hidden_states[mid_layer][0]  # (seq_len, hidden_dim)
+
+        # Query tokens embedding (平均)
+        query_emb = hidden_states[query_start:].mean(dim=0)  # (hidden_dim,)
+
+        # Document tokens embedding
+        doc_emb = hidden_states[doc_start:doc_end]  # (doc_len, hidden_dim)
+
+        # 计算余弦相似度
+        query_emb = F.normalize(query_emb.unsqueeze(0), dim=-1)  # (1, hidden_dim)
+        doc_emb = F.normalize(doc_emb, dim=-1)  # (doc_len, hidden_dim)
+        similarity = torch.mm(doc_emb, query_emb.T).squeeze()  # (doc_len,)
+
+        # 转换为正值 [0, 1]
+        similarity = (similarity + 1) / 2
+
+    return similarity.cpu().numpy()
+
+
 def select_tokens_from_draft_attention(
     draft_attention_scores,
     system_len,
@@ -2086,7 +2142,10 @@ def select_tokens_from_draft_attention(
     query_len,
     target_ratio,
     draft_num_layers,
-    target_num_layers
+    target_num_layers,
+    similarity_scores=None,
+    use_similarity_rerank=False,
+    rerank_multiplier=2.0
 ):
     """
     根据 draft model 的 attention 分布选择重要 tokens
@@ -2101,6 +2160,9 @@ def select_tokens_from_draft_attention(
         target_ratio: 目标选择比例
         draft_num_layers: draft model 层数
         target_num_layers: target model 层数
+        similarity_scores: (可选) query-doc 相似度分数 (doc_len,)
+        use_similarity_rerank: 是否使用相似度重排序
+        rerank_multiplier: 重排序时先选择多少倍候选
 
     Returns:
         selected_positions: 选中的文档位置列表 (相对于文档起始的位置)
@@ -2218,6 +2280,26 @@ def select_tokens_from_draft_attention(
     while len(selected) > target_count:
         min_pos = min(selected, key=lambda p: multi_layer_attn[p])
         selected.remove(min_pos)
+
+    # =========================================================================
+    # Step 8: 相似度重排序 (可选)
+    # =========================================================================
+    if use_similarity_rerank and similarity_scores is not None:
+        print(f"\n  Using similarity reranking (multiplier={rerank_multiplier})...")
+
+        # 先用 attention 选择 rerank_multiplier 倍候选
+        candidate_count = min(int(target_count * rerank_multiplier), doc_len)
+        sorted_by_attn = np.argsort(multi_layer_attn)[::-1]
+        candidates = sorted_by_attn[:candidate_count]
+
+        # 在候选中按相似度排序
+        candidate_sim = [(pos, similarity_scores[pos]) for pos in candidates]
+        candidate_sim.sort(key=lambda x: x[1], reverse=True)
+
+        # 选择相似度最高的 target_count 个
+        selected = set([pos for pos, _ in candidate_sim[:target_count]])
+
+        print(f"  After similarity rerank: {len(selected)} positions")
 
     selected_list = sorted(list(selected))
 

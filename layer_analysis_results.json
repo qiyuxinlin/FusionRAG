@@ -1,0 +1,471 @@
+{
+  "case": {
+    "main_question": "When was the sibling of Alice de Lusignan, Countess of Surrey crowned?",
+    "sub_question": "Who were the siblings of Alice de Lusignan, Countess of Surrey?",
+    "ground_truth": "Alice de Lusignan had a uterine half-brother, King Henry III of England.",
+    "predicted_7b": " King Henry III of England",
+    "predicted_3b": " John of England and Joan de Geneville, 2nd Baroness of March",
+    "f1_7b": 0.4799999999999999,
+    "f1_3b": 0.2777777777777777
+  },
+  "doc_len": 1165,
+  "rate": 0.2,
+  "layer_coverages": {
+    "0": {
+      "coverage": 0.2276923076923077,
+      "covered": 74,
+      "answer_positions": 325
+    },
+    "1": {
+      "coverage": 0.18461538461538463,
+      "covered": 60,
+      "answer_positions": 325
+    },
+    "2": {
+      "coverage": 0.24307692307692308,
+      "covered": 79,
+      "answer_positions": 325
+    },
+    "3": {
+      "coverage": 0.3353846153846154,
+      "covered": 109,
+      "answer_positions": 325
+    },
+    "4": {
+      "coverage": 0.19692307692307692,
+      "covered": 64,
+      "answer_positions": 325
+    },
+    "5": {
+      "coverage": 0.19076923076923077,
+      "covered": 62,
+      "answer_positions": 325
+    },
+    "6": {
+      "coverage": 0.1723076923076923,
+      "covered": 56,
+      "answer_positions": 325
+    },
+    "7": {
+      "coverage": 0.2,
+      "covered": 65,
+      "answer_positions": 325
+    },
+    "8": {
+      "coverage": 0.24,
+      "covered": 78,
+      "answer_positions": 325
+    },
+    "9": {
+      "coverage": 0.22153846153846155,
+      "covered": 72,
+      "answer_positions": 325
+    },
+    "10": {
+      "coverage": 0.20307692307692307,
+      "covered": 66,
+      "answer_positions": 325
+    },
+    "11": {
+      "coverage": 0.18461538461538463,
+      "covered": 60,
+      "answer_positions": 325
+    },
+    "12": {
+      "coverage": 0.20307692307692307,
+      "covered": 66,
+      "answer_positions": 325
+    },
+    "13": {
+      "coverage": 0.20923076923076922,
+      "covered": 68,
+      "answer_positions": 325
+    },
+    "14": {
+      "coverage": 0.20307692307692307,
+      "covered": 66,
+      "answer_positions": 325
+    },
+    "15": {
+      "coverage": 0.20923076923076922,
+      "covered": 68,
+      "answer_positions": 325
+    },
+    "16": {
+      "coverage": 0.20923076923076922,
+      "covered": 68,
+      "answer_positions": 325
+    },
+    "17": {
+      "coverage": 0.22153846153846155,
+      "covered": 72,
+      "answer_positions": 325
+    },
+    "18": {
+      "coverage": 0.2276923076923077,
+      "covered": 74,
+      "answer_positions": 325
+    },
+    "19": {
+      "coverage": 0.20923076923076922,
+      "covered": 68,
+      "answer_positions": 325
+    },
+    "20": {
+      "coverage": 0.2246153846153846,
+      "covered": 73,
+      "answer_positions": 325
+    },
+    "21": {
+      "coverage": 0.22153846153846155,
+      "covered": 72,
+      "answer_positions": 325
+    },
+    "22": {
+      "coverage": 0.23692307692307693,
+      "covered": 77,
+      "answer_positions": 325
+    },
+    "23": {
+      "coverage": 0.20615384615384616,
+      "covered": 67,
+      "answer_positions": 325
+    },
+    "24": {
+      "coverage": 0.23692307692307693,
+      "covered": 77,
+      "answer_positions": 325
+    },
+    "25": {
+      "coverage": 0.23076923076923078,
+      "covered": 75,
+      "answer_positions": 325
+    },
+    "26": {
+      "coverage": 0.23076923076923078,
+      "covered": 75,
+      "answer_positions": 325
+    },
+    "27": {
+      "coverage": 0.24,
+      "covered": 78,
+      "answer_positions": 325
+    },
+    "28": {
+      "coverage": 0.2,
+      "covered": 65,
+      "answer_positions": 325
+    },
+    "29": {
+      "coverage": 0.20615384615384616,
+      "covered": 67,
+      "answer_positions": 325
+    },
+    "30": {
+      "coverage": 0.23076923076923078,
+      "covered": 75,
+      "answer_positions": 325
+    },
+    "31": {
+      "coverage": 0.27692307692307694,
+      "covered": 90,
+      "answer_positions": 325
+    },
+    "32": {
+      "coverage": 0.2953846153846154,
+      "covered": 96,
+      "answer_positions": 325
+    },
+    "33": {
+      "coverage": 0.26461538461538464,
+      "covered": 86,
+      "answer_positions": 325
+    },
+    "34": {
+      "coverage": 0.20923076923076922,
+      "covered": 68,
+      "answer_positions": 325
+    },
+    "35": {
+      "coverage": 0.18461538461538463,
+      "covered": 60,
+      "answer_positions": 325
+    }
+  },
+  "layer_stats": {
+    "0": {
+      "entropy": 5.9609375,
+      "gini": 0.683597207069397,
+      "top_10_ratio": 0.58349609375,
+      "max_attn": 0.070556640625
+    },
+    "1": {
+      "entropy": 6.17578125,
+      "gini": 0.5551117658615112,
+      "top_10_ratio": 0.488525390625,
+      "max_attn": 0.09820556640625
+    },
+    "2": {
+      "entropy": 6.21875,
+      "gini": 0.523877739906311,
+      "top_10_ratio": 0.447509765625,
+      "max_attn": 0.1187744140625
+    },
+    "3": {
+      "entropy": 6.29296875,
+      "gini": 0.6002260446548462,
+      "top_10_ratio": 0.483154296875,
+      "max_attn": 0.038909912109375
+    },
+    "4": {
+      "entropy": 6.2265625,
+      "gini": 0.5732415914535522,
+      "top_10_ratio": 0.481689453125,
+      "max_attn": 0.07733154296875
+    },
+    "5": {
+      "entropy": 5.57421875,
+      "gini": 0.7627631425857544,
+      "top_10_ratio": 0.6904296875,
+      "max_attn": 0.034942626953125
+    },
+    "6": {
+      "entropy": 6.421875,
+      "gini": 0.551663875579834,
+      "top_10_ratio": 0.438232421875,
+      "max_attn": 0.024810791015625
+    },
+    "7": {
+      "entropy": 6.171875,
+      "gini": 0.6199561357498169,
+      "top_10_ratio": 0.525390625,
+      "max_attn": 0.034271240234375
+    },
+    "8": {
+      "entropy": 5.953125,
+      "gini": 0.6381224393844604,
+      "top_10_ratio": 0.546875,
+      "max_attn": 0.08551025390625
+    },
+    "9": {
+      "entropy": 5.875,
+      "gini": 0.671235203742981,
+      "top_10_ratio": 0.568359375,
+      "max_attn": 0.08953857421875
+    },
+    "10": {
+      "entropy": 6.14453125,
+      "gini": 0.6340228319168091,
+      "top_10_ratio": 0.52294921875,
+      "max_attn": 0.060272216796875
+    },
+    "11": {
+      "entropy": 6.21875,
+      "gini": 0.6185002326965332,
+      "top_10_ratio": 0.50732421875,
+      "max_attn": 0.042236328125
+    },
+    "12": {
+      "entropy": 6.38671875,
+      "gini": 0.5874965190887451,
+      "top_10_ratio": 0.453857421875,
+      "max_attn": 0.0185394287109375
+    },
+    "13": {
+      "entropy": 6.12109375,
+      "gini": 0.6538630723953247,
+      "top_10_ratio": 0.5361328125,
+      "max_attn": 0.05401611328125
+    },
+    "14": {
+      "entropy": 5.99609375,
+      "gini": 0.6459619998931885,
+      "top_10_ratio": 0.52392578125,
+      "max_attn": 0.11083984375
+    },
+    "15": {
+      "entropy": 5.4609375,
+      "gini": 0.7918035984039307,
+      "top_10_ratio": 0.7109375,
+      "max_attn": 0.076904296875
+    },
+    "16": {
+      "entropy": 5.68359375,
+      "gini": 0.7537205219268799,
+      "top_10_ratio": 0.65380859375,
+      "max_attn": 0.05755615234375
+    },
+    "17": {
+      "entropy": 5.46875,
+      "gini": 0.7890620231628418,
+      "top_10_ratio": 0.71728515625,
+      "max_attn": 0.060333251953125
+    },
+    "18": {
+      "entropy": 4.921875,
+      "gini": 0.8382700681686401,
+      "top_10_ratio": 0.77099609375,
+      "max_attn": 0.12225341796875
+    },
+    "19": {
+      "entropy": 5.33203125,
+      "gini": 0.8324427604675293,
+      "top_10_ratio": 0.76025390625,
+      "max_attn": 0.03558349609375
+    },
+    "20": {
+      "entropy": 5.1484375,
+      "gini": 0.8493156433105469,
+      "top_10_ratio": 0.7958984375,
+      "max_attn": 0.043212890625
+    },
+    "21": {
+      "entropy": 5.23046875,
+      "gini": 0.8506704568862915,
+      "top_10_ratio": 0.7724609375,
+      "max_attn": 0.061767578125
+    },
+    "22": {
+      "entropy": 5.8046875,
+      "gini": 0.7501510381698608,
+      "top_10_ratio": 0.642578125,
+      "max_attn": 0.0303802490234375
+    },
+    "23": {
+      "entropy": 5.09765625,
+      "gini": 0.8570605516433716,
+      "top_10_ratio": 0.7861328125,
+      "max_attn": 0.049774169921875
+    },
+    "24": {
+      "entropy": 4.890625,
+      "gini": 0.8757860660552979,
+      "top_10_ratio": 0.8232421875,
+      "max_attn": 0.06658935546875
+    },
+    "25": {
+      "entropy": 4.94140625,
+      "gini": 0.8579537868499756,
+      "top_10_ratio": 0.7919921875,
+      "max_attn": 0.09210205078125
+    },
+    "26": {
+      "entropy": 5.33984375,
+      "gini": 0.8121395111083984,
+      "top_10_ratio": 0.71728515625,
+      "max_attn": 0.098388671875
+    },
+    "27": {
+      "entropy": 5.27734375,
+      "gini": 0.8399089574813843,
+      "top_10_ratio": 0.771484375,
+      "max_attn": 0.04400634765625
+    },
+    "28": {
+      "entropy": 5.6875,
+      "gini": 0.7803875207901001,
+      "top_10_ratio": 0.67919921875,
+      "max_attn": 0.039459228515625
+    },
+    "29": {
+      "entropy": 5.48046875,
+      "gini": 0.7976541519165039,
+      "top_10_ratio": 0.71044921875,
+      "max_attn": 0.039154052734375
+    },
+    "30": {
+      "entropy": 5.8671875,
+      "gini": 0.703231692314148,
+      "top_10_ratio": 0.599609375,
+      "max_attn": 0.0384521484375
+    },
+    "31": {
+      "entropy": 5.8515625,
+      "gini": 0.7177789211273193,
+      "top_10_ratio": 0.60693359375,
+      "max_attn": 0.032379150390625
+    },
+    "32": {
+      "entropy": 5.51171875,
+      "gini": 0.796444296836853,
+      "top_10_ratio": 0.705078125,
+      "max_attn": 0.043792724609375
+    },
+    "33": {
+      "entropy": 5.76171875,
+      "gini": 0.7694666385650635,
+      "top_10_ratio": 0.6552734375,
+      "max_attn": 0.034393310546875
+    },
+    "34": {
+      "entropy": 6.3828125,
+      "gini": 0.5745972394943237,
+      "top_10_ratio": 0.450927734375,
+      "max_attn": 0.03253173828125
+    },
+    "35": {
+      "entropy": 6.50390625,
+      "gini": 0.5356894731521606,
+      "top_10_ratio": 0.415283203125,
+      "max_attn": 0.032806396484375
+    }
+  },
+  "best_layers": [
+    {
+      "layer": 3,
+      "coverage": 0.3353846153846154,
+      "stats": {
+        "entropy": 6.29296875,
+        "gini": 0.6002260446548462,
+        "top_10_ratio": 0.483154296875,
+        "max_attn": 0.038909912109375
+      }
+    },
+    {
+      "layer": 32,
+      "coverage": 0.2953846153846154,
+      "stats": {
+        "entropy": 5.51171875,
+        "gini": 0.796444296836853,
+        "top_10_ratio": 0.705078125,
+        "max_attn": 0.043792724609375
+      }
+    },
+    {
+      "layer": 31,
+      "coverage": 0.27692307692307694,
+      "stats": {
+        "entropy": 5.8515625,
+        "gini": 0.7177789211273193,
+        "top_10_ratio": 0.60693359375,
+        "max_attn": 0.032379150390625
+      }
+    },
+    {
+      "layer": 33,
+      "coverage": 0.26461538461538464,
+      "stats": {
+        "entropy": 5.76171875,
+        "gini": 0.7694666385650635,
+        "top_10_ratio": 0.6552734375,
+        "max_attn": 0.034393310546875
+      }
+    },
+    {
+      "layer": 2,
+      "coverage": 0.24307692307692308,
+      "stats": {
+        "entropy": 6.21875,
+        "gini": 0.523877739906311,
+        "top_10_ratio": 0.447509765625,
+        "max_attn": 0.1187744140625
+      }
+    }
+  ],
+  "entropy_selected_layers": [
+    24,
+    18,
+    25,
+    23
+  ]
+}
