@@ -193,6 +193,7 @@ def run_test_process(
         preprocess=True,
         test_last_wrong=False,
         test_last_keep=False,
+        category=2
 ):
     last_questions = []
     try:
@@ -221,11 +222,11 @@ def run_test_process(
         draft_model_path = ""
 
     if dataset == "musique":
-        file_input = "/home/qy_tmp/xumengyao/all_data/musique_input.json"
+        file_input = "/home/qy_tmp/xumengyao/work/DATASET/musique_data/musique_input.json"
     elif dataset == "locomo":
         file_input = "/home/qy_tmp/xumengyao/work/DATASET/locomo/locomo_input.json"
-    else:
-        file_input = ""
+    elif dataset == "2wiki":
+        file_input = "/home/qy_tmp/xumengyao/work/DATASET/2wikiQA/2wiki_input.json"
 
     fusion_rag_model = FusionRAGModel(
         model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
@@ -233,7 +234,7 @@ def run_test_process(
         model_type="qwen3",
         model_name="Qwen3-32B",
         device=main_device,
-        cache_path='/data2/qy_tmp/xumengyao/fusionrag/',
+        cache_path='/data1/qy_tmp/xumengyao/fusionrag/',
         draft_model_device=draft_device,
         draft_model_path=draft_model_path,
         draft_model_type="qwen",
@@ -243,6 +244,7 @@ def run_test_process(
         preprocess_method=preprocess_method,
         max_memory=max_memory,
         use_origin_draft_model=reprocess_method=="DraftModel_with_answer",
+        apikey="sk-27b5e2809a7148aaba768b6ea0de76b5"
     )
 
 
@@ -257,11 +259,18 @@ def run_test_process(
             start_idx=start_idx,
             end_idx=end_idx
         )
+    elif dataset == "2wiki":
+        all_questions = prepare_reflect_data(
+            data_path=f"./data/2wiki/result_reflect.json",
+            max_main_questions=total_run,
+            start_idx=start_idx,
+            end_idx=end_idx
+        )
 
         print(f"Process {process_id}: Processing {len(all_questions)} questions (main questions {start_idx} to {end_idx})")
     elif dataset == "locomo":
         all_questions = prepare_reflect_data(
-            data_path=f"./data/locomo/result_locomo_category_2_no_detail.json",
+            data_path=f"./data/locomo/result_locomo_category_{category}_no_detail.json",
             max_main_questions=total_run,
             start_idx=start_idx,
             end_idx=end_idx
@@ -313,9 +322,9 @@ def run_test_process(
         }
         """
 
-        system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
-            query=f'Given these documents, generate an appropriate answer for the query. Output a concise reason first, and then the answer. '
-                  f'{prefix} question is {question["query"]}. {format_postfix}',
+        system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
+            query=f'Given these documents, generate an appropriate answer for the query.'
+                  f'{prefix} question is {question["query"]}',
             retrieved_docs=gold_docs,
             model_type='qwen3',
             rate=rate,
@@ -332,6 +341,7 @@ def run_test_process(
             answer = response_json["answer"]
         except:
             reason = ""
+        print(f"answer={answer}")
 
         is_correct, judge_reason = judge_answer_with_openai(
             openai_client=openai_client,
@@ -345,6 +355,7 @@ def run_test_process(
 
         question_copy = copy.deepcopy(question)
         question_copy["llm_answer"] = answer
+        question_copy["eigenvalue"] = eigenvalue
         question_copy["llm_reason"] = reason
         question_copy["llm_judge"] = is_correct
         question_copy["llm_judge_reason"] = judge_reason
@@ -352,7 +363,7 @@ def run_test_process(
         question_copy["gpu_ids"] = gpu_ids
         question_copy["timestamp"] = time.time()
 
-        print(f"Process {process_id} - Judgment: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} ")
+        print(f"Process {process_id} - Judgment: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} eigenvalue={eigenvalue}")
         print(f"Process {process_id} - Question: {question['query']}")
         print(f"Process {process_id} - Reason: {reason}")
         print(f"Process {process_id} - Answer: {question['answer']}")
@@ -457,7 +468,8 @@ def test_question_multiprocess(total_run=-1,
                                test_last_keep=False,
                                preprocess=True,
                                gpu_configs=None,
-                               max_memories=None):
+                               max_memories=None,
+                               category=2):
     """多进程测试主函数（改进版：支持动态GPU分配）
 
     Args:
@@ -524,7 +536,7 @@ def test_question_multiprocess(total_run=-1,
 
     # 计算每个进程处理的数据范围
     if total_run < 0:
-        total_run = get_data_length(dataset=dataset)
+        total_run = get_data_length(dataset=dataset, category=category)
     print(f"总运行问题={total_run}")
 
 
@@ -542,9 +554,12 @@ def test_question_multiprocess(total_run=-1,
     print(f"数据划分: {data_ranges}")
 
 
+    dataset_postfix = ""
+    if dataset == "locomo":
+        dataset_postfix = f"category_{category}"
     # 创建共享结果文件路径
-    keyword_base = f"dataset_{dataset}_model_Qwen3-32B_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{preprocess_method}"
-    keyword_base_last_time = f"dataset_{dataset}_model_Qwen3-32B_rate_{last_rate}_reprocess_method_{last_reprocess_method}_preprocess_{last_preprocess_method}"
+    keyword_base = f"dataset_{dataset}_{dataset_postfix}_model_Qwen3-32B_rate_{rate}_reprocess_method_{reprocess_method}_preprocess_{preprocess}_{preprocess_method}"
+    keyword_base_last_time = f"dataset_{dataset}_{dataset_postfix}_model_Qwen3-32B_rate_{last_rate}_reprocess_method_{last_reprocess_method}_preprocess_{preprocess}_{last_preprocess_method}"
     if test_last_wrong:
         keyword_base = f"{keyword_base}_last_wrong"
         last_time_result_file = f"./results/summary_{keyword_base_last_time}_interim.json"
@@ -583,6 +598,7 @@ def test_question_multiprocess(total_run=-1,
                 preprocess,
                 test_last_wrong,
                 test_last_keep,
+                category
             )
         )
         processes.append(p)
@@ -611,33 +627,76 @@ def test_question_multiprocess(total_run=-1,
 if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
     questions_to_run = [
-        " When did Caroline draw a self-portrait?"
+        " When did Melanie sign up for a pottery class?"
     ]
-    # questions_to_run = []
+    questions_to_run = []
     # 运行多进程测试
-    all_results = test_question_multiprocess(
-        total_run=400, ## -1 means run all
-        rate=0.1, ## change this
-        reprocess_method="DraftModel_with_answer", ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
-        preprocess_method="default", ## change this  1. space 2. default
+    max_memories = [{0: "0GiB", 1: "35GiB", 2: "35GiB"}]
+    total_run = 200
+    gpu_configs = [([3,6,7], 0)] # [([0,1,2], 0)] [([3,4,5], 0)] [([3,6,7], 0)]
+    rate = 0.3
+    for category in [1,2,3]:
+        all_results = test_question_multiprocess(
+            total_run=total_run, ## -1 means run all
+            rate=rate, ## change this
+            reprocess_method="DraftModel", ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+            preprocess_method="default", ## change this  1. space 2. default
+            questions_to_run=questions_to_run,
+            sep=1, ## 1/2/3/4
+            dataset= "locomo", ## 1. locomo 2. musique
+            preprocess=True,  ## if locomo then false, otherwise True
+            test_last_keep=True,  ## set=True if keep running
+            gpu_configs = gpu_configs, ## personalize if need
+            category=category,
+            max_memories=max_memories,
+        )
+
+    test_question_multiprocess(
+        total_run=total_run,  ## -1 means run all
+        rate=rate,  ## change this
+        reprocess_method="DraftModel",
+        ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+        preprocess_method="default",  ## change this  1. space 2. default
         questions_to_run=questions_to_run,
-        sep=1, ## 1/2/3/4
-        dataset= "locomo", ## 1. locomo 2. musique
-        preprocess=False, ## if locomo then false, otherwise True
-        test_last_keep=False, ## set=True if keep running
-        gpu_configs = [([1,2,4,6], 0)], ## personalize if need
-
-
-        max_memories = [
-            {0: "0GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB"}
-            # {0: "0GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB"},
-        ]
-
-        # test_last_wrong=True, ##change this
-        # last_rate=0.2,  ## change this to the lasttime running
-        # last_reprocess_method="average",  ## change this  1. DraftModel 2. DraftModel_ppr 3. average
-        # last_preprocess_method="default",  ## change this  1. space 2. default
+        sep=1,  ## 1/2/3/4
+        dataset="2wiki",  ## 1. locomo 2. musique
+        preprocess=True,  ## if locomo then false, otherwise True
+        test_last_keep=True,  ## set=True if keep running
+        gpu_configs=gpu_configs,  ## personalize if need
+        max_memories=max_memories,
+    )
+    test_question_multiprocess(
+        total_run=total_run,  ## -1 means run all
+        rate=rate,  ## change this
+        reprocess_method="DraftModel",
+        ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+        preprocess_method="default",  ## change this  1. space 2. default
+        questions_to_run=questions_to_run,
+        sep=1,  ## 1/2/3/4
+        dataset="musique",  ## 1. locomo 2. musique
+        preprocess=True,  ## if locomo then false, otherwise True
+        test_last_keep=True,  ## set=True if keep running
+        gpu_configs=gpu_configs,  ## personalize if need
+        max_memories=max_memories,
     )
 
 
+
+
+
+
+
+
+
     print("All tests completed!")
+
+# test_last_wrong=True, ##change this
+# last_rate=0.2,  ## change this to the lasttime running
+# last_reprocess_method="average",  ## change this  1. DraftModel 2. DraftModel_ppr 3. average
+# last_preprocess_method="default",  ## change this  1. space 2. default
+
+
+  # max_memories = [
+  #               {0: "20GiB", 1: "30GiB", 2: "30GiB"}
+  #               # {0: "0GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB"},
+  #           ]

@@ -1,4 +1,9 @@
 __pycache__
+data/
+results_0dot3/
+results_no_preprocess/
+results/
+script/
 build
 test_data/
 results/

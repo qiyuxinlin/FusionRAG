@@ -1,4 +1,10 @@
+import os
+from openai import OpenAI, AzureOpenAI
+import concurrent.futures
 import torch
+import numpy as np
+from typing import Dict, Union, Tuple, List
+from sklearn.metrics.pairwise import cosine_similarity
 
 LOQUACIOUS_TEXT = """
 # The Art of Effective Reading: A Comprehensive Guide to Extracting Information from English Articles
@@ -460,3 +466,380 @@ def highlight_tokens_reliable(k_need_index, passages, tokenizer):
             decoded_token = tokenizer.decode([full_passage[idx]], skip_special_tokens=True)
 
             print(f"位置 {idx}: token='{token_str}', decoded='{decoded_token}'")
+
+
+
+
+def topk_position_dispersion(
+        tensor: torch.Tensor,
+        top_percent: float = 0.1,
+        method: str = "simple",
+        visualize: bool = False
+) -> Dict[str, Union[float, str, np.ndarray]]:
+    """
+    计算top k%大值的位置分布散度
+
+    参数:
+        tensor: 一维张量
+        top_percent: 考虑前百分之几的大值 (0-1)
+        method: 计算方法 ("simple", "comprehensive", "all")
+        visualize: 是否可视化位置分布
+
+    返回:
+        包含散度指标和解释的字典
+    """
+    assert tensor.dim() == 1, "输入必须是一维张量"
+    assert 0 < top_percent <= 1, "top_percent必须在(0,1]范围内"
+
+    n = len(tensor)
+    k = max(1, int(n * top_percent))  # 至少取1个
+
+    # 1. 获取top k%大值的值和位置
+    if k == n:  # 如果取全部
+        top_values = tensor
+        top_indices = torch.arange(n)
+    else:
+        top_values, top_indices = torch.topk(tensor, k=k)
+
+    # 排序位置（重要！）
+    sorted_indices = torch.sort(top_indices).values
+
+    result = {}
+    result["n_total"] = n
+    result["k_top"] = k
+    result["top_percent"] = top_percent
+    result["top_indices"] = sorted_indices.cpu().numpy()
+
+    # 2. 如果只有一个位置，散度为0（最集中）
+    if k <= 1:
+        result["dispersion"] = 0.0
+        result["interpretation"] = "只有一个位置，完全集中"
+        return result
+
+    # 3. 计算位置间距
+    sorted_indices = sorted_indices.float()
+    gaps = sorted_indices[1:] - sorted_indices[:-1]
+    result["gaps"] = gaps.cpu().numpy()
+    result["gaps_mean"] = gaps.mean().item()
+    result["gaps_std"] = gaps.std().item()
+
+    # 4. 计算归一化位置（0到1之间）
+    normalized_indices = sorted_indices.float() / (n - 1)  # 归一化到[0,1]
+    result["normalized_indices"] = normalized_indices.cpu().numpy()
+
+    # 5. 方法1：基于间距的变异系数
+    def dispersion_v1(gaps_tensor):
+        """基于间距的变异系数"""
+        if gaps_tensor.mean() == 0:
+            return 0.0  # 所有间距为0（不可能，除非相邻位置相同）
+        cv = gaps_tensor.std() / gaps_tensor.mean()
+        # 散度与CV正相关，但用sigmoid压缩
+        dispersion = torch.sigmoid(cv - 1.0).item()  # CV=1时散度约0.5
+        return dispersion
+
+    # 6. 方法2：基于位置的基尼系数
+    def dispersion_v2(indices_tensor):
+        """基于位置值的基尼系数（位置越不均匀，散度越大）"""
+        # 将位置视为权重
+        sorted_positions = torch.sort(indices_tensor.float()).values
+        n_pos = len(sorted_positions)
+
+        if sorted_positions.sum() == 0:
+            return 0.0
+
+        # 基尼系数（位置的不平等性）
+        cumulative = torch.cumsum(sorted_positions, dim=0)
+        gini = 1 - 2 * torch.sum(cumulative) / (n_pos * sorted_positions.sum())
+
+        # 位置分布越不均匀（基尼系数越高），散度越大
+        return gini.item()
+
+    # 7. 方法3：基于归一化位置的标准差
+    def dispersion_v3(norm_indices):
+        """基于归一化位置的标准差"""
+        std = norm_indices.std()
+        # 理论最大标准差（当位置均匀分布在两端）
+        max_std = 0.5  # 当一半在0，一半在1时
+        dispersion = (std / max_std).item()
+        return min(dispersion, 1.0)
+
+    # 8. 方法4：覆盖范围比例
+    def dispersion_v4(indices_tensor, total_n):
+        """位置覆盖范围占总长度的比例"""
+        span = indices_tensor[-1] - indices_tensor[0]  # 最大-最小位置
+        if total_n <= 1:
+            return 0.0
+        coverage = span / (total_n - 1)
+        return min(coverage.item(), 1.0)
+
+    # 9. 方法5：间距的熵（信息论方法）
+    def dispersion_v5(gaps_tensor, eps=1e-12):
+        """基于间距分布的熵"""
+        # 归一化为概率分布
+        gaps_pos = gaps_tensor - gaps_tensor.min() + eps
+        prob = gaps_pos / gaps_pos.sum()
+
+        # 计算熵
+        entropy = -torch.sum(prob * torch.log(prob))
+
+        # 最大熵（均匀分布）
+        max_entropy = torch.log(torch.tensor(len(gaps_tensor), dtype=torch.float32))
+
+        # 归一化熵
+        norm_entropy = entropy / max_entropy
+
+        # 熵越高，间距分布越均匀，散度越大？不一定，需要结合
+        # 这里我们用熵来衡量间距的不确定性
+        return norm_entropy.item()
+
+    # 10. 方法6：聚类指标（位置是否成簇）
+    def dispersion_v6(indices_tensor, n_clusters=3):
+        """基于聚类假设的散度指标"""
+        # 计算位置密度：每单位长度的点数
+        span = indices_tensor[-1] - indices_tensor[0]
+        if span == 0:
+            return 0.0
+
+        density = len(indices_tensor) / span.item()
+
+        # 最大可能密度（连续位置）
+        max_density = 1.0  # 每个位置都有点
+
+        # 归一化密度
+        norm_density = min(density / max_density, 1.0)
+
+        # 密度越高，越集中，散度越小
+        dispersion = 1.0 - norm_density
+        return dispersion
+
+    # 计算各种散度指标
+    result["dispersion_cv"] = dispersion_v1(gaps)
+    result["dispersion_gini"] = dispersion_v2(sorted_indices)
+    result["dispersion_std"] = dispersion_v3(normalized_indices)
+    result["dispersion_coverage"] = dispersion_v4(sorted_indices, n)
+    result["dispersion_entropy"] = dispersion_v5(gaps)
+    result["dispersion_cluster"] = dispersion_v6(sorted_indices)
+
+    # 11. 综合散度指标（推荐）
+    # 给不同指标赋予不同权重
+    weights = {
+        "cv": 0.25,  # 间距变异系数
+        "coverage": 0.25,  # 覆盖范围
+        "gini": 0.20,  # 位置基尼系数
+        "cluster": 0.15,  # 聚类密度
+        "std": 0.10,  # 归一化标准差
+        "entropy": 0.05  # 间距熵
+    }
+
+    comprehensive_dispersion = (
+            weights["cv"] * result["dispersion_cv"] +
+            weights["coverage"] * result["dispersion_coverage"] +
+            weights["gini"] * result["dispersion_gini"] +
+            weights["cluster"] * result["dispersion_cluster"] +
+            weights["std"] * result["dispersion_std"] +
+            weights["entropy"] * result["dispersion_entropy"]
+    )
+
+    result["comprehensive_dispersion"] = comprehensive_dispersion
+
+    # 12. 解释散度值
+    def interpret_dispersion(score):
+        if score < 0.2:
+            return "位置高度集中（成簇）"
+        elif score < 0.4:
+            return "位置比较集中"
+        elif score < 0.6:
+            return "位置分布中等"
+        elif score < 0.8:
+            return "位置比较分散"
+        else:
+            return "位置高度分散"
+
+    result["interpretation"] = interpret_dispersion(comprehensive_dispersion)
+
+    # 14. 根据method参数返回不同格式的结果
+    if method == "simple":
+        return {
+            "dispersion": comprehensive_dispersion,
+            "interpretation": result["interpretation"],
+            "k_top": k,
+            "span": (sorted_indices[-1] - sorted_indices[0]).item()
+        }
+    elif method == "comprehensive":
+        return {
+            "comprehensive_dispersion": comprehensive_dispersion,
+            "interpretation": result["interpretation"],
+            "k_top": k,
+            "span": (sorted_indices[-1] - sorted_indices[0]).item(),
+            "components": {
+                "coverage": result["dispersion_coverage"],
+                "cv": result["dispersion_cv"],
+                "gini": result["dispersion_gini"],
+                "cluster": result["dispersion_cluster"]
+            }
+        }
+    else:  # "all"
+        return result
+
+
+class OnlineEncoder:
+    def __init__(self, llm_api_key:str):
+        self.embedding_model_name = os.getenv("LLM_EMBEDDING_MODEL", "text-embedding-v4")
+        llm_base_url = os.getenv("LLM_EMBEDDING_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        if llm_api_key == "":
+            print(f"mengyao_debug fail to find llm_api_key, abort.")
+            exit(1)
+
+        print(f"LLM_BASE_URL is {llm_base_url}")
+
+        self.client = OpenAI(
+            api_key=llm_api_key,
+            base_url=llm_base_url,
+        )
+
+    def get_sentence_embedding_dimension(self):
+        return 1024
+
+    def encode(self, text: Union[str, List[str]], batch_size=10, convert_to_tensor=False, device=None,
+               normalize_embeddings=False, query_type="", max_concurrent_requests=10):
+        """
+        对文本进行嵌入编码，支持单个字符串或字符串列表输入
+
+        Args:
+            text: 输入文本，可以是单个字符串或字符串列表
+            batch_size: 批处理大小
+            convert_to_tensor: 是否转换为张量
+            device: 设备信息
+            normalize_embeddings: 是否对返回的向量进行归一化
+            max_concurrent_requests: 最大并发请求数
+        """
+
+        prompt_prefixes = {
+            'passage': 'Given a question, retrieve relevant documents that best answer the question.',
+            'entity': 'Given a question, retrieve relevant phrases that are mentioned in this question.',
+            'edge': 'Given a question, retrieve relevant triplet facts that matches this question.',
+            'fill_in_edge': 'Given a triples with only head and relation, retrieve relevant triplet facts that best fill the atomic query.'
+        }
+
+        if query_type in prompt_prefixes:
+            prompt_prefix = prompt_prefixes[query_type]
+            query_prefix = f"Instruct: {prompt_prefix}\nQuery: "
+            if isinstance(text, str):
+                text = f"{query_prefix}{text}"
+            elif isinstance(text, list):
+                text = [f"{query_prefix}{t}" for t in text]
+
+
+        # 检查输入类型并统一处理
+        is_single_string = isinstance(text, str)
+
+        if is_single_string:
+            text = [text]  # 将单个字符串转换为列表
+
+
+        all_embeddings = []
+
+        # 如果batch_size大于10，限制单个批次大小
+        single_batch_size = min(batch_size, 10)  # max for aliyun
+
+        # 计算需要多少个批次
+        total_batches = (len(text) + single_batch_size - 1) // single_batch_size
+        print(f"mengyao_debug total batches: {total_batches}, single batch size: {single_batch_size}")
+
+        # 分批处理函数
+        def process_batch(batch_index):
+            start_idx = batch_index * single_batch_size
+            end_idx = min(start_idx + single_batch_size, len(text))
+            batch_texts = text[start_idx:end_idx]
+
+            print(f"mengyao_debug processing batch {batch_index + 1}/{total_batches}: {batch_texts}")
+
+            # 调用API获取嵌入
+            response = self.client.embeddings.create(
+                input=batch_texts,
+                model=self.embedding_model_name
+            )
+            print(f"mengyao_debug batch {batch_index + 1} response received")
+
+            # 提取嵌入向量
+            batch_embeddings = [item.embedding for item in response.data]
+            return batch_embeddings, batch_index
+
+        # 使用线程池并发处理
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_concurrent_requests, total_batches)) as executor:
+            # 提交所有批次任务
+            future_to_batch = {
+                executor.submit(process_batch, i): i
+                for i in range(total_batches)
+            }
+
+            # 收集结果并保持顺序
+            batch_results = [None] * total_batches
+
+            for future in concurrent.futures.as_completed(future_to_batch):
+                batch_index = future_to_batch[future]
+                try:
+                    batch_embeddings, _ = future.result()
+                    batch_results[batch_index] = batch_embeddings
+                    print(f"mengyao_debug batch {batch_index + 1} processed successfully")
+                except Exception as exc:
+                    print(f"mengyao_debug batch {batch_index + 1} generated an exception: {exc}")
+                    # 如果某个批次失败，可以在这里处理重试逻辑
+
+            # 按顺序合并所有批次的嵌入向量
+            for batch_embeddings in batch_results:
+                if batch_embeddings is not None:
+                    all_embeddings.extend(batch_embeddings)
+
+        # 转换为numpy数组
+        embeddings_array = np.array(all_embeddings, dtype=np.float32)
+        embeddings_array = np.ascontiguousarray(embeddings_array)
+
+        # 向量归一化
+        if normalize_embeddings:
+            print("mengyao_debug normalizing embeddings")
+            # 计算每个向量的L2范数（模长）
+            norms = np.linalg.norm(embeddings_array, axis=1, keepdims=True)
+            # 避免除以零，将零范数替换为1
+            norms = np.where(norms == 0, 1, norms)
+            # 归一化：每个向量除以其模长
+            embeddings_array = embeddings_array / norms
+            print(f"mengyao_debug normalized embeddings shape: {embeddings_array.shape}")
+
+        # 根据输入类型决定输出格式
+        if is_single_string:
+            # 如果是单个字符串输入，返回单个向量
+            result = embeddings_array[0]
+        else:
+            # 如果是列表输入，返回所有向量
+            result = embeddings_array
+
+        # 转换为张量（如果需要）
+        if convert_to_tensor:
+            import torch
+            tensor_result = torch.tensor(result).detach()
+            return tensor_result
+        else:
+            print(f"mengyao_debug returning array with shape: {result.shape}")
+            return result
+
+
+def calculate_vector_set_similarity(vectors):
+    """
+    计算一组向量的整体相似度
+
+    Args:
+        vectors: ndarray of shape (10, 1024)
+
+    Returns:
+        scalar: 表示这组向量整体相似度的值
+    """
+    # 计算所有向量两两之间的余弦相似度
+    sim_matrix = cosine_similarity(vectors)  # 形状 (10, 10)
+
+    # 排除对角线（自身与自身的相似度，总是1）
+    mask = 1 - np.eye(len(vectors))
+    pairwise_similarities = sim_matrix[mask == 1]
+
+    # 返回平均相似度
+    return np.mean(pairwise_similarities)

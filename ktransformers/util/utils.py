@@ -17,7 +17,7 @@ import string
 import json
 import collections
 import numpy as np
-from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare
+from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare, topk_position_dispersion, OnlineEncoder
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 from ktransformers.util.textstream import TextStreamer
@@ -503,7 +503,7 @@ def get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, t
     layer_attention_dict = {}
     for layer_idx, layer_attn in enumerate(attention):
         layer_attn = layer_attn.squeeze(dim=0)
-        query_to_doc = layer_attn[:, query_start:total_len+max_tokens, document_start:query_start]
+        query_to_doc = layer_attn[:, total_len:total_len+max_tokens, document_start:query_start]
         doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
         layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
 
@@ -514,6 +514,19 @@ def get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, t
     multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
     return generated_tokens, multi_layer_attn
+
+def concentration_coefficient_v1(tensor: torch.Tensor, eps: float = 1e-8) -> float:
+    mean = tensor.mean()
+    std = tensor.std()
+
+    # 变异系数 = std/mean，我们取其倒数
+    if abs(mean) < eps:
+        return 0.0  # 均值为0时无法计算
+
+    cv = std / mean  # 变异系数
+    concentration = 1.0 / (1.0 + abs(cv))  # 归一化到[0,1]
+
+    return concentration.item()
 
 def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k, draft_attention, query_start, system_len, doc_len, total_len):
     # 如果没有传入 draft_attention，需要用 draft_model 计算
@@ -632,7 +645,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
     inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
     seq_length = passages[-1][query_prefix_len:].shape[0]
-
+    eigenvalue = {}
     # load KV
 
     for layer_idx in range(len(past_key_values.key_cache)):
@@ -1023,6 +1036,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             multi_layer_attn, doc_to_doc_attns = get_multilayer_attn(passages, draft_model, draft_model_device,
                                                                      entropy_top_k, draft_attention, query_start,
                                                                      system_len, doc_len, total_len)
+            eigenvalue["coefficient"] = concentration_coefficient_v1(tensor=multi_layer_attn)
+            eigenvalue["dispersion"] = topk_position_dispersion(multi_layer_attn, top_percent=0.02)
             # 使用 smart_query_selection 进行选择
             selected_indices = smart_query_selection(
                 attention_scores=multi_layer_attn,
@@ -1129,7 +1144,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # print(f"eval duration:        {total_time}s")
     # print(f"eval rate:            {tokens_per_second} tokens/s")
 
-    return tokens, prefill_time
+    return tokens, prefill_time, eigenvalue
 
 def tf_logits_warper(temperature, top_k):
         """

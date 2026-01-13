@@ -5,7 +5,6 @@ import sys
 import csv
 import shutil
 import time
-
 import torch
 import numpy as np
 from typing import List, Dict, Any, Tuple
@@ -19,7 +18,7 @@ from ktransformers.util.utils import (
     rotate_half,
     find_group_and_index
 )
-from ktransformers.util.run_ppr import LOQUACIOUS_TEXT
+from ktransformers.util.run_ppr import OnlineEncoder, calculate_vector_set_similarity
 import hashlib
 import faiss
 from FlagEmbedding import FlagModel
@@ -92,7 +91,8 @@ class FusionRAGModel:
             file_input="",
             preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
             max_memory=None,
-            use_origin_draft_model=False
+            use_origin_draft_model=False,
+            apikey="",
     ):
         print(f"init FusionRAGModel")
         self.model_name=model_name
@@ -101,6 +101,7 @@ class FusionRAGModel:
         self.preprocess_save_path = os.path.join(self.model_cache_root, 'preprocess_kv_cache')
         self.preprocess_empty_prefix_save_path = os.path.join(self.model_cache_root, 'empty_prefix_preprocess_kv_cache')
         self.preprocess_method=preprocess_method
+        self.encoder = OnlineEncoder(llm_api_key=apikey)
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(self.preprocess_save_path, exist_ok=True)
         os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
@@ -187,6 +188,12 @@ class FusionRAGModel:
                 return idx
         if not texts:
             raise ValueError("字符串列表不能为空")
+
+        # for old 2wiki docs, sometimes the title doesn't exist in it.
+        for idx, text in enumerate(texts):
+            if re.sub(r'\s+', '', target) in re.sub(r'\s+', '', text):
+                print(f"find_closest_by_edit_distance within found {idx}")
+                return idx
 
         min_distance = float('inf')
         min_indices = []
@@ -595,6 +602,11 @@ class FusionRAGModel:
             entropy_top_k=4,
     ) -> (int, int, int, int, str, list[int]):
 
+        embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
+        sim = calculate_vector_set_similarity(embeddings)
+        eigenvalue = {
+            "similarity": float(sim)
+        }
         print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
@@ -700,7 +712,6 @@ class FusionRAGModel:
 
         iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
         iter_token_len = len(torch.cat(iter_tokens))
-
         if rate == 1:
             # Full recompute
             inputs = torch.cat(iter_tokens).to(self.input_device).unsqueeze(0)
@@ -735,7 +746,7 @@ class FusionRAGModel:
                     load_path = self.save_path
                     break
             print(f"load_path={load_path}")
-            generated_tokens, _ = load_kv_and_generate(
+            generated_tokens, _, eigenvalue_ = load_kv_and_generate(
                 self.model,
                 self.tokenizer,
                 self.past_key_values,
@@ -754,10 +765,11 @@ class FusionRAGModel:
                 device_map=self.device_map,
                 draft_model_device=self.draft_model_device,
             )
+            eigenvalue.update(eigenvalue_)
 
         # Decode answer
         answer = self.tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
-        return system_len, doc_tensors_total_length, query_len, len(generated_tokens), answer, doc_tensors_len
+        return system_len, doc_tensors_total_length, query_len, len(generated_tokens), answer, doc_tensors_len, eigenvalue
 
 def preprocess_all_docs(file_input: str):
     with open(file_input, "r") as f:
