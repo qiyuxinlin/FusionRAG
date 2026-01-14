@@ -1786,5 +1786,373 @@
   "Where did John Houseman study or work?|||John Houseman was educated in England at Clifton College and worked in the grain trade in London before emigrating to the United States in 1925.|||John Houseman was educated at Clifton College in England and worked in the grain trade in London.": {
     "is_correct": true,
     "reason": "John Houseman在英格兰的Clifton College接受教育，并在伦敦从事谷物贸易工作。虽然预测答案额外提到了“1925年移居美国”，但这属于补充信息，并未与标准答案的核心内容冲突或产生语义偏差。两者在核心事实上完全一致，措辞上的细微差异（如“educated at”与“educated in”）不影响意思的等价性，因此预测答案正确回答了问题。"
+  },
+  "Where is Coffee Swamp located?|||on the northern edge of Washington Island, in Door County Wisconsin|||Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.": {
+    "is_correct": true,
+    "reason": "位置“northern edge of Washington Island”和行政区划“Door County, Wisconsin”。尽管预测答案省略了“Coffee Swamp is located”这一表述，并缺少逗号分隔，但核心地理描述与标准答案在语义上完全等价，意思保持一致，符合允许措辞细微差异的判断标准。"
+  },
+  "Who is the spouse of Johan Ludvig Heiberg?|||Document: Johan Ludvig Heiberg (1791-1860) was a Danish poet, playwright, literary critic, and historian. He was the son of Peter Andreas Heiberg and the novelist Baroness Gyllembourg-Ehrensvärd. While the direct spouse of Johan Ludvig Heiberg is not explicitly named in the provided documents, it can be inferred from the information about his daughter Margareta Eriksdotter Vasa (Margareta Vasa) that his wife was likely Margareta's mother, who is referred to as \"Magdalene Ericksdotter\" in the context of Margareta's lineage. However, the specific name of his wife is not provided in the given documents.|||Johanne Luise Heiberg": {
+    "is_correct": false,
+    "reason": "预测答案未能正确回答问题，因为它没有提供标准答案中的关键信息“Johanne Luise Heiberg”。预测答案错误地推断配偶为“Magdalene Ericksdotter”，这与历史事实不符，实际上Johan Ludvig Heiberg的配偶是丹麦女演员Johanne Luise Heiberg。预测答案基于不完整或错误的文档信息，导致语义上与标准答案完全不一致，无法满足正确回答的基本要求。"
+  },
+  "Who were the siblings of Alice de Lusignan, Countess of Surrey?|||Joan de Geneville, Countess of Leicester|||Alice de Lusignan had a uterine half-brother, King Henry III of England.": {
+    "is_correct": false,
+    "reason": "预测答案“Joan de Geneville, Countess of Leicester”与标准答案“Alice de Lusignan had a uterine half-brother, King Henry III of England”在关键信息上完全不一致。标准答案明确指出Alice de Lusignan的同母异父兄弟是英格兰国王亨利三世，而预测答案却提到了一个无关人物Joan de Geneville，这既未包含标准答案的核心内容，也未在语义上等价，属于完全错误的回答。"
+  },
+  "When was King Henry III of England crowned?|||1066|||Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.": {
+    "is_correct": false,
+    "reason": "预测答案“1066”与标准答案中的关键信息完全不符。标准答案明确指出亨利三世在1216年首次加冕，并于1220年5月17日第二次加冕，而预测答案提供的年份1066年实际上是诺曼征服英格兰的时间，与亨利三世的统治时期相差约150年。这不仅是时间上的重大错误，也表明预测答案未能理解问题所指的具体历史人物和事件，因此无法正确回答问题。"
+  },
+  "Who was Ernst Mach's employer or academic institution during his career?|||Document: Friedrich Hayek: The document does not provide information about Ernst Mach's employer or academic institution. The provided document is about Friedrich Hayek and does not contain relevant information about Ernst Mach. Therefore, based on the given information, we cannot determine Ernst Mach's employer or academic institution during his career.|||Ernst Mach was a professor at Charles University in Prague.": {
+    "is_correct": false,
+    "reason": "预测答案完全没有提供关于恩斯特·马赫雇主或学术机构的信息，而是错误地引用了关于弗里德里希·哈耶克的文档，并直接承认无法回答该问题。这与标准答案中明确指出“恩斯特·马赫是布拉格查理大学的教授”这一关键事实完全不符，预测答案在内容上完全缺失了必要的正确信息，因此未能正确回答问题。"
+  },
+  "Which English king trusted William de Longchamp?|||John, King of England|||King Richard I of England": {
+    "is_correct": false,
+    "reason": "预测答案“John, King of England”与标准答案“King Richard I of England”在关键信息上完全不一致。历史记载中，威廉·德·朗香普（William de Longchamp）是理查一世（狮心王）统治时期的英格兰大法官和重要顾问，深受理查一世信任，而非其弟弟约翰国王。预测答案在语义上不成立，因为它指向了错误的历史人物和时期，无法正确回答关于威廉·德·朗香普受哪位国王信任的问题。"
+  },
+  "What specific naval expedition or fleet did King Richard I lead that was dispersed by a storm?|||Richard I's fleet in April 1191, which he left Messina with in order to reach Acre.|||King Richard I led a large fleet from Messina to Acre in April 1191, which was dispersed by a storm.": {
+    "is_correct": true,
+    "reason": "明确指出是理查一世在1191年4月率领的舰队，从墨西拿出发前往阿卡，且该舰队在风暴中分散。虽然预测答案未直接提及“被风暴驱散”，但通过上下文“which he left Messina with in order to reach Acre”暗示了舰队遭遇风暴这一历史事件，与标准答案在语义上完全等价，仅存在措辞上的细微差异，不影响核心事实的正确性。"
+  },
+  "Who played the little girl in the 1947 film Miracle on 34th Street?|||Maureen O'Hara|||Natalie Wood played the little girl, Susan Walker, in the 1947 film Miracle on 34th Street.": {
+    "is_correct": false,
+    "reason": "预测答案“Maureen O'Hara”与标准答案“Natalie Wood”在关键信息上完全不一致。Maureen O'Hara在电影《34街的奇迹》中饰演的是成年女性角色（母亲），而非标准答案中指定的“小女孩”Susan Walker。预测答案未能包含或等价于标准答案的核心语义，即扮演小女孩的演员身份，因此无法正确回答问题。"
+  },
+  "Who is the sibling of actress Natalie Wood?|||Maureen O'Hara|||Lana Wood is the sibling of actress Natalie Wood.": {
+    "is_correct": false,
+    "reason": "预测答案“Maureen O'Hara”与标准答案“Lana Wood”在关键信息上完全不一致，两者并非同一个人。Natalie Wood的姐妹是Lana Wood，而Maureen O'Hara是另一位爱尔兰裔美国女演员，与Natalie Wood没有亲属关系。预测答案未能提供正确的兄弟姐妹信息，语义上也不等价，因此无法正确回答问题。"
+  },
+  "Who is Natalie Wood's brother?|||Natalie Wood's brother is Lana Wood, who had an early screen appearance in the film \"Five Finger Exercise\".|||Natalie Wood's sister is Lana Wood. The documents do not mention a brother.": {
+    "is_correct": false,
+    "reason": "预测答案存在事实性错误，将娜塔莉·伍德的妹妹拉娜·伍德错误地称为她的兄弟，这与标准答案中明确指出的“文档未提及兄弟”以及“妹妹是拉娜·伍德”的关键信息相矛盾。尽管预测答案补充了拉娜·伍德的电影细节，但核心关系表述错误，导致语义上无法与标准答案等价，因此未能正确回答问题。"
+  },
+  "Who sang the song 'You Belong to Me'?|||Joni James initially sang the song 'You Belong to Me', with her version released in March 1952 on the local Sharp Records label.|||Joni James sang the song 'You Belong to Me'.": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了标准答案的核心信息“Joni James sang the song 'You Belong to Me'”，并在此基础上补充了更多细节（如发行时间、唱片公司）。尽管措辞略有扩展，但关键主体和动作与标准答案完全一致，语义上完全等价，没有偏离问题的主旨。因此，预测答案正确回答了问题。"
+  },
+  "What is the administrative territorial entity that contains Juba?|||Central Equatoria state|||Central Equatoria": {
+    "is_correct": true,
+    "reason": "预测答案“Central Equatoria state”完全包含了标准答案“Central Equatoria”的关键信息，两者在语义上完全等价，都指代朱巴所在的行政区域。虽然预测答案添加了“state”一词，但这仅是对该行政实体类型的补充说明，并未改变其核心指代对象，且这种措辞差异在常见的地理表述中是允许的，不会引起歧义或误解。因此，预测答案正确回答了问题。"
+  },
+  "What places share a border with Central Equatoria?|||Jimma Arjo, Enemorina Eaner, Sodo, Geta, Hadiya Zone, Illubabor Zone, Diga Leka, Nunu Kumba, Central Equatoria states, Oromia Region, Silt'e Zone, Gedeb Asasa, Shabelle River, Didessa River share a border with Central Equatoria.|||Eastern Equatoria shares a border with Central Equatoria.": {
+    "is_correct": false,
+    "reason": "预测答案中列举了大量埃塞俄比亚的地名和区域（如Jimma Arjo、Oromia Region等），这些与中赤道州（位于南苏丹）的地理位置完全不符，属于明显错误信息。标准答案明确指出东赤道州与中赤道州接壤，这是南苏丹内部的行政区划关系。预测答案不仅未包含这一关键信息，还引入了无关甚至错误的实体，导致语义上与标准答案完全不等价，无法正确回答问题。"
+  },
+  "Who played King George VI in the film 'The King's Speech'?|||Document: George VI (Albert Frederick Arthur George; 14 December 1895 – 6 February 1952) was King of the United Kingdom and the Dominions of the British Commonwealth from 11 December 1936 until his death. The document about Paul Bettany does not mention him playing King George VI. The document about Andy Serkis does not mention him playing King George VI either. However, the document about 'The King's Speech' states that Colin Firth plays the future King George VI in the film. Therefore, Colin Firth played King George VI in the film 'The King's Speech'.|||Colin Firth": {
+    "is_correct": true,
+    "reason": "预测答案明确指出在电影《国王的演讲》中，科林·费尔斯（Colin Firth）饰演了未来的国王乔治六世，这与标准答案“Colin Firth”完全一致。尽管预测答案以文档分析的形式呈现，并包含额外背景信息，但其核心结论与标准答案在语义上等价，关键信息准确无误，符合判断标准中的语义一致性和措辞差异允许原则。"
+  },
+  "Where is KPRM licensed to broadcast?|||870 AM, Park Rapids, Minnesota|||Park Rapids, Minnesota": {
+    "is_correct": true,
+    "reason": "预测答案“870 AM, Park Rapids, Minnesota”不仅完全包含了标准答案“Park Rapids, Minnesota”的关键地理信息，还在语义上与其等价，因为广播电台的许可地点是核心内容，而“870 AM”仅作为额外补充细节，并未改变或偏离标准答案的本质。根据判断标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。"
+  },
+  "Where was Mark Dismore born?|||Document: Mark Dismore (born October 12, 1956 in Greenfield, Indiana) is a former driver in the Indy Racing League...|||Greenfield, Indiana": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了“Greenfield, Indiana”这一关键信息，与标准答案完全一致。尽管预测答案以文档引用的形式呈现，并附加了出生日期和职业背景等额外细节，但这些内容并未改变核心事实的准确性。在语义上，预测答案直接回答了问题“Where was Mark Dismore born?”，与标准答案在意思上完全等价，符合允许措辞细微差异的判断标准。"
+  },
+  "Where is NRHEG High School located?|||NRHEG High School is located in New Richland, Minnesota.|||NRHEG High School is located in New Richland, Minnesota.": {
+    "is_correct": true,
+    "reason": "预测答案与标准答案完全一致，都明确指出NRHEG High School位于明尼苏达州的New Richland。预测答案不仅包含了标准答案的所有关键信息（学校名称、地点城市和州），而且在语义上完全等价，措辞也完全相同，没有任何歧义或信息缺失，因此完全符合正确回答问题的标准。"
+  },
+  "Who founded the Janatha Vimukthi Peramuna political party?|||Rohana Wijeweera|||The Janatha Vimukthi Peramuna was founded by Rohana Wijeweera.": {
+    "is_correct": true,
+    "reason": "预测答案“Rohana Wijeweera”直接提供了标准答案中的核心信息，即该政党的创立者姓名。虽然预测答案省略了标准答案中的部分措辞（如“was founded by”），但它在语义上完全等价，且关键实体（创始人名称）准确无误。根据判断标准，允许措辞上的细微差异，只要意思保持一致即可，因此预测答案正确回答了问题。"
+  },
+  "Which counties share a border with Falls County, Texas?|||Bell County and Falls County share a border with each other. Additionally, Cedar Springs, an unincorporated community in west Falls County, is near Troy Independent School District which extends into a small portion of Falls County, indicating Falls County borders itself. However, based on the direct information given, Bell County is the only external county mentioned to share a border with Falls County.|||Bell County shares a border with Falls County.": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了标准答案的关键信息，即“Bell County shares a border with Falls County”，尽管措辞略有不同（如“Bell County and Falls County share a border with each other”），但语义完全等价，都准确传达了贝尔县与福尔斯县接壤的核心事实。虽然预测答案补充了额外细节（如Cedar Springs社区和Troy学区），但这些内容并未否定或偏离标准答案，反而在确认贝尔县是唯一提及的外部接壤县的基础上提供了背景信息，因此整体上正确回答了问题。"
+  },
+  "Which counties border Hastings County in Ontario?|||Renfrew County and Hastings County border themselves, and Haliburton County borders Hastings County in Ontario.|||Renfrew County and Haliburton County border Hastings County in Ontario.": {
+    "is_correct": false,
+    "reason": "预测答案在逻辑和事实上存在明显错误。它声称“Renfrew County and Hastings County border themselves”，这既不符合地理常识（一个县不能与自己接壤），也混淆了标准答案中“Renfrew County borders Hastings County”的正确关系。虽然预测答案提到了Haliburton County与Hastings County接壤，但整体表述因包含自相矛盾的信息而无法与标准答案在语义上等价，未能准确反映Hastings County在安大略省的相邻县份。"
+  },
+  "Who is Empress Wang's husband?|||Wang Jian|||Empress Wang's husband was Yang Pu (Emperor Rui), the final ruler of the Chinese state Wu during the Five Dynasties and Ten Kingdoms period.": {
+    "is_correct": false,
+    "reason": "预测答案“Wang Jian”与标准答案“Yang Pu (Emperor Rui)”完全不符，两者在语义上没有任何等价性。标准答案明确指出王皇后的丈夫是五代十国时期吴国的末代君主杨溥（睿帝），而“Wang Jian”可能指代其他历史人物（如前蜀开国君主王建），这属于关键信息错误，无法通过措辞差异来弥补，因此预测答案未能正确回答问题。"
+  },
+  "Which actor played King George VI in the film 'The King's Speech'?|||George VI was played by Colin Firth in the film 'The King's Speech'.|||Colin Firth": {
+    "is_correct": true,
+    "reason": "预测答案明确指出了在电影《国王的演讲》中，乔治六世由科林·费尔斯饰演，这与标准答案“Colin Firth”完全一致。尽管预测答案以完整句子的形式呈现，包含了更多背景信息，但其核心内容与标准答案在语义上等价，关键信息准确无误，且没有出现任何矛盾或偏差。因此，预测答案正确回答了问题，符合所有判断标准。"
+  },
+  "Which character did Geena Davis play in the film A League of Their Own?|||Thelma|||Geena Davis played the character Dottie Hinson.": {
+    "is_correct": false,
+    "reason": "预测答案“Thelma”与标准答案“Dottie Hinson”在语义上完全不匹配，既未包含关键信息，也不存在等价关系。Geena Davis在电影《红粉联盟》中饰演的角色是Dottie Hinson，而“Thelma”可能是其他电影中的角色或无关信息，这导致预测答案未能正确回答问题，属于事实性错误。"
+  },
+  "Movies starring Preity Zinta, Madhuri Dixit, and Ajay Devgn|||Yeh Raaste Hain Pyaar Ke|||The movie 'Yeh Raaste Hain Pyaar Ke' (2001) stars Preity Zinta, Madhuri Dixit, and Ajay Devgn.": {
+    "is_correct": true,
+    "reason": "预测答案“Yeh Raaste Hain Pyaar Ke”虽然省略了标准答案中的年份和完整描述，但它直接提供了电影名称这一核心信息，而该电影正是唯一一部由Preity Zinta、Madhuri Dixit和Ajay Devgn共同主演的作品。根据判断标准，预测答案在语义上与标准答案的关键内容完全等价，且措辞差异（如省略年份）不影响对问题的正确回答，因为问题仅要求识别电影名称，并未指定必须包含额外细节。因此，预测答案准确且充分地回应了问题。"
+  },
+  "Where is Bansaan Island located?|||Bansaan is a boomerang-shaped island located off the mid-northern coast of Bohol Island, in the municipality of Talibon, province.|||Bansaan Island is a boomerang-shaped island located off the mid-northern coast of Bohol Island, Philippines, and is part of the municipality of Talibon.": {
+    "is_correct": true,
+    "reason": "岛屿的形状（boomerang-shaped）、地理位置（off the mid-northern coast of Bohol Island）、所属行政区域（municipality of Talibon），并明确指出位于菲律宾。尽管措辞略有调整（如省略“Philippines”但通过“province”暗示），但语义与标准答案完全一致，没有遗漏或歪曲核心内容，符合语义等价的要求。"
+  },
+  "Which of the actors from No Escape (Valerie Hobson, Leslie Perrins, or Robert Cochran) was married and to whom?|||David Profumo was married to Valerie Hobson. However, Valerie Hobson was not married to any of the actors listed (Valerie Hobson, Leslie Perrins, or Robert Cochran). The information provided about David Profumo and Valerie Hobson seems to be unrelated to the actors in No Escape. The question as posed cannot be accurately answered based on the given documents, as there is no indication that any of the actors in No Escape were married to David Profumo or Valerie Hobson.|||Valerie Hobson was married to John Profumo.": {
+    "is_correct": false,
+    "reason": "预测答案虽然提到了Valerie Hobson，但错误地声称她与David Profumo结婚，而标准答案明确指出她与John Profumo结婚。此外，预测答案的后半部分自相矛盾，先说Valerie Hobson与David Profumo结婚，随后又否认她与任何演员结婚，这混淆了关键信息。预测答案未能准确提供Valerie Hobson的配偶姓名，且语义上与标准答案不一致，因此无法正确回答问题。"
+  },
+  "What are all the children of Chiang Ching-kuo?|||Chiang Hsiao-wen, Chiang Hsiao-wen's siblings Hsiao-wen, Hsiao-chang, Hsiao-wu, Hsiao-yung, and Chiang Hsiao-wen's half-brothers Winston Chang and John Chiang.|||Chiang Ching-kuo had four legitimate children with his wife Faina Ipatyevna Vakhreva (Chiang Fang-liang): Chiang Hsiao-wen (eldest son), Chiang Hsiao-chang (daughter), Chiang Hsiao-wu (second son), and Chiang Hsiao-yung (youngest son). He also had two half-brothers with other mothers: Winston Chang and John Chiang.": {
+    "is_correct": false,
+    "reason": "预测答案存在明显的重复和表述混乱，例如将“Chiang Hsiao-wen”重复列出，并错误地将其描述为“Chiang Hsiao-wen's siblings”，这导致信息冗余且逻辑不清。虽然预测答案最终提到了所有四个合法子女和两个同父异母的兄弟，但其表述方式与标准答案的清晰结构不符，未能准确、简洁地列出所有子女，因此在语义上不完全等价，未能正确回答问题。"
+  },
+  "Where was Lloyd Dane born?|||Missouri|||Lloyd Dane was born in Eldon, Missouri.": {
+    "is_correct": false,
+    "reason": "预测答案“Missouri”虽然包含了标准答案中的州名信息，但未能提供更具体的关键地点“Eldon”。标准答案明确指出出生地为“Eldon, Missouri”，而预测答案仅给出州名，遗漏了城镇这一核心细节，导致信息不完整且语义上不等价。根据判断标准，预测答案未完全涵盖关键信息，因此不能视为正确回答。"
+  },
+  "What creature do annelid larvae live like?|||ertiform (caterpillar-like)|||Annelid larvae live like plankton.": {
+    "is_correct": false,
+    "reason": "预测答案“ertiform (caterpillar-like)”与标准答案“Annelid larvae live like plankton”在语义上完全不一致。标准答案的关键信息是环节动物幼虫像浮游生物一样生活，这描述了它们在海洋或水体中漂浮的生态角色；而预测答案提到的“毛虫状”形态特征，并未涉及浮游生活方式，两者在核心概念上存在本质差异，无法通过措辞调整实现等价。"
+  },
+  "Which films feature Ajay Devgan?|||U Me Aur Hum, Raju Chacha, Blackmail (2005 film)|||The films featuring Ajay Devgan are: U Me Aur Hum, Yeh Raaste Hain Pyaar Ke, and Dil Kya Kare.": {
+    "is_correct": false,
+    "reason": "预测答案仅部分正确，因为它包含了标准答案中的《U Me Aur Hum》，但遗漏了《Yeh Raaste Hain Pyaar Ke》和《Dil Kya Kare》，同时添加了标准答案未提及的《Raju Chacha》和《Blackmail (2005 film)》。根据评估标准，预测答案必须完全覆盖标准答案的关键信息并保持语义等价，而此处预测答案与标准答案不一致，未能正确回答所有指定影片，因此判定为错误。"
+  },
+  "Which atomic bomb development project took place at Los Alamos and who was its director?|||The Manhattan Project was developed at Los Alamos, and its director was Robert Oppenheimer.|||The Manhattan Project took place at Los Alamos, and its director was Robert Oppenheimer.": {
+    "is_correct": true,
+    "reason": "预测答案与标准答案在语义上完全等价，都准确指出了原子弹研发项目是“曼哈顿计划”，地点在“洛斯阿拉莫斯”，负责人是“罗伯特·奥本海默”。尽管预测答案使用了“was developed at”而标准答案使用“took place at”，但两者表达的核心事实一致，且关键信息无任何缺失或矛盾，符合允许措辞细微差异的判断标准。"
+  },
+  "Who is the author of Missing Person?|||Melissa Marr|||Patrick Modiano": {
+    "is_correct": false,
+    "reason": "预测答案“Melissa Marr”与标准答案“Patrick Modiano”在作者身份上完全不符，两者既不是同义词，也不存在语义等价关系。Patrick Modiano是法国作家，其作品《Missing Person》（法文原名《Rue des Boutiques Obscures》）曾获诺贝尔文学奖，而Melissa Marr是美国奇幻文学作家，代表作与《Missing Person》无关。预测答案未包含任何标准答案的关键信息，且作者姓名属于特定事实，措辞差异无法解释这一根本错误。"
+  },
+  "Who are the cast members of the movie U Me Aur Hum?|||Ajay Devgan and Kajol|||The cast includes Ajay Devgan, Kajol, Karan Khanna, Isha Sharvani, Sumeet Raghavan, and Divya Dutta.": {
+    "is_correct": false,
+    "reason": "预测答案仅列出了两位主演（Ajay Devgan 和 Kajol），而标准答案明确包含了六位演员，如 Karan Khanna、Isha Sharvani 等关键成员。虽然预测答案的部分信息正确，但它遗漏了标准答案中超过一半的演员名单，未能完整覆盖问题所要求的全部卡司信息，因此在语义上不等价，也不符合“包含关键信息”的标准。"
+  },
+  "Which Bollywood movies feature both Preity Zinta and Madhuri Dixit in their cast?|||Diya Aur Toofan, Dil Kya Kare|||The only Bollywood movie featuring both Preity Zinta and Madhuri Dixit is 'Yeh Raaste Hain Pyaar Ke'.": {
+    "is_correct": false,
+    "reason": "预测答案中提到的电影《Diya Aur Toofan》和《Dil Kya Kare》均不包含标准答案中的关键信息。标准答案明确指出，唯一同时由Preity Zinta和Madhuri Dixit出演的宝莱坞电影是《Yeh Raaste Hain Pyaar Ke》，而预测答案中的两部电影与标准答案在语义上完全不等价，且没有证据表明这两部电影符合问题要求。因此，预测答案未能正确回答问题，因为它遗漏了唯一正确的电影名称，并提供了无关信息。"
+  },
+  "Who was Frederick Douglass married to?|||Helen Pitts DocumentDocument: Helen Pitts Douglass (1838–1903) was an American suffragist and abolitionist, known for being the second wife of Frederick Douglass. She also created the Frederick Douglass Memorial and Historical Association.|||Frederick Douglass was married first to Anna Murray Douglass and second to Helen Pitts Douglass.": {
+    "is_correct": false,
+    "reason": "预测答案仅提到了弗雷德里克·道格拉斯的第二任妻子海伦·皮茨·道格拉斯，并提供了关于她的额外细节，但完全遗漏了他的第一任妻子安娜·默里·道格拉斯。标准答案明确指出他先后与两位女性结婚，而预测答案未能涵盖这一关键信息，导致回答不完整且语义上不等价。因此，预测答案未能正确回答关于弗雷德里克·道格拉斯婚姻状况的问题。"
+  },
+  "What political party did Eugene V. Debs belong to?|||Socialist Party of America|||Eugene V. Debs belonged to the Socialist Party of America.": {
+    "is_correct": true,
+    "reason": "预测答案“Socialist Party of America”完整包含了标准答案中的关键信息，即尤金·V·德布斯所属的政党名称。虽然预测答案省略了“belonged to”等表述，但它在语义上与标准答案完全等价，都准确指出了该政党是美国社会主义党。这种措辞上的细微差异不影响核心事实的一致性，因此预测答案正确回答了问题。"
+  },
+  "What specific political event or circumstance caused Robert Menzies to become Prime Minister of Australia?|||Menzies became Prime Minister of Australia following the death of Joseph Lyons in 1939, when he assumed the Prime Ministership on the eve of World War II.|||Robert Menzies became Prime Minister following the death of the incumbent Prime Minister, Joseph Lyons, in 1939.": {
+    "is_correct": true,
+    "reason": "预测答案准确包含了标准答案的关键信息，即罗伯特·孟席斯是在约瑟夫·莱昂斯去世后成为澳大利亚总理的，且时间背景（1939年）与标准答案一致。虽然预测答案补充了“二战前夕”这一细节，但这并未改变核心事实的语义，反而增强了准确性。两者在关键事件和因果关系上完全等价，措辞差异属于合理范围，因此预测答案正确回答了问题。"
+  },
+  "What is the name of the band that released the album 'Nicole and Natalie'?|||Nicole and Natalie is the second studio album by the American female duo Nina Sky.|||Nina Sky": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了标准答案“Nina Sky”这一关键信息，并进一步提供了专辑的背景细节（如“第二张录音室专辑”和“美国女子二人组合”），这些补充信息并未偏离核心答案。尽管预测答案以描述专辑的形式呈现，但其语义与标准答案完全等价，都准确指出了发布专辑的乐队名称，符合措辞差异但意思一致的要求。"
+  },
+  "Which river does the Kichi Sipi Bridge cross?|||The Nelson River|||The Kichi Sipi Bridge crosses the Nelson River.": {
+    "is_correct": true,
+    "reason": "预测答案“The Nelson River”虽然省略了标准答案中的完整句子结构，但它直接提供了问题的核心信息，即桥梁所跨越的河流名称。在语义上，预测答案与标准答案的关键内容完全一致，都明确指出河流是纳尔逊河（Nelson River）。这种措辞差异不影响信息的准确性，符合评估标准中允许的细微表达变化，因此预测答案正确回答了问题。"
+  },
+  "Which of the cast members of 'Love in Pawn' (Bernard Braden and Barbara Kelly) are actors?|||Bernard Braden and Barbara Kelly are actors.|||Both Bernard Braden and Barbara Kelly are actors.": {
+    "is_correct": true,
+    "reason": "预测答案“Bernard Braden and Barbara Kelly are actors”完整包含了标准答案“Both Bernard Braden and Barbara Kelly are actors”的关键信息，即明确指出两位人物都是演员。尽管预测答案省略了“Both”一词，但通过并列列举姓名并直接陈述“are actors”，在语义上完全等价于标准答案，意思保持一致，没有产生歧义或遗漏核心内容。这种措辞上的细微差异不影响答案的正确性，因此预测答案正确回答了问题。"
+  },
+  "Who is the child of Bernard Braden or Barbara Kelly?|||Stephanie Ralph is the child of Bernard Braden or Barbara Kelly, as she is portrayed as Oscar Larkin's sister in The Darling Buds of May, and Oscar Larkin is the child of Bernard Braden and Barbara Kelly.|||Kim Braden is the daughter of Bernard Braden and Barbara Kelly.": {
+    "is_correct": false,
+    "reason": "预测答案错误地声称Stephanie Ralph是Bernard Braden和Barbara Kelly的孩子，这与标准答案中明确的女儿Kim Braden不符。预测答案基于虚构剧集《The Darling Buds of May》的角色关系进行推断，但该剧是艺术作品，并非真实人物关系来源。标准答案基于真实世界的事实信息，而预测答案未能提供任何可靠证据支持其说法，导致语义和事实层面均与标准答案不一致，因此无法正确回答问题。"
+  },
+  "Who was the first nominated African American presidential candidate?|||Barack Obama was the first nominated African American presidential candidate, as he won the Democratic Party's nomination in 2008.|||Frederick Douglass was the first African American to be nominated as a presidential candidate, receiving one vote at the 1888 Republican National Convention.": {
+    "is_correct": false,
+    "reason": "预测答案与标准答案在关键信息上存在本质差异。标准答案明确指出首位被提名的非裔美国总统候选人是弗雷德里克·道格拉斯（1888年共和党全国代表大会），而预测答案错误地认为是巴拉克·奥巴马（2008年民主党提名）。两者在历史时间、具体人物和政党背景上均不一致，这并非措辞差异，而是事实性错误，因此预测答案未能正确回答问题。"
+  },
+  "What specific political event or circumstance led to Robert Menzies first becoming Prime Minister of Australia in 1939?|||Menzies first became Prime Minister of Australia in 1939 following the death of Joseph Lyons, the leader of the United Australia Party (UAP) and Prime Minister at the time.|||Robert Menzies first became Prime Minister of Australia in 1939 following the death of the previous Prime Minister, Joseph Lyons.": {
+    "is_correct": true,
+    "reason": "预测答案准确包含了标准答案的关键信息，即罗伯特·孟席斯在1939年因前任总理约瑟夫·莱昂斯去世而首次成为澳大利亚总理。虽然预测答案额外提到了莱昂斯是统一澳大利亚党的领导人，但这并未改变核心事实的语义，反而补充了背景信息，与标准答案在关键点上完全一致，符合语义等价的要求。"
+  },
+  "On which river is the Kettle Generating Station located?|||Kettle River|||The Kettle Generating Station is located on the Lower Nelson River.": {
+    "is_correct": false,
+    "reason": "预测答案“Kettle River”与标准答案“Lower Nelson River”在语义上存在本质差异，两者并非同一条河流。Kettle Generating Station 的实际位置是 Lower Nelson River，而“Kettle River”可能源于对电站名称的误解或混淆，未能包含标准答案的关键地理信息。这种差异直接导致预测答案无法正确回答关于电站具体地理位置的问题，因此不符合语义等价的要求。"
+  },
+  "Who is the city of Tolyatti named after?|||Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.|||The city of Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.": {
+    "is_correct": true,
+    "reason": "预测答案与标准答案在语义上完全等价，都明确指出托利亚蒂市是以意大利共产党长期领导人帕尔米罗·托利亚蒂的名字命名的。尽管预测答案省略了“city of”这一修饰语，但通过上下文可以明确指代同一城市，且核心信息（命名对象、人物身份）与标准答案一致，符合允许措辞细微差异的判断标准。"
+  },
+  "Who is the city of Tolyatti named after?|||the longest-serving secretary of the Italian Communist Party|||The city of Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.": {
+    "is_correct": false,
+    "reason": "预测答案仅提供了“意大利共产党任职时间最长的书记”这一描述，但未明确指出该人物是“帕尔米罗·陶里亚蒂”（Palmiro Togliatti），而问题要求回答的是托利亚蒂市以谁命名。虽然预测答案描述了该人物的身份，但缺少具体的姓名信息，因此未能完整、准确地回答“是谁”这一核心问题，与标准答案在关键信息上存在缺失，不符合语义等价的要求。"
+  },
+  "What administrative territorial entity owns the Ciudad Deportiva sports complex in Nuevo Laredo, Mexico?|||Ciudad Deportiva is owned by the city of Nuevo Laredo. However, since the question asks for the administrative territorial entity, the correct answer would be the Municipality of Nuevo Laredo.|||The Ciudad Deportiva sports complex is owned by the Nuevo Laredo Municipality.": {
+    "is_correct": true,
+    "reason": "预测答案明确指出了“the Municipality of Nuevo Laredo”作为所有权实体，这与标准答案中的“Nuevo Laredo Municipality”在语义上完全等价，尽管措辞略有差异。预测答案不仅提供了关键信息，还通过补充说明强调了“行政实体”这一要求，确保了答案的准确性和完整性，完全符合判断标准。"
+  },
+  "Which company distributed the film UHF?|||UModcastDocumentDocument: UModcastDocumentDocument: UModcastPictures is an American film distribution company and a film and television production company founded by Kevin Smith in 2011. However, there is no direct mention of the distribution of the film UHF in the provided documents. Given the format of the question and the available information, it's not possible to definitively state which company distributed the film UHF based solely on the given documents. The question might require additional context or information not present in the provided texts.|||Orion Pictures": {
+    "is_correct": false,
+    "reason": "预测答案并未正确回答问题，因为它没有提供标准答案“Orion Pictures”这一关键信息。相反，预测答案主要讨论了UModcastPictures的背景，并错误地声称无法基于给定文档确定答案，这偏离了问题的核心。实际上，标准答案明确指出《UHF》这部电影是由Orion Pictures发行的，而预测答案中完全没有提及这一点，导致语义上不匹配，无法满足正确回答的基本要求。"
+  },
+  "Who first introduced the postal service in the Umayyad Caliphate?|||Umar bin Abdul-Aziz first developed the postal service further by building caravanserais at stages along the Khurasan highway. However, the main development and extension of the postal service throughout the empire is attributed to Umar, Mu'awiyah, and Walid ibn Abd al-Malik.|||Mu'awiyah introduced the postal service in the Umayyad Caliphate.": {
+    "is_correct": false,
+    "reason": "预测答案虽然提到了穆阿维叶（Mu'awiyah）是邮政服务发展的贡献者之一，但并未明确指出他是最早引入邮政服务的人。问题询问的是“谁首先引入”，而预测答案将重点放在后续发展上，并列举了多位人物，这模糊了问题的核心。标准答案明确指定穆阿维叶为引入者，但预测答案未能直接确认这一关键点，反而强调了其他人物和扩展细节，导致语义上不等价，未能正确回答问题。"
+  },
+  "What is Xiao Liwu?|||Xiao Liwu is a giant panda cub.|||Xiao Liwu is a giant panda, the sixth cub born to his mother Bai Yun and the fifth for his father Gao Gao at the San Diego Zoo.": {
+    "is_correct": true,
+    "reason": "预测答案“Xiao Liwu is a giant panda cub”准确抓住了标准答案的核心信息，即Xiao Liwu是一只大熊猫幼崽。虽然预测答案省略了关于其父母、出生顺序和动物园的具体细节，但这些信息属于补充性背景，而非回答“What is Xiao Liwu?”这一问题的关键要素。预测答案在语义上与标准答案等价，都正确识别了Xiao Liwu作为大熊猫幼崽的基本身份，且措辞差异不影响整体意思的一致性。因此，预测答案正确回答了问题。"
+  },
+  "Who is the author of the book '1967: The Last Good Year'?|||1967: The Last Good Year is authored by Pierre Berton, a Canadian author.|||Pierre Berton": {
+    "is_correct": true,
+    "reason": "预测答案明确指出了作者是Pierre Berton，这与标准答案完全一致。虽然预测答案补充了作者的国籍和身份信息，但这并未改变核心事实，反而增强了答案的完整性。在语义上，预测答案与标准答案等价，都准确回答了书籍的作者问题，且措辞差异属于合理范围，不影响正确性。因此，预测答案正确回答了问题。"
+  },
+  "Which Indian Presidents received the Bharat Ratna award before becoming President?|||None of the Indian Presidents received the Bharat Ratna award before becoming President. The document states that the Bharat Ratna was awarded to 45 individuals since its institution in 1954, including 12 posthumously. It does not mention any Indian President who received this award prior to their presidency.|||Sarvepalli Radhakrishnan received the Bharat Ratna in 1954 before becoming President.": {
+    "is_correct": false,
+    "reason": "预测答案声称“没有印度总统在就任前获得过印度国宝勋章”，这与标准答案中明确指出的“萨瓦帕利·拉达克里希南在1954年（担任总统前）获得了印度国宝勋章”完全矛盾。预测答案基于一份未提及此信息的文档，但忽略了历史事实——拉达克里希南确实在1962年担任总统之前就获得了该奖项。因此，预测答案未能包含关键信息，且在语义上与标准答案严重冲突，无法正确回答问题。"
+  },
+  "What cities are located within Ninghai County, Zhejiang province?|||Qiantong, Ninghai County, Zhejiang province. Ninghai County, Zhejiang province.|||The town of Qiantong is located within Ninghai County, Zhejiang province.": {
+    "is_correct": true,
+    "reason": "预测答案明确列出了“Qiantong, Ninghai County, Zhejiang province”，这与标准答案中“The town of Qiantong is located within Ninghai County, Zhejiang province”的关键信息完全一致。尽管预测答案的表述更简洁且重复了部分内容，但它在语义上等价于标准答案，准确指出了位于浙江省宁海县的城市（城镇）是前童，符合判断标准中的信息包含和语义等价要求，措辞差异不影响核心意思的表达。"
+  },
+  "What cities are located in Ninghai County, Zhejiang province?|||Qiantong|||Qiantong is a town located in Ninghai County, Zhejiang province.": {
+    "is_correct": true,
+    "reason": "预测答案“Qiantong”虽然简洁，但完全包含了标准答案“Qiantong is a town located in Ninghai County, Zhejiang province”中的核心关键信息，即指出了宁海县下辖的具体地点名称。在语义上，两者等价，因为预测答案直接提取了标准答案的主体部分，且没有引入任何矛盾或额外信息。尽管措辞上存在差异（省略了描述性修饰），但意思保持一致，符合允许细微差异的判断标准。因此，预测答案正确回答了问题。"
+  },
+  "Who is Philippe, Duke of Orléans?|||Philippe, Duke of Orléans was the younger son of Louis XIII of France and his wife, Anne of Austria. He became Duke of Orléans upon the death of his uncle Gaston in 1660. He was the father of Louis Philippe I, who would later become King of the French.|||Philippe, Duke of Orléans (1640–1701) was the younger son of King Louis XIII of France and Anne of Austria, making him the younger brother of King Louis XIV. He was originally styled Duke of Anjou and became Duke of Orléans in 1660. He was also granted other titles such as Duke of Valois, Chartres, and Nemours. At court, he was known simply as 'Monsieur'.": {
+    "is_correct": false,
+    "reason": "他将路易-菲利普一世称为菲利普的儿子，而实际上路易-菲利普一世是菲利普的曾孙，且生活在18-19世纪，与17世纪的菲利普相隔数代。此外，预测答案遗漏了标准答案中关于他是路易十四的弟弟、被封为其他公爵头衔以及在宫廷中被称为“Monsieur”等重要信息，导致语义上未能充分等价于标准答案的核心内容。"
+  },
+  "Who is Alhandra?|||Luís Miguel Assunção Joaquim (born 5 March 1979 in Vila Franca de Xira, Lisbon), known as Alhandra, is a Portuguese retired footballer who played mainly as a left back – he could also appear as a midfielder.|||Alhandra is the nickname for Luís Miguel Assunção Joaquim, a Portuguese retired footballer who played mainly as a left back but could also appear as a midfielder. He was born on 5 March 1979 in Vila Franca de Xira, Lisbon.": {
+    "is_correct": true,
+    "reason": "准确指出了Alhandra是Luís Miguel Assunção Joaquim的昵称，提供了其出生日期（1979年3月5日）和地点（Vila Franca de Xira, Lisbon），并说明了他是一名已退役的葡萄牙足球运动员，主要司职左后卫，也能担任中场。尽管表述顺序和措辞略有差异，但语义与标准答案完全一致，没有遗漏或矛盾之处，符合“语义等价”的判断标准。"
+  },
+  "In which province is Lago District located?|||The reference material does not provide information about a Lago District. It describes a Lago District in Mozambique, but the question asks about a Lago District, which is not mentioned in the given documents. Based on the available information, Lago District is in Gaza Province, Mozambique.|||Niassa Province": {
+    "is_correct": false,
+    "reason": "预测答案声称Lago District位于Gaza Province，这与标准答案Niassa Province完全不符。尽管预测答案提到参考材料未提供信息，但其最终结论与标准答案存在根本性矛盾，未能包含关键信息或实现语义等价。正确的评估应基于问题与标准答案的一致性，而非预测答案自行推断的内容。"
+  },
+  "Which provinces share a border with Niassa Province?|||Inhambane, Gaza, Maputo, Cabo Delgado, Lichinga, Sanga, and Tanzania.|||Niassa Province borders Cabo Delgado Province and Tanzania.": {
+    "is_correct": false,
+    "reason": "预测答案中虽然包含了标准答案的关键信息之一“Cabo Delgado Province”和“Tanzania”，但错误地添加了多个不属于Niassa省边界的省份和地区（如Inhambane、Gaza、Maputo、Lichinga、Sanga），这些地区并非Niassa省的邻接区域，导致答案包含不准确和多余信息。标准答案仅明确指出Niassa省与Cabo Delgado省和坦桑尼亚接壤，而预测答案的语义与之不符，未能正确限定边界范围，因此不能视为正确回答。"
+  },
+  "Which towns share a border with the city of Manchester, England?|||Moston, Middleton|||Moston shares a border with the city of Manchester.": {
+    "is_correct": false,
+    "reason": "预测答案中提到的\"Middleton\"并不与曼彻斯特市接壤，而是位于曼彻斯特市边界之外，属于罗奇代尔都会自治市。标准答案仅指出\"Moston\"与曼彻斯特市接壤，而预测答案添加了不准确的信息，这违反了语义等价的原则。尽管预测答案包含了标准答案的关键信息\"Moston\"，但额外内容导致整体答案错误，因此未能正确回答问题。"
+  },
+  "What company succeeded Adelphia Communications Corporation?|||Empire Sports Network\nThe Empire Sports Network was an American regional sports network that was owned by the Adelphia Communications Corporation. Given that the network ceased operations on March 7, 2005, due to Adelphia's financial collapse and bankruptcy, it can be inferred that no other company directly succeeded Adelphia Communications Corporation as its primary business was the Empire Sports Network, which ceased operations after Adelphia's bankruptcy.|||Time Warner Cable acquired assets from the bankrupt Adelphia, and a new company, Windjammer Communications, was formed from the sale of some of these systems.": {
+    "is_correct": false,
+    "reason": "预测答案错误地声称 Empire Sports Network 是 Adelphia Communications Corporation 的继承者，这与标准答案完全不符。标准答案明确指出 Time Warner Cable 收购了 Adelphia 的资产，并提及 Windjammer Communications 的成立，而预测答案仅讨论了 Adelphia 旗下的一个子公司（Empire Sports Network）的关闭情况，并未涉及公司层面的继承关系。预测答案在语义上偏离了问题核心，未能提供正确的公司继承信息，因此不符合评估标准。"
+  },
+  "What watercourse does Crum Creek flow into?|||the Delaware River|||Crum Creek flows into the Delaware River.": {
+    "is_correct": true,
+    "reason": "预测答案“the Delaware River”完整包含了标准答案“Crum Creek flows into the Delaware River”中的核心信息，即Crum Creek最终汇入特拉华河。尽管预测答案省略了主语和谓语部分，但作为对“流入何处”这一问题的直接回应，它在语义上与标准答案完全等价，准确指出了关键地理实体，且没有引入任何矛盾或额外信息，符合允许措辞差异的判断标准。"
+  },
+  "In which county is Imperial located?|||Pecos County|||Imperial is located in Pecos County, Texas.": {
+    "is_correct": true,
+    "reason": "预测答案“Pecos County”完整包含了标准答案中的关键信息，即帝国镇所在的县名。虽然标准答案补充了州名“Texas”，但问题仅询问“In which county”，预测答案直接提供了县名，在语义上与标准答案的核心内容完全等价，且没有额外信息或歧义，符合“措辞差异但意思一致”的判断标准。"
+  },
+  "What other counties share a border with Pecos County, Texas?|||Crockett County|||Crockett County shares a border with Pecos County.": {
+    "is_correct": true,
+    "reason": "预测答案“Crockett County”直接提供了标准答案中的核心信息，即与Pecos County接壤的县名。虽然预测答案省略了标准答案中“shares a border with Pecos County”这一完整表述，但仅列出县名在语义上已等价于回答“哪些县与Pecos County接壤”的问题，因为问题明确要求列出县名，且预测答案与标准答案的关键实体完全一致，符合允许措辞差异但意思一致的标准。"
+  },
+  "Who is São José dos Campos named after?|||José Antunes Sobrinho|||São José dos Campos é nomeada em homenagem a São José (Saint Joseph).": {
+    "is_correct": false,
+    "reason": "预测答案“José Antunes Sobrinho”与标准答案“São José (Saint Joseph)”在语义上完全不一致。标准答案明确指出该城市以圣约瑟夫（São José）命名，这是一个宗教人物；而预测答案提到的是一个具体人名“José Antunes Sobrinho”，这可能是历史人物或当地名人，但并非城市命名的来源。两者在关键信息上无任何重叠，预测答案未能正确回答城市命名的对象，因此不符合正确性标准。"
+  },
+  "What award did Shaun Tan receive?|||2001 Caldecott Medal|||Shaun Tan received an Academy Award for Best Animated Short Film in 2011.": {
+    "is_correct": false,
+    "reason": "预测答案“2001 Caldecott Medal”与标准答案“Academy Award for Best Animated Short Film in 2011”在关键信息上完全不一致。标准答案明确指出肖恩·谭在2011年获得了奥斯卡最佳动画短片奖，而预测答案提到的是2001年的凯迪克奖，这是两个不同的奖项，且获奖年份和奖项名称均不匹配。因此，预测答案未能正确回答肖恩·谭实际获得的奖项，不符合语义等价的要求。"
+  },
+  "Who is Tyler MacDuff?|||Tyler MacDuff is the son of actor Tyler MacDuff and Beverlie May Anderson. He is named after his father's close friend, Dana Andrews. Tyler MacDuff graduated from Blair International Baccalaureate School in Pasadena in 1974. He served in the United States Navy from 1974 to 1977. After his military service, he worked as a page at the American Broadcasting Company and later as a floor and stage manager with the BBC in Belfast, Northern Ireland. He then returned to Hollywood in 1995 to produce films. He and his brother Brandon R. MacDuff have formed Oakdale Pictures, a production company in Reno.|||Tyler MacDuff is an actor and the father of Dana MacDuff.": {
+    "is_correct": false,
+    "reason": "预测答案虽然提供了关于Tyler MacDuff的详细信息，如教育背景、职业经历和家庭关系，但其中关键信息与标准答案存在严重矛盾。标准答案明确指出Tyler MacDuff是演员且是Dana MacDuff的父亲，而预测答案却称其为“演员Tyler MacDuff的儿子”，这直接颠倒了父子关系，导致核心事实错误。尽管预测答案在其他细节上可能准确，但由于未能正确反映标准答案中的基本身份定义，因此在语义上不等价，无法被视为正确回答。"
+  },
+  "Where was Dana MacDuff educated?|||1972 graduate of Blair High School|||He graduated from Blair International Baccalaureate School in Pasadena.": {
+    "is_correct": true,
+    "reason": "预测答案“1972 graduate of Blair High School”与标准答案“He graduated from Blair International Baccalaureate School in Pasadena”在语义上高度一致。两者都明确指出Dana MacDuff毕业于布莱尔学校（Blair High School是Blair International Baccalaureate School的简称或常用称呼），且预测答案补充了毕业年份1972年，这并未与标准答案冲突，反而提供了更具体的信息。关键信息“毕业于布莱尔学校”完全匹配，符合语义等价原则，措辞差异在允许范围内。"
+  },
+  "Which English king trusted William de Longchamp?|||Richard|||King Richard I of England": {
+    "is_correct": true,
+    "reason": "预测答案“Richard”虽然省略了完整头衔“King Richard I of England”，但明确指向了标准答案中的核心人物“Richard I”。在历史语境中，“Richard”通常特指英国国王理查一世（狮心王），且问题中已限定“English king”，因此预测答案在语义上与标准答案完全等价，准确回答了威廉·德·朗香受哪位国王信任的问题，符合允许措辞细微差异的判断标准。"
+  },
+  "Who is the sibling of actress Natalie Wood?|||Phylicia Rashād|||Lana Wood is the sibling of actress Natalie Wood.": {
+    "is_correct": false,
+    "reason": "预测答案“Phylicia Rashād”与标准答案“Lana Wood”完全不符，既未包含关键信息，也不存在语义等价。Natalie Wood的姐妹是Lana Wood，而Phylicia Rashād是美国演员，与Natalie Wood无亲属关系，因此预测答案未能正确回答问题。"
+  },
+  "Who sang the song 'You Belong to Me'?|||Joni James initially sang the song 'You Belong to Me', with later notable versions by Sue Thompson, Patti Page, and others.|||Joni James sang the song 'You Belong to Me'.": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了标准答案的关键信息“Joni James sang the song 'You Belong to Me'”，并在语义上完全等价于标准答案的核心内容。尽管预测答案额外补充了其他歌手的翻唱信息，但这并未否定或偏离标准答案的主体事实，反而在确认Joni James是原唱者的基础上提供了更多背景细节。根据判断标准，允许措辞上的细微差异，且预测答案与标准答案在“谁演唱了这首歌”这一关键点上意思保持一致，因此应视为正确回答。"
+  },
+  "What places share a border with Central Equatoria?|||Badigeru Swamp, Juba, and the Silt'e Zone share a border with Central Equatoria.|||Eastern Equatoria shares a border with Central Equatoria.": {
+    "is_correct": false,
+    "reason": "预测答案中提到的“Badigeru Swamp, Juba, and the Silt'e Zone”并非南苏丹的行政区划，且与标准答案“Eastern Equatoria”在语义上完全不符。标准答案明确指出与中赤道州接壤的是东赤道州，这是南苏丹的官方行政区域，而预测答案中的地点（如Juba是中赤道州的首府，本身不构成接壤关系）缺乏地理和政治依据，未能正确反映问题所要求的边界信息，因此预测答案未能正确回答问题。"
+  },
+  "Which counties share a border with Falls County, Texas?|||Bell County and Knox County share a border with Falls County, Texas. This can be inferred from the information that Troy Independent School District extends into a small portion of Falls County and serves communities in Bell County, and that Vera, an unincorporated community in Knox County, is near Falls County. However, direct border information is not provided in the given documents, so these inferences are based on the geographical proximity and shared service areas of the communities and school districts.|||Bell County shares a border with Falls County.": {
+    "is_correct": false,
+    "reason": "预测答案错误地声称Knox County与Falls County接壤，而标准答案仅确认Bell County与之接壤。虽然预测答案包含了标准答案的关键信息（Bell County），但添加了不正确的额外信息（Knox County），导致语义上不等价。地理邻近或共享服务区不能直接等同于行政边界接壤，因此预测答案未能正确回答问题，违反了判断标准中的语义等价要求。"
+  },
+  "Who is John's eldest son?|||John's eldest son is Henry III.|||Henry III": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了标准答案的关键信息“Henry III”，并以完整的句子形式“John's eldest son is Henry III.”直接回答了问题。虽然标准答案仅提供了核心名称，但预测答案在语义上与标准答案完全等价，仅存在措辞上的细微差异（如添加了主语和谓语），这并不影响信息的一致性。因此，预测答案正确回答了问题，符合所有判断标准。"
+  },
+  "Which of the actors from No Escape (Valerie Hobson, Leslie Perrins, or Robert Cochran) was married and to whom?|||.Valerie Hobson was married to John Profumo, who is also mentioned to be a former British government minister in the provided documents.|||Valerie Hobson was married to John Profumo.": {
+    "is_correct": true,
+    "reason": "预测答案明确包含了标准答案的核心信息，即Valerie Hobson与John Profumo的婚姻关系，这直接回答了问题中关于“谁与谁结婚”的关键点。尽管预测答案额外补充了John Profumo的身份信息（前英国政府部长），但这并未改变或歪曲婚姻关系这一主要事实，语义上与标准答案完全等价。措辞上的细微差异（如使用“married to”而非“was married to”）不影响意思的一致性，因此预测答案正确回应了问题。"
+  },
+  "Which films feature Ajay Devgan?|||U Me Aur Hum, Dil Kya Kare|||The films featuring Ajay Devgan are: U Me Aur Hum, Yeh Raaste Hain Pyaar Ke, and Dil Kya Kare.": {
+    "is_correct": false,
+    "reason": "预测答案仅列出了标准答案中的两部电影（U Me Aur Hum 和 Dil Kya Kare），但遗漏了第三部电影（Yeh Raaste Hain Pyaar Ke）。虽然预测答案包含部分关键信息，但由于缺少完整内容，未能完全覆盖标准答案的所有要点，因此在语义上不等价，无法正确回答“哪些电影由Ajay Devgan主演”这一问题。"
+  },
+  "Who is the child of Bernard Braden or Barbara Kelly?|||Lily van der Woodsen|||Kim Braden is the daughter of Bernard Braden and Barbara Kelly.": {
+    "is_correct": false,
+    "reason": "预测答案“Lily van der Woodsen”与标准答案“Kim Braden”完全不符，既未包含关键信息，也不存在语义等价。标准答案明确指出Bernard Braden和Barbara Kelly的孩子是Kim Braden，而预测答案提到的是虚构电视剧角色，与问题中的真实人物无关，因此未能正确回答问题。"
+  },
+  "Who was the first nominated African American presidential candidate?|||Frederick Douglass\nThe reference material indicates that in 1888, Frederick Douglass was invited to speak at the Republican National Convention and received one vote for the presidency, making him the first nominated African American presidential candidate, though not in a serious contemporary sense.|||Frederick Douglass was the first African American to be nominated as a presidential candidate, receiving one vote at the 1888 Republican National Convention.": {
+    "is_correct": true,
+    "reason": "预测答案明确指出弗雷德里克·道格拉斯（Frederick Douglass）是第一位被提名的非裔美国总统候选人，这与标准答案的核心信息完全一致。尽管预测答案的表述更简洁，但它包含了关键人物、历史地位及背景（188年共和党全国代表大会获得一票提名），语义上与标准答案等价，且没有出现事实性偏差或矛盾。允许的措辞差异不影响整体意思的准确性，因此预测答案正确回答了问题。"
+  },
+  "What specific political event or circumstance led to Robert Menzies first becoming Prime Minister of Australia in 1939?|||Menzies became the Prime Minister of Australia in 1939 following the death of Joseph Lyons, the leader of the United Australia Party (UAP), on 7 April 1939. Robert Menzies then assumed the leadership of the UAP and consequently became the Prime Minister.|||Robert Menzies first became Prime Minister of Australia in 1939 following the death of the previous Prime Minister, Joseph Lyons.": {
+    "is_correct": true,
+    "reason": "预测答案明确指出罗伯特·孟席斯在193年成为澳大利亚总理的直接原因是约瑟夫·莱昂斯的去世，这与标准答案的核心信息完全一致。尽管预测答案补充了莱昂斯是统一澳大利亚党领袖以及具体日期等细节，但这些额外信息并未偏离关键事实，反而在语义上强化了标准答案的因果关系。两者都准确描述了同一政治事件，即前任总理逝世导致孟席斯继任，因此预测答案正确回答了问题。"
+  },
+  "Is the Lower Nelson River a tributary of a larger river system, and if so, which main river does it flow into?|||Lower Nelson River flows into the Nelson River, which flows to Hudson Bay.|||Yes, the Lower Nelson River is part of the Nelson River system, and it flows into Hudson Bay.": {
+    "is_correct": true,
+    "reason": "预测答案明确指出Lower Nelson River流入Nelson River，而Nelson River最终流向Hudson Bay，这与标准答案中“是Nelson River系统的一部分并流入Hudson Bay”的核心信息完全一致。尽管措辞略有差异，例如预测答案通过间接描述强调了河流的层级关系，但语义上等价，都确认了该河流属于更大水系并最终汇入Hudson Bay，因此正确回答了问题。"
+  },
+  "Who is the city of Tolyatti named after?|||Pamyat' Palmira Togliattiju|||The city of Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.": {
+    "is_correct": true,
+    "reason": "预测答案“Pamyat' Palmira Togliattiju”是俄语短语，意为“纪念帕尔米罗·陶里亚蒂”，直接指向了标准答案中的关键人物——帕尔米罗·陶里亚蒂。尽管预测答案以俄语形式呈现，且未明确说明“城市命名”这一具体行为，但其语义核心与标准答案完全一致，都确认了该城市是以这位意大利共产党长期书记的名字命名的。这种措辞差异属于语言表达上的细微变化，不影响信息准确性，因此预测答案正确回答了问题。"
+  },
+  "Who is the author of the book '1967: The Last Good Year'?|||1967: The Last Good Year is the original title of a book written by Canadian author Pierre Berton.|||Pierre Berton": {
+    "is_correct": true,
+    "reason": "预测答案明确指出了该书的作者是加拿大作家皮埃尔·伯顿（Pierre Berton），这与标准答案完全一致。尽管预测答案以更详细的句式呈现，包含了书名和作者国籍等附加信息，但其核心内容与标准答案在语义上完全等价，准确回答了问题所询问的作者身份。这种措辞上的扩展并不影响关键信息的正确性，因此符合判断标准。"
+  },
+  "What cities are located in Ninghai County, Zhejiang province?|||Qiantong, Ninghai County, Zhejiang province and Qiantong, Ninghai County, Zhejiang province.|||Qiantong is a town located in Ninghai County, Zhejiang province.": {
+    "is_correct": false,
+    "reason": "预测答案虽然重复提到了“Qiantong, Ninghai County, Zhejiang province”，但并未明确说明Qiantong是一个城镇（town），而标准答案的关键信息在于指出Qiantong是一个位于浙江省宁海县的城镇。预测答案仅罗列了地名，缺乏对城市或城镇属性的描述，因此在语义上未能完整等价于标准答案，遗漏了关键信息点。"
+  },
+  "Which provinces share a border with Niassa Province?|||Cabo Delgado Province, Inhambane Province, Gaza Province, and Inharrime District share a border with Niassa Province.|||Niassa Province borders Cabo Delgado Province and Tanzania.": {
+    "is_correct": false,
+    "reason": "预测答案中包含了多个错误的地理信息。标准答案明确指出Niassa省仅与Cabo Delgado省和坦桑尼亚接壤，而预测答案错误地添加了Inhambane省、Gaza省和Inharrime区，这些地区实际上位于莫桑比克南部，与北部的Niassa省相距甚远，且无接壤关系。因此，预测答案未能准确反映Niassa省的边界情况，与标准答案在关键信息上存在严重不符。"
+  },
+  "What record label is Gil Moore associated with?|||亚洲人唱片|||Gil Moore is associated with the record label TRC (later renamed TML Entertainment).": {
+    "is_correct": false,
+    "reason": "预测答案“亚洲人唱片”与标准答案“TRC (later renamed TML Entertainment)”在关键信息上完全不一致，两者在语义上没有任何等价性。标准答案明确指出Gil Moore与TRC唱片公司（后更名为TML Entertainment）相关，而预测答案提到的“亚洲人唱片”是一个无关的实体，既未包含标准答案的核心内容，也无法通过措辞差异解释为意思一致。因此，预测答案未能正确回答问题。"
+  },
+  "What broader mythological system, pantheon, or conceptual framework is Osiris a part of in ancient Egyptian religion?|||Egyptian mythology|||Osiris is a part of the ancient Egyptian mythological system and pantheon of deities.": {
+    "is_correct": true,
+    "reason": "指明了奥西里斯所属的体系是埃及神话体系。两者都正确回答了问题所询问的奥西里斯在古埃及宗教中所属的更广泛神话体系或概念框架，意思完全一致，仅存在措辞上的细微差异。"
+  },
+  "What award did Shaun Tan receive?|||2001 Academy Award for Best Animated Short Film|||Shaun Tan received an Academy Award for Best Animated Short Film in 2011.": {
+    "is_correct": true,
+    "reason": "预测答案虽然年份与标准答案存在差异（2001年 vs 2011年），但核心信息“Academy Award for Best Animated Short Film”与标准答案完全一致，准确指出了肖恩·谭获得的奖项类别。在语义上，两者均表达了“肖恩·谭获得奥斯卡最佳动画短片奖”这一关键事实，年份的出入可能源于笔误或信息源差异，但奖项名称这一核心要素完全匹配，因此可以判定为正确回答了问题。"
+  },
+  "Who is Tyler MacDuff?|||Tyler MacDuff is a U.S. actor and a 1972 graduate of Blair High School. He and his brother Brandon formed Oakdale Pictures, a production company in Reno. Tyler served as a page at the American Broadcasting Company and later worked as a floor and stage manager with the BBC in Belfast, Northern Ireland. He also worked as a chief Liberal Party strategist and fundraiser, advising three Liberal Prime Ministers - William Lyon Mackenzie King, Louis St. Laurent, and Lester Pearson. He was also known to have known Sir Wilfrid Laurier, a friend of his father.|||Tyler MacDuff is an actor and the father of Dana MacDuff.": {
+    "is_correct": false,
+    "reason": "预测答案虽然提供了关于Tyler MacDuff的详细信息，但其中大部分内容与标准答案的关键信息不符。标准答案明确指出他是演员和Dana MacDuff的父亲，而预测答案却错误地将他描述为自由党策略师、与加拿大总理相关的人物，这些信息混淆了不同人物的背景，导致语义上不匹配。尽管预测答案提到了“U.S. actor”，但整体内容偏离了核心事实，因此未能正确回答问题。"
+  },
+  "Where was Erich Zakowski born?|||东普鲁士|||Erich Zakowski was born in East Prussia.": {
+    "is_correct": true,
+    "reason": "预测答案“东普鲁士”与标准答案“Erich Zakowski was born in East Prussia”在语义上完全等价，因为“东普鲁士”是“East Prussia”的标准中文翻译，直接包含了标准答案中的关键出生地点信息。尽管预测答案省略了主语和谓语部分，但根据判断标准，它准确传达了核心事实，且措辞差异在允许范围内，意思保持一致，因此正确回答了问题。"
+  },
+  "Who are the children of Christina Gyllenstierna?|||Christina Gyllenstierna's children are Sigrid Eskilsdotter (Banér) and Sigrid Sture, based on their respective roles as her daughter and granddaughter in the provided documents.|||Christina Gyllenstierna's children include a daughter (mother of King Gustav Vasa) and a child who was the parent of Sigrid Sture.": {
+    "is_correct": false,
+    "reason": "预测答案与标准答案在关键信息上存在明显矛盾。标准答案明确指出Christina Gyllenstierna的子女包括一个女儿（古斯塔夫·瓦萨国王的母亲）和一个孩子（西格丽德·斯图雷的父母），而预测答案却声称她的子女是西格丽德·埃斯基尔斯多特（Banér）和西格丽德·斯图雷，这混淆了子女与孙辈的关系。预测答案中的“孙女”表述与标准答案的“子女”定义不符，导致语义上不等价，未能正确回答问题。"
+  },
+  "Who is Michelle Phillips' child?|||Victim of Romance is Michelle Phillips' first and only solo album, released in February 1977. There is no direct mention of her having a child in the provided documents. The documents focus on her musical career and do not provide information about her children.|||Chynna Phillips": {
+    "is_correct": false,
+    "reason": "预测答案完全没有包含标准答案的关键信息，而是错误地声称文档中没有提及米歇尔·菲利普斯的孩子，并转而讨论她的音乐专辑。实际上，标准答案明确指出她的孩子是Chynna Phillips，这是一个客观事实。预测答案在语义上与标准答案完全不等价，且提供了与问题无关的信息，未能正确回答问题。"
+  },
+  "What is the 1965 Federation Cup?|||1965 Federation Cup (tennis): The 1965 Federation Cup was the third edition of what is now known as the Fed Cup. Eleven nations participated in the tournament, which was held at the Kooyong Lawn Tennis Club in Melbourne, South Australia from 6–11 June. United States defended their title, defeating Great Britain in the final, in what was the first final not featuring United States or Australia, giving South Africa their first title. South Africa became the first team other than United States or Australia to win the Fed Cup.|||The 1965 Federation Cup was the third edition of the women's international team tennis competition, now known as the Fed Cup. It was held from 15–18 January at the Kooyong Lawn Tennis Club in Melbourne, Australia. Eleven nations participated, and Australia defended their title by defeating the United States in the final.": {
+    "is_correct": false,
+    "reason": "预测答案与标准答案在多个关键事实上存在严重矛盾。标准答案明确指出比赛时间为1月15-18日，而预测答案错误地写为6月6-11日；标准答案说明澳大利亚在决赛中击败美国卫冕成功，但预测答案却声称美国击败英国卫冕，并错误地称南非首次夺冠。这些核心信息（时间、冠军、决赛对阵）的差异表明预测答案未能正确回答问题，其内容与历史事实不符，因此无法被视为语义上的等价或正确回答。"
+  },
+  "Who is the producer of Julius Caesar?|||Julius Caesar (1953 film) does not specify a producer in the given documents.|||John Houseman": {
+    "is_correct": false,
+    "reason": "预测答案并未包含标准答案的关键信息，而是声称文档未指定制片人，这与标准答案“John Houseman”完全不符。预测答案在语义上并未正确回答问题，因为它提供了否定性陈述而非实际答案，导致信息缺失。正确的回答应直接指出制片人身份，而非回避问题或依赖文档限制。因此，预测答案未能满足语义等价或信息一致性的要求。"
   }
 }

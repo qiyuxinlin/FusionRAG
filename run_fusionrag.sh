@@ -13,13 +13,13 @@
 #####################################################################
 
 # GPU 配置
-GPUS="1"                                                    # 使用的GPU编号，多GPU用逗号分隔如 "0,1"
+GPUS="0"                                                    # 使用的GPU编号，多GPU用逗号分隔如 "0,1"
 USE_MULTI_GPU="false"                                       # 是否使用多GPU模式 (true/false)
 cd /home/shm/document/exp/FusionRAG
 # 环境配置
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/ramdom2"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/"       # 结果保存目录（CSV等）
 CACHE_PATH="/mnt/data3/tmp/fusionrag"                      # KV cache 保存路径
 
 # 模型配置
@@ -36,9 +36,11 @@ MAX_SAMPLES=""                                             # 最大测试样本�
 
 # FusionRAG 方法配置
 REPROCESS_METHOD="FusionRAG"                               # 方法: FusionRAG, Oracle, OracleAdaptive, OracleDynamic, vAttention, DraftModel, QueryAttention
-RATE="1.0"                                                 # 重算比例 (0-1)
+RATE="0.15"                                                 # 重算比例 (0-1)
 TOPK="10"                                                  # 预处理时融合的top-k文档数
 PREPROCESS="true"                                          # 是否启用预处理 (true/false)
+USE_RANDOM_RECALL="false"                                  # 是否使用随机召回 (true=随机, false=BGE相似度)
+RANDOM_SEED="42"                                           # 随机种子 (当 USE_RANDOM_RECALL=true 时生效)
 REVERT_ROPE="true"                                         # 是否还原RoPE (true/false)
 PREPROCESS_SCOPE="global"                                  # 预处理范围: global, per_example, skip_untested
 
@@ -136,6 +138,8 @@ if [ ${#PYTHON_ARGS[@]} -eq 0 ]; then
         "--rate" "${RATE}"
         "--topk" "${TOPK}"
         "--preprocess" "${PREPROCESS}"
+        "--use_random_recall" "${USE_RANDOM_RECALL}"
+        "--random_seed" "${RANDOM_SEED}"
         "--reprocess_method" "${REPROCESS_METHOD}"
         "--revert_rope" "${REVERT_ROPE}"
         "--use_multi_gpu" "${USE_MULTI_GPU}"

@@ -350,7 +350,8 @@ def prepare_reflect_data(
     topk: int = 10,
     max_main_questions: int = None,
     preprocess: bool = True,
-    random_recall: bool =  True,  # 控制是否随机randon
+    use_random_recall: bool = False,  # 控制是否使用随机召回（True=随机, False=BGE相似度）
+    random_seed: int = 42,  # 随机种子（当 use_random_recall=True 时生效）
     preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL
 ) -> Tuple[List, torch.Tensor, List, List]:
     """
@@ -360,6 +361,8 @@ def prepare_reflect_data(
         model_type: Type of model to determine system prompt
         topk: Top-k similar documents for each document
         preprocess: Whether to compute context_rank
+        use_random_recall: If True, use random sampling instead of BGE similarity
+        random_seed: Random seed for reproducibility (when use_random_recall=True)
         preprocess_scope: Scope of document retrieval
             - GLOBAL: All documents from all questions (original behavior)
             - PER_EXAMPLE: Only retrieve within each example's documents
@@ -514,93 +517,134 @@ def prepare_reflect_data(
     # STEP 2: Build FAISS index and compute context_rank based on scope
     context_rank = []
     if preprocess and len(global_corpus) > 0:
-        print("\n" + "="*80)
-        print(f"Computing document similarity with BGE + FAISS (scope: {preprocess_scope.value})...")
-        print("="*80)
+        if use_random_recall:
+            # ========== Random Recall Mode ==========
+            print("\n" + "="*80)
+            print(f"Using RANDOM recall (seed={random_seed}, scope: {preprocess_scope.value})...")
+            print("="*80)
 
-        import faiss
-        from FlagEmbedding import FlagModel
+            import random
+            random.seed(random_seed)
 
-        # Load BGE model
-        print(f"Loading BGE model from {bge_model_path}...")
-        bgem3 = FlagModel(bge_model_path, use_fp16=True)
-
-        if preprocess_scope == PreprocessScope.PER_EXAMPLE:
-            # Build separate FAISS index for EACH example
-            print("Building per-example FAISS indices...")
-            context_rank = []
+            total_docs_count = sum(corpus_lens)
+            all_global_indices = list(range(total_docs_count))
 
             for q_idx, q_data in enumerate(questions_data):
-                example_docs = q_data['docs']
-
-                if len(example_docs) == 0:
+                n_docs = len(q_data['docs'])
+                if n_docs == 0:
                     continue
 
-                print(f"  Example {q_idx + 1}: {len(example_docs)} documents")
-
-                # Encode this example's documents
-                example_embeddings = bgem3.encode(example_docs)
-                example_embeddings = example_embeddings.astype(np.float32)
-
-                # Build FAISS index for this example
-                dim = example_embeddings.shape[-1]
-                index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
-                index.train(example_embeddings)
-                index.add(example_embeddings)
-
-                # Search within this example only
-                example_embeddings_query = bgem3.encode_queries(example_docs)
-                example_embeddings_query = example_embeddings_query.astype(np.float32)
-                actual_k = min(topk, len(example_docs))
-                score, idx = index.search(example_embeddings_query, k=actual_k)
-
-                # Convert local indices to global indices
                 global_offset = sum(corpus_lens[:q_idx])
-                global_idx = idx + global_offset
+                q_context_rank = []
 
-                # Pad to topk if needed
-                if actual_k < topk:
-                    pad_width = ((0, 0), (0, topk - actual_k))
-                    global_idx = np.pad(global_idx, pad_width, mode='constant', constant_values=-1)
+                # 确定随机抽取的候选池
+                if preprocess_scope == PreprocessScope.PER_EXAMPLE:
+                    # 只在当前问题的文档范围内抽
+                    candidate_pool = list(range(global_offset, global_offset + n_docs))
+                else:
+                    # 在全局所有文档范围内抽
+                    candidate_pool = all_global_indices
 
-                context_rank.append(global_idx)
+                for i in range(n_docs):
+                    current_doc_global_idx = global_offset + i
+
+                    # 除掉文档自己本身
+                    others = [idx for idx in candidate_pool if idx != current_doc_global_idx]
+
+                    # 如果候选不够，允许重复采样；否则不重复采样
+                    if len(others) < topk:
+                        sampled = random.choices(others, k=topk)  # 允许重复
+                    else:
+                        sampled = random.sample(others, k=topk)  # 不重复抽样
+
+                    q_context_rank.append(sampled)
+                context_rank.append(np.array(q_context_rank))
 
             if len(context_rank) > 0:
                 context_rank = np.vstack(context_rank)
-                print(f"Per-example context rank computed: {context_rank.shape}")
+                print(f"Random context_rank computed: {context_rank.shape}")
 
-            if random_recall and len(context_rank) > 0:
-                import random
-                print("Random recall mode enabled: shuffling context_rank...")
-                for i in range(len(context_rank)):
-                    row = context_rank[i].tolist()  # 转成 list
-                    random.shuffle(row)
-                    context_rank[i] = np.array(row)  
-                    
         else:
-            # GLOBAL or SKIP_UNTESTED: Build single FAISS index for all corpus
-            print(f"Encoding {len(global_corpus)} documents for FAISS index...")
-            corpus_embeddings = bgem3.encode(global_corpus)
-            print(f"Corpus embeddings shape: {corpus_embeddings.shape}")
+            # ========== BGE Similarity Mode ==========
+            print("\n" + "="*80)
+            print(f"Computing document similarity with BGE + FAISS (scope: {preprocess_scope.value})...")
+            print("="*80)
 
-            # Build FAISS index
-            dim = corpus_embeddings.shape[-1]
-            index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
-            corpus_embeddings = corpus_embeddings.astype(np.float32)
-            index.train(corpus_embeddings)
-            index.add(corpus_embeddings)
-            print(f"FAISS index built with {index.ntotal} vectors")
+            import faiss
+            from FlagEmbedding import FlagModel
 
-            # Search for similar documents
-            print(f"Searching for top-{topk} similar documents for each document...")
-            corpus_embeddings_query = bgem3.encode_queries(global_corpus)
-            corpus_embeddings_query = corpus_embeddings_query.astype(np.float32)
-            score, idx = index.search(corpus_embeddings_query, k=topk)
-            context_rank = idx  # Shape: [total_docs, topk]
+            # Load BGE model
+            print(f"Loading BGE model from {bge_model_path}...")
+            bgem3 = FlagModel(bge_model_path, use_fp16=True)
 
-            print(f"Context rank computed: {context_rank.shape}")
+            if preprocess_scope == PreprocessScope.PER_EXAMPLE:
+                # Build separate FAISS index for EACH example
+                print("Building per-example FAISS indices...")
+                context_rank = []
 
-        bgem3 = None  # Free memory
+                for q_idx, q_data in enumerate(questions_data):
+                    example_docs = q_data['docs']
+
+                    if len(example_docs) == 0:
+                        continue
+
+                    print(f"  Example {q_idx + 1}: {len(example_docs)} documents")
+
+                    # Encode this example's documents
+                    example_embeddings = bgem3.encode(example_docs)
+                    example_embeddings = example_embeddings.astype(np.float32)
+
+                    # Build FAISS index for this example
+                    dim = example_embeddings.shape[-1]
+                    index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
+                    index.train(example_embeddings)
+                    index.add(example_embeddings)
+
+                    # Search within this example only
+                    example_embeddings_query = bgem3.encode_queries(example_docs)
+                    example_embeddings_query = example_embeddings_query.astype(np.float32)
+                    actual_k = min(topk, len(example_docs))
+                    score, idx = index.search(example_embeddings_query, k=actual_k)
+
+                    # Convert local indices to global indices
+                    global_offset = sum(corpus_lens[:q_idx])
+                    global_idx = idx + global_offset
+
+                    # Pad to topk if needed
+                    if actual_k < topk:
+                        pad_width = ((0, 0), (0, topk - actual_k))
+                        global_idx = np.pad(global_idx, pad_width, mode='constant', constant_values=-1)
+
+                    context_rank.append(global_idx)
+
+                if len(context_rank) > 0:
+                    context_rank = np.vstack(context_rank)
+                    print(f"Per-example context rank computed: {context_rank.shape}")
+
+            else:
+                # GLOBAL or SKIP_UNTESTED: Build single FAISS index for all corpus
+                print(f"Encoding {len(global_corpus)} documents for FAISS index...")
+                corpus_embeddings = bgem3.encode(global_corpus)
+                print(f"Corpus embeddings shape: {corpus_embeddings.shape}")
+
+                # Build FAISS index
+                dim = corpus_embeddings.shape[-1]
+                index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
+                corpus_embeddings = corpus_embeddings.astype(np.float32)
+                index.train(corpus_embeddings)
+                index.add(corpus_embeddings)
+                print(f"FAISS index built with {index.ntotal} vectors")
+
+                # Search for similar documents
+                print(f"Searching for top-{topk} similar documents for each document...")
+                corpus_embeddings_query = bgem3.encode_queries(global_corpus)
+                corpus_embeddings_query = corpus_embeddings_query.astype(np.float32)
+                score, idx = index.search(corpus_embeddings_query, k=topk)
+                context_rank = idx  # Shape: [total_docs, topk]
+
+                print(f"Context rank computed: {context_rank.shape}")
+
+            bgem3 = None  # Free memory
 
     return questions_data, system_tensor, context_rank, corpus_lens
 
@@ -936,6 +980,8 @@ def main(
     rate=0.2,
     topk=10,
     preprocess=True,
+    use_random_recall=False,  # 是否使用随机召回 (True=随机, False=BGE相似度)
+    random_seed=42,  # 随机种子
     preprocess_scope=PreprocessScope.GLOBAL,
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
@@ -980,6 +1026,8 @@ def main(
         rate: Compression rate (0=no compression, 1=full recompute). 对于 OracleDynamic 方法会被忽略
         topk: Top-k similar documents to fuse in preprocess
         preprocess: Whether to use FusionRAG preprocess
+        use_random_recall: If True, use random document sampling; if False, use BGE similarity (default: False)
+        random_seed: Random seed for reproducibility when use_random_recall=True (default: 42)
         preprocess_scope: Scope for document retrieval (GLOBAL, PER_EXAMPLE, SKIP_UNTESTED)
         reprocess_method: Method name ('FusionRAG', 'Oracle', 'OracleAdaptive', 'vAttention', 'OracleDynamic', 'DraftModel', etc.)
         bge_model_path: Path to BGE model for computing similarity
@@ -1003,15 +1051,25 @@ def main(
     model_cache_root = os.path.join(cache_path, model_name, dataset_name)
     save_path = os.path.join(model_cache_root, 'kv_cache')
 
-    # Separate preprocess cache for different scopes
+    # Separate preprocess cache for different configurations
+    # Cache naming includes all parameters that affect KV cache content:
+    # - scope: global/per_example/skip_untested
+    # - topk: number of documents to fuse
+    # - recall_method: random/bge (extensible for future methods)
+    recall_method = "random" if use_random_recall else "bge"
+
+    # Format: preprocess_kv_cache_{scope}_topk{topk}_{recall_method}
     if preprocess_scope == PreprocessScope.GLOBAL:
-        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_global')
+        scope_str = "global"
     elif preprocess_scope == PreprocessScope.PER_EXAMPLE:
-        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_per_example')
+        scope_str = "per_example"
     elif preprocess_scope == PreprocessScope.SKIP_UNTESTED:
-        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_skip_untested')
+        scope_str = "skip_untested"
     else:
-        preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache')
+        scope_str = "default"
+
+    cache_dir_name = f"preprocess_kv_cache_{scope_str}_topk{topk}_{recall_method}"
+    preprocess_save_path = os.path.join(model_cache_root, cache_dir_name)
 
     # 结果目录：如果指定了 result_path，使用它；否则使用 cache_path
     if result_path is not None:
@@ -1026,9 +1084,14 @@ def main(
     # 初始化评判缓存
     _load_judge_cache(csv_path)
 
+    recall_method_str = "Random Recall" if use_random_recall else "BGE Similarity"
     print(f"Cache directories created under: {model_cache_root}")
     print(f"  - KV cache: {save_path}")
-    print(f"  - Preprocess cache ({preprocess_scope.value}): {preprocess_save_path}")
+    print(f"  - Preprocess cache:")
+    print(f"      Scope: {preprocess_scope.value}")
+    print(f"      TopK: {topk}")
+    print(f"      Recall: {recall_method_str}")
+    print(f"      Path: {cache_dir_name}")
     print(f"  - Results: {csv_path}")
 
     # Load model and tokenizer
@@ -1060,13 +1123,10 @@ def main(
 
     # Prepare data organized by main questions
     print("Preparing data organized by main questions...")
-    if True:
-        questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data_ramdom(
-            data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
-        )
-    # questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
-    #     data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
-    # )
+    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess,
+        use_random_recall, random_seed, preprocess_scope
+    )
     # Initialize OpenAI client
     if openai_api_key is None:
         openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -1100,6 +1160,7 @@ def main(
     # Load rate=1 results for comparison if rate != 1
     rate1_results = {}
     if rate != 1:
+        rate1_file_found = False
         if not os.path.exists(rate1_csv_file):
             # 尝试查找其他 rate=1 文件
             import glob
@@ -1122,30 +1183,37 @@ def main(
                     else:
                         rate1_csv_file = rate1_files[0]
                 print(f"[INFO] Using alternative rate=1 file: {rate1_csv_file}")
+                rate1_file_found = True
             else:
-                raise FileNotFoundError(
-                    f"Rate=1 results file not found: {rate1_csv_file}\n"
-                    f"No rate=1 files found in {csv_path}\n"
-                    f"Please run with rate=1 first to generate baseline results."
-                )
+                print(f"[WARNING] Rate=1 results file not found: {rate1_csv_file}")
+                print(f"[WARNING] No rate=1 files found in {csv_path}")
+                print(f"[WARNING] Continuing without rate=1 baseline comparison...")
+        else:
+            rate1_file_found = True
 
-        print(f"\nLoading rate=1 baseline results from {rate1_csv_file}...")
-        with open(rate1_csv_file, mode='r', newline='', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                key = (row['Main Question'], row['Sub Question'])
-                rate1_results[key] = {
-                    'predicted': row['Predicted'],
-                    'correct': row['Correct'],
-                    'f1': row['F1'],
-                    'em': row['EM'],
-                    'reason': row['Reason'],
-                    # long_decode 模式额外读取 evidence 相关字段
-                    'evidence': row.get('Evidence', 'N/A'),
-                    'evidence_matched': row.get('Evidence_Matched', 'N/A'),
-                    'evidence_reason': row.get('Evidence_Reason', 'N/A'),
-                }
-        print(f"Loaded {len(rate1_results)} rate=1 results for comparison")
+        if rate1_file_found:
+            print(f"\nLoading rate=1 baseline results from {rate1_csv_file}...")
+            try:
+                with open(rate1_csv_file, mode='r', newline='', encoding='utf-8') as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        key = (row['Main Question'], row['Sub Question'])
+                        rate1_results[key] = {
+                            'predicted': row['Predicted'],
+                            'correct': row['Correct'],
+                            'f1': row['F1'],
+                            'em': row['EM'],
+                            'reason': row['Reason'],
+                            # long_decode 模式额外读取 evidence 相关字段
+                            'evidence': row.get('Evidence', 'N/A'),
+                            'evidence_matched': row.get('Evidence_Matched', 'N/A'),
+                            'evidence_reason': row.get('Evidence_Reason', 'N/A'),
+                        }
+                print(f"Loaded {len(rate1_results)} rate=1 results for comparison")
+            except Exception as e:
+                print(f"[WARNING] Failed to load rate=1 results: {e}")
+                print(f"[WARNING] Continuing without rate=1 baseline comparison...")
+                rate1_results = {}
 
     # Write CSV header
     with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
@@ -2308,6 +2376,10 @@ if __name__ == '__main__':
                         help='Top-k similar documents to fuse in preprocessing')
     parser.add_argument('--preprocess', type=lambda x: x.lower() == 'true', default=True,
                         help='Enable preprocessing (True/False)')
+    parser.add_argument('--use_random_recall', type=lambda x: x.lower() == 'true', default=False,
+                        help='Use random document sampling instead of BGE similarity (True/False)')
+    parser.add_argument('--random_seed', type=int, default=42,
+                        help='Random seed for reproducibility (when use_random_recall=True)')
     parser.add_argument('--reprocess_method', type=str, default='FusionRAG',
                         choices=['FusionRAG', 'Oracle', 'OracleAdaptive', 'OracleDynamic',
                                 'vAttention', 'DraftModel', 'QueryAttention', 'DraftModelLayerwise'],
@@ -2406,6 +2478,8 @@ if __name__ == '__main__':
         rate=args.rate,
         topk=args.topk,
         preprocess=args.preprocess,
+        use_random_recall=args.use_random_recall,
+        random_seed=args.random_seed,
         preprocess_scope=preprocess_scope,
         reprocess_method=args.reprocess_method,
         use_entropy_selection=args.use_entropy_selection,
