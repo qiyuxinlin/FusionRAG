@@ -135,7 +135,212 @@ def load_system_prompt(model_family: str, dataset_type: str = "2wikimqa") -> str
 
     # Default to Qwen2.5 2wikimqa
     return config["system_prompt"]["Qwen3"]["2wikimqa"]
+import json
+import torch
+import numpy as np
+import random
+from typing import List, Tuple
+from tqdm import tqdm
 
+def prepare_reflect_data_ramdom(
+    data_path: str,
+    tokenizer,
+    bge_model_path: str,
+    model_type: str = 'qwen2',
+    topk: int = 10,
+    max_main_questions: int = None,
+    preprocess: bool = True,
+    random_recall: bool =  True,  # 控制是否随机randon
+    preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL
+) -> Tuple[List, torch.Tensor, List, List]:
+
+    print(f"Loading dataset from {data_path}...")
+    with open(data_path, 'r', encoding='utf-8') as f:
+        dataset = json.load(f)
+
+    if max_main_questions:
+        dataset = dataset[:max_main_questions]
+        print(f"Limited to first {max_main_questions} main questions")
+
+    # Map model_type to model_family for system prompt
+    model_family_map = {
+        'qwen': 'Qwen2.5',
+        'qwen2': 'Qwen2.5',
+        'qwen3': 'Qwen3',
+        'mistral': 'Mistral',
+        'llama': 'Llama',
+        'pangu': 'Pangu'
+    }
+    model_family = model_family_map.get(model_type, 'Qwen2.5')
+
+    # Tokenize system prompt (shared across all questions)
+    system_prompt = load_system_prompt(model_family, "2wikimqa")
+    system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
+    system_tensor = torch.tensor(system_tokens, dtype=torch.long)
+
+    # STEP 1: Build document corpus based on preprocess_scope
+    print("\n" + "="*80)
+    print(f"Building document corpus with scope: {preprocess_scope.value}")
+    print("="*80)
+
+    global_corpus = []  # Documents based on scope
+    corpus_lens = []  # Number of docs per question
+    questions_data = []
+
+    # First pass: collect all documents globally and build question metadata
+    for main_q_idx, data_item in enumerate(dataset):
+        main_question = data_item["question"]
+        main_answer = data_item["answer"]
+        intermediate_context = data_item.get("intermediate_context", [])
+
+        question_docs = []  # Documents for THIS question only
+        doc_to_idx = {}  # Local doc -> chunk_id mapping for this question
+        sub_questions_info = []
+
+        # Check if this main question should be tested
+        # Skip if main question's llm_judge is False
+        should_test_main_question = True
+        # if data_item.get('llm_judge', True) is False:
+        #     should_test_main_question = False
+
+        for sub_q_idx, sub_q in enumerate(intermediate_context):
+            docs = sub_q.get("retrieve docs", [])
+            doc_chunk_ids = []  # chunk_ids for this sub-question (local to this question)
+
+            for doc in docs:
+                if doc not in doc_to_idx:
+                    # New document for this question
+                    question_docs.append(doc)
+                    chunk_id = len(question_docs)  # chunk_id starts from 1
+                    doc_to_idx[doc] = chunk_id
+                    doc_chunk_ids.append(chunk_id)
+                else:
+                    # Document already seen in this question
+                    doc_chunk_ids.append(doc_to_idx[doc])
+
+            # Remove "Intermediate queryXXX:" prefix from query
+            query = sub_q['query']
+            if query.startswith("Intermediate query"):
+                # Find the colon and extract text after it
+                colon_pos = query.find(":")
+                if colon_pos != -1:
+                    query = query[colon_pos + 1:].strip()
+
+            # Remove "Intermediate answerXXX:" prefix from answer
+            answer = sub_q['answer']
+            if answer.startswith("Intermediate answer"):
+                # Find the colon and extract text after it
+                colon_pos = answer.find(":")
+                if colon_pos != -1:
+                    answer = answer[colon_pos + 1:].strip()
+
+            # Check if any sub-question has problematic answer
+            # If so, skip the entire main question
+            if "No relevant information found" in answer or "没有相关信息" in answer:
+                should_test_main_question = False
+
+            sub_questions_info.append({
+                'query': query,
+                'answer': answer,
+                'chunk_ids': doc_chunk_ids,  # chunk_ids for docs used by this sub-question
+            })
+
+        print(f"  Main question {main_q_idx + 1}: {len(question_docs)} unique documents, {len(sub_questions_info)} sub-questions")
+
+        # Tokenize documents for this main question
+        doc_tensors = []
+        for doc in question_docs:
+            doc_text = f"Document: {doc}\n"
+            doc_tokens = tokenizer.encode(doc_text, add_special_tokens=False)
+            doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
+            doc_tensors.append(doc_tensor)
+
+        # Add this question's docs to global corpus based on scope
+        # For SKIP_UNTESTED, only add docs if should_test is True
+        if preprocess_scope == PreprocessScope.SKIP_UNTESTED:
+            if should_test_main_question:
+                global_corpus.extend(question_docs)
+                corpus_lens.append(len(question_docs))
+            else:
+                corpus_lens.append(0)  # No docs added for this question
+        else:
+            # GLOBAL and PER_EXAMPLE: add all docs
+            global_corpus.extend(question_docs)
+            corpus_lens.append(len(question_docs))
+
+        # 获取 gold_docs（用于 long_decode 模式的支撑材料评估）
+        gold_docs = data_item.get('gold_docs', [])
+
+        questions_data.append({
+            'main_question': main_question,
+            'main_answer': main_answer,
+            'sub_questions': sub_questions_info,
+            'docs': question_docs,
+            'doc_tensors': doc_tensors,
+            'should_test': should_test_main_question,  # Whether to test this main question
+            'gold_docs': gold_docs,  # 用于 long_decode 模式的支撑材料评估
+        })
+
+    # Statistics
+    total_main_q = len(questions_data)
+    testable_main_q = sum(1 for q in questions_data if q['should_test'])
+    skipped_main_q = total_main_q - testable_main_q
+
+    total_sub_q = sum(len(q['sub_questions']) for q in questions_data)
+    testable_sub_q = sum(len(q['sub_questions']) for q in questions_data if q['should_test'])
+    skipped_sub_q = total_sub_q - testable_sub_q
+
+    total_docs = sum(len(q['docs']) for q in questions_data)
+
+
+    # STEP 2: Build FAISS index and compute context_rank based on scope
+    context_rank = []
+    if preprocess and len(global_corpus) > 0:
+        import numpy as np
+        import random
+
+        print("\n" + "="*80)
+        print(f"Randomly selecting context_rank (Scope: {preprocess_scope.value})...")
+        print("="*80)
+
+        total_docs_count = sum(corpus_lens)
+        all_global_indices = list(range(total_docs_count))
+
+        for q_idx, q_data in enumerate(questions_data):
+            n_docs = len(q_data['docs'])
+            if n_docs == 0: continue
+
+            global_offset = sum(corpus_lens[:q_idx])
+            q_context_rank = []
+
+            # 确定随机抽取的候选池
+            if preprocess_scope == PreprocessScope.PER_EXAMPLE:
+                # 只在当前问题的文档范围内抽
+                candidate_pool = list(range(global_offset, global_offset + n_docs))
+            else:
+                # 在全局所有文档范围内抽
+                candidate_pool = all_global_indices
+
+            for i in range(n_docs):
+                current_doc_global_idx = global_offset + i
+                
+                # 除掉文档自己本身
+                others = [idx for idx in candidate_pool if idx != current_doc_global_idx]
+                
+                # 如果候选不够，允许重复采样；否则不重复采样
+                if len(others) < topk:
+                    sampled = random.choices(others, k=topk) # 允许重复
+                else:
+                    sampled = random.sample(others, k=topk)  # 不重复抽样
+                
+                q_context_rank.append(sampled)
+            context_rank.append(np.array(q_context_rank)) 
+
+        if len(context_rank) > 0:
+            context_rank = np.vstack(context_rank)
+            print(f"Random context_rank shape: {context_rank.shape}")
+
+    return questions_data, system_tensor, context_rank, corpus_lens
 
 def prepare_reflect_data(
     data_path: str,
@@ -145,6 +350,7 @@ def prepare_reflect_data(
     topk: int = 10,
     max_main_questions: int = None,
     preprocess: bool = True,
+    random_recall: bool =  True,  # 控制是否随机randon
     preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL
 ) -> Tuple[List, torch.Tensor, List, List]:
     """
@@ -303,17 +509,7 @@ def prepare_reflect_data(
 
     total_docs = sum(len(q['docs']) for q in questions_data)
 
-    print(f"\n{'='*80}")
-    print("DATASET STATISTICS")
-    print(f"{'='*80}")
-    print(f"Total main questions: {total_main_q}")
-    print(f"  - Testable: {testable_main_q}")
-    print(f"  - Skipped (llm_judge=False or problematic answers): {skipped_main_q}")
-    print(f"\nTotal sub-questions: {total_sub_q}")
-    print(f"  - Testable: {testable_sub_q}")
-    print(f"  - Skipped: {skipped_sub_q}")
-    print(f"\nTotal documents (across all questions): {total_docs}")
-    print(f"{'='*80}")
+
 
     # STEP 2: Build FAISS index and compute context_rank based on scope
     context_rank = []
@@ -373,6 +569,14 @@ def prepare_reflect_data(
                 context_rank = np.vstack(context_rank)
                 print(f"Per-example context rank computed: {context_rank.shape}")
 
+            if random_recall and len(context_rank) > 0:
+                import random
+                print("Random recall mode enabled: shuffling context_rank...")
+                for i in range(len(context_rank)):
+                    row = context_rank[i].tolist()  # 转成 list
+                    random.shuffle(row)
+                    context_rank[i] = np.array(row)  
+                    
         else:
             # GLOBAL or SKIP_UNTESTED: Build single FAISS index for all corpus
             print(f"Encoding {len(global_corpus)} documents for FAISS index...")
@@ -725,6 +929,7 @@ def main(
     draft_model_path=None,  # Draft model path for DraftModel method
     data_path='/mnt/data/ktransformers-dev/result_reflect.json',
     cache_path='/mnt/data3/reflect/',
+    result_path=None,  # Path to save results (CSV, TXT). If None, uses cache_path
     model_name='Qwen2.5-7B-Instruct',
     dataset_name='2wikimqa',  # 数据集名称，用于结果分文件夹存储
     max_cache_len=32768,
@@ -808,8 +1013,12 @@ def main(
     else:
         preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache')
 
-    # 结果目录也在数据集目录下
-    csv_path = os.path.join(model_cache_root, 'results')
+    # 结果目录：如果指定了 result_path，使用它；否则使用 cache_path
+    if result_path is not None:
+        result_root = os.path.join(result_path, model_name, dataset_name)
+        csv_path = os.path.join(result_root, 'results')
+    else:
+        csv_path = os.path.join(model_cache_root, 'results')
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(preprocess_save_path, exist_ok=True)
     os.makedirs(csv_path, exist_ok=True)
@@ -851,10 +1060,13 @@ def main(
 
     # Prepare data organized by main questions
     print("Preparing data organized by main questions...")
-    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
-        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
-    )
-
+    if True:
+        questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data_ramdom(
+            data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
+        )
+    # questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+    #     data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
+    # )
     # Initialize OpenAI client
     if openai_api_key is None:
         openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -1039,6 +1251,7 @@ def main(
 
         doc_tensors = q_data['doc_tensors']
 
+
         # Step 1: Generate KV cache for THIS main question's documents
         if rate != 1:  # Skip if full recompute
             # Generate system KV cache (chunk_id=0)
@@ -1108,6 +1321,7 @@ def main(
 
                         if similar_docs_info:
                             print(f"    Retrieved similar docs: {', '.join(similar_docs_info)}")
+
 
                 # STEP 1: Check and generate all required similar documents' cache FIRST
                 # (to avoid past_key_values corruption during on-demand generation)
@@ -1226,10 +1440,10 @@ def main(
             if long_decode:
                 # long_decode 模式：要求输出答案和支撑材料
                 long_decode_format = """请按照以下格式回答问题：
-答案: [你的答案]
-支撑材料: [从文档中找到支持答案的关键句子或段落]
+                答案: [你的答案]
+                支撑材料: [从文档中找到支持答案的关键句子或段落]
 
-"""
+                """
                 if model_type == 'qwen3':
                     question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\n{long_decode_format}Question: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\n"
                 else:
@@ -2057,156 +2271,168 @@ def extract_attention_features_for_rate(draft_attention, query_start, system_len
 
 if __name__ == '__main__':
 
-    # OracleAdaptive 方法: Oracle 选择方式 + 综合多特征动态比例计算
-    # 核心思想：
-    # - 使用和 Oracle 完全相同的选择策略 (smart_query_selection: 连通分量 + 边界扩展)
-    # - 区别在于比例是动态计算的，综合考虑以下特征：
-    #   1. Coverage-based ratio: 达到 85% attention 覆盖所需比例
-    #   2. Connected components: 高 attention 位置的分散程度（连通分量数量）
-    #   3. Spread factor: 高 attention 位置在文档中的跨度
-    #   4. Gini coefficient: Attention 集中度
-    # - 保证 safety buffer (min_rate=0.20) 确保不遗漏 long-tail 重要信息
-    # main(
-    #     model_type='qwen',
-    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-    #     data_path='./result_reflect.json',
-    #     cache_path='/mnt/data/reflect/',
-    #     draft_model_path="/mnt/data/models/Qwen2.5-0.5B-Instruct",
-    #     model_name='Qwen2.5-7B-Instruct',
-    #     rate=0.3,  # 作为 base_ratio，用于动态计算的参考
-    #     topk=10,
-    #     preprocess=True,
-    #     use_entropy_selection=True,
-    #     reprocess_method='DraftModel',  # Oracle 选择 + 综合多特征动态比例
-    #     draft_layer_selection='entropy',
-    #     preprocess_scope=PreprocessScope.GLOBAL,
-    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
-    #     revert_rope=False,
-    #     device="cuda:0",
-    #     use_multi_gpu=True,
-    #     openai_base_url="https://api.deepseek.com/v1",
-    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-    #     openai_model="deepseek-chat",
-    #     max_samples=200,
-    #     # OracleAdaptive 动态比例参数
-    #     epsilon=0.1,           # 保留参数兼容性（当前算法不使用）
-    #     delta=0.05,            # 保留参数兼容性（当前算法不使用）
-    #     min_rate=0.05,         # 最小重算比例 20% (确保 long-tail safety buffer)
-    #     max_rate=0.3,         # 最大重算比例 50%
-    # )
+  
+    import argparse
 
-    # # vAttention 方法: 结合 top-k 选择和随机采样 (固定 rate)
-    # # 参考论文 "vAttention: Verified Sparse Attention" (arXiv:2510.05688)
-    # # 核心思想：一部分 budget 用于 top-k 选择，一部分用于随机采样
-    # # vattention_topk_ratio 控制两者比例 (默认 0.5 = 各占 50%)
-    # main(
-    #     model_type='qwen',
-    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-    #     # draft_model_path 不需要，vAttention 使用主模型本身计算 attention
-    #     data_path='./result_reflect.json',
-    #     cache_path='/mnt/data/reflect/',
-    #     model_name='Qwen2.5-7B-Instruct',
-    #     rate=0.3,  # 30% token selection (总重算比例)
-    #     topk=10,
-    #     preprocess=True,
-    #     use_entropy_selection=True,
-    #     reprocess_method='vAttention',  # 使用 vAttention 方法
-    #     draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
-    #     preprocess_scope=PreprocessScope.GLOBAL,
-    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
-    #     revert_rope=True,
-    #     device="cuda:0",
-    #     use_multi_gpu=True,
-    #     openai_base_url="https://api.deepseek.com/v1",
-    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-    #     openai_model="deepseek-chat",
-    #     max_samples=200,
-    #     vattention_topk_ratio=0.5  # 50% top-k + 50% random sampling
-    # )
+    parser = argparse.ArgumentParser(description='FusionRAG Testing Script')
 
-    # Oracle 方法: 用主模型自身做完整 prefill 获取 attention，指导 token 选择 (固定 rate)
-    # 与 DraftModel 方法相同，唯一区别是不需要加载额外的 draft model
-    # main(
-    #     model_type='qwen',
-    #     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-    #     # draft_model_path 不需要，Oracle 使用主模型本身
-    #     data_path='./result_reflect.json',
-    #     cache_path='/mnt/data/reflect/',
-    #     model_name='Qwen2.5-7B-Instruct',
-    #     rate=0.2,  # 30% token selection
-    #     topk=10,
-    #     preprocess=True,
-    #     use_entropy_selection=True,
-    #     reprocess_method='Oracle',  # 使用主模型自身做 prefill
-    #     draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
-    #     preprocess_scope=PreprocessScope.GLOBAL,
-    #     bge_model_path='/mnt/data/models/bge-m3-FP16',
-    #     revert_rope=True,
-    #     device="cuda:0",
-    #     use_multi_gpu=True,
-    #     openai_base_url="https://api.deepseek.com/v1",
-    #     openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-    #     openai_model="deepseek-chat",
-    #     max_samples=200
-    # )
+    # 模型配置
+    parser.add_argument('--model_type', type=str, default='qwen',
+                        choices=['qwen', 'qwen2', 'qwen3', 'mistral', 'llama', 'pangu'],
+                        help='Model type')
+    parser.add_argument('--model_path', type=str, default='/mnt/data/models/Qwen2.5-7B-Instruct',
+                        help='Path to the main model')
+    parser.add_argument('--model_name', type=str, default='Qwen2.5-7B-Instruct',
+                        help='Model name for logging')
+    parser.add_argument('--draft_model_path', type=str, default=None,
+                        help='Path to draft model (for DraftModel method)')
+    parser.add_argument('--bge_model_path', type=str, default='/mnt/data/models/bge-m3-FP16',
+                        help='Path to BGE embedding model')
 
-    # DraftModel 方法: 用小模型指导大模型的 token 选择
-    # for rate in [0.3]:
-    #     main(
-    #         model_type='qwen3',
-    #         model_path='/mnt/data/models/Qwen3-32B',
-    #         draft_model_path='/mnt/data/models/Qwen2.5-7B-Instruct',  # Draft model for guidance
-    #         data_path='./data/2wikimqa_reflect.json',
-    #         cache_path='/mnt/data/reflect/',
-    #         model_name='Qwen3-32B',
-    #         dataset_name='2wikimqa',
-    #         rate=rate,  # 30% token selection
-    #         topk=10,
-    #         preprocess=True,
-    #         use_entropy_selection=False,
-    #         reprocess_method='Oracle',  # 使用 Draft Model 指导的方法
-    #         draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
-    #         preprocess_scope=PreprocessScope.GLOBAL,
-    #         bge_model_path='/mnt/data/models/bge-m3-FP16',
-    #         revert_rope=True,
-    #         device="cuda:0",
-    #         use_multi_gpu=True,
-    #         openai_base_url="https://api.deepseek.com/v1",
-    #         openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-    #         openai_model="deepseek-chat",
-    #         max_samples=200
-    #     )
+    # 数据配置
+    parser.add_argument('--data_path', type=str, default='./data/result_reflect.json',
+                        help='Path to dataset JSON file')
+    parser.add_argument('--dataset_name', type=str, default='musique',
+                        help='Dataset name for organizing results')
+    parser.add_argument('--cache_path', type=str, default='/mnt/data/reflect/',
+                        help='Path to save KV cache')
+    parser.add_argument('--result_path', type=str, default=None,
+                        help='Path to save results (CSV, TXT). If None, uses cache_path')
+    parser.add_argument('--max_samples', type=int, default=None,
+                        help='Maximum number of samples to test (None = all)')
 
-    for rate in [0.2]:
-        for draft_model in ["Qwen2.5-3B-Instruct"]:
-            main(
-                model_type='qwen',
-                model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-                draft_model_path=f'/mnt/data/models/{draft_model}',  # Draft model for guidance
-                data_path='./data/result_reflect.json',
-                cache_path='/mnt/data/reflect/',
-                model_name='Qwen2.5-7B-Instruct',
-                dataset_name='musique',
-                rate=rate,  # 30% token selection
-                topk=10,
-                preprocess=True,
-                use_entropy_selection=True,
-                reprocess_method='DraftModel',  # 使用 Draft Model 指导的方法
-                draft_layer_selection='entropy',  # 'entropy' (熵选层) 或 'last' (最后一层)
-                preprocess_scope=PreprocessScope.GLOBAL,
-                bge_model_path='/mnt/data/models/bge-m3-FP16',
-                revert_rope=True,
-                device="cuda:0",
-                use_multi_gpu=True,
-                openai_base_url="https://api.deepseek.com/v1",
-                openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
-                openai_model="deepseek-chat",
-                max_samples=200,
-                min_rate=0.05,
-                max_rate=0.3,
-                long_decode=True,  # 启用长 decode 模式
-                long_decode_max_tokens=1000,  # 允许更长的输出
-            )
+    # FusionRAG 参数
+    parser.add_argument('--rate', type=float, default=0.3,
+                        help='Token recompute ratio (0-1)')
+    parser.add_argument('--topk', type=int, default=10,
+                        help='Top-k similar documents to fuse in preprocessing')
+    parser.add_argument('--preprocess', type=lambda x: x.lower() == 'true', default=True,
+                        help='Enable preprocessing (True/False)')
+    parser.add_argument('--reprocess_method', type=str, default='FusionRAG',
+                        choices=['FusionRAG', 'Oracle', 'OracleAdaptive', 'OracleDynamic',
+                                'vAttention', 'DraftModel', 'QueryAttention', 'DraftModelLayerwise'],
+                        help='Token recompute method')
+    parser.add_argument('--revert_rope', type=lambda x: x.lower() == 'true', default=True,
+                        help='Revert RoPE during preprocessing (True/False)')
+    parser.add_argument('--preprocess_scope', type=str, default='global',
+                        choices=['global', 'per_example', 'skip_untested'],
+                        help='Preprocessing scope')
+
+    # 特殊方法参数
+    parser.add_argument('--use_entropy_selection', type=lambda x: x.lower() == 'true', default=False,
+                        help='Use entropy-based layer selection (True/False)')
+    parser.add_argument('--entropy_top_k', type=int, default=4,
+                        help='Number of layers to select based on entropy')
+    parser.add_argument('--draft_layer_selection', type=str, default='entropy',
+                        choices=['entropy', 'last', 'fixed', 'middle'],
+                        help='Layer selection method for DraftModel/Oracle')
+    parser.add_argument('--draft_fixed_layer', type=int, default=3,
+                        help='Fixed layer index (when draft_layer_selection=fixed)')
+    parser.add_argument('--draft_threshold_factor', type=float, default=0.5,
+                        help='Threshold factor for smart_query_selection')
+
+    # vAttention 参数
+    parser.add_argument('--vattention_topk_ratio', type=float, default=0.5,
+                        help='vAttention top-k vs random sampling ratio')
+
+    # OracleDynamic 参数
+    parser.add_argument('--epsilon', type=float, default=0.1,
+                        help='Error tolerance for OracleDynamic')
+    parser.add_argument('--delta', type=float, default=0.05,
+                        help='Confidence level for OracleDynamic')
+    parser.add_argument('--min_rate', type=float, default=0.05,
+                        help='Minimum recompute ratio for OracleDynamic')
+    parser.add_argument('--max_rate', type=float, default=0.5,
+                        help='Maximum recompute ratio for OracleDynamic')
+
+    # DraftModelLayerwise 参数
+    parser.add_argument('--layerwise_decay', type=str, default='linear',
+                        choices=['linear', 'exponential', 'cosine', 'step'],
+                        help='Layerwise decay strategy')
+    parser.add_argument('--layerwise_final_rate', type=float, default=0.05,
+                        help='Final layer rate for layerwise methods')
+
+    # DraftModel 相似度重排序
+    parser.add_argument('--use_similarity_rerank', type=lambda x: x.lower() == 'true', default=False,
+                        help='Use query-doc similarity reranking (True/False)')
+    parser.add_argument('--rerank_multiplier', type=float, default=2.0,
+                        help='Rerank candidate multiplier')
+
+    # Long decode 参数
+    parser.add_argument('--long_decode', type=lambda x: x.lower() == 'true', default=False,
+                        help='Enable long decode mode (True/False)')
+    parser.add_argument('--long_decode_max_tokens', type=int, default=1000,
+                        help='Max tokens for long decode mode')
+
+    # GPU 配置
+    parser.add_argument('--device', type=str, default='cuda:0',
+                        help='Device to use for single GPU')
+    parser.add_argument('--use_multi_gpu', type=lambda x: x.lower() == 'true', default=False,
+                        help='Use multi-GPU with device_map=auto (True/False)')
+
+    # OpenAI 评判配置
+    parser.add_argument('--openai_base_url', type=str, default='https://api.deepseek.com/v1',
+                        help='OpenAI API base URL')
+    parser.add_argument('--openai_api_key', type=str, default='sk-519d391217894b6e91e7c2ebf2a9f4df',
+                        help='OpenAI API key')
+    parser.add_argument('--openai_model', type=str, default='deepseek-chat',
+                        help='OpenAI model for judging')
+
+    # 其他
+    parser.add_argument('--max_cache_len', type=int, default=32768,
+                        help='Maximum cache length')
+
+    args = parser.parse_args()
+
+    # 解析 preprocess_scope
+    scope_map = {
+        'global': PreprocessScope.GLOBAL,
+        'per_example': PreprocessScope.PER_EXAMPLE,
+        'skip_untested': PreprocessScope.SKIP_UNTESTED
+    }
+    preprocess_scope = scope_map[args.preprocess_scope]
+
+    # 调用 main 函数
+    main(
+        model_type=args.model_type,
+        model_path=args.model_path,
+        draft_model_path=args.draft_model_path,
+        data_path=args.data_path,
+        cache_path=args.cache_path,
+        result_path=args.result_path,
+        model_name=args.model_name,
+        dataset_name=args.dataset_name,
+        max_cache_len=args.max_cache_len,
+        rate=args.rate,
+        topk=args.topk,
+        preprocess=args.preprocess,
+        preprocess_scope=preprocess_scope,
+        reprocess_method=args.reprocess_method,
+        use_entropy_selection=args.use_entropy_selection,
+        entropy_top_k=args.entropy_top_k,
+        draft_layer_selection=args.draft_layer_selection,
+        draft_fixed_layer=args.draft_fixed_layer,
+        draft_threshold_factor=args.draft_threshold_factor,
+        bge_model_path=args.bge_model_path,
+        revert_rope=args.revert_rope,
+        device=args.device,
+        use_multi_gpu=args.use_multi_gpu,
+        openai_api_key=args.openai_api_key,
+        openai_base_url=args.openai_base_url,
+        openai_model=args.openai_model,
+        max_samples=args.max_samples,
+        vattention_topk_ratio=args.vattention_topk_ratio,
+        epsilon=args.epsilon,
+        delta=args.delta,
+        min_rate=args.min_rate,
+        max_rate=args.max_rate,
+        layerwise_decay=args.layerwise_decay,
+        layerwise_final_rate=args.layerwise_final_rate,
+        use_similarity_rerank=args.use_similarity_rerank,
+        rerank_multiplier=args.rerank_multiplier,
+        long_decode=args.long_decode,
+        long_decode_max_tokens=args.long_decode_max_tokens,
+    )
     # for rate in [0.2]:
     #     main(
     #         model_type='qwen',
