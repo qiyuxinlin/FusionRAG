@@ -713,6 +713,7 @@ class FusionRAGModel:
         iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
         iter_token_len = len(torch.cat(iter_tokens))
         if rate == 1:
+            print(f"full recompute")
             # Full recompute
             inputs = torch.cat(iter_tokens).to(self.input_device).unsqueeze(0)
             from ktransformers.util.utils import prefill_and_generate

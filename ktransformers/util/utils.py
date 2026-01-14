@@ -61,7 +61,8 @@ def find_connected_components(positions, max_gap=2):
 
     for i in range(1, len(positions)):
         if positions[i] - positions[i-1] <= max_gap:
-            current_component.append(positions[i])
+            current_component.extend([p for p in range(positions[i-1]+1, positions[i]+1)])
+            # current_component.append(positions[i])
         else:
             components.append(current_component)
             current_component = [positions[i]]
@@ -69,6 +70,21 @@ def find_connected_components(positions, max_gap=2):
     components.append(current_component)
     return components
 
+def find_outliers_zscore(data, threshold=2):
+    """
+    使用Z-score方法检测离群点
+    threshold: 阈值，通常取2、2.5或3
+    """
+    mean = np.mean(data)
+    std = np.std(data)
+    z_scores = [(x - mean) / std for x in data]
+
+    outliers = []
+    for i, z in enumerate(z_scores):
+        if abs(z) > threshold:
+            outliers.append((i, data[i]))
+
+    return outliers
 
 def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
     """
@@ -138,6 +154,93 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     while len(selected) > target_count:
         min_pos = min(selected, key=lambda p: attention_scores[p])
         selected.remove(min_pos)
+
+    # 转换为全局索引 (加上 system_len 偏移)
+    selected_global = [p + system_len for p in sorted(selected)]
+
+    return selected_global
+
+def smarter_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
+    """
+    Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
+
+    Args:
+        attention_scores: torch.Tensor, shape [doc_len], 每个位置的 attention 分数
+        doc_len: 文档长度
+        target_ratio: 目标选择比例
+        system_len: system prompt 长度
+        device: 计算设备
+
+    Returns:
+        List of selected positions (global indices, including system_len offset)
+    """
+    if isinstance(attention_scores, torch.Tensor):
+        attention_scores = attention_scores.float().cpu().numpy()
+
+    target_count = int(doc_len * target_ratio)
+
+    # Step 1: 找到高 attention 位置
+    mean_attn = np.mean(attention_scores)
+    std_attn = np.std(attention_scores)
+    threshold = mean_attn + 0.5 * std_attn
+
+    high_attn_positions = list(np.where(attention_scores > threshold)[0])
+
+    # Step 2: 连通分量分析
+    components = find_connected_components(high_attn_positions, max_gap=20)
+    ## remove all short contexts.
+    components = [component for component in components if len(component) > 1]
+    #components = find_connected_components(high_attn_positions, max_gap=20)
+
+    # Step 3: 计算每个分量的总 attention
+    component_scores = []
+    for comp in components:
+        total_score = sum(attention_scores[p] for p in comp if p in high_attn_positions)
+        component_scores.append((comp, total_score))
+
+    # Step 4: 按总 attention 排序
+    component_scores.sort(key=lambda x: x[1], reverse=True)
+
+    # Step 5: 贪心选择分量 + 上下文扩展 (±1)
+    selected = set()
+    total_pieces = 0
+    # for comp, total_score in component_scores[:5]:
+    for comp, total_score in component_scores:
+        # 扩展分量边界 (±1)
+        extended_comp = set()
+        for p in comp:
+            extended_comp.add(p)
+
+        new_positions = extended_comp - selected
+        # drop too short pieces of enough info acquired.
+        if total_pieces>=2 and len(extended_comp) <= 20:
+            break
+        if len(selected) + len(new_positions) <= target_count * 4:
+            selected.update(extended_comp)
+            total_pieces += 1
+        else:
+            break
+
+
+
+    # # Step 6: 补充到目标数量
+    # if len(selected) < target_count:
+    #     sorted_indices = np.argsort(attention_scores)[::-1]
+    #     for pos in sorted_indices:
+    #         if pos not in selected:
+    #             selected.add(int(pos))
+    #             if len(selected) >= target_count:
+    #                 break
+
+    # Step 7: 如果超过目标，移除最低分的位置
+    # while len(selected) > target_count:
+    #     min_pos = min(selected, key=lambda p: attention_scores[p])
+    #     selected.remove(min_pos)
+
+    # outliers = find_outliers_zscore(list(selected))
+    # outliers_idx = [o[1] for o in outliers]
+    # selected = sorted(selected)
+    # selected = [i for i in selected if i not in outliers_idx]
 
     # 转换为全局索引 (加上 system_len 偏移)
     selected_global = [p + system_len for p in sorted(selected)]
@@ -479,6 +582,27 @@ def get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, t
         inputs_embeds = draft_model.model.embed_tokens(full_input).to(draft_model_device)
         position_ids = torch.arange(full_input.shape[1], device=draft_model_device).unsqueeze(0)
 
+        with torch.no_grad():
+            result = draft_model(
+                inputs_embeds=inputs_embeds,
+                use_cache=False,
+                position_ids=position_ids,
+                output_attentions=False,
+                return_dict=True
+            )
+            print("gen 1 token")
+
+            logits = result.logits
+            next_token_logits = logits[0, -1, :]
+            token_id = torch.argmax(next_token_logits).item()
+            if token_id == tokenizer.eos_token_id:
+                max_tokens = i+1
+                break
+            generated_tokens.append(token_id)
+            new_token_tensor = torch.tensor([[token_id]], device=draft_model_device)
+            full_input = torch.cat([full_input, new_token_tensor], dim=1)
+
+    with torch.no_grad():
         result = draft_model(
             inputs_embeds=inputs_embeds,
             use_cache=False,
@@ -486,17 +610,7 @@ def get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, t
             output_attentions=True,
             return_dict=True
         )
-
-        logits = result.logits
         attention = result.attentions
-        next_token_logits = logits[0, -1, :]
-        token_id = torch.argmax(next_token_logits).item()
-        if token_id == tokenizer.eos_token_id:
-            max_tokens = i+1
-            break
-        generated_tokens.append(token_id)
-        new_token_tensor = torch.tensor([[token_id]], device=draft_model_device)
-        full_input = torch.cat([full_input, new_token_tensor], dim=1)
 
     output = tokenizer.decode(full_input[0])
     print(output)
@@ -1037,15 +1151,25 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                                                                      entropy_top_k, draft_attention, query_start,
                                                                      system_len, doc_len, total_len)
             eigenvalue["coefficient"] = concentration_coefficient_v1(tensor=multi_layer_attn)
-            eigenvalue["dispersion"] = topk_position_dispersion(multi_layer_attn, top_percent=0.02)
+            eigenvalue["dispersion"] = topk_position_dispersion(multi_layer_attn, top_percent=0.1)
             # 使用 smart_query_selection 进行选择
-            selected_indices = smart_query_selection(
-                attention_scores=multi_layer_attn,
-                doc_len=doc_len,
-                target_ratio=rate,
-                system_len=system_len,
-                device=draft_model_device
-            )
+            if reprocess_method == "DraftModel":
+                selected_indices = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=doc_len,
+                    target_ratio=rate,
+                    system_len=system_len,
+                    device=draft_model_device
+                )
+            elif reprocess_method == "DraftModel_smarter":
+                selected_indices = smarter_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=doc_len,
+                    target_ratio=rate,
+                    system_len=system_len,
+                    device=draft_model_device
+                )
+            eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
             k_need_index = torch.tensor(selected_indices, device='cpu')
             if reprocess_method == 'DraftModel_ppr':
                 print(f"using ppr to draft.")

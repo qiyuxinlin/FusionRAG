@@ -9,6 +9,21 @@ import multiprocessing
 from multiprocessing import Process, Lock, Manager
 import threading
 
+def load_system_prompt(model_family: str, dataset_type: str = "2wikimqa") -> str:
+    """
+    Load system prompt from config file
+    """
+    config_path = "./config/dataset2prompt_few-shot.json"
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    # Get system prompt
+    if model_family in config["system_prompt"]:
+        if dataset_type in config["system_prompt"][model_family]:
+            return config["system_prompt"][model_family][dataset_type]
+
+    # Default to Qwen2.5 2wikimqa
+    return config["system_prompt"]["Qwen3"]["2wikimqa"]
 
 def prepare_reflect_data(
         data_path: str,
@@ -202,7 +217,7 @@ def run_test_process(
             with open(last_time_result_file, 'r') as f:
                 last_questions = json.load(f)
     except Exception as E:
-        print(f"fail to load last time questions.")
+        print(f"[run_test_process] fail to load last time questions. E={E}")
     """单个测试进程的运行函数"""
     print(f"Process {process_id}: Starting with GPUs {gpu_ids}")
 
@@ -323,17 +338,19 @@ def run_test_process(
         """
 
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
-            query=f'Given these documents, generate an appropriate answer for the query.'
-                  f'{prefix} question is {question["query"]}',
+            # query=f'Given these documents, generate an appropriate answer for the query.'
+            #       f'{prefix} question is {question["query"]}',
+            query=question["query"],
             retrieved_docs=gold_docs,
             model_type='qwen3',
             rate=rate,
             reprocess_method=reprocess_method,
             revert_rope=revert_rope,
-            max_new_tokens=150,
+            max_new_tokens=500,
         )
         if "</think>" in answer:
             answer = answer.split("</think>")[1].replace("\n\n", "")
+        answer = answer.strip("\n")
 
         try:
             response_json = json.loads(answer.replace("```json", "").replace("```", "").strip())
@@ -627,19 +644,56 @@ def test_question_multiprocess(total_run=-1,
 if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
     questions_to_run = [
-        " When did Melanie sign up for a pottery class?"
+        "What record label is Moby Grape associated with?"
     ]
     questions_to_run = []
     # 运行多进程测试
     max_memories = [{0: "0GiB", 1: "35GiB", 2: "35GiB"}]
     total_run = 200
-    gpu_configs = [([3,6,7], 0)] # [([0,1,2], 0)] [([3,4,5], 0)] [([3,6,7], 0)]
-    rate = 0.3
-    for category in [1,2,3]:
+    gpu_configs = [([3,6,7], 0)]# [([0,1,2], 0)] [([3,4,5], 0)] [([3,6,7], 0)]
+    reprocess_method = "DraftModel_smarter"
+    rate = 1.0
+    # test_question_multiprocess(
+    #     total_run=total_run,  ## -1 means run all
+    #     rate=rate,  ## change this
+    #     reprocess_method=reprocess_method,
+    #     ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+    #     preprocess_method="default",  ## change this  1. space 2. default
+    #     questions_to_run=questions_to_run,
+    #     sep=1,  ## 1/2/3/4
+    #     dataset="musique",  ## 1. locomo 2. musique
+    #     preprocess=True,  ## if locomo then false, otherwise True
+    #     test_last_keep=True,  ## set=True if keep running
+    #     gpu_configs=gpu_configs,  ## personalize if need
+    #     max_memories=max_memories,
+    # )
+    #
+
+    # test_question_multiprocess(
+    #     total_run=total_run,  ## -1 means run all
+    #     rate=rate,  ## change this
+    #     reprocess_method=reprocess_method,
+    #     ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+    #     preprocess_method="default",  ## change this  1. space 2. default
+    #     questions_to_run=questions_to_run,
+    #     sep=1,  ## 1/2/3/4
+    #     dataset="2wiki",  ## 1. locomo 2. musique
+    #     preprocess=True,  ## if locomo then false, otherwise True
+    #     test_last_keep=True,  ## set=True if keep running
+    #     gpu_configs=gpu_configs,  ## personalize if need
+    #     max_memories=max_memories,
+    # )
+
+    # last_rate = rate,
+    # last_reprocess_method = reprocess_method,
+    # last_preprocess_method = "default",
+
+
+    for category in [2,3,1]:
         all_results = test_question_multiprocess(
-            total_run=total_run, ## -1 means run all
+            total_run=100, ## -1 means run all
             rate=rate, ## change this
-            reprocess_method="DraftModel", ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+            reprocess_method=reprocess_method, ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
             preprocess_method="default", ## change this  1. space 2. default
             questions_to_run=questions_to_run,
             sep=1, ## 1/2/3/4
@@ -650,36 +704,8 @@ if __name__ == '__main__':
             category=category,
             max_memories=max_memories,
         )
-
-    test_question_multiprocess(
-        total_run=total_run,  ## -1 means run all
-        rate=rate,  ## change this
-        reprocess_method="DraftModel",
-        ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
-        preprocess_method="default",  ## change this  1. space 2. default
-        questions_to_run=questions_to_run,
-        sep=1,  ## 1/2/3/4
-        dataset="2wiki",  ## 1. locomo 2. musique
-        preprocess=True,  ## if locomo then false, otherwise True
-        test_last_keep=True,  ## set=True if keep running
-        gpu_configs=gpu_configs,  ## personalize if need
-        max_memories=max_memories,
-    )
-    test_question_multiprocess(
-        total_run=total_run,  ## -1 means run all
-        rate=rate,  ## change this
-        reprocess_method="DraftModel",
-        ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
-        preprocess_method="default",  ## change this  1. space 2. default
-        questions_to_run=questions_to_run,
-        sep=1,  ## 1/2/3/4
-        dataset="musique",  ## 1. locomo 2. musique
-        preprocess=True,  ## if locomo then false, otherwise True
-        test_last_keep=True,  ## set=True if keep running
-        gpu_configs=gpu_configs,  ## personalize if need
-        max_memories=max_memories,
-    )
-
+    #
+    #
 
 
 
