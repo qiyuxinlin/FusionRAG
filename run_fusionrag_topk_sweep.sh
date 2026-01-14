@@ -9,7 +9,7 @@
 GPUS="2"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/topk_sweep2"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/topk_sweep"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                                  # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -48,7 +48,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # TopK 列表 - 遍历不同的融合文档数量
-TOPK_LIST=(1 3 5 8 10 12 15 20)
+TOPK_LIST=(5 8 10 12 15 20)
 
 # 可选参数
 MAX_SAMPLES=""  # 留空测试全部，或设置为数字如 "10" 快速测试
