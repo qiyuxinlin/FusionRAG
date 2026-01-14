@@ -9,7 +9,7 @@
 GPUS="5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/preprocess_ramdom3"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/fixed_doc"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -27,8 +27,10 @@ DATASET_NAME="musique"
 REPROCESS_METHOD="FusionRAG"  # 可修改: FusionRAG, Oracle, OracleAdaptive, etc.
 TOPK="10"
 PREPROCESS="true"
-USE_RANDOM_RECALL="true"     # 是否使用随机召回 (true=随机, false=BGE相似度)
-RANDOM_SEED="42"              # 随机种子
+USE_RANDOM_RECALL="true"     # [已废弃] 请使用 RECALL_METHOD
+RECALL_METHOD="fixed_doc"       # 召回方法: bge, random, repeat_self, fixed_doc
+RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效)
+FIXED_DOC_IDX="0"             # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 REVERT_ROPE="true"
 PREPROCESS_SCOPE="global"
 USE_MULTI_GPU="false"
@@ -47,7 +49,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表
-RATE_LIST=(1.0 0.0 0.1 0.15 0.3 0.5 0.8 0.9)
+RATE_LIST=(0.0 0.1 0.15 0.3 0.5 0.8 0.9 1.0 ) 
 
 # 可选参数
 MAX_SAMPLES="" 
@@ -100,7 +102,9 @@ for RATE in "${RATE_LIST[@]}"; do
         "--topk" "${TOPK}"
         "--preprocess" "${PREPROCESS}"
         "--use_random_recall" "${USE_RANDOM_RECALL}"
+        "--recall_method" "${RECALL_METHOD}"
         "--random_seed" "${RANDOM_SEED}"
+        "--fixed_doc_idx" "${FIXED_DOC_IDX}"
         "--reprocess_method" "${REPROCESS_METHOD}"
         "--revert_rope" "${REVERT_ROPE}"
         "--use_multi_gpu" "${USE_MULTI_GPU}"

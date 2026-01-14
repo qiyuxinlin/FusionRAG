@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #####################################################################
-# FusionRAG TopK Sweep Script
-# 遍历不同的 topk 值进行预处理融合文档测试
+# FusionRAG Rate Sweep Script
+# 快速遍历不同的 rate 值进行测试
 #####################################################################
 
 # 基础配置
-GPUS="2"
+GPUS="5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/topk_sweep2"       # 结果保存目录（CSV等）
-CACHE_DIR="/mnt/data3/tmp/fusionrag"                                  # KV cache 保存路径
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/no_preprocess"       # 结果保存目录（CSV等）
+CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
@@ -24,14 +24,11 @@ DATA_PATH="./data/result_reflect.json"
 DATASET_NAME="musique"
 
 # FusionRAG 方法配置
-REPROCESS_METHOD="FusionRAG"  # 可修改: FusionRAG, Oracle, OracleAdaptive, DraftModel, etc.
-RATE="0.15"                    # 固定的 rate 值
-PREPROCESS="true" # 是否有offline处理
-
-USE_RANDOM_RECALL="false"     # [已废弃] 请使用 RECALL_METHOD
-RECALL_METHOD="bge"           # 召回方法: bge, random, repeat_self, fixed_doc
-RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效)
-FIXED_DOC_IDX="0"             # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
+REPROCESS_METHOD="FusionRAG"  # 可修改: FusionRAG, Oracle, OracleAdaptive, etc.
+TOPK="10"
+PREPROCESS="false"
+USE_RANDOM_RECALL="true"     # 是否使用随机召回 (true=随机, false=BGE相似度)
+RANDOM_SEED="42"              # 随机种子
 REVERT_ROPE="true"
 PREPROCESS_SCOPE="global"
 USE_MULTI_GPU="false"
@@ -49,11 +46,11 @@ OPENAI_BASE_URL="https://api.deepseek.com/v1"
 OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
-# TopK 列表 - 遍历不同的融合文档数量
-TOPK_LIST=(5 8 10 12 15)
+# Rate 列表
+RATE_LIST=(0.0 0.15 )
 
 # 可选参数
-MAX_SAMPLES=""  # 留空测试全部，或设置为数字如 "10" 快速测试
+MAX_SAMPLES="" 
 DRAFT_MODEL_PATH=""
 
 #####################################################################
@@ -61,14 +58,13 @@ DRAFT_MODEL_PATH=""
 #####################################################################
 
 echo "=========================================="
-echo "FusionRAG TopK Sweep"
+echo "FusionRAG Rate Sweep"
 echo "=========================================="
 echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "GPU: ${GPUS}"
 echo "模型: ${MODEL_NAME}"
 echo "方法: ${REPROCESS_METHOD}"
-echo "固定 Rate: ${RATE}"
-echo "TopK 列表: ${TOPK_LIST[@]}"
+echo "Rate 列表: ${RATE_LIST[@]}"
 echo "数据集: ${DATASET_NAME}"
 echo "KV Cache: ${CACHE_DIR}"
 echo "Results: ${RESULT_DIR}"
@@ -82,11 +78,11 @@ mkdir -p "${CACHE_DIR}"
 # 设置 GPU
 export CUDA_VISIBLE_DEVICES=${GPUS}
 
-# 遍历每个 topk
-for TOPK in "${TOPK_LIST[@]}"; do
+# 遍历每个 rate
+for RATE in "${RATE_LIST[@]}"; do
     echo ""
     echo "=========================================="
-    echo "开始测试 TopK = ${TOPK}"
+    echo "开始测试 Rate = ${RATE}"
     echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "=========================================="
 
@@ -104,9 +100,7 @@ for TOPK in "${TOPK_LIST[@]}"; do
         "--topk" "${TOPK}"
         "--preprocess" "${PREPROCESS}"
         "--use_random_recall" "${USE_RANDOM_RECALL}"
-        "--recall_method" "${RECALL_METHOD}"
         "--random_seed" "${RANDOM_SEED}"
-        "--fixed_doc_idx" "${FIXED_DOC_IDX}"
         "--reprocess_method" "${REPROCESS_METHOD}"
         "--revert_rope" "${REVERT_ROPE}"
         "--use_multi_gpu" "${USE_MULTI_GPU}"
@@ -137,9 +131,9 @@ for TOPK in "${TOPK_LIST[@]}"; do
     EXIT_CODE=$?
 
     if [ ${EXIT_CODE} -eq 0 ]; then
-        echo "✓ TopK ${TOPK} 测试完成"
+        echo "✓ Rate ${RATE} 测试完成"
     else
-        echo "✗ TopK ${TOPK} 测试失败！退出码: ${EXIT_CODE}"
+        echo "✗ Rate ${RATE} 测试失败！退出码: ${EXIT_CODE}"
         # 可选：遇到错误时继续还是停止
         # exit ${EXIT_CODE}  # 取消注释以在失败时停止
     fi
@@ -157,5 +151,5 @@ echo "存储位置："
 echo "  KV Cache: ${CACHE_DIR}"
 echo "  Results: ${RESULT_DIR}"
 echo ""
-echo "测试的 TopK 列表: ${TOPK_LIST[@]}"
+echo "测试的 Rate 列表: ${RATE_LIST[@]}"
 echo ""

@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
+"""
+Test FusionRAG on result_reflect.json dataset
 
+Following the same workflow as unified_process_cache.py:
+1. Load all documents from all sub-questions as independent text chunks
+2. Generate independent KV cache for each document
+3. Use BGE model to compute document similarity (context_rank)
+4. If preprocess=True, perform FusionRAG preprocess (fuse related documents' KV cache)
+5. For each sub-question, generate answer using preprocessed KV cache
+6. Use OpenAI API to judge if answer is correct
+7. A question is correct only if all sub-questions are correct
+"""
 
 import json
 import os
@@ -43,6 +54,22 @@ class PreprocessScope(Enum):
     GLOBAL = "global"
     PER_EXAMPLE = "per_example"
     SKIP_UNTESTED = "skip_untested"
+
+
+class RecallMethod(Enum):
+    """
+    Enum to control the method of document recall during preprocessing
+
+    BGE: Use BGE similarity to recall similar documents (original behavior)
+    RANDOM: Randomly sample documents from the pool
+    REPEAT_SELF: Repeat the current document K times (for ablation study)
+    FIXED_DOC: Use a fixed document for all recalls (for ablation study)
+    """
+    BGE = "bge"
+    RANDOM = "random"
+    REPEAT_SELF = "repeat_self"
+    FIXED_DOC = "fixed_doc"
+
 
 
 def load_model(model_type, model_path, config, device="cuda:0", use_multi_gpu=False):
@@ -339,8 +366,9 @@ def prepare_reflect_data(
     topk: int = 10,
     max_main_questions: int = None,
     preprocess: bool = True,
-    use_random_recall: bool = False,  # 控制是否使用随机召回（True=随机, False=BGE相似度）
-    random_seed: int = 42,  # 随机种子（当 use_random_recall=True 时生效）
+    recall_method: RecallMethod = RecallMethod.BGE,  # 召回方法：BGE/RANDOM/REPEAT_SELF/FIXED_DOC
+    random_seed: int = 42,  # 随机种子（当 recall_method=RANDOM 时生效）
+    fixed_doc_idx: int = 0,  # 固定文档索引（当 recall_method=FIXED_DOC 时生效）
     preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL
 ) -> Tuple[List, torch.Tensor, List, List]:
     """
@@ -506,7 +534,7 @@ def prepare_reflect_data(
     # STEP 2: Build FAISS index and compute context_rank based on scope
     context_rank = []
     if preprocess and len(global_corpus) > 0:
-        if use_random_recall:
+        if recall_method == RecallMethod.RANDOM:
             # ========== Random Recall Mode ==========
             print("\n" + "="*80)
             print(f"Using RANDOM recall (seed={random_seed}, scope: {preprocess_scope.value})...")
@@ -553,7 +581,69 @@ def prepare_reflect_data(
                 context_rank = np.vstack(context_rank)
                 print(f"Random context_rank computed: {context_rank.shape}")
 
-        else:
+        elif recall_method == RecallMethod.REPEAT_SELF:
+            # ========== Repeat Self Mode ==========
+            print("\n" + "="*80)
+            print(f"Using REPEAT_SELF recall (repeat current document {topk} times)")
+            print("="*80)
+
+            for q_idx, q_data in enumerate(questions_data):
+                n_docs = len(q_data['docs'])
+                if n_docs == 0:
+                    continue
+
+                global_offset = sum(corpus_lens[:q_idx])
+                q_context_rank = []
+
+                for i in range(n_docs):
+                    current_doc_global_idx = global_offset + i
+                    # 重复当前文档 topk 次
+                    sampled = [current_doc_global_idx] * topk
+                    q_context_rank.append(sampled)
+
+                context_rank.append(np.array(q_context_rank))
+
+            if len(context_rank) > 0:
+                context_rank = np.vstack(context_rank)
+                print(f"Repeat-self context_rank computed: {context_rank.shape}")
+                print(f"Each document repeats itself {topk} times")
+
+        elif recall_method == RecallMethod.FIXED_DOC:
+            # ========== Fixed Document Mode ==========
+            print("\n" + "="*80)
+            print(f"Using FIXED_DOC recall (use document index {fixed_doc_idx} for all recalls)")
+            print("="*80)
+
+            total_docs_count = sum(corpus_lens)
+
+            # 验证固定文档索引是否有效
+            if fixed_doc_idx < 0 or fixed_doc_idx >= total_docs_count:
+                print(f"⚠ Warning: fixed_doc_idx={fixed_doc_idx} is out of range [0, {total_docs_count-1}]")
+                print(f"Using document 0 as fallback")
+                fixed_doc_idx = 0
+
+            print(f"Fixed document global index: {fixed_doc_idx}")
+
+            for q_idx, q_data in enumerate(questions_data):
+                n_docs = len(q_data['docs'])
+                if n_docs == 0:
+                    continue
+
+                q_context_rank = []
+
+                for i in range(n_docs):
+                    # 所有文档都召回同一个固定文档 topk 次
+                    sampled = [fixed_doc_idx] * topk
+                    q_context_rank.append(sampled)
+
+                context_rank.append(np.array(q_context_rank))
+
+            if len(context_rank) > 0:
+                context_rank = np.vstack(context_rank)
+                print(f"Fixed-doc context_rank computed: {context_rank.shape}")
+                print(f"All documents recall fixed document {fixed_doc_idx} for {topk} times")
+
+        elif recall_method == RecallMethod.BGE:
             # ========== BGE Similarity Mode ==========
             print("\n" + "="*80)
             print(f"Computing document similarity with BGE + FAISS (scope: {preprocess_scope.value})...")
@@ -969,8 +1059,10 @@ def main(
     rate=0.2,
     topk=10,
     preprocess=True,
-    use_random_recall=False,  # 是否使用随机召回 (True=随机, False=BGE相似度)
-    random_seed=42,  # 随机种子
+    use_random_recall=False,  # 已废弃，保留用于向后兼容。请使用 recall_method_str
+    recall_method_str='bge',  # 召回方法: 'bge', 'random', 'repeat_self', 'fixed_doc'
+    random_seed=42,  # 随机种子（当 recall_method=random 时生效）
+    fixed_doc_idx=0,  # 固定文档索引（当 recall_method=fixed_doc 时生效）
     preprocess_scope=PreprocessScope.GLOBAL,
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
@@ -1044,8 +1136,21 @@ def main(
     # Cache naming includes all parameters that affect KV cache content:
     # - scope: global/per_example/skip_untested
     # - topk: number of documents to fuse
-    # - recall_method: random/bge (extensible for future methods)
-    recall_method = "random" if use_random_recall else "bge"
+    # - recall_method: bge/random/repeat_self/fixed_doc
+
+    # Convert recall_method_str to RecallMethod enum (with backward compatibility)
+    if use_random_recall and recall_method_str == 'bge':
+        # Backward compatibility: use_random_recall=True overrides recall_method_str
+        recall_method_str = 'random'
+
+    # Map string to enum
+    recall_method_map = {
+        'bge': RecallMethod.BGE,
+        'random': RecallMethod.RANDOM,
+        'repeat_self': RecallMethod.REPEAT_SELF,
+        'fixed_doc': RecallMethod.FIXED_DOC,
+    }
+    recall_method_enum = recall_method_map.get(recall_method_str.lower(), RecallMethod.BGE)
 
     # Format: preprocess_kv_cache_{scope}_topk{topk}_{recall_method}
     if preprocess_scope == PreprocessScope.GLOBAL:
@@ -1057,15 +1162,26 @@ def main(
     else:
         scope_str = "default"
 
-    cache_dir_name = f"preprocess_kv_cache_{scope_str}_topk{topk}_{recall_method}"
+    cache_dir_name = f"preprocess_kv_cache_{scope_str}_topk{topk}_{recall_method_enum.value}"
     preprocess_save_path = os.path.join(model_cache_root, cache_dir_name)
 
-    # 结果目录：如果指定了 result_path，使用它；否则使用 cache_path
+    # 结果目录：使用配置特定的子目录结构
+    # Format: {method}_{scope}_topk{topk}_{recall_method} or "nopreprocess"
     if result_path is not None:
         result_root = os.path.join(result_path, model_name, dataset_name)
-        csv_path = os.path.join(result_root, 'results')
     else:
-        csv_path = os.path.join(model_cache_root, 'results')
+        result_root = os.path.join(model_cache_root, 'results_root')
+
+    # Create configuration-specific subdirectory
+    if preprocess:
+        # Format: Method_scope_topk{topk}_{recall_method}
+        config_dir_name = f"{reprocess_method}_{preprocess_scope.value}_topk{topk}_{recall_method_enum.value}"
+    else:
+        # No preprocess: use simple "nopreprocess" directory
+        config_dir_name = "nopreprocess"
+
+    csv_path = os.path.join(result_root, config_dir_name)
+
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(preprocess_save_path, exist_ok=True)
     os.makedirs(csv_path, exist_ok=True)
@@ -1073,15 +1189,21 @@ def main(
     # 初始化评判缓存
     _load_judge_cache(csv_path)
 
-    recall_method_str = "Random Recall" if use_random_recall else "BGE Similarity"
+    recall_method_display = {
+        RecallMethod.BGE: "BGE Similarity",
+        RecallMethod.RANDOM: "Random Recall",
+        RecallMethod.REPEAT_SELF: "Repeat Self",
+        RecallMethod.FIXED_DOC: f"Fixed Doc (idx={fixed_doc_idx})"
+    }
     print(f"Cache directories created under: {model_cache_root}")
     print(f"  - KV cache: {save_path}")
     print(f"  - Preprocess cache:")
     print(f"      Scope: {preprocess_scope.value}")
     print(f"      TopK: {topk}")
-    print(f"      Recall: {recall_method_str}")
+    print(f"      Recall: {recall_method_display.get(recall_method_enum, 'Unknown')}")
     print(f"      Path: {cache_dir_name}")
-    print(f"  - Results: {csv_path}")
+    print(f"  - Results directory: {config_dir_name}")
+    print(f"      Full path: {csv_path}")
 
     # Load model and tokenizer
     print(f"Loading tokenizer and config from {model_path}...")
@@ -1114,7 +1236,7 @@ def main(
     print("Preparing data organized by main questions...")
     questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
         data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess,
-        use_random_recall, random_seed, preprocess_scope
+        recall_method_enum, random_seed, fixed_doc_idx, preprocess_scope
     )
     # Initialize OpenAI client
     if openai_api_key is None:
@@ -1124,7 +1246,7 @@ def main(
     # 创建线程池用于异步判断（max_workers=4 允许同时发起 4 个 API 请求）
     judge_executor = ThreadPoolExecutor(max_workers=4)
 
-    # CSV file for results (include preprocess_scope and revert_rope in filename)
+    # CSV file for results (simplified filenames since config is in directory name)
     rope_suffix = "_revert_rope" if revert_rope else ""
     long_decode_suffix = "_long_decode" if long_decode else ""
 
@@ -1135,16 +1257,12 @@ def main(
         draft_model_name = os.path.basename(draft_model_path.rstrip('/'))
         draft_model_suffix = f"_draft_{draft_model_name}"
 
-    if preprocess:
-        csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.csv"
-        result_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.txt"
-        # rate=1 baseline: no draft model suffix (draft model doesn't matter when recomputing all tokens)
-        # long_decode baseline 需要单独的 rate=1 文件
-        rate1_csv_file = f"{csv_path}/{reprocess_method}_{preprocess_scope.value}_topk_{topk}_rate_1{rope_suffix}{long_decode_suffix}.csv"
-    else:
-        csv_file = f"{csv_path}/{reprocess_method}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.csv"
-        result_file = f"{csv_path}/{reprocess_method}_rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.txt"
-        rate1_csv_file = f"{csv_path}/{reprocess_method}_rate_1{rope_suffix}{long_decode_suffix}.csv"
+    # Simplified filenames: config info is already in directory name
+    # Format: rate_{rate}{suffixes}.csv
+    csv_file = f"{csv_path}/rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.csv"
+    result_file = f"{csv_path}/rate_{rate}{draft_model_suffix}{rope_suffix}{long_decode_suffix}.txt"
+    # rate=1 baseline (no draft model suffix)
+    rate1_csv_file = f"{csv_path}/rate_1{rope_suffix}{long_decode_suffix}.csv"
 
     # Load rate=1 results for comparison if rate != 1
     rate1_results = {}
@@ -1153,7 +1271,7 @@ def main(
         if not os.path.exists(rate1_csv_file):
             # 尝试查找其他 rate=1 文件
             import glob
-            rate1_pattern = f"{csv_path}/*_rate_1*.csv"
+            rate1_pattern = f"{csv_path}/rate_1*.csv"
             rate1_files = glob.glob(rate1_pattern)
             if rate1_files:
                 # 优先选择匹配当前模式的文件
@@ -2366,9 +2484,14 @@ if __name__ == '__main__':
     parser.add_argument('--preprocess', type=lambda x: x.lower() == 'true', default=True,
                         help='Enable preprocessing (True/False)')
     parser.add_argument('--use_random_recall', type=lambda x: x.lower() == 'true', default=False,
-                        help='Use random document sampling instead of BGE similarity (True/False)')
+                        help='[DEPRECATED] Use random document sampling. Please use --recall_method instead')
+    parser.add_argument('--recall_method', type=str, default='bge',
+                        choices=['bge', 'random', 'repeat_self', 'fixed_doc'],
+                        help='Document recall method: bge (similarity), random, repeat_self, or fixed_doc')
     parser.add_argument('--random_seed', type=int, default=42,
-                        help='Random seed for reproducibility (when use_random_recall=True)')
+                        help='Random seed for reproducibility (when recall_method=random)')
+    parser.add_argument('--fixed_doc_idx', type=int, default=0,
+                        help='Fixed document index to use (when recall_method=fixed_doc)')
     parser.add_argument('--reprocess_method', type=str, default='FusionRAG',
                         choices=['FusionRAG', 'Oracle', 'OracleAdaptive', 'OracleDynamic',
                                 'vAttention', 'DraftModel', 'QueryAttention', 'DraftModelLayerwise'],
@@ -2468,7 +2591,9 @@ if __name__ == '__main__':
         topk=args.topk,
         preprocess=args.preprocess,
         use_random_recall=args.use_random_recall,
+        recall_method_str=args.recall_method,
         random_seed=args.random_seed,
+        fixed_doc_idx=args.fixed_doc_idx,
         preprocess_scope=preprocess_scope,
         reprocess_method=args.reprocess_method,
         use_entropy_selection=args.use_entropy_selection,

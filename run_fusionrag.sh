@@ -39,8 +39,10 @@ REPROCESS_METHOD="FusionRAG"                               # 方法: FusionRAG, 
 RATE="0.15"                                                 # 重算比例 (0-1)
 TOPK="10"                                                  # 预处理时融合的top-k文档数
 PREPROCESS="true"                                          # 是否启用预处理 (true/false)
-USE_RANDOM_RECALL="false"                                  # 是否使用随机召回 (true=随机, false=BGE相似度)
-RANDOM_SEED="42"                                           # 随机种子 (当 USE_RANDOM_RECALL=true 时生效)
+USE_RANDOM_RECALL="false"                                  # [已废弃] 请使用 RECALL_METHOD
+RECALL_METHOD="bge"                                        # 召回方法: bge, random, repeat_self, fixed_doc
+RANDOM_SEED="42"                                           # 随机种子 (当 RECALL_METHOD=random 时生效)
+FIXED_DOC_IDX="0"                                          # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 REVERT_ROPE="true"                                         # 是否还原RoPE (true/false)
 PREPROCESS_SCOPE="global"                                  # 预处理范围: global, per_example, skip_untested
 
@@ -139,7 +141,9 @@ if [ ${#PYTHON_ARGS[@]} -eq 0 ]; then
         "--topk" "${TOPK}"
         "--preprocess" "${PREPROCESS}"
         "--use_random_recall" "${USE_RANDOM_RECALL}"
+        "--recall_method" "${RECALL_METHOD}"
         "--random_seed" "${RANDOM_SEED}"
+        "--fixed_doc_idx" "${FIXED_DOC_IDX}"
         "--reprocess_method" "${REPROCESS_METHOD}"
         "--revert_rope" "${REVERT_ROPE}"
         "--use_multi_gpu" "${USE_MULTI_GPU}"
