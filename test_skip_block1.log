@@ -1,278 +1,0 @@
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Cache directories created under: /mnt/data/reflect/Qwen2.5-7B-Instruct
-  - KV cache: /mnt/data/reflect/Qwen2.5-7B-Instruct/kv_cache
-  - Preprocess cache (global): /mnt/data/reflect/Qwen2.5-7B-Instruct/preprocess_kv_cache_global
-  - Results (2wikimqa): /mnt/data/reflect/Qwen2.5-7B-Instruct/results/2wikimqa
-Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
-Loading qwen model...
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 115.11it/s]
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-
-Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 59.50it/s]
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
-  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
-  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
-  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
-Draft model loaded: 36 layers
-Preparing data organized by main questions...
-Loading dataset from ./result_reflect.json...
-Limited to first 200 main questions
-
-================================================================================
-Building document corpus with scope: global
-================================================================================
-  Main question 1: 10 unique documents, 1 sub-questions
-  Main question 2: 10 unique documents, 1 sub-questions
-  Main question 3: 10 unique documents, 1 sub-questions
-  Main question 4: 11 unique documents, 2 sub-questions
-  Main question 5: 19 unique documents, 2 sub-questions
-  Main question 6: 19 unique documents, 2 sub-questions
-  Main question 7: 10 unique documents, 1 sub-questions
-  Main question 8: 15 unique documents, 2 sub-questions
-  Main question 9: 19 unique documents, 2 sub-questions
-  Main question 10: 15 unique documents, 2 sub-questions
-  Main question 11: 17 unique documents, 2 sub-questions
-  Main question 12: 19 unique documents, 2 sub-questions
-  Main question 13: 14 unique documents, 2 sub-questions
-  Main question 14: 18 unique documents, 2 sub-questions
-  Main question 15: 17 unique documents, 2 sub-questions
-  Main question 16: 19 unique documents, 2 sub-questions
-  Main question 17: 14 unique documents, 2 sub-questions
-  Main question 18: 14 unique documents, 2 sub-questions
-  Main question 19: 17 unique documents, 2 sub-questions
-  Main question 20: 16 unique documents, 2 sub-questions
-  Main question 21: 17 unique documents, 2 sub-questions
-  Main question 22: 15 unique documents, 2 sub-questions
-  Main question 23: 21 unique documents, 3 sub-questions
-  Main question 24: 19 unique documents, 3 sub-questions
-  Main question 25: 18 unique documents, 2 sub-questions
-  Main question 26: 17 unique documents, 2 sub-questions
-  Main question 27: 10 unique documents, 1 sub-questions
-  Main question 28: 19 unique documents, 2 sub-questions
-  Main question 29: 25 unique documents, 4 sub-questions
-  Main question 30: 17 unique documents, 4 sub-questions
-  Main question 31: 29 unique documents, 4 sub-questions
-  Main question 32: 14 unique documents, 2 sub-questions
-  Main question 33: 14 unique documents, 2 sub-questions
-  Main question 34: 10 unique documents, 1 sub-questions
-  Main question 35: 24 unique documents, 4 sub-questions
-  Main question 36: 17 unique documents, 2 sub-questions
-  Main question 37: 19 unique documents, 2 sub-questions
-  Main question 38: 12 unique documents, 2 sub-questions
-  Main question 39: 18 unique documents, 2 sub-questions
-  Main question 40: 15 unique documents, 2 sub-questions
-  Main question 41: 16 unique documents, 2 sub-questions
-  Main question 42: 30 unique documents, 4 sub-questions
-  Main question 43: 21 unique documents, 4 sub-questions
-  Main question 44: 17 unique documents, 2 sub-questions
-  Main question 45: 20 unique documents, 3 sub-questions
-  Main question 46: 16 unique documents, 2 sub-questions
-  Main question 47: 15 unique documents, 2 sub-questions
-  Main question 48: 20 unique documents, 4 sub-questions
-  Main question 49: 13 unique documents, 4 sub-questions
-  Main question 50: 14 unique documents, 4 sub-questions
-  Main question 51: 13 unique documents, 4 sub-questions
-  Main question 52: 16 unique documents, 2 sub-questions
-  Main question 53: 25 unique documents, 3 sub-questions
-  Main question 54: 10 unique documents, 1 sub-questions
-  Main question 55: 18 unique documents, 2 sub-questions
-  Main question 56: 10 unique documents, 1 sub-questions
-  Main question 57: 10 unique documents, 1 sub-questions
-  Main question 58: 10 unique documents, 1 sub-questions
-  Main question 59: 19 unique documents, 2 sub-questions
-  Main question 60: 18 unique documents, 2 sub-questions
-  Main question 61: 14 unique documents, 2 sub-questions
-  Main question 62: 22 unique documents, 4 sub-questions
-  Main question 63: 25 unique documents, 4 sub-questions
-  Main question 64: 19 unique documents, 2 sub-questions
-  Main question 65: 19 unique documents, 2 sub-questions
-  Main question 66: 27 unique documents, 4 sub-questions
-  Main question 67: 10 unique documents, 1 sub-questions
-  Main question 68: 13 unique documents, 4 sub-questions
-  Main question 69: 19 unique documents, 2 sub-questions
-  Main question 70: 19 unique documents, 2 sub-questions
-  Main question 71: 19 unique documents, 2 sub-questions
-  Main question 72: 18 unique documents, 2 sub-questions
-  Main question 73: 19 unique documents, 2 sub-questions
-  Main question 74: 21 unique documents, 4 sub-questions
-  Main question 75: 14 unique documents, 2 sub-questions
-  Main question 76: 10 unique documents, 1 sub-questions
-  Main question 77: 18 unique documents, 2 sub-questions
-  Main question 78: 14 unique documents, 2 sub-questions
-  Main question 79: 19 unique documents, 2 sub-questions
-  Main question 80: 18 unique documents, 3 sub-questions
-  Main question 81: 10 unique documents, 1 sub-questions
-  Main question 82: 18 unique documents, 2 sub-questions
-  Main question 83: 14 unique documents, 2 sub-questions
-  Main question 84: 14 unique documents, 4 sub-questions
-  Main question 85: 20 unique documents, 2 sub-questions
-  Main question 86: 10 unique documents, 1 sub-questions
-  Main question 87: 19 unique documents, 2 sub-questions
-  Main question 88: 19 unique documents, 4 sub-questions
-  Main question 89: 24 unique documents, 3 sub-questions
-  Main question 90: 18 unique documents, 2 sub-questions
-  Main question 91: 15 unique documents, 3 sub-questions
-  Main question 92: 18 unique documents, 2 sub-questions
-  Main question 93: 22 unique documents, 4 sub-questions
-  Main question 94: 14 unique documents, 2 sub-questions
-  Main question 95: 21 unique documents, 4 sub-questions
-  Main question 96: 10 unique documents, 1 sub-questions
-  Main question 97: 17 unique documents, 2 sub-questions
-  Main question 98: 18 unique documents, 2 sub-questions
-  Main question 99: 17 unique documents, 2 sub-questions
-  Main question 100: 17 unique documents, 4 sub-questions
-  Main question 101: 16 unique documents, 2 sub-questions
-  Main question 102: 16 unique documents, 2 sub-questions
-  Main question 103: 19 unique documents, 2 sub-questions
-  Main question 104: 17 unique documents, 2 sub-questions
-  Main question 105: 10 unique documents, 1 sub-questions
-  Main question 106: 13 unique documents, 2 sub-questions
-  Main question 107: 30 unique documents, 4 sub-questions
-  Main question 108: 17 unique documents, 4 sub-questions
-  Main question 109: 13 unique documents, 4 sub-questions
-  Main question 110: 10 unique documents, 1 sub-questions
-  Main question 111: 28 unique documents, 4 sub-questions
-  Main question 112: 15 unique documents, 4 sub-questions
-  Main question 113: 19 unique documents, 2 sub-questions
-  Main question 114: 17 unique documents, 2 sub-questions
-  Main question 115: 20 unique documents, 2 sub-questions
-  Main question 116: 21 unique documents, 3 sub-questions
-  Main question 117: 25 unique documents, 4 sub-questions
-  Main question 118: 19 unique documents, 2 sub-questions
-  Main question 119: 10 unique documents, 1 sub-questions
-  Main question 120: 19 unique documents, 2 sub-questions
-  Main question 121: 10 unique documents, 1 sub-questions
-  Main question 122: 19 unique documents, 2 sub-questions
-  Main question 123: 14 unique documents, 4 sub-questions
-  Main question 124: 18 unique documents, 4 sub-questions
-  Main question 125: 14 unique documents, 4 sub-questions
-  Main question 126: 10 unique documents, 1 sub-questions
-  Main question 127: 14 unique documents, 2 sub-questions
-  Main question 128: 10 unique documents, 1 sub-questions
-  Main question 129: 10 unique documents, 1 sub-questions
-  Main question 130: 10 unique documents, 1 sub-questions
-  Main question 131: 15 unique documents, 2 sub-questions
-  Main question 132: 19 unique documents, 2 sub-questions
-  Main question 133: 14 unique documents, 4 sub-questions
-  Main question 134: 13 unique documents, 2 sub-questions
-  Main question 135: 12 unique documents, 3 sub-questions
-  Main question 136: 19 unique documents, 2 sub-questions
-  Main question 137: 17 unique documents, 2 sub-questions
-  Main question 138: 16 unique documents, 2 sub-questions
-  Main question 139: 18 unique documents, 2 sub-questions
-  Main question 140: 10 unique documents, 1 sub-questions
-  Main question 141: 30 unique documents, 4 sub-questions
-  Main question 142: 17 unique documents, 2 sub-questions
-  Main question 143: 14 unique documents, 2 sub-questions
-  Main question 144: 18 unique documents, 2 sub-questions
-  Main question 145: 16 unique documents, 2 sub-questions
-  Main question 146: 18 unique documents, 2 sub-questions
-  Main question 147: 19 unique documents, 2 sub-questions
-  Main question 148: 20 unique documents, 2 sub-questions
-  Main question 149: 23 unique documents, 4 sub-questions
-  Main question 150: 10 unique documents, 1 sub-questions
-  Main question 151: 18 unique documents, 2 sub-questions
-  Main question 152: 16 unique documents, 2 sub-questions
-  Main question 153: 15 unique documents, 2 sub-questions
-  Main question 154: 10 unique documents, 1 sub-questions
-  Main question 155: 10 unique documents, 1 sub-questions
-  Main question 156: 19 unique documents, 2 sub-questions
-  Main question 157: 17 unique documents, 2 sub-questions
-  Main question 158: 20 unique documents, 4 sub-questions
-  Main question 159: 18 unique documents, 2 sub-questions
-  Main question 160: 18 unique documents, 4 sub-questions
-  Main question 161: 19 unique documents, 2 sub-questions
-  Main question 162: 12 unique documents, 2 sub-questions
-  Main question 163: 10 unique documents, 1 sub-questions
-  Main question 164: 18 unique documents, 2 sub-questions
-  Main question 165: 18 unique documents, 2 sub-questions
-  Main question 166: 10 unique documents, 1 sub-questions
-  Main question 167: 14 unique documents, 2 sub-questions
-  Main question 168: 19 unique documents, 2 sub-questions
-  Main question 169: 29 unique documents, 4 sub-questions
-  Main question 170: 19 unique documents, 2 sub-questions
-  Main question 171: 21 unique documents, 3 sub-questions
-  Main question 172: 16 unique documents, 4 sub-questions
-  Main question 173: 18 unique documents, 4 sub-questions
-  Main question 174: 13 unique documents, 2 sub-questions
-  Main question 175: 19 unique documents, 2 sub-questions
-  Main question 176: 29 unique documents, 4 sub-questions
-  Main question 177: 10 unique documents, 1 sub-questions
-  Main question 178: 25 unique documents, 4 sub-questions
-  Main question 179: 18 unique documents, 2 sub-questions
-  Main question 180: 17 unique documents, 2 sub-questions
-  Main question 181: 17 unique documents, 2 sub-questions
-  Main question 182: 16 unique documents, 3 sub-questions
-  Main question 183: 22 unique documents, 4 sub-questions
-  Main question 184: 19 unique documents, 2 sub-questions
-  Main question 185: 21 unique documents, 4 sub-questions
-  Main question 186: 20 unique documents, 4 sub-questions
-  Main question 187: 13 unique documents, 2 sub-questions
-  Main question 188: 20 unique documents, 3 sub-questions
-  Main question 189: 18 unique documents, 2 sub-questions
-  Main question 190: 20 unique documents, 4 sub-questions
-  Main question 191: 23 unique documents, 4 sub-questions
-  Main question 192: 19 unique documents, 2 sub-questions
-  Main question 193: 26 unique documents, 3 sub-questions
-  Main question 194: 21 unique documents, 4 sub-questions
-  Main question 195: 17 unique documents, 4 sub-questions
-  Main question 196: 26 unique documents, 4 sub-questions
-  Main question 197: 16 unique documents, 4 sub-questions
-  Main question 198: 21 unique documents, 4 sub-questions
-  Main question 199: 25 unique documents, 4 sub-questions
-  Main question 200: 16 unique documents, 4 sub-questions
-
-================================================================================
-DATASET STATISTICS
-================================================================================
-Total main questions: 200
-  - Testable: 135
-  - Skipped (llm_judge=False or problematic answers): 65
-
-Total sub-questions: 485
-  - Testable: 250
-  - Skipped: 235
-
-Total documents (across all questions): 3408
-================================================================================
-
-================================================================================
-Computing document similarity with BGE + FAISS (scope: global)...
-================================================================================
-Loading BGE model from /mnt/data/models/bge-m3-FP16...
-Encoding 3408 documents for FAISS index...
-pre tokenize:   0%|          | 0/14 [00:00<?, ?it/s]pre tokenize:  21%|██▏       | 3/14 [00:00<00:00, 29.89it/s]pre tokenize:  50%|█████     | 7/14 [00:00<00:00, 30.39it/s]pre tokenize:  79%|███████▊  | 11/14 [00:00<00:00, 30.28it/s]pre tokenize: 100%|██████████| 14/14 [00:00<00:00, 31.91it/s]
-You're using a XLMRobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
-Inference Embeddings:   0%|          | 0/14 [00:00<?, ?it/s]Inference Embeddings:   7%|▋         | 1/14 [00:00<00:08,  1.50it/s]Inference Embeddings:  14%|█▍        | 2/14 [00:01<00:05,  2.11it/s]Inference Embeddings:  21%|██▏       | 3/14 [00:01<00:04,  2.60it/s]Inference Embeddings:  29%|██▊       | 4/14 [00:01<00:03,  3.05it/s]Inference Embeddings:  36%|███▌      | 5/14 [00:01<00:02,  3.48it/s]Inference Embeddings:  43%|████▎     | 6/14 [00:01<00:02,  3.94it/s]Inference Embeddings:  50%|█████     | 7/14 [00:02<00:01,  4.40it/s]Inference Embeddings:  57%|█████▋    | 8/14 [00:02<00:01,  4.87it/s]Inference Embeddings:  64%|██████▍   | 9/14 [00:02<00:00,  5.42it/s]Inference Embeddings:  71%|███████▏  | 10/14 [00:02<00:00,  6.01it/s]Inference Embeddings:  79%|███████▊  | 11/14 [00:02<00:00,  6.66it/s]Inference Embeddings:  93%|█████████▎| 13/14 [00:02<00:00,  8.33it/s]Inference Embeddings: 100%|██████████| 14/14 [00:02<00:00,  4.95it/s]
-Corpus embeddings shape: (3408, 1024)
-FAISS index built with 3408 vectors
-Searching for top-10 similar documents for each document...
-pre tokenize:   0%|          | 0/14 [00:00<?, ?it/s]pre tokenize:  29%|██▊       | 4/14 [00:00<00:00, 31.43it/s]pre tokenize:  57%|█████▋    | 8/14 [00:00<00:00, 32.10it/s]pre tokenize:  86%|████████▌ | 12/14 [00:00<00:00, 31.77it/s]pre tokenize: 100%|██████████| 14/14 [00:00<00:00, 33.33it/s]
-Inference Embeddings:   0%|          | 0/14 [00:00<?, ?it/s]Inference Embeddings:   7%|▋         | 1/14 [00:01<00:16,  1.23s/it]Inference Embeddings:  14%|█▍        | 2/14 [00:01<00:08,  1.41it/s]Inference Embeddings:  21%|██▏       | 3/14 [00:01<00:05,  1.95it/s]Inference Embeddings:  29%|██▊       | 4/14 [00:02<00:04,  2.48it/s]Inference Embeddings:  36%|███▌      | 5/14 [00:02<00:03,  2.98it/s]Inference Embeddings:  43%|████▎     | 6/14 [00:02<00:02,  3.49it/s]Inference Embeddings:  50%|█████     | 7/14 [00:02<00:01,  4.02it/s]Inference Embeddings:  57%|█████▋    | 8/14 [00:02<00:01,  4.55it/s]Inference Embeddings:  64%|██████▍   | 9/14 [00:02<00:00,  5.14it/s]Inference Embeddings:  71%|███████▏  | 10/14 [00:03<00:00,  5.76it/s]Inference Embeddings:  79%|███████▊  | 11/14 [00:03<00:00,  6.44it/s]Inference Embeddings:  93%|█████████▎| 13/14 [00:03<00:00,  8.14it/s]Inference Embeddings: 100%|██████████| 14/14 [00:03<00:00,  4.12it/s]
-Context rank computed: (3408, 10)
-Traceback (most recent call last):
-  File "/mnt/data/wjh/FusionRAG/test_3b_improved_strategy.py", line 19, in <module>
-    main(
-  File "/mnt/data/wjh/FusionRAG/test_fusionrag_reflect.py", line 640, in main
-    raise FileNotFoundError(
-FileNotFoundError: Rate=1 results file not found: /mnt/data/reflect/Qwen2.5-7B-Instruct/results/2wikimqa/DraftModel_global_topk_10_rate_1.csv
-Please run with rate=1 first to generate baseline results.
