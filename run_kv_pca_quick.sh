@@ -15,7 +15,7 @@
 cd /home/shm/document/exp/FusionRAG
 
 # 解析参数
-NUM_SAMPLES=${1:-20}       # 默认分析5个样本
+NUM_SAMPLES=${1:-5}       # 默认分析5个样本
 OUTPUT_DIR=${2:-"./kv_pca_analysis"}
 
 # 生成样本 ID 列表 (0 到 NUM_SAMPLES-1)
@@ -34,7 +34,7 @@ MODEL_NAME="Qwen2.5-7B-Instruct"
 CHUNK_ID="1"                 # Chunk ID (1=第一个文档, 0=system prompt)
 MAX_LAYERS="28"              # 模型总层数
 MAX_TOKENS="500"             # 每层采样的最大token数
-LAYERS="0 5 11 16 18 22 25 27"     # 分析的层
+LAYERS="0 5 11 16 22 27"     # 分析的层
 
 echo "=========================================="
 echo "KV Cache PCA 快速分析"

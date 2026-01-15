@@ -8,6 +8,81 @@ import argparse
 from pathlib import Path
 from typing import Tuple, Dict
 import sys
+import json
+
+
+def load_question_mapping(dataset_path: str) -> tuple[Dict[str, int], Dict[str, list], Dict[tuple, list], Dict[str, list]]:
+    """加载数据集，建立 main_question -> (example_id, chunk_ids) 的映射
+
+    Returns:
+        question_to_id: main_question -> example_id 的映射
+        question_to_chunks: main_question -> list of all chunk_ids 的映射
+        subq_to_chunks: (main_question, sub_question) -> chunk_ids 的映射
+        question_to_gold_chunks: main_question -> gold_docs chunk_ids 的映射
+    """
+    try:
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        question_to_id = {}
+        question_to_chunks = {}
+        subq_to_chunks = {}
+        question_to_gold_chunks = {}
+
+        for idx, q in enumerate(data):
+            main_q = q['question']
+            question_to_id[main_q] = idx
+
+            # 模拟prepare_reflect_data的chunk_id分配逻辑
+            intermediate_context = q.get('intermediate_context', [])
+            doc_to_idx = {}  # 文档原文 -> chunk_id 的映射
+            question_docs = []  # 该main question的所有唯一文档
+
+            for sub_q in intermediate_context:
+                docs = sub_q.get('retrieve docs', [])
+                doc_chunk_ids = []  # 该sub-question使用的chunk_ids
+
+                for doc in docs:
+                    if doc not in doc_to_idx:
+                        # 第一次见到这个文档，分配新的chunk_id
+                        question_docs.append(doc)
+                        chunk_id = len(question_docs)  # chunk_id从1开始
+                        doc_to_idx[doc] = chunk_id
+                        doc_chunk_ids.append(chunk_id)
+                    else:
+                        # 之前见过，使用已有的chunk_id
+                        doc_chunk_ids.append(doc_to_idx[doc])
+
+                # 保存该sub-question的chunk_ids
+                sub_query = sub_q.get('query', '')
+                # 移除"Intermediate queryXXX:"前缀
+                if sub_query.startswith("Intermediate query"):
+                    colon_pos = sub_query.find(":")
+                    if colon_pos != -1:
+                        sub_query = sub_query[colon_pos + 1:].strip()
+
+                subq_to_chunks[(main_q, sub_query)] = doc_chunk_ids
+
+            # 该main question的所有chunk_ids
+            question_to_chunks[main_q] = list(range(1, len(question_docs) + 1))
+
+            # 提取gold_docs对应的chunk_ids
+            gold_docs = q.get('gold_docs', [])
+            gold_chunk_ids = []
+            for gold_doc in gold_docs:
+                if gold_doc in doc_to_idx:
+                    gold_chunk_ids.append(doc_to_idx[gold_doc])
+                # 如果gold_doc不在retrieved docs中，则忽略
+            question_to_gold_chunks[main_q] = gold_chunk_ids
+
+        print(f"成功加载数据集映射: {dataset_path}")
+        print(f"  - 总问题数: {len(data)}")
+        return question_to_id, question_to_chunks, subq_to_chunks, question_to_gold_chunks
+    except Exception as e:
+        print(f"警告: 无法加载数据集文件 {dataset_path}")
+        print(f"  - 错误信息: {str(e)}")
+        print(f"  - 将使用CSV行索引作为example_id")
+        return {}, {}, {}, {}
 
 
 def load_result_file(file_path: str) -> pd.DataFrame:
@@ -24,7 +99,11 @@ def load_result_file(file_path: str) -> pd.DataFrame:
 
 
 def compare_results(df1: pd.DataFrame, df2: pd.DataFrame,
-                   name1: str, name2: str) -> Dict:
+                   name1: str, name2: str,
+                   question_mapping: Dict[str, int] = None,
+                   question_to_chunks: Dict[str, list] = None,
+                   subq_to_chunks: Dict[tuple, list] = None,
+                   question_to_gold_chunks: Dict[str, list] = None) -> Dict:
     """比较两个结果文件"""
 
     # 确保两个文件的问题数量一致
@@ -53,8 +132,41 @@ def compare_results(df1: pd.DataFrame, df2: pd.DataFrame,
         if isinstance(correct2, str):
             correct2 = correct2.strip().lower() == 'true'
 
+        # 从main_question获取真实的example_id和chunk_ids
+        main_question = row1['Main Question']
+        sub_question = row1['Sub Question']
+
+        if question_mapping:
+            example_id = question_mapping.get(main_question, -1)
+            if example_id == -1:
+                print(f"警告: 无法找到问题的example_id: {main_question[:60]}...")
+                example_id = i  # fallback to row index
+        else:
+            example_id = i  # 如果没有mapping，使用行索引
+
+        # 获取该sub-question使用的chunk_ids（更精确）
+        chunk_ids = []
+        all_chunk_ids = []  # 该main question的所有chunk_ids
+        gold_chunk_ids = []  # 答案所在的文档chunk_ids
+
+        if subq_to_chunks:
+            # 尝试从sub-question获取精确的chunk_ids
+            chunk_ids = subq_to_chunks.get((main_question, sub_question), [])
+
+        if question_to_chunks:
+            # 获取该main question的所有chunk_ids（作为备用）
+            all_chunk_ids = question_to_chunks.get(main_question, [])
+
+        if question_to_gold_chunks:
+            # 获取答案所在的文档chunk_ids
+            gold_chunk_ids = question_to_gold_chunks.get(main_question, [])
+
         item = {
             'index': i,
+            'example_id': example_id,  # 真实的example_id，用于查找PCA图
+            'chunk_ids': chunk_ids,  # 该sub-question使用的文档chunk_ids（精确）
+            'all_chunk_ids': all_chunk_ids,  # 该main question的所有chunk_ids
+            'gold_chunk_ids': gold_chunk_ids,  # 答案所在的文档chunk_ids
             'main_question': row1['Main Question'],
             'sub_question': row1['Sub Question'],
             'ground_truth': row1['Ground Truth'],
@@ -161,7 +273,13 @@ def save_detailed_comparison(results: Dict, output_file: str):
             f.write(f"{'='*100}\n\n")
 
             for idx, item in enumerate(items, 1):
-                f.write(f"[{idx}] 样本索引: {item['index']}\n")
+                example_id = item['example_id']
+                csv_row = item['index']
+                chunk_ids = item.get('chunk_ids', [])
+                all_chunk_ids = item.get('all_chunk_ids', [])
+                gold_chunk_ids = item.get('gold_chunk_ids', [])
+
+                f.write(f"[{idx}] CSV行号: {csv_row}  |  Example ID: {example_id}\n")
                 f.write(f"主问题: {item['main_question']}\n")
                 f.write(f"子问题: {item['sub_question']}\n")
                 f.write(f"标准答案: {item['ground_truth']}\n")
@@ -171,6 +289,40 @@ def save_detailed_comparison(results: Dict, output_file: str):
                 f.write(f"\n{name2}:\n")
                 f.write(f"  预测答案: {item['predicted_2']}\n")
                 f.write(f"  正确性: {item['correct_2']}  |  F1: {item['f1_2']:.4f}  |  EM: {item['em_2']:.4f}\n")
+
+                f.write(f"\n【文档召回和PCA可视化】\n")
+                if chunk_ids:
+                    f.write(f"  该SUB-QUESTION召回使用的文档 chunks: {chunk_ids}\n")
+                    f.write(f"  该MAIN-QUESTION包含的所有文档 chunks: {all_chunk_ids}\n")
+                    if gold_chunk_ids:
+                        f.write(f"  ⭐ 答案所在的文档 chunks (Gold Docs): {gold_chunk_ids}\n")
+                    else:
+                        f.write(f"  ⭐ 答案所在的文档 chunks (Gold Docs): 未找到或不在召回文档中\n")
+
+                    f.write(f"\n  对应的PCA图文件（仅列出该sub-question使用的chunks）：\n")
+                    for chunk_id in chunk_ids:
+                        # 标记出gold chunks
+                        is_gold = " ⭐ GOLD DOC" if chunk_id in gold_chunk_ids else ""
+                        f.write(f"    - Chunk {chunk_id}{is_gold}:\n")
+                        f.write(f"      • Key:   pca_key_example{example_id}_chunk{chunk_id}.png\n")
+                        f.write(f"      • Value: pca_value_example{example_id}_chunk{chunk_id}.png\n")
+                else:
+                    f.write(f"  警告：未找到该sub-question的chunk_ids信息\n")
+                    if all_chunk_ids:
+                        f.write(f"  该main question包含的所有chunks: {all_chunk_ids}\n")
+                        if gold_chunk_ids:
+                            f.write(f"  答案所在的文档 chunks: {gold_chunk_ids}\n")
+                        f.write(f"  可查看所有PCA图: pca_*_example{example_id}_chunk*.png\n")
+                    else:
+                        f.write(f"  可尝试查看: pca_*_example{example_id}_chunk*.png\n")
+
+                f.write(f"\n  说明:\n")
+                f.write(f"    • Example ID {example_id} = 该问题在数据集中的编号\n")
+                f.write(f"    • SUB-question chunks {chunk_ids} = 回答该子问题时实际加载到模型的文档\n")
+                f.write(f"    • MAIN-question chunks {all_chunk_ids} = 该主问题包含的所有唯一文档\n")
+                f.write(f"    • Gold chunks {gold_chunk_ids} = 答案所在的文档（标注的正确支撑文档）\n")
+                f.write(f"    • CSV行号 {csv_row} 可能与 Example ID 不同（一个main question有多个sub-questions）\n")
+                f.write(f"    • chunk_id是根据文档在数据集中第一次出现的顺序分配的（1, 2, 3...）\n")
                 f.write(f"\n{'-'*100}\n\n")
 
     print(f"\n详细对比结果已保存到: {output_file}")
@@ -207,17 +359,24 @@ def main():
                        help='第二个方案的名称 (默认: 方案2)')
     parser.add_argument('--output', type=str, default='comparison_detail.txt',
                        help='输出详细对比结果的文件路径 (默认: comparison_detail.txt)')
+    parser.add_argument('--dataset', type=str,
+                       default='/home/shm/document/exp/FusionRAG/data/result_reflect.json',
+                       help='数据集JSON文件路径，用于获取example_id映射 (默认: result_reflect.json)')
 
     args = parser.parse_args()
+
+    # 加载数据集映射
+    print(f"\n加载数据集映射...")
+    question_mapping, question_to_chunks, subq_to_chunks, question_to_gold_chunks = load_question_mapping(args.dataset)
 
     # 加载文件
     print(f"\n加载结果文件...")
     df1 = load_result_file("/home/shm/document/exp/FusionRAG/result/Qwen2.5-7B-Instruct/musique/results/FusionRAG_global_topk_10_rate_0.0_revert_rope.csv")
-    df2 = load_result_file("/home/shm/document/exp/FusionRAG/result/BGE_SHUFFLED /Qwen2.5-7B-Instruct/musique/FusionRAG_global_topk10_bge/rate_0.0_revert_rope.csv")
+    df2 = load_result_file("/home/shm/document/exp/FusionRAG/result/no_preprocess/Qwen2.5-7B-Instruct/musique/nopreprocess/rate_0.0_revert_rope.csv")
 
     # 比较结果
     print(f"\n开始比较...")
-    results = compare_results(df1, df2, args.name1, args.name2)
+    results = compare_results(df1, df2, args.name1, args.name2, question_mapping, question_to_chunks, subq_to_chunks, question_to_gold_chunks)
 
     # 打印统计
     print_statistics(results)

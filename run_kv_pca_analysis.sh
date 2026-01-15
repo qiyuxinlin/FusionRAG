@@ -16,17 +16,17 @@ SCRIPT_PATH="./visualize_kv_pca.py"
 CACHE_DIR="/mnt/data3/tmp/fusionrag"
 DATASET="musique"
 MODEL_NAME="Qwen2.5-7B-Instruct"
-OUTPUT_DIR="./kv_pca_analysis"
+OUTPUT_DIR="./kv_pca_analysis3"
 
 # 分析配置（可通过命令行参数覆盖）
-SAMPLE_IDS="${1:-0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}"  # 要分析的样本ID
+SAMPLE_IDS="${1:-16}"  # 要分析的样本ID
 CHUNK_ID="1"                 # Chunk ID (1=第一个文档, 0=system prompt)
 MAX_LAYERS="28"              # 模型总层数
 MAX_TOKENS="500"             # 每层采样的最大token数
 
 # 选择要分析的层（可选）
 # 如果不指定，会自动选择均匀分布的6层
-LAYERS="0 5 11 16 18 22 15 27"
+LAYERS="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27" 
 
 echo "=========================================="
 echo "KV Cache PCA 分析"
@@ -47,10 +47,11 @@ ${PYTHON_PATH} ${SCRIPT_PATH} \
     --model_name "${MODEL_NAME}" \
     --sample_ids ${SAMPLE_IDS} \
     --chunk_id ${CHUNK_ID} \
+    --layers ${LAYERS} \
     --max_layers ${MAX_LAYERS} \
     --max_tokens ${MAX_TOKENS} \
     --output_dir "${OUTPUT_DIR}"
-
+    
 EXIT_CODE=$?
 
 echo ""
