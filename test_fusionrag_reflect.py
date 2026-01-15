@@ -64,11 +64,17 @@ class RecallMethod(Enum):
     RANDOM: Randomly sample documents from the pool
     REPEAT_SELF: Repeat the current document K times (for ablation study)
     FIXED_DOC: Use a fixed document for all recalls (for ablation study)
+    RANDOM_TEXT: Use BGE to get document lengths, but fuse with random unrelated text KV (for ablation study)
+    BGE_SHUFFLED: Use BGE recall, but shuffle KV positions within each recalled document (for ablation study)
+    RANDOM_DOCS: Randomly pick topk unrelated texts from library, use original KV without length adjustment (for ablation study)
     """
     BGE = "bge"
     RANDOM = "random"
     REPEAT_SELF = "repeat_self"
     FIXED_DOC = "fixed_doc"
+    RANDOM_TEXT = "random_text"
+    BGE_SHUFFLED = "bge_shuffled"
+    RANDOM_DOCS = "random_docs"  # Pick topk random texts from library, use original KV without trimming
 
 
 
@@ -632,7 +638,6 @@ def prepare_reflect_data(
                 q_context_rank = []
 
                 for i in range(n_docs):
-                    # 所有文档都召回同一个固定文档 topk 次
                     sampled = [fixed_doc_idx] * topk
                     q_context_rank.append(sampled)
 
@@ -643,10 +648,13 @@ def prepare_reflect_data(
                 print(f"Fixed-doc context_rank computed: {context_rank.shape}")
                 print(f"All documents recall fixed document {fixed_doc_idx} for {topk} times")
 
-        elif recall_method == RecallMethod.BGE:
-            # ========== BGE Similarity Mode ==========
+        elif recall_method in (RecallMethod.BGE, RecallMethod.BGE_SHUFFLED):
+            # ========== BGE Similarity Mode (and BGE_SHUFFLED) ==========
+            mode_name = "BGE Similarity" if recall_method == RecallMethod.BGE else "BGE Shuffled"
             print("\n" + "="*80)
             print(f"Computing document similarity with BGE + FAISS (scope: {preprocess_scope.value})...")
+            if recall_method == RecallMethod.BGE_SHUFFLED:
+                print("Note: KV positions will be shuffled during fusion")
             print("="*80)
 
             import faiss
@@ -724,6 +732,186 @@ def prepare_reflect_data(
                 print(f"Context rank computed: {context_rank.shape}")
 
             bgem3 = None  # Free memory
+
+        elif recall_method == RecallMethod.RANDOM_TEXT:
+            # ========== Random Text Mode ==========
+            # Use BGE to get recalled document lengths, but fuse with random unrelated text KV
+            print("\n" + "="*80)
+            print(f"Using RANDOM_TEXT mode: BGE recall for lengths, but fuse with random text KV")
+            print("="*80)
+
+            import faiss
+            from FlagEmbedding import FlagModel
+
+            # Load random text library
+            random_text_lib_path = "./data/random_text_library.json"
+            if not os.path.exists(random_text_lib_path):
+                raise FileNotFoundError(f"Random text library not found: {random_text_lib_path}")
+
+            with open(random_text_lib_path, 'r', encoding='utf-8') as f:
+                random_text_lib = json.load(f)
+
+            random_texts = [item['content'] for item in random_text_lib['texts']]
+            print(f"Loaded {len(random_texts)} random texts from library")
+
+            # Tokenize random texts to get their lengths
+            random_text_tensors = []
+            random_text_lengths = []
+            for text in random_texts:
+                # Add system-style formatting to random text
+                formatted_text = f"<|im_start|>system\n{text}<|im_end|>\n"
+                tokens = tokenizer.encode(formatted_text, add_special_tokens=False)
+                random_text_tensors.append(torch.tensor(tokens, dtype=torch.long))
+                random_text_lengths.append(len(tokens))
+
+            print(f"Random text token lengths: min={min(random_text_lengths)}, max={max(random_text_lengths)}, mean={sum(random_text_lengths)/len(random_text_lengths):.1f}")
+
+            # Step 1: Use BGE to get topk recalled documents (same as BGE mode)
+            print(f"Loading BGE model from {bge_model_path}...")
+            bgem3 = FlagModel(bge_model_path, use_fp16=True)
+
+            if preprocess_scope == PreprocessScope.GLOBAL:
+                # Build FAISS index for BGE similarity
+                print(f"Encoding {len(global_corpus)} documents for FAISS index...")
+                corpus_embeddings = bgem3.encode(global_corpus)
+                print(f"Corpus embeddings shape: {corpus_embeddings.shape}")
+
+                # Build FAISS index
+                dim = corpus_embeddings.shape[-1]
+                index = faiss.index_factory(dim, 'Flat', faiss.METRIC_INNER_PRODUCT)
+                corpus_embeddings = corpus_embeddings.astype(np.float32)
+                index.train(corpus_embeddings)
+                index.add(corpus_embeddings)
+                print(f"FAISS index built with {index.ntotal} vectors")
+
+                # Search for similar documents
+                print(f"Searching for top-{topk} similar documents for each document...")
+                corpus_embeddings_query = bgem3.encode_queries(global_corpus)
+                corpus_embeddings_query = corpus_embeddings_query.astype(np.float32)
+                score, bge_idx = index.search(corpus_embeddings_query, k=topk)
+
+                # bge_idx contains the BGE recalled document indices
+                # Now replace them with random text indices based on length matching
+                print(f"Mapping BGE recalls to random texts based on length...")
+
+                context_rank = []
+                # Store target lengths for each document's recalls
+                random_text_target_lengths = {}  # {global_doc_idx: [len1, len2, ..., len_topk]}
+
+                for doc_idx in range(len(global_corpus)):
+                    doc_recalls = bge_idx[doc_idx]  # topk BGE recalled documents
+                    random_text_recalls = []
+                    target_lengths = []
+
+                    for recalled_doc_idx in doc_recalls:
+                        if recalled_doc_idx < 0:  # Skip padding
+                            random_text_recalls.append(-1)
+                            target_lengths.append(0)
+                            continue
+
+                        # Get recalled document's length (TARGET length)
+                        corpus_i, c_id = find_group_and_index(corpus_lens, recalled_doc_idx)
+                        if corpus_i < len(questions_data) and c_id < len(questions_data[corpus_i]['doc_tensors']):
+                            recalled_doc_len = questions_data[corpus_i]['doc_tensors'][c_id].shape[0]
+                        else:
+                            recalled_doc_len = 500  # fallback
+
+                        # Find random text with closest length
+                        best_random_idx = min(range(len(random_text_lengths)),
+                                            key=lambda i: abs(random_text_lengths[i] - recalled_doc_len))
+
+                        # Store negative index to indicate random text: -(idx+1)
+                        # -1 reserved for padding, so use -(idx+2) for text_idx
+                        random_text_recalls.append(-(best_random_idx + 2))
+                        target_lengths.append(recalled_doc_len)  # Store target length
+
+                    context_rank.append(random_text_recalls)
+                    random_text_target_lengths[doc_idx] = target_lengths
+
+                context_rank = np.array(context_rank)
+                print(f"Context rank computed with random text mapping: {context_rank.shape}")
+                print(f"Random text indices encoded as negative values: -(text_id + 2)")
+
+                # Store target lengths in questions_data for later use
+                for q_data in questions_data:
+                    q_data['random_text_target_lengths'] = random_text_target_lengths
+
+            else:
+                # PER_EXAMPLE mode not implemented for RANDOM_TEXT yet
+                raise NotImplementedError(f"RANDOM_TEXT mode not yet implemented for scope={preprocess_scope.value}")
+
+            bgem3 = None  # Free memory
+
+            # Store random text info in questions_data for later use
+            for q_data in questions_data:
+                q_data['random_text_tensors'] = random_text_tensors
+                q_data['random_text_lengths'] = random_text_lengths
+
+        elif recall_method == RecallMethod.RANDOM_DOCS:
+            # ========== Random Docs Mode ==========
+            # Simply pick topk random texts, use original KV without length adjustment
+            print("\n" + "="*80)
+            print(f"Using RANDOM_DOCS mode: randomly pick {topk} unrelated texts")
+            print("="*80)
+
+            # Load random text library
+            random_text_lib_path = "./data/random_text_library.json"
+            if not os.path.exists(random_text_lib_path):
+                raise FileNotFoundError(f"Random text library not found: {random_text_lib_path}")
+
+            with open(random_text_lib_path, 'r', encoding='utf-8') as f:
+                random_text_lib = json.load(f)
+
+            random_texts = [item['content'] for item in random_text_lib['texts']]
+            print(f"Loaded {len(random_texts)} random texts from library")
+
+            # Tokenize random texts
+            random_text_tensors = []
+            random_text_lengths = []
+            for text in random_texts:
+                # Add system-style formatting to random text
+                formatted_text = f"<|im_start|>system\n{text}<|im_end|>\n"
+                tokens = tokenizer.encode(formatted_text, add_special_tokens=False)
+                random_text_tensors.append(torch.tensor(tokens, dtype=torch.long))
+                random_text_lengths.append(len(tokens))
+
+            print(f"Random text token lengths: min={min(random_text_lengths)}, max={max(random_text_lengths)}, mean={sum(random_text_lengths)/len(random_text_lengths):.1f}")
+
+            # For each document, randomly select topk random texts
+            import random
+            random.seed(random_seed)
+
+            total_docs_count = sum(corpus_lens)
+            context_rank = []
+
+            for doc_idx in range(total_docs_count):
+                # Randomly select topk indices from random_text_library
+                actual_k = min(topk, len(random_texts))
+                selected_text_ids = random.sample(range(len(random_texts)), actual_k)
+
+                # Pad to topk if needed
+                if actual_k < topk:
+                    selected_text_ids.extend([-1] * (topk - actual_k))
+
+                # Encode as negative indices: -(text_id + 2)
+                encoded_indices = []
+                for text_id in selected_text_ids:
+                    if text_id == -1:
+                        encoded_indices.append(-1)  # padding
+                    else:
+                        encoded_indices.append(-(text_id + 2))  # encode random text
+
+                context_rank.append(encoded_indices)
+
+            context_rank = np.array(context_rank)
+            print(f"Context rank computed: {context_rank.shape}")
+            print(f"Each document will use {topk} random texts (original KV lengths, no trimming)")
+
+            # Store random text info in questions_data for later use
+            for q_data in questions_data:
+                q_data['random_text_tensors'] = random_text_tensors
+                q_data['random_text_lengths'] = random_text_lengths
+                q_data['use_original_length'] = True  # Flag to indicate no length adjustment
 
     return questions_data, system_tensor, context_rank, corpus_lens
 
@@ -1149,6 +1337,9 @@ def main(
         'random': RecallMethod.RANDOM,
         'repeat_self': RecallMethod.REPEAT_SELF,
         'fixed_doc': RecallMethod.FIXED_DOC,
+        'random_text': RecallMethod.RANDOM_TEXT,
+        'bge_shuffled': RecallMethod.BGE_SHUFFLED,
+        'random_docs': RecallMethod.RANDOM_DOCS,
     }
     recall_method_enum = recall_method_map.get(recall_method_str.lower(), RecallMethod.BGE)
 
@@ -1193,7 +1384,10 @@ def main(
         RecallMethod.BGE: "BGE Similarity",
         RecallMethod.RANDOM: "Random Recall",
         RecallMethod.REPEAT_SELF: "Repeat Self",
-        RecallMethod.FIXED_DOC: f"Fixed Doc (idx={fixed_doc_idx})"
+        RecallMethod.FIXED_DOC: f"Fixed Doc (idx={fixed_doc_idx})",
+        RecallMethod.RANDOM_TEXT: "Random Text (BGE lengths)",
+        RecallMethod.BGE_SHUFFLED: "BGE Shuffled (KV positions)",
+        RecallMethod.RANDOM_DOCS: "Random Docs (original lengths)"
     }
     print(f"Cache directories created under: {model_cache_root}")
     print(f"  - KV cache: {save_path}")
@@ -1458,6 +1652,31 @@ def main(
                     )
                     print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
 
+            # Generate random text KV cache (for RANDOM_TEXT and RANDOM_DOCS modes)
+            if recall_method_enum in [RecallMethod.RANDOM_TEXT, RecallMethod.RANDOM_DOCS]:
+                random_text_cache_dir = os.path.join(save_path, 'random_texts')
+                os.makedirs(random_text_cache_dir, exist_ok=True)
+
+                random_text_tensors = q_data.get('random_text_tensors', [])
+                for text_idx, random_text_tensor in enumerate(random_text_tensors):
+                    random_cache_key_path = f'{random_text_cache_dir}/text_{text_idx}_key.pt'
+
+                    if not os.path.exists(random_cache_key_path):
+                        passage_len = random_text_tensor.shape[0]
+                        # Random text doesn't need system prefix, use it directly
+                        input_tensor = random_text_tensor.unsqueeze(0)
+
+                        # Save as "text_{idx}" format
+                        prefill_and_save_kv_cache(
+                            model, tokenizer, past_key_values, input_tensor.to(input_device),
+                            save_path=random_text_cache_dir, example_id=f'text', chunk_id=text_idx,
+                            system_len=0, passage_len=passage_len,
+                            reprocess_method=reprocess_method, device=input_device, device_map=device_map
+                        )
+
+                if random_text_tensors:
+                    print(f"  Generated KV cache for {len(random_text_tensors)} random texts")
+
         # Step 2: FusionRAG preprocess (if enabled)
         if preprocess and rate != 1:
             # Copy system cache (chunk_id=0)
@@ -1481,13 +1700,42 @@ def main(
                     global_doc_idx = sum(corpus_lens[:example_id]) + doc_idx
                     if global_doc_idx < len(context_rank):
                         similar_docs_info = []
-                        for similar_global_idx in context_rank[global_doc_idx][:topk]:
+                        random_text_target_lengths_map = q_data.get('random_text_target_lengths', {})
+
+                        for recall_idx, similar_global_idx in enumerate(context_rank[global_doc_idx][:topk]):
                             # Skip invalid indices (from padding in PER_EXAMPLE mode)
-                            if similar_global_idx < 0:
+                            if similar_global_idx == -1:
                                 continue
+
+                            # Check if this is a random text index (negative and < -1)
+                            if similar_global_idx < -1:
+                                # Random text: decode as -(text_id + 2)
+                                text_id = -(similar_global_idx + 2)
+                                random_text_cache_dir = os.path.join(save_path, 'random_texts')
+                                random_cache_key_path = f"{random_text_cache_dir}/text_{text_id}_key.pt"
+                                cache_exists = os.path.exists(random_cache_key_path)
+                                status = "✓ cached" if cache_exists else "✗ need generate"
+                                random_text_lengths = q_data.get('random_text_lengths', [])
+                                text_len = random_text_lengths[text_id] if text_id < len(random_text_lengths) else 0
+
+                                # Get target length
+                                target_len = text_len
+                                if global_doc_idx in random_text_target_lengths_map:
+                                    target_lengths = random_text_target_lengths_map[global_doc_idx]
+                                    if recall_idx < len(target_lengths) and target_lengths[recall_idx] > 0:
+                                        target_len = target_lengths[recall_idx]
+
+                                # Show both original and target length
+                                if target_len != text_len:
+                                    similar_docs_info.append(f"RandomText_{text_id}(orig={text_len}→target={target_len}) ({status})")
+                                else:
+                                    similar_docs_info.append(f"RandomText_{text_id}(len={text_len}) ({status})")
+                                continue
+
                             # Skip self-recall except in REPEAT_SELF mode
-                            if similar_global_idx == global_doc_idx and recall_method != RecallMethod.REPEAT_SELF:
+                            if similar_global_idx == global_doc_idx and recall_method_enum != RecallMethod.REPEAT_SELF:
                                 continue
+
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
                             similar_chunk_id = c_id + 1
                             similar_cache_key_path = f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt"
@@ -1507,10 +1755,15 @@ def main(
                     if global_doc_idx < len(context_rank):
                         for similar_global_idx in context_rank[global_doc_idx][:topk]:
                             # Skip invalid indices (from padding in PER_EXAMPLE mode)
-                            if similar_global_idx < 0:
+                            if similar_global_idx == -1:
                                 continue
+
+                            # Skip random text indices (already generated above)
+                            if similar_global_idx < -1:
+                                continue
+
                             # Skip self-recall except in REPEAT_SELF mode
-                            if similar_global_idx == global_doc_idx and recall_method != RecallMethod.REPEAT_SELF:
+                            if similar_global_idx == global_doc_idx and recall_method_enum != RecallMethod.REPEAT_SELF:
                                 continue
 
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
@@ -1566,12 +1819,99 @@ def main(
                     global_doc_idx = sum(corpus_lens[:example_id]) + doc_idx
 
                     if global_doc_idx < len(context_rank):
-                        for similar_global_idx in context_rank[global_doc_idx][:topk]:
+                        for recall_idx, similar_global_idx in enumerate(context_rank[global_doc_idx][:topk]):
                             # Skip invalid indices (from padding in PER_EXAMPLE mode)
-                            if similar_global_idx < 0:
+                            if similar_global_idx == -1:
                                 continue
+
+                            # Handle random text indices (negative and < -1)
+                            if similar_global_idx < -1:
+                                # Random text: decode as -(text_id + 2)
+                                text_id = -(similar_global_idx + 2)
+                                random_text_tensors = q_data.get('random_text_tensors', [])
+                                random_text_target_lengths_map = q_data.get('random_text_target_lengths', {})
+
+                                if text_id < len(random_text_tensors):
+                                    random_text_tensor = random_text_tensors[text_id]
+                                    original_len = random_text_tensor.shape[0]
+
+                                    # Check if we should use original length (RANDOM_DOCS mode)
+                                    use_original_length = q_data.get('use_original_length', False)
+
+                                    if use_original_length:
+                                        # RANDOM_DOCS mode: use original length without adjustment
+                                        target_len = original_len
+                                        adjusted_tensor = random_text_tensor
+                                    else:
+                                        # RANDOM_TEXT mode: adjust to BGE recalled document length
+                                        # Get target length (the length of the BGE recalled document)
+                                        target_len = original_len  # default: use original length
+                                        if global_doc_idx in random_text_target_lengths_map:
+                                            target_lengths = random_text_target_lengths_map[global_doc_idx]
+                                            if recall_idx < len(target_lengths) and target_lengths[recall_idx] > 0:
+                                                target_len = target_lengths[recall_idx]
+
+                                        # Adjust tensor to target length
+                                        if original_len > target_len:
+                                            # Truncate: use first target_len tokens
+                                            adjusted_tensor = random_text_tensor[:target_len]
+                                        elif original_len < target_len:
+                                            # Pad: repeat the last token
+                                            padding = random_text_tensor[-1].repeat(target_len - original_len)
+                                            adjusted_tensor = torch.cat([random_text_tensor, padding])
+                                        else:
+                                            adjusted_tensor = random_text_tensor
+
+                                    corpus_len = target_len
+                                    corpus_passages.append(adjusted_tensor)
+
+                                    # Load random text KV cache
+                                    random_text_cache_dir = os.path.join(save_path, 'random_texts')
+                                    chunk_key_cache = torch.load(f"{random_text_cache_dir}/text_{text_id}_key.pt", weights_only=True)
+                                    chunk_value_cache = torch.load(f"{random_text_cache_dir}/text_{text_id}_value.pt", weights_only=True)
+
+                                    # Adjust KV cache to target length (only for RANDOM_TEXT mode)
+                                    # KV cache shape: [num_layers][seq_len, hidden_dim] or [num_layers][batch, seq_len, hidden_dim]
+                                    for layer_idx in range(len(past_key_values.key_cache)):
+                                        key = chunk_key_cache[layer_idx]
+                                        value = chunk_value_cache[layer_idx]
+
+                                        # Check shape and add batch dimension if needed
+                                        if key.dim() == 2:
+                                            # Shape is [seq_len, hidden_dim], add batch dimension
+                                            key = key.unsqueeze(0)  # [1, seq_len, hidden_dim]
+                                            value = value.unsqueeze(0)
+
+                                        # Now key/value should be [batch, seq_len, hidden_dim]
+                                        current_seq_len = key.shape[1]
+
+                                        # Only adjust length if not using original length
+                                        if not use_original_length:
+                                            if current_seq_len > target_len:
+                                                # Truncate KV
+                                                key = key[:, :target_len, :]
+                                                value = value[:, :target_len, :]
+                                            elif current_seq_len < target_len:
+                                                # Pad KV: repeat the last position
+                                                pad_len = target_len - current_seq_len
+                                                key_last = key[:, -1:, :].repeat(1, pad_len, 1)
+                                                value_last = value[:, -1:, :].repeat(1, pad_len, 1)
+                                                key = torch.cat([key, key_last], dim=1)
+                                                value = torch.cat([value, value_last], dim=1)
+
+                                        # Final length to use
+                                        final_len = target_len
+
+                                        # Copy to past_key_values
+                                        past_key_values.key_cache[layer_idx].narrow(2, past_len, final_len).copy_(key)
+                                        past_key_values.value_cache[layer_idx].narrow(2, past_len, final_len).copy_(value)
+                                        past_key_values.past_tokens[layer_idx] += final_len
+
+                                    past_len += target_len
+                                continue
+
                             # Skip self-recall except in REPEAT_SELF mode
-                            if similar_global_idx == global_doc_idx and recall_method != RecallMethod.REPEAT_SELF:
+                            if similar_global_idx == global_doc_idx and recall_method_enum != RecallMethod.REPEAT_SELF:
                                 continue
 
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
@@ -1584,6 +1924,19 @@ def main(
 
                             chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt", weights_only=True)
                             chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{similar_chunk_id}_value.pt", weights_only=True)
+
+                            # Shuffle KV positions if BGE_SHUFFLED mode (for recalled documents only, not current doc)
+                            if recall_method_enum == RecallMethod.BGE_SHUFFLED:
+                                # Generate shuffle indices for the sequence dimension
+                                # KV shape: [batch, seq_len, hidden_dim]
+                                seq_len = chunk_key_cache[0].shape[1]
+                                shuffle_indices = torch.randperm(seq_len)
+
+                                # Apply same shuffle to all layers
+                                for layer_idx in range(len(chunk_key_cache)):
+                                    # Shuffle along sequence dimension (dim=1)
+                                    chunk_key_cache[layer_idx] = chunk_key_cache[layer_idx][:, shuffle_indices, :]
+                                    chunk_value_cache[layer_idx] = chunk_value_cache[layer_idx][:, shuffle_indices, :]
 
                             # Copy to past_key_values
                             for layer_idx in range(len(past_key_values.key_cache)):
@@ -2489,7 +2842,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_random_recall', type=lambda x: x.lower() == 'true', default=False,
                         help='[DEPRECATED] Use random document sampling. Please use --recall_method instead')
     parser.add_argument('--recall_method', type=str, default='bge',
-                        choices=['bge', 'random', 'repeat_self', 'fixed_doc'],
+                        # choices=['bge', 'random', 'repeat_self', 'fixed_doc'],
                         help='Document recall method: bge (similarity), random, repeat_self, or fixed_doc')
     parser.add_argument('--random_seed', type=int, default=42,
                         help='Random seed for reproducibility (when recall_method=random)')

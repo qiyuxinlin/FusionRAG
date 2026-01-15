@@ -197,10 +197,10 @@ def main():
         """
     )
 
-    parser.add_argument('--file1', type=str, required=True,
-                       help='第一个result CSV文件路径')
-    parser.add_argument('--file2', type=str, required=True,
-                       help='第二个result CSV文件路径')
+    # parser.add_argument('--file1', type=str, required=True,
+    #                    help='第一个result CSV文件路径')
+    # parser.add_argument('--file2', type=str, required=True,
+    #                    help='第二个result CSV文件路径')
     parser.add_argument('--name1', type=str, default='方案1',
                        help='第一个方案的名称 (默认: 方案1)')
     parser.add_argument('--name2', type=str, default='方案2',
@@ -212,8 +212,8 @@ def main():
 
     # 加载文件
     print(f"\n加载结果文件...")
-    df1 = load_result_file(args.file1)
-    df2 = load_result_file(args.file2)
+    df1 = load_result_file("/home/shm/document/exp/FusionRAG/result/Qwen2.5-7B-Instruct/musique/results/FusionRAG_global_topk_10_rate_0.0_revert_rope.csv")
+    df2 = load_result_file("/home/shm/document/exp/FusionRAG/result/BGE_SHUFFLED /Qwen2.5-7B-Instruct/musique/FusionRAG_global_topk10_bge/rate_0.0_revert_rope.csv")
 
     # 比较结果
     print(f"\n开始比较...")

@@ -1,0 +1,756 @@
+{
+  "version": "2.0",
+  "description": "Expanded random text corpus for RANDOM_TEXT and RANDOM_DOCS recall modes - 150 diverse texts",
+  "texts": [
+    {
+      "id": 0,
+      "content": "The theory of relativity, developed by Albert Einstein, fundamentally changed our understanding of space, time, and gravity.\n    Special relativity, published in 1905, introduced the concept that the laws of physics are the same for all non-accelerating observers,\n    and that the speed of light in a vacuum is constant regardless of the motion of the light source or observer. This led to the famous\n    equation E=mc², demonstrating the equivalence of energy and mass. General relativity, completed in 1915, extended these ideas to\n    include acceleration and gravity, describing gravity not as a force but as a curvature of spacetime caused by mass and energy.\n    These revolutionary ideas have been confirmed by numerous experiments and observations, including the bending of light around\n    massive objects, the precession of Mercury's orbit, and the detection of gravitational waves.",
+      "topic": "Science"
+    },
+    {
+      "id": 1,
+      "content": "The Renaissance was a period of great cultural change and achievement in Europe that spanned from the 14th to the 17th century.\n    It marked the transition from the Middle Ages to modernity and was characterized by an effort to revive and surpass the ideas and\n    achievements of classical antiquity. The Renaissance began in Italy and spread throughout Europe, bringing a cultural movement that\n    profoundly affected European intellectual life. Artists like Leonardo da Vinci and Michelangelo created masterpieces that are still\n    celebrated today. The period also saw major advances in science, with figures like Galileo Galilei challenging traditional views of\n    the universe.",
+      "topic": "History"
+    },
+    {
+      "id": 2,
+      "content": "Shakespeare's plays have captivated audiences for over four centuries. His works, including tragedies like Hamlet and Macbeth,\n    comedies such as A Midsummer Night's Dream, and histories like Henry V, demonstrate an unparalleled understanding of human nature.\n    Shakespeare's use of language was revolutionary, introducing countless words and phrases into the English language that we still\n    use today. His characters are complex and multi-dimensional, grappling with timeless themes of love, power, jealousy, and mortality.\n    The Globe Theatre, where many of his plays were performed, has been reconstructed in London, allowing modern audiences to experience\n    his works in a setting similar to the original.",
+      "topic": "Literature"
+    },
+    {
+      "id": 3,
+      "content": "Artificial intelligence has evolved rapidly over the past few decades. Machine learning, a subset of AI, enables computers to\n    learn from data without being explicitly programmed. Deep learning, which uses neural networks with multiple layers, has achieved\n    remarkable success in tasks such as image recognition, natural language processing, and game playing. Convolutional neural networks\n    excel at processing visual information, while recurrent neural networks are particularly effective for sequential data like text and\n    speech. The transformer architecture, introduced in 2017, has revolutionized natural language processing, leading to powerful models\n    like GPT and BERT. These advances are transforming industries from healthcare to transportation, though they also raise important\n    questions about ethics, bias, and the future of work.",
+      "topic": "Technology"
+    },
+    {
+      "id": 4,
+      "content": "The Amazon rainforest, often called the lungs of the Earth, is the world's largest tropical rainforest. Covering approximately\n    5.5 million square kilometers, it spans across nine countries in South America, with the majority located in Brazil. The rainforest\n    is home to an estimated 390 billion individual trees representing about 16,000 species. This incredible biodiversity includes jaguars,\n    sloths, river dolphins, and countless species of birds, insects, and plants, many of which are found nowhere else on Earth. The Amazon\n    plays a crucial role in regulating the global climate by absorbing vast amounts of carbon dioxide and producing oxygen. However, it\n    faces serious threats from deforestation, primarily driven by agriculture, logging, and mining activities.",
+      "topic": "Nature"
+    },
+    {
+      "id": 5,
+      "content": "Classical music encompasses a broad period from roughly the 11th century to the present day. The Common Practice Period, spanning\n    from about 1650 to 1900, includes the Baroque, Classical, and Romantic eras. Composers like Bach, Mozart, and Beethoven created works\n    that defined their respective periods. Bach's intricate fugues demonstrated the complexity of Baroque counterpoint. Mozart's operas\n    and symphonies exemplified the clarity and balance of the Classical period. Beethoven bridged the Classical and Romantic eras,\n    expanding the emotional range and structural scale of musical works. The 20th century brought modernism and experimentation, with\n    composers like Stravinsky and Schoenberg challenging traditional tonality and form.",
+      "topic": "Music"
+    },
+    {
+      "id": 6,
+      "content": "The Olympic Games represent the pinnacle of athletic competition. Originating in ancient Greece around 776 BCE, the modern Olympics\n    were revived in 1896 by Pierre de Coubertin. The Summer and Winter Games now alternate every two years, featuring thousands of athletes\n    from around the world competing in dozens of sports. Olympic ideals emphasize not just victory but participation, fair play, and\n    international friendship. Notable Olympic moments include Jesse Owens' four gold medals in 1936 Berlin, Nadia Comăneci's perfect 10 in\n    gymnastics in 1976, and Usain Bolt's unprecedented sprint dominance in 2008, 2012, and 2016. The Games have also been a platform for\n    political statements and social change, from the Black Power salute in 1968 to increased recognition of women's sports.",
+      "topic": "Sports"
+    },
+    {
+      "id": 7,
+      "content": "Gothic architecture emerged in France during the 12th century and spread throughout Europe until the 16th century. Characterized by\n    pointed arches, ribbed vaults, and flying buttresses, Gothic buildings could reach unprecedented heights while maintaining structural\n    integrity. Large stained glass windows filled these structures with colored light, creating an ethereal atmosphere meant to inspire\n    religious devotion. Notre-Dame de Paris, Chartres Cathedral, and Westminster Abbey are among the most famous examples of Gothic\n    architecture. The style represented a significant departure from the earlier Romanesque architecture, with its heavy walls and small\n    windows. Gothic cathedrals were not just places of worship but also served as community centers and symbols of civic pride.",
+      "topic": "Architecture"
+    },
+    {
+      "id": 8,
+      "content": "Existentialism is a philosophical movement that emphasizes individual existence, freedom, and choice. Key existentialist thinkers\n    include Søren Kierkegaard, Friedrich Nietzsche, Jean-Paul Sartre, and Albert Camus. Existentialists argue that humans define their\n    own meaning in life and try to make rational decisions despite existing in an irrational universe. Sartre famously declared that\n    \"existence precedes essence,\" meaning that we are not born with a predetermined purpose but must create our own. The philosophy\n    emphasizes concepts like authenticity, anxiety, and freedom. Camus explored the absurdity of human existence, arguing that we must\n    imagine Sisyphus happy despite his eternal punishment, finding meaning in the struggle itself.",
+      "topic": "Philosophy"
+    },
+    {
+      "id": 9,
+      "content": "The Industrial Revolution, beginning in Britain in the late 18th century, transformed economies from agrarian to industrial.\n    The invention of the steam engine by James Watt revolutionized transportation and manufacturing. Factories replaced cottage industries,\n    leading to mass production and urbanization as people moved from rural areas to cities seeking work. This period saw the rise of\n    capitalism and new economic theories. Adam Smith's \"The Wealth of Nations\" laid the foundation for classical economics, arguing for\n    free markets and the division of labor. However, the Industrial Revolution also brought challenges, including poor working conditions,\n    child labor, and environmental pollution, which eventually led to labor movements and regulatory reforms.",
+      "topic": "Economics"
+    },
+    {
+      "id": 10,
+      "content": "The Himalayas form the highest mountain range in the world, stretching across five countries: Bhutan, India, Nepal, China, and\n    Pakistan. Formed by the collision of the Indian and Eurasian tectonic plates about 50 million years ago, the range continues to rise\n    by approximately 5mm per year. Mount Everest, known as Sagarmatha in Nepali and Chomolungma in Tibetan, stands at 8,848.86 meters,\n    making it the Earth's highest peak above sea level. The Himalayas are the source of major Asian rivers including the Ganges, Indus,\n    and Brahmaputra, which provide water to billions of people. The region's unique ecosystems range from tropical forests at lower\n    elevations to alpine meadows and glaciers at higher altitudes.",
+      "topic": "Geography"
+    },
+    {
+      "id": 11,
+      "content": "Cognitive psychology studies mental processes such as perception, memory, problem-solving, and decision-making. Unlike behaviorism,\n    which focuses only on observable behavior, cognitive psychology examines the internal mental states that influence how we think and\n    act. The cognitive revolution of the 1950s and 1960s, partly inspired by the development of computers, led psychologists to view the\n    mind as an information processor. Key concepts include working memory, which temporarily holds and manipulates information; long-term\n    memory, where information is stored more permanently; and attention, which determines what information we focus on. Cognitive biases,\n    such as confirmation bias and availability heuristic, demonstrate systematic errors in human thinking.",
+      "topic": "Psychology"
+    },
+    {
+      "id": 12,
+      "content": "Black holes are among the most mysterious objects in the universe. Formed when massive stars collapse under their own gravity,\n    black holes have gravitational fields so strong that nothing, not even light, can escape once it crosses the event horizon. Einstein's\n    theory of general relativity predicted their existence, though the term \"black hole\" wasn't coined until 1967 by physicist John Wheeler.\n    In 2019, the Event Horizon Telescope collaboration captured the first direct image of a black hole's event horizon, located in the\n    galaxy M87. Supermassive black holes, millions to billions of times the mass of our Sun, are found at the centers of most galaxies,\n    including our own Milky Way. The study of black holes continues to reveal insights about the fundamental nature of space, time,\n    and gravity.",
+      "topic": "Astronomy"
+    },
+    {
+      "id": 13,
+      "content": "DNA, or deoxyribonucleic acid, carries the genetic instructions for all known living organisms. The discovery of DNA's double helix\n    structure by James Watson and Francis Crick in 1953, building on Rosalind Franklin's X-ray crystallography work, revolutionized biology.\n    DNA consists of four nucleotide bases—adenine, thymine, guanine, and cytosine—whose sequences encode genetic information. During cell\n    division, DNA replicates, ensuring that genetic information passes to daughter cells. The Human Genome Project, completed in 2003,\n    mapped all human genes, opening new possibilities for understanding diseases and developing personalized medicine. Modern gene editing\n    technologies like CRISPR-Cas9 now allow precise modifications to DNA, raising both exciting possibilities and ethical questions.",
+      "topic": "Biology"
+    },
+    {
+      "id": 14,
+      "content": "Climate change refers to long-term shifts in global temperatures and weather patterns. While climate has changed throughout Earth's\n    history, current warming is occurring at an unprecedented rate, primarily due to human activities that release greenhouse gases like\n    carbon dioxide and methane. The burning of fossil fuels, deforestation, and industrial agriculture are major contributors. Effects\n    include rising sea levels, more frequent extreme weather events, shifts in wildlife populations and habitats, and threats to food\n    security. The Paris Agreement, adopted in 2015, aims to limit global temperature increase to well below 2 degrees Celsius above\n    pre-industrial levels. Addressing climate change requires a transition to renewable energy, improved energy efficiency, and changes\n    in land use and consumption patterns.",
+      "topic": "Climate"
+    },
+    {
+      "id": 15,
+      "content": "Photography is the art of capturing light. Since its invention in the 19th century, it has evolved from lengthy exposure times to\n    instant digital images. Modern cameras use sensors to record light, converting it to digital data that can be easily stored and shared.",
+      "topic": "Photography"
+    },
+    {
+      "id": 16,
+      "content": "Coffee is one of the world's most popular beverages. Originating in Ethiopia, coffee cultivation spread to Arabia, Turkey, and\n    eventually worldwide. The caffeine in coffee provides a stimulating effect that many people rely on to start their day.",
+      "topic": "Coffee"
+    },
+    {
+      "id": 17,
+      "content": "The periodic table organizes all known chemical elements based on their atomic structure. Dmitri Mendeleev created the first version\n    in 1869, leaving gaps for undiscovered elements whose properties he successfully predicted.",
+      "topic": "Chemistry"
+    },
+    {
+      "id": 18,
+      "content": "Voting systems vary widely across democracies. Some use first-past-the-post systems, while others employ proportional representation.\n    Each system has advantages and disadvantages in terms of fairness and stability.",
+      "topic": "Politics"
+    },
+    {
+      "id": 19,
+      "content": "Coral reefs are diverse underwater ecosystems built by colonies of tiny animals called coral polyps. They support about 25% of all\n    marine species despite covering less than 1% of the ocean floor.",
+      "topic": "Marine Biology"
+    },
+    {
+      "id": 20,
+      "content": "Quantum mechanics describes the behavior of matter and energy at atomic and subatomic scales. Unlike classical physics, quantum systems exhibit wave-particle duality, where particles can behave like waves and vice versa. The Heisenberg uncertainty principle states that certain pairs of physical properties cannot be simultaneously known with arbitrary precision. Quantum entanglement, which Einstein called 'spooky action at a distance,' allows particles to remain connected regardless of distance. These phenomena have led to practical applications including quantum computing, which promises to solve certain problems exponentially faster than classical computers.",
+      "topic": "Quantum Physics"
+    },
+    {
+      "id": 21,
+      "content": "The Great Wall of China stretches over 13,000 miles across northern China. Built over centuries by different dynasties, it served as a defensive fortification against invasions. Construction involved millions of workers and various materials including stone, brick, and rammed earth. Today it stands as a UNESCO World Heritage site and symbol of Chinese civilization.",
+      "topic": "Historical Monuments"
+    },
+    {
+      "id": 22,
+      "content": "Jazz music emerged in the late 19th and early 20th centuries in African American communities of New Orleans. Characterized by swing, blue notes, complex chords, and improvisation, jazz has influenced nearly every other musical genre. Legends like Louis Armstrong, Duke Ellington, Miles Davis, and John Coltrane pushed the boundaries of musical expression. Jazz evolved through numerous styles including bebop, cool jazz, free jazz, and fusion.",
+      "topic": "Jazz Music"
+    },
+    {
+      "id": 23,
+      "content": "Volcanoes form when molten rock, gases, and debris escape to the earth's surface, causing eruptions of lava and ash. They occur along tectonic plate boundaries or at hotspots deep within the Earth's mantle. The Ring of Fire around the Pacific Ocean contains about 75% of the world's active volcanoes. While eruptions can be devastating, volcanic soil is extremely fertile, supporting agriculture in many regions.",
+      "topic": "Geology"
+    },
+    {
+      "id": 24,
+      "content": "The circulatory system transports nutrients, oxygen, hormones, and waste products throughout the body. The heart pumps blood through arteries to tissues and organs, while veins return blood to the heart. The average adult has about 5 liters of blood and the heart beats approximately 100,000 times per day. Cardiovascular diseases remain a leading cause of death worldwide.",
+      "topic": "Human Anatomy"
+    },
+    {
+      "id": 25,
+      "content": "Blockchain technology enables secure, decentralized record-keeping without a central authority. Each block contains transaction data, a timestamp, and a cryptographic hash of the previous block, creating an immutable chain. Originally developed for Bitcoin, blockchain now has applications in supply chain management, voting systems, and digital identity verification.",
+      "topic": "Blockchain"
+    },
+    {
+      "id": 26,
+      "content": "Ancient Egypt flourished along the Nile River for over 3,000 years. The civilization is famous for its pyramids, hieroglyphic writing, advanced mathematics, and mummification practices. The pharaohs ruled as god-kings, commissioning massive construction projects. The discovery of Tutankhamun's tomb in 1922 revealed extraordinary treasures and provided insights into royal burial practices.",
+      "topic": "Ancient Civilizations"
+    },
+    {
+      "id": 27,
+      "content": "Sustainable agriculture aims to meet current food needs without compromising future generations' ability to do the same. Practices include crop rotation, reduced pesticide use, water conservation, and soil health management. Organic farming, permaculture, and regenerative agriculture are growing movements that prioritize environmental stewardship alongside productivity.",
+      "topic": "Agriculture"
+    },
+    {
+      "id": 28,
+      "content": "The human brain contains approximately 86 billion neurons, connected by trillions of synapses. Different regions specialize in various functions: the prefrontal cortex handles decision-making and planning, the hippocampus processes memory, and the amygdala regulates emotions. Neuroplasticity allows the brain to reorganize itself by forming new neural connections throughout life.",
+      "topic": "Neuroscience"
+    },
+    {
+      "id": 29,
+      "content": "Wind energy harnesses the kinetic energy of moving air using turbines. Modern wind farms can generate electricity cost-effectively, making wind one of the fastest-growing renewable energy sources. Offshore wind farms benefit from stronger, more consistent winds. Despite intermittency challenges, improved battery storage and grid management are making wind energy increasingly viable.",
+      "topic": "Renewable Energy"
+    },
+    {
+      "id": 30,
+      "content": "The printing press, invented by Johannes Gutenberg around 1440, revolutionized communication by enabling mass production of books. This technology spread literacy, facilitated the Scientific Revolution, and contributed to the Protestant Reformation. Before the printing press, books were laboriously copied by hand, making them rare and expensive.",
+      "topic": "Inventions"
+    },
+    {
+      "id": 31,
+      "content": "Fractals are geometric patterns that repeat at different scales, exhibiting self-similarity. Found throughout nature in snowflakes, coastlines, mountains, and fern leaves, fractals bridge the gap between mathematics and art. Benoit Mandelbrot pioneered fractal geometry in the 1970s, revealing hidden order in seemingly chaotic systems.",
+      "topic": "Mathematics"
+    },
+    {
+      "id": 32,
+      "content": "The immune system defends the body against pathogens through innate and adaptive responses. White blood cells, antibodies, and the lymphatic system work together to identify and eliminate threats. Vaccines train the immune system to recognize specific pathogens, providing protection against diseases. Autoimmune disorders occur when the immune system mistakenly attacks the body's own cells.",
+      "topic": "Immunology"
+    },
+    {
+      "id": 33,
+      "content": "Urban planning shapes how cities function and grow. Considerations include transportation networks, zoning regulations, green spaces, and infrastructure. Good urban design promotes walkability, public transit, mixed-use development, and sustainability. Cities like Copenhagen and Singapore are often cited as models of effective urban planning.",
+      "topic": "Urban Planning"
+    },
+    {
+      "id": 34,
+      "content": "Impressionism emerged in France in the 1860s as artists like Monet, Renoir, and Degas sought to capture light and movement. They painted outdoors, using visible brushstrokes and pure color to convey immediate visual impressions rather than realistic details. Initially rejected by the art establishment, Impressionism profoundly influenced modern art.",
+      "topic": "Art Movements"
+    },
+    {
+      "id": 35,
+      "content": "Plate tectonics explains how Earth's lithosphere is divided into large plates that move over the asthenosphere. Interactions at plate boundaries cause earthquakes, volcanic activity, and mountain formation. The theory unified many geological observations and revolutionized earth sciences when widely accepted in the 1960s.",
+      "topic": "Earth Science"
+    },
+    {
+      "id": 36,
+      "content": "Antibiotics revolutionized medicine by treating bacterial infections. Alexander Fleming discovered penicillin in 1928, though it wasn't mass-produced until the 1940s. However, antibiotic overuse has led to resistant bacteria, creating a major public health challenge. Proper antibiotic stewardship and new drug development are crucial for maintaining their effectiveness.",
+      "topic": "Medicine"
+    },
+    {
+      "id": 37,
+      "content": "The silk road was an ancient network of trade routes connecting East and West. Merchants transported silk, spices, precious metals, and ideas across Asia, the Middle East, and Europe. This cultural exchange spread religions, technologies, and artistic traditions. The silk road's influence shaped civilizations for over 1,500 years.",
+      "topic": "Trade History"
+    },
+    {
+      "id": 38,
+      "content": "Machine vision enables computers to interpret and understand visual information from the world. Applications include facial recognition, autonomous vehicles, medical imaging analysis, and quality control in manufacturing. Convolutional neural networks have dramatically improved machine vision capabilities, approaching or exceeding human performance in many tasks.",
+      "topic": "Computer Vision"
+    },
+    {
+      "id": 39,
+      "content": "The water cycle describes how water continuously moves between Earth's surface and atmosphere. Evaporation, condensation, precipitation, and runoff maintain this cycle. Oceans contain 97% of Earth's water, while glaciers and ice caps hold most freshwater. Climate change is altering precipitation patterns and accelerating glacier melt.",
+      "topic": "Hydrology"
+    },
+    {
+      "id": 40,
+      "content": "Encryption protects data by converting it into unreadable code that requires a key to decipher. Public-key cryptography uses paired mathematical keys for secure communication. End-to-end encryption ensures only communicating parties can read messages. As quantum computers develop, new encryption methods are being developed to maintain security.",
+      "topic": "Cryptography"
+    },
+    {
+      "id": 41,
+      "content": "The French Revolution, beginning in 1789, fundamentally transformed French society and influenced democratic movements worldwide. Economic hardship, social inequality, and Enlightenment ideas fueled revolutionary fervor. The revolution abolished feudalism, established the Declaration of the Rights of Man, and ultimately led to Napoleon's rise to power.",
+      "topic": "Revolutionary History"
+    },
+    {
+      "id": 42,
+      "content": "Photosynthesis converts light energy into chemical energy, producing glucose and oxygen from carbon dioxide and water. This process, occurring in plant chloroplasts, sustains most life on Earth by providing food and oxygen. Understanding photosynthesis has inspired artificial photosynthesis research for clean energy production.",
+      "topic": "Plant Biology"
+    },
+    {
+      "id": 43,
+      "content": "The Wright brothers achieved the first powered flight in 1903 at Kitty Hawk, North Carolina. Their success resulted from systematic experimentation with wing designs, control systems, and propellers. Aviation rapidly evolved from this breakthrough, transforming transportation, warfare, and global connectivity within decades.",
+      "topic": "Aviation History"
+    },
+    {
+      "id": 44,
+      "content": "Game theory analyzes strategic interactions where outcomes depend on all participants' choices. Developed by John von Neumann and John Nash, it applies to economics, political science, biology, and computer science. The prisoner's dilemma illustrates how individual rationality can lead to collectively suboptimal outcomes.",
+      "topic": "Game Theory"
+    },
+    {
+      "id": 45,
+      "content": "Deserts cover about one-third of Earth's land surface, receiving less than 10 inches of annual rainfall. Desert life has adapted remarkably to extreme conditions through water conservation, nocturnal activity, and specialized physiology. The Sahara, Arabian, Gobi, and Atacama deserts each have unique characteristics and ecosystems.",
+      "topic": "Desert Ecosystems"
+    },
+    {
+      "id": 46,
+      "content": "Nanotechnology manipulates matter at the atomic and molecular scale, typically between 1 and 100 nanometers. Applications include targeted drug delivery, stronger materials, more efficient solar panels, and advanced electronics. Carbon nanotubes and graphene exhibit extraordinary strength and conductivity properties.",
+      "topic": "Nanotechnology"
+    },
+    {
+      "id": 47,
+      "content": "The Magna Carta, signed in 1215, limited the English monarch's power and established that everyone, including the king, was subject to law. Though most of its clauses have been repealed, it influenced constitutional development worldwide, including the United States Constitution and Universal Declaration of Human Rights.",
+      "topic": "Legal History"
+    },
+    {
+      "id": 48,
+      "content": "Fermentation is a metabolic process converting sugars to acids, gases, or alcohol using microorganisms. Humans have used fermentation for thousands of years to produce bread, beer, wine, yogurt, and cheese. Fermented foods often have enhanced nutritional value and improved digestibility.",
+      "topic": "Food Science"
+    },
+    {
+      "id": 49,
+      "content": "The Hubble Space Telescope, launched in 1990, has provided unprecedented views of the universe. Its observations have helped determine the universe's age, confirmed the existence of dark energy, studied galaxy formation, and captured stunning images of nebulae and distant galaxies.",
+      "topic": "Space Exploration"
+    },
+    {
+      "id": 50,
+      "content": "Metamorphosis is the biological process where animals physically transform after birth or hatching. Butterflies, frogs, and many marine animals undergo metamorphosis. This strategy allows different life stages to exploit different ecological niches and resources.",
+      "topic": "Developmental Biology"
+    },
+    {
+      "id": 51,
+      "content": "The Rosetta Stone, discovered in 1799, unlocked the ability to read Egyptian hieroglyphs. Inscribed with the same text in hieroglyphic, demotic, and ancient Greek, it allowed scholars to decipher hieroglyphs by comparing the known Greek text. This breakthrough opened up ancient Egyptian history and culture to modern understanding.",
+      "topic": "Archaeology"
+    },
+    {
+      "id": 52,
+      "content": "Superconductivity occurs when certain materials exhibit zero electrical resistance below a critical temperature. This phenomenon enables powerful electromagnets, high-efficiency power transmission, and quantum computing components. High-temperature superconductors, discovered in the 1980s, have expanded potential applications.",
+      "topic": "Condensed Matter Physics"
+    },
+    {
+      "id": 53,
+      "content": "Mythology consists of traditional stories explaining natural phenomena, cultural practices, and human nature. Greek, Norse, Egyptian, and Hindu mythologies have influenced literature, art, and psychology. Carl Jung proposed that mythological archetypes reflect universal patterns in the collective unconscious.",
+      "topic": "Mythology"
+    },
+    {
+      "id": 54,
+      "content": "Biodiversity encompasses the variety of life at genetic, species, and ecosystem levels. High biodiversity increases ecosystem resilience and provides resources for medicine, agriculture, and industry. Habitat destruction, climate change, and pollution threaten biodiversity, with extinction rates far exceeding natural levels.",
+      "topic": "Conservation Biology"
+    },
+    {
+      "id": 55,
+      "content": "The Internet emerged from ARPANET, a U.S. Department of Defense project in the 1960s. Tim Berners-Lee invented the World Wide Web in 1989, making the Internet accessible to the general public. The Internet has transformed communication, commerce, education, and entertainment, fundamentally reshaping society.",
+      "topic": "Internet History"
+    },
+    {
+      "id": 56,
+      "content": "Hormones are chemical messengers regulating bodily functions including growth, metabolism, reproduction, and mood. The endocrine system produces hormones in glands like the pituitary, thyroid, and adrenals. Hormone imbalances can cause various health issues, from diabetes to thyroid disorders.",
+      "topic": "Endocrinology"
+    },
+    {
+      "id": 57,
+      "content": "The Bauhaus school, founded in 1919 in Germany, revolutionized design by combining fine arts and crafts. Its emphasis on functionality, simplicity, and mass production influenced modern architecture, furniture design, and graphic design. Though closed by the Nazis in 1933, Bauhaus principles continue shaping design worldwide.",
+      "topic": "Design History"
+    },
+    {
+      "id": 58,
+      "content": "Earthquakes result from sudden energy release in Earth's crust, creating seismic waves. The Richter scale and moment magnitude scale measure earthquake intensity. The devastating 2011 Tōhoku earthquake and tsunami demonstrated the need for better early warning systems and disaster preparedness.",
+      "topic": "Seismology"
+    },
+    {
+      "id": 59,
+      "content": "Cryptocurrency uses cryptography for secure financial transactions without central authority. Bitcoin, introduced in 2009, pioneered blockchain-based digital currency. Thousands of cryptocurrencies now exist, sparking debates about monetary policy, regulation, environmental impact, and financial innovation.",
+      "topic": "Digital Currency"
+    },
+    {
+      "id": 60,
+      "content": "The Mongol Empire, founded by Genghis Khan in 1206, became the largest contiguous land empire in history. Stretching from Eastern Europe to East Asia, it facilitated trade, cultural exchange, and technology transfer. Despite its reputation for conquest, the empire promoted religious tolerance and meritocracy.",
+      "topic": "Empire History"
+    },
+    {
+      "id": 61,
+      "content": "Bioluminescence is the production of light by living organisms through chemical reactions. Fireflies, deep-sea fish, and certain fungi exhibit bioluminescence for attracting mates, luring prey, or deterring predators. Scientists use bioluminescent proteins as research tools in molecular biology and medicine.",
+      "topic": "Marine Biology"
+    },
+    {
+      "id": 62,
+      "content": "The transistor, invented in 1947, revolutionized electronics by enabling miniaturization and improved performance. Transistors amplify and switch electronic signals, forming the basis of modern computers, smartphones, and virtually all electronic devices. The integrated circuit further advanced electronics by combining multiple transistors on a single chip.",
+      "topic": "Electronics"
+    },
+    {
+      "id": 63,
+      "content": "Medieval castles served as military fortifications, administrative centers, and aristocratic residences. Features like moats, drawbridges, thick walls, and battlements provided defense against sieges. Castle architecture evolved with warfare technology, from simple motte-and-bailey designs to elaborate stone fortresses.",
+      "topic": "Medieval Architecture"
+    },
+    {
+      "id": 64,
+      "content": "Symbiosis describes close biological interactions between different species. Mutualism benefits both organisms, like bees pollinating flowers while collecting nectar. Parasitism benefits one organism at another's expense. Commensalism benefits one organism without affecting the other. These relationships shape ecosystem dynamics.",
+      "topic": "Ecology"
+    },
+    {
+      "id": 65,
+      "content": "Virtual reality creates immersive simulated environments through headsets and sensory feedback. Applications range from gaming and entertainment to medical training, therapy, and architectural visualization. As technology advances, VR promises to transform education, remote work, and social interaction.",
+      "topic": "Virtual Reality"
+    },
+    {
+      "id": 66,
+      "content": "The Cold War was a period of geopolitical tension between the United States and Soviet Union from 1947 to 1991. Characterized by ideological conflict, nuclear arms race, proxy wars, and space competition, it shaped global politics for decades. The Berlin Wall's fall in 1989 symbolized the Cold War's end.",
+      "topic": "Modern History"
+    },
+    {
+      "id": 67,
+      "content": "Stem cells can differentiate into various cell types, offering potential treatments for injuries and diseases. Embryonic stem cells are pluripotent, while adult stem cells are more limited. Induced pluripotent stem cells, created by reprogramming adult cells, avoid ethical concerns associated with embryonic stem cells.",
+      "topic": "Regenerative Medicine"
+    },
+    {
+      "id": 68,
+      "content": "The Parthenon, built in 432 BCE, exemplifies classical Greek architecture. Dedicated to Athena, it featured elaborate sculptures and precise mathematical proportions. Though damaged over centuries, it remains an iconic symbol of ancient Greek civilization and Western cultural heritage.",
+      "topic": "Classical Architecture"
+    },
+    {
+      "id": 69,
+      "content": "Migration patterns vary across species, from birds flying thousands of miles seasonally to marine animals crossing oceans. Navigation methods include sun position, Earth's magnetic field, landmarks, and even smell. Climate change is disrupting traditional migration routes and timing.",
+      "topic": "Animal Behavior"
+    },
+    {
+      "id": 70,
+      "content": "3D printing, or additive manufacturing, creates objects layer by layer from digital models. Applications include rapid prototyping, custom medical implants, aerospace components, and even food production. As materials and techniques improve, 3D printing is transforming manufacturing and supply chains.",
+      "topic": "Manufacturing Technology"
+    },
+    {
+      "id": 71,
+      "content": "The Enlightenment was an 18th-century intellectual movement emphasizing reason, science, and individual rights. Philosophers like Voltaire, Rousseau, and Locke challenged traditional authority and promoted democratic ideals. Enlightenment thinking influenced the American and French revolutions and shaped modern Western thought.",
+      "topic": "Intellectual History"
+    },
+    {
+      "id": 72,
+      "content": "Antibodies are proteins produced by the immune system to neutralize pathogens. Each antibody recognizes specific antigens on bacteria, viruses, or other foreign substances. Monoclonal antibodies, created in laboratories, are used to treat cancer, autoimmune diseases, and infectious diseases.",
+      "topic": "Molecular Biology"
+    },
+    {
+      "id": 73,
+      "content": "Ballet originated in the Italian Renaissance courts and evolved into a formalized art form in France and Russia. Classical ballet techniques emphasize grace, precision, and strength. Famous ballets like Swan Lake and The Nutcracker combine choreography, music, and storytelling.",
+      "topic": "Dance"
+    },
+    {
+      "id": 74,
+      "content": "Glaciers are massive ice formations that move slowly under their own weight. They cover about 10% of Earth's land surface and contain most of the world's freshwater. Glacier retreat due to climate change affects sea levels, water supplies, and ecosystems worldwide.",
+      "topic": "Glaciology"
+    },
+    {
+      "id": 75,
+      "content": "Autonomous vehicles use sensors, cameras, and artificial intelligence to navigate without human input. Potential benefits include reduced accidents, improved traffic flow, and increased mobility for those unable to drive. However, challenges remain in safety, regulation, ethics, and infrastructure adaptation.",
+      "topic": "Transportation Technology"
+    },
+    {
+      "id": 76,
+      "content": "The Columbian Exchange describes the transfer of plants, animals, diseases, and cultures between the Americas and the Old World after 1492. Crops like potatoes and maize transformed European agriculture, while horses revolutionized Native American societies. Diseases devastated indigenous populations lacking immunity.",
+      "topic": "World History"
+    },
+    {
+      "id": 77,
+      "content": "Enzymes are biological catalysts that speed up chemical reactions without being consumed. Each enzyme is specific to particular substrates, fitting them like a lock and key. Enzymes enable metabolism, digestion, and countless other biological processes essential for life.",
+      "topic": "Biochemistry"
+    },
+    {
+      "id": 78,
+      "content": "Haiku is a traditional Japanese poetry form consisting of three lines with a 5-7-5 syllable pattern. Haiku typically capture moments in nature, evoking emotions through vivid imagery and simplicity. Matsuo Bashō is considered the greatest haiku master.",
+      "topic": "Poetry"
+    },
+    {
+      "id": 79,
+      "content": "Meteorology studies atmospheric phenomena and weather patterns. Weather prediction combines observations from satellites, radar, weather stations, and computer models. Climate differs from weather in timescale, representing long-term atmospheric patterns rather than short-term conditions.",
+      "topic": "Meteorology"
+    },
+    {
+      "id": 80,
+      "content": "Cloud computing provides on-demand access to computing resources over the internet. Services include infrastructure, platforms, and software as a service. Cloud computing enables scalability, reduces costs, and supports remote work, though it raises data security and privacy concerns.",
+      "topic": "Cloud Computing"
+    },
+    {
+      "id": 81,
+      "content": "The Aztec civilization flourished in central Mexico from the 14th to 16th centuries. Their capital, Tenochtitlan, was one of the world's largest cities. Aztecs made advances in agriculture, engineering, and astronomy. The Spanish conquest in 1521 ended their empire.",
+      "topic": "Pre-Columbian History"
+    },
+    {
+      "id": 82,
+      "content": "Microbiomes are communities of microorganisms living in specific environments. The human gut microbiome contains trillions of bacteria affecting digestion, immunity, and mental health. Research increasingly shows microbiome's importance in overall health and disease.",
+      "topic": "Microbiology"
+    },
+    {
+      "id": 83,
+      "content": "Origami is the Japanese art of paper folding, creating intricate designs from single sheets without cutting or gluing. Mathematical principles underlying origami have applications in engineering, from airbag design to space telescope deployment.",
+      "topic": "Paper Crafts"
+    },
+    {
+      "id": 84,
+      "content": "Tornadoes are violent rotating columns of air extending from thunderstorms to the ground. The United States experiences more tornadoes than any other country, particularly in Tornado Alley. Enhanced Fujita scale rates tornado intensity based on damage.",
+      "topic": "Severe Weather"
+    },
+    {
+      "id": 85,
+      "content": "Robotics combines mechanical engineering, electrical engineering, and computer science to create machines that can perform tasks autonomously or semi-autonomously. Applications span manufacturing, healthcare, exploration, and domestic assistance. Advances in AI are enabling more capable and versatile robots.",
+      "topic": "Robotics"
+    },
+    {
+      "id": 86,
+      "content": "The Spanish Inquisition, established in 1478, sought to maintain Catholic orthodoxy in Spain. It persecuted converts from Judaism and Islam suspected of practicing their former religions. The Inquisition used torture and execution, leaving a dark legacy that lasted until the 19th century.",
+      "topic": "Religious History"
+    },
+    {
+      "id": 87,
+      "content": "Vaccines train the immune system to recognize and fight pathogens by introducing weakened or inactive forms. Vaccination has eradicated smallpox and nearly eliminated polio. mRNA vaccines represent a new technology platform that can be rapidly adapted to emerging diseases.",
+      "topic": "Vaccinology"
+    },
+    {
+      "id": 88,
+      "content": "Film noir emerged in 1940s American cinema, characterized by cynical protagonists, femme fatales, dark cinematography, and crime-centered plots. The style reflected post-war disillusionment and influenced filmmaking worldwide. Classic examples include The Maltese Falcon and Double Indemnity.",
+      "topic": "Cinema"
+    },
+    {
+      "id": 89,
+      "content": "Wetlands are areas where water covers the soil seasonally or permanently. They provide crucial ecosystem services including flood control, water filtration, and habitat for diverse species. Despite their importance, over half of the world's wetlands have been destroyed.",
+      "topic": "Wetland Ecology"
+    },
+    {
+      "id": 90,
+      "content": "Gene therapy involves introducing genetic material into cells to treat disease. Approaches include replacing defective genes, inactivating disease-causing genes, or introducing new genes to fight illness. Recent successes include treatments for inherited blindness and certain cancers.",
+      "topic": "Genetic Medicine"
+    },
+    {
+      "id": 91,
+      "content": "The Babylonian Empire reached its peak under Hammurabi around 1750 BCE. His law code, one of the earliest written legal systems, established principles like presumption of innocence and proportional punishment. Babylonians also made significant advances in mathematics and astronomy.",
+      "topic": "Ancient Law"
+    },
+    {
+      "id": 92,
+      "content": "Pollination transfers pollen from male to female flower parts, enabling plant reproduction. Bees, butterflies, birds, bats, and wind serve as pollinators. Declining pollinator populations threaten food security, as many crops depend on animal pollination.",
+      "topic": "Plant Reproduction"
+    },
+    {
+      "id": 93,
+      "content": "Ceramics involve shaping and firing clay to create pottery, tiles, and advanced materials. Ancient civilizations developed distinctive ceramic styles for functional and artistic purposes. Modern ceramics include high-tech applications like heat shields and biomedical implants.",
+      "topic": "Ceramics"
+    },
+    {
+      "id": 94,
+      "content": "Hurricanes are massive tropical cyclones with sustained winds exceeding 74 mph. They form over warm ocean water and can cause catastrophic damage through wind, storm surge, and flooding. Climate change may be increasing hurricane intensity.",
+      "topic": "Tropical Meteorology"
+    },
+    {
+      "id": 95,
+      "content": "Natural language processing enables computers to understand and generate human language. Applications include machine translation, sentiment analysis, chatbots, and text summarization. Transformer models have dramatically improved NLP capabilities in recent years.",
+      "topic": "Natural Language Processing"
+    },
+    {
+      "id": 96,
+      "content": "The Vikings were Norse seafarers who raided, traded, and explored from the late 8th to 11th centuries. They reached North America centuries before Columbus, established settlements across Europe, and influenced culture and genetics throughout their territories.",
+      "topic": "Viking History"
+    },
+    {
+      "id": 97,
+      "content": "Mitosis is cell division producing two identical daughter cells. The process includes prophase, metaphase, anaphase, and telophase. Mitosis enables growth, tissue repair, and asexual reproduction. Errors in mitosis can lead to cancer.",
+      "topic": "Cell Biology"
+    },
+    {
+      "id": 98,
+      "content": "Street art evolved from graffiti into a recognized art form. Artists like Banksy use public spaces to make social commentary. Murals can revitalize neighborhoods and spark conversations, though debates continue about vandalism versus artistic expression.",
+      "topic": "Street Art"
+    },
+    {
+      "id": 99,
+      "content": "Permafrost is permanently frozen ground found in polar regions and high mountains. It stores massive amounts of carbon and methane. As climate change causes permafrost to thaw, these greenhouse gases are released, accelerating warming in a feedback loop.",
+      "topic": "Cryosphere Science"
+    },
+    {
+      "id": 100,
+      "content": "Quantum entanglement creates correlations between particles that persist regardless of distance. Measuring one particle instantly affects its entangled partner. This phenomenon enables quantum cryptography and is fundamental to quantum computing.",
+      "topic": "Quantum Information"
+    },
+    {
+      "id": 101,
+      "content": "The Crusades were religious wars between Christians and Muslims from 1095 to 1291. While framed as efforts to reclaim the Holy Land, they also involved political ambitions and economic interests. The Crusades left lasting impacts on Christian-Muslim relations.",
+      "topic": "Medieval Warfare"
+    },
+    {
+      "id": 102,
+      "content": "Muscle tissue contracts to produce movement. Skeletal muscles attach to bones and are under voluntary control. Cardiac muscle powers the heart's rhythmic contractions. Smooth muscle controls involuntary functions in organs and blood vessels.",
+      "topic": "Muscle Physiology"
+    },
+    {
+      "id": 103,
+      "content": "Sculpture involves creating three-dimensional art from materials like stone, metal, wood, or clay. Techniques include carving, modeling, casting, and assemblage. Famous sculptures like Michelangelo's David and Rodin's The Thinker demonstrate the medium's expressive power.",
+      "topic": "Sculpture"
+    },
+    {
+      "id": 104,
+      "content": "Ocean currents circulate water globally, distributing heat and nutrients. The Gulf Stream warms Western Europe, while the California Current brings cold water southward. Currents influence climate, marine life distribution, and navigation.",
+      "topic": "Oceanography"
+    },
+    {
+      "id": 105,
+      "content": "Augmented reality overlays digital information onto the real world through devices like smartphones or specialized glasses. AR applications include navigation, gaming, education, and industrial maintenance. Unlike VR, AR enhances rather than replaces reality.",
+      "topic": "Augmented Reality"
+    },
+    {
+      "id": 106,
+      "content": "The Meiji Restoration in 1868 transformed Japan from a feudal society to a modern industrial power. Rapid modernization included adopting Western technology, establishing a constitutional government, and building a strong military. This transformation enabled Japan to become a major world power.",
+      "topic": "Japanese History"
+    },
+    {
+      "id": 107,
+      "content": "Osmosis is water movement across semipermeable membranes from areas of lower to higher solute concentration. This process is fundamental to cell function, plant water uptake, and kidney filtration. Understanding osmosis is crucial in medicine and agriculture.",
+      "topic": "Cellular Processes"
+    },
+    {
+      "id": 108,
+      "content": "Calligraphy is decorative handwriting or lettering created with specialized tools. Different cultures developed distinctive styles: Chinese brush calligraphy, Arabic script, and Western illuminated manuscripts. Calligraphy remains valued as both art and meditation practice.",
+      "topic": "Calligraphy"
+    },
+    {
+      "id": 109,
+      "content": "Caves form through erosion and dissolution of rock, creating underground passages and chambers. Limestone caves often contain spectacular formations like stalactites and stalagmites. Cave ecosystems host unique species adapted to darkness.",
+      "topic": "Speleology"
+    },
+    {
+      "id": 110,
+      "content": "Internet of Things connects everyday devices to the internet, enabling data collection and remote control. Smart homes, wearable health monitors, and industrial sensors exemplify IoT applications. Security and privacy concerns grow as more devices connect.",
+      "topic": "IoT"
+    },
+    {
+      "id": 111,
+      "content": "The Ottoman Empire lasted from 1299 to 1922, controlling vast territories across Europe, Asia, and Africa at its height. Istanbul became a center of art, architecture, and culture. The empire's decline and dissolution after World War I reshaped the Middle East.",
+      "topic": "Ottoman History"
+    },
+    {
+      "id": 112,
+      "content": "Respiration converts glucose and oxygen into energy, producing carbon dioxide and water. Cellular respiration occurs in mitochondria through glycolysis, the Krebs cycle, and oxidative phosphorylation. This process provides ATP, the cell's energy currency.",
+      "topic": "Cellular Respiration"
+    },
+    {
+      "id": 113,
+      "content": "Tapestry weaving creates decorative fabric art by interlacing colored threads. Medieval European tapestries depicted historical and religious scenes. The art form requires skill and patience, as large tapestries can take years to complete.",
+      "topic": "Textile Arts"
+    },
+    {
+      "id": 114,
+      "content": "Mangrove forests grow in coastal intertidal zones, with specialized adaptations for saltwater. They protect coastlines from erosion and storms, provide nursery habitat for fish, and sequester carbon effectively. Despite their value, mangroves face threats from development and aquaculture.",
+      "topic": "Coastal Ecology"
+    },
+    {
+      "id": 115,
+      "content": "Edge computing processes data near its source rather than in centralized data centers. This reduces latency, saves bandwidth, and enables real-time applications. Edge computing is crucial for autonomous vehicles, industrial automation, and IoT devices.",
+      "topic": "Distributed Computing"
+    },
+    {
+      "id": 116,
+      "content": "The Harlem Renaissance was a cultural movement in 1920s New York celebrating African American art, literature, and music. Writers like Langston Hughes and Zora Neale Hurston, along with musicians like Duke Ellington, created works that challenged racism and stereotypes.",
+      "topic": "Cultural Movements"
+    },
+    {
+      "id": 117,
+      "content": "Axons transmit electrical signals between neurons over long distances. Myelin sheaths insulate axons, speeding signal transmission. Damage to myelin, as in multiple sclerosis, impairs nervous system function.",
+      "topic": "Neuroanatomy"
+    },
+    {
+      "id": 118,
+      "content": "Mosaic art assembles small colored pieces of glass, stone, or other materials to create images or patterns. Ancient Romans created elaborate floor mosaics. Byzantine churches featured golden mosaics depicting religious scenes.",
+      "topic": "Mosaic Art"
+    },
+    {
+      "id": 119,
+      "content": "Tides result from gravitational forces of the moon and sun. Most coastlines experience two high and two low tides daily. Tidal ranges vary globally, with some locations experiencing extreme differences between high and low water.",
+      "topic": "Tidal Science"
+    },
+    {
+      "id": 120,
+      "content": "Biometric authentication uses physical characteristics like fingerprints, facial features, or iris patterns for identification. Benefits include convenience and security, though concerns exist about privacy, spoofing, and database breaches.",
+      "topic": "Biometric Security"
+    },
+    {
+      "id": 121,
+      "content": "The Inca Empire ruled much of western South America before Spanish conquest. Sophisticated engineering enabled terraced agriculture and a vast road network. Machu Picchu exemplifies Inca architectural achievement.",
+      "topic": "Inca Civilization"
+    },
+    {
+      "id": 122,
+      "content": "Meiosis produces gametes with half the normal chromosome number. This reduction division, combined with fertilization, maintains constant chromosome numbers across generations while creating genetic diversity through recombination.",
+      "topic": "Genetics"
+    },
+    {
+      "id": 123,
+      "content": "Glassblowing shapes molten glass by blowing air through a tube. This ancient technique creates vessels, sculptures, and decorative objects. Venetian glassmaking reached extraordinary refinement during the Renaissance.",
+      "topic": "Glassblowing"
+    },
+    {
+      "id": 124,
+      "content": "Atmospheric pressure decreases with altitude as air becomes less dense. Weather systems involve areas of high and low pressure. Barometers measure atmospheric pressure changes that indicate weather patterns.",
+      "topic": "Atmospheric Science"
+    },
+    {
+      "id": 125,
+      "content": "Quantum computing leverages superposition and entanglement to perform certain calculations exponentially faster than classical computers. Potential applications include drug discovery, cryptography, and optimization problems. Maintaining quantum coherence remains a technical challenge.",
+      "topic": "Quantum Computing"
+    },
+    {
+      "id": 126,
+      "content": "The Protestant Reformation began in 1517 when Martin Luther challenged Catholic Church practices. Religious divisions reshaped European politics, society, and culture. The movement promoted individual scripture interpretation and vernacular translations.",
+      "topic": "Reformation History"
+    },
+    {
+      "id": 127,
+      "content": "Homeostasis maintains stable internal conditions despite external changes. Feedback loops regulate body temperature, blood sugar, pH, and other variables. Disrupted homeostasis leads to disease.",
+      "topic": "Physiology"
+    },
+    {
+      "id": 128,
+      "content": "Woodblock printing originated in China and enabled mass production of texts and images. Japanese ukiyo-e prints influenced Western artists. The technique involves carving images into wood blocks, inking them, and pressing onto paper.",
+      "topic": "Printmaking"
+    },
+    {
+      "id": 129,
+      "content": "Lightning forms when electrical charges accumulate in clouds. Discharge creates intense heat, light, and thunder. Lightning strikes kill dozens annually in the United States alone.",
+      "topic": "Atmospheric Electricity"
+    },
+    {
+      "id": 130,
+      "content": "CRISPR gene editing enables precise DNA modifications using molecular scissors guided by RNA. Applications include treating genetic diseases, improving crops, and controlling disease vectors. Ethical debates surround human germline editing.",
+      "topic": "Gene Editing"
+    },
+    {
+      "id": 131,
+      "content": "Hammurabi's Code established written laws in ancient Babylon around 1750 BCE. Its 282 laws covered property rights, trade, family relations, and criminal justice. The code influenced subsequent legal systems.",
+      "topic": "Ancient Legal Systems"
+    },
+    {
+      "id": 132,
+      "content": "Nitrogen fixation converts atmospheric nitrogen into forms plants can use. Legumes host nitrogen-fixing bacteria in root nodules. This process is essential for agriculture and ecosystem productivity.",
+      "topic": "Soil Science"
+    },
+    {
+      "id": 133,
+      "content": "Stained glass windows use colored glass pieces joined by lead strips. Medieval cathedrals featured elaborate stained glass depicting biblical stories. Light passing through creates dramatic colorful effects.",
+      "topic": "Stained Glass"
+    },
+    {
+      "id": 134,
+      "content": "Fog forms when water vapor condenses near the ground, reducing visibility. Different types include radiation fog, advection fog, and upslope fog. Fog affects transportation safety and can persist for days.",
+      "topic": "Cloud Physics"
+    },
+    {
+      "id": 135,
+      "content": "5G networks offer faster speeds, lower latency, and greater capacity than previous generations. This enables new applications like remote surgery, autonomous vehicles, and smart cities. Deployment requires significant infrastructure investment.",
+      "topic": "Telecommunications"
+    },
+    {
+      "id": 136,
+      "content": "Ancient Greece pioneered democracy in Athens around 500 BCE. Citizens participated directly in government, though women, slaves, and foreigners were excluded. Greek democratic ideals influenced modern political systems.",
+      "topic": "Ancient Democracy"
+    },
+    {
+      "id": 137,
+      "content": "Peristalsis moves food through the digestive tract using coordinated muscle contractions. This wavelike motion propels contents from esophagus to intestines. Similar mechanisms transport urine and enable childbirth.",
+      "topic": "Digestive Physiology"
+    },
+    {
+      "id": 138,
+      "content": "Fresco painting applies pigment to wet plaster, creating durable wall art. Michelangelo's Sistine Chapel ceiling exemplifies fresco's grand possibilities. The technique requires skill as artists must work quickly before plaster dries.",
+      "topic": "Fresco"
+    },
+    {
+      "id": 139,
+      "content": "Sand dunes form when wind deposits sand in patterns. Dune shapes reveal wind direction and strength. Coastal and desert dunes migrate over time, sometimes threatening structures and vegetation.",
+      "topic": "Geomorphology"
+    },
+    {
+      "id": 140,
+      "content": "Neural networks are computing systems inspired by biological brains. Layers of interconnected nodes process information, learning patterns from data. Deep neural networks power modern AI applications.",
+      "topic": "Artificial Neural Networks"
+    },
+    {
+      "id": 141,
+      "content": "The Thirty Years' War devastated central Europe from 1618 to 1648. Initially a religious conflict between Protestants and Catholics, it evolved into a broader political struggle. The Peace of Westphalia established principles of state sovereignty.",
+      "topic": "Early Modern Warfare"
+    },
+    {
+      "id": 142,
+      "content": "Circadian rhythms are biological cycles lasting approximately 24 hours, regulating sleep-wake patterns, hormone release, and metabolism. Light exposure synchronizes these internal clocks. Disrupted rhythms affect health and performance.",
+      "topic": "Chronobiology"
+    },
+    {
+      "id": 143,
+      "content": "Batik creates patterns on fabric using wax-resist dyeing. Hot wax blocks dye from reaching certain areas. Indonesian batik traditions produce intricate designs through repeated waxing and dyeing.",
+      "topic": "Fabric Dyeing"
+    },
+    {
+      "id": 144,
+      "content": "El Niño is a climate pattern involving warmer Pacific Ocean temperatures, affecting global weather. It brings drought to some regions and flooding to others. The opposite pattern, La Niña, has contrasting effects.",
+      "topic": "Climate Patterns"
+    },
+    {
+      "id": 145,
+      "content": "Facial recognition technology identifies individuals by analyzing facial features. Applications include security, payment systems, and photo organization. Concerns exist about privacy, accuracy across demographics, and surveillance.",
+      "topic": "Facial Recognition"
+    },
+    {
+      "id": 146,
+      "content": "The Byzantine Empire preserved classical knowledge and culture for a thousand years after Rome's fall. Constantinople became a center of trade, art, and learning. The empire finally fell to Ottoman conquest in 1453.",
+      "topic": "Byzantine History"
+    },
+    {
+      "id": 147,
+      "content": "Blood consists of plasma, red blood cells, white blood cells, and platelets. Red cells transport oxygen, white cells fight infection, and platelets enable clotting. Blood typing determines compatibility for transfusions.",
+      "topic": "Hematology"
+    },
+    {
+      "id": 148,
+      "content": "Quilting stitches layers of fabric together, often in decorative patterns. Traditional quilts served practical purposes while showcasing artistic skill. Modern quilting encompasses both traditional and contemporary styles.",
+      "topic": "Quilting"
+    },
+    {
+      "id": 149,
+      "content": "Auroras occur when solar particles interact with Earth's magnetic field and atmosphere, creating colorful light displays near the poles. Aurora borealis appears in northern latitudes, while aurora australis occurs in the south.",
+      "topic": "Space Weather"
+    }
+  ]
+}

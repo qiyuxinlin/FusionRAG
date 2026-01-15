@@ -40,7 +40,7 @@ RATE="0.15"                                                 # 重算比例 (0-1)
 TOPK="10"                                                  # 预处理时融合的top-k文档数
 PREPROCESS="true"                                          # 是否启用预处理 (true/false)
 USE_RANDOM_RECALL="false"                                  # [已废弃] 请使用 RECALL_METHOD
-RECALL_METHOD="bge"                                        # 召回方法: bge, random, repeat_self, fixed_doc
+RECALL_METHOD="bge"                                        # 召回方法: bge, random, repeat_self, fixed_doc, random_text, bge_shuffled, random_docs
 RANDOM_SEED="42"                                           # 随机种子 (当 RECALL_METHOD=random 时生效)
 FIXED_DOC_IDX="0"                                          # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 REVERT_ROPE="true"                                         # 是否还原RoPE (true/false)
