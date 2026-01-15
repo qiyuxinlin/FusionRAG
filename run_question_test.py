@@ -338,9 +338,10 @@ def run_test_process(
         """
 
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
-            # query=f'Given these documents, generate an appropriate answer for the query.'
-            #       f'{prefix} question is {question["query"]}',
-            query=question["query"],
+            query=f'Given these documents, please first output a short piece of reason, and then '
+                  f'generate an appropriate answer for the query.'
+                  f'{prefix} question is {question["query"]} {format_postfix}',
+            # query=question["query"],
             retrieved_docs=gold_docs,
             model_type='qwen3',
             rate=rate,
@@ -359,6 +360,7 @@ def run_test_process(
         except:
             reason = ""
         print(f"answer={answer}")
+        print(f"reason={reason}")
 
         is_correct, judge_reason = judge_answer_with_openai(
             openai_client=openai_client,
@@ -644,66 +646,70 @@ def test_question_multiprocess(total_run=-1,
 if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
     questions_to_run = [
-        "What record label is Moby Grape associated with?"
+        "What is the birth year of Curtis Bernhardt?"
     ]
     questions_to_run = []
     # 运行多进程测试
     max_memories = [{0: "0GiB", 1: "35GiB", 2: "35GiB"}]
     total_run = 200
-    gpu_configs = [([3,6,7], 0)]# [([0,1,2], 0)] [([3,4,5], 0)] [([3,6,7], 0)]
-    reprocess_method = "DraftModel_smarter"
-    rate = 1.0
-    # test_question_multiprocess(
-    #     total_run=total_run,  ## -1 means run all
-    #     rate=rate,  ## change this
-    #     reprocess_method=reprocess_method,
-    #     ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
-    #     preprocess_method="default",  ## change this  1. space 2. default
-    #     questions_to_run=questions_to_run,
-    #     sep=1,  ## 1/2/3/4
-    #     dataset="musique",  ## 1. locomo 2. musique
-    #     preprocess=True,  ## if locomo then false, otherwise True
-    #     test_last_keep=True,  ## set=True if keep running
-    #     gpu_configs=gpu_configs,  ## personalize if need
-    #     max_memories=max_memories,
-    # )
+    all_gpu_configs = [[([3,4,5], 0)], [([0,1,2], 0)],[([3,6,7], 0)]]
+    reprocess_methods = ["DraftModel_smarter", "DraftModel"]
+    rates = [0.1, 0.3]
+
+    run_index = 0
+
+    if run_index ==0:
+
+        for idx in range(len(rates)):
+            test_question_multiprocess(
+                total_run=total_run,  ## -1 means run all
+                rate=rates[idx],  ## change this
+                reprocess_method=reprocess_methods[idx],
+                ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+                preprocess_method="default",  ## change this  1. space 2. default
+                questions_to_run=questions_to_run,
+                sep=1,  ## 1/2/3/4
+                dataset="musique",  ## 1. locomo 2. musique
+                preprocess=True,  ## if locomo then false, otherwise True
+                test_last_keep=True,  ## set=True if keep running
+                gpu_configs=all_gpu_configs[run_index],  ## personalize if need
+                max_memories=max_memories,
+            )
     #
+    elif run_index ==1:
+        for idx in range(len(rates)):
+            test_question_multiprocess(
+                total_run=total_run,  ## -1 means run all
+                rate=rates[idx],  ## change this
+                reprocess_method=reprocess_methods[idx],
+                ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+                preprocess_method="default",  ## change this  1. space 2. default
+                questions_to_run=questions_to_run,
+                sep=1,  ## 1/2/3/4
+                dataset="2wiki",  ## 1. locomo 2. musique
+                preprocess=True,  ## if locomo then false, otherwise True
+                test_last_keep=True,  ## set=True if keep running
+                gpu_configs=all_gpu_configs[run_index],  ## personalize if need
+                max_memories=max_memories,
+            )
 
-    # test_question_multiprocess(
-    #     total_run=total_run,  ## -1 means run all
-    #     rate=rate,  ## change this
-    #     reprocess_method=reprocess_method,
-    #     ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
-    #     preprocess_method="default",  ## change this  1. space 2. default
-    #     questions_to_run=questions_to_run,
-    #     sep=1,  ## 1/2/3/4
-    #     dataset="2wiki",  ## 1. locomo 2. musique
-    #     preprocess=True,  ## if locomo then false, otherwise True
-    #     test_last_keep=True,  ## set=True if keep running
-    #     gpu_configs=gpu_configs,  ## personalize if need
-    #     max_memories=max_memories,
-    # )
-
-    # last_rate = rate,
-    # last_reprocess_method = reprocess_method,
-    # last_preprocess_method = "default",
-
-
-    for category in [2,3,1]:
-        all_results = test_question_multiprocess(
-            total_run=100, ## -1 means run all
-            rate=rate, ## change this
-            reprocess_method=reprocess_method, ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
-            preprocess_method="default", ## change this  1. space 2. default
-            questions_to_run=questions_to_run,
-            sep=1, ## 1/2/3/4
-            dataset= "locomo", ## 1. locomo 2. musique
-            preprocess=True,  ## if locomo then false, otherwise True
-            test_last_keep=True,  ## set=True if keep running
-            gpu_configs = gpu_configs, ## personalize if need
-            category=category,
-            max_memories=max_memories,
-        )
+    elif run_index == 2:
+        for idx in range(len(rates)):
+            for category in [2,3,1]:
+                all_results = test_question_multiprocess(
+                    total_run=total_run, ## -1 means run all
+                    rate=rates[idx], ## change this
+                    reprocess_method=reprocess_methods[idx], ## change this  1. DraftModel 2. DraftModel_ppr 3. average 4.DraftModel_with_answer
+                    preprocess_method="default", ## change this  1. space 2. default
+                    questions_to_run=questions_to_run,
+                    sep=1, ## 1/2/3/4
+                    dataset= "locomo", ## 1. locomo 2. musique
+                    preprocess=True,  ## if locomo then false, otherwise True
+                    test_last_keep=True,  ## set=True if keep running
+                    gpu_configs=all_gpu_configs[run_index],  ## personalize if need
+                    category=category,
+                    max_memories=max_memories,
+                )
     #
     #
 

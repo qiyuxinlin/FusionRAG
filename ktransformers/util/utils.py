@@ -41,7 +41,7 @@ from filelock import FileLock
 # Smart Query Selection 辅助函数
 # ============================================================
 
-def find_connected_components(positions, max_gap=2):
+def find_connected_components(positions, max_gap=2, within=False):
     """
     找到位置列表中的连通分量（相邻 token 群组）
 
@@ -61,8 +61,10 @@ def find_connected_components(positions, max_gap=2):
 
     for i in range(1, len(positions)):
         if positions[i] - positions[i-1] <= max_gap:
-            current_component.extend([p for p in range(positions[i-1]+1, positions[i]+1)])
-            # current_component.append(positions[i])
+            if not within:
+                current_component.append(positions[i])
+            else:
+                current_component.extend([p for p in range(positions[i - 1] + 1, positions[i] + 1)])
         else:
             components.append(current_component)
             current_component = [positions[i]]
@@ -86,7 +88,7 @@ def find_outliers_zscore(data, threshold=2):
 
     return outliers
 
-def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
+def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False):
     """
     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
 
@@ -113,7 +115,10 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
 
     # Step 2: 连通分量分析
-    components = find_connected_components(high_attn_positions, max_gap=2)
+    if smarter:
+        components = find_connected_components(high_attn_positions, max_gap=10, within=True)
+    else:
+        components = find_connected_components(high_attn_positions, max_gap=2, within=False)
 
     # Step 3: 计算每个分量的总 attention
     component_scores = []
@@ -160,92 +165,93 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     return selected_global
 
-def smarter_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
-    """
-    Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
-
-    Args:
-        attention_scores: torch.Tensor, shape [doc_len], 每个位置的 attention 分数
-        doc_len: 文档长度
-        target_ratio: 目标选择比例
-        system_len: system prompt 长度
-        device: 计算设备
-
-    Returns:
-        List of selected positions (global indices, including system_len offset)
-    """
-    if isinstance(attention_scores, torch.Tensor):
-        attention_scores = attention_scores.float().cpu().numpy()
-
-    target_count = int(doc_len * target_ratio)
-
-    # Step 1: 找到高 attention 位置
-    mean_attn = np.mean(attention_scores)
-    std_attn = np.std(attention_scores)
-    threshold = mean_attn + 0.5 * std_attn
-
-    high_attn_positions = list(np.where(attention_scores > threshold)[0])
-
-    # Step 2: 连通分量分析
-    components = find_connected_components(high_attn_positions, max_gap=20)
-    ## remove all short contexts.
-    components = [component for component in components if len(component) > 1]
-    #components = find_connected_components(high_attn_positions, max_gap=20)
-
-    # Step 3: 计算每个分量的总 attention
-    component_scores = []
-    for comp in components:
-        total_score = sum(attention_scores[p] for p in comp if p in high_attn_positions)
-        component_scores.append((comp, total_score))
-
-    # Step 4: 按总 attention 排序
-    component_scores.sort(key=lambda x: x[1], reverse=True)
-
-    # Step 5: 贪心选择分量 + 上下文扩展 (±1)
-    selected = set()
-    total_pieces = 0
-    # for comp, total_score in component_scores[:5]:
-    for comp, total_score in component_scores:
-        # 扩展分量边界 (±1)
-        extended_comp = set()
-        for p in comp:
-            extended_comp.add(p)
-
-        new_positions = extended_comp - selected
-        # drop too short pieces of enough info acquired.
-        if total_pieces>=2 and len(extended_comp) <= 20:
-            break
-        if len(selected) + len(new_positions) <= target_count * 4:
-            selected.update(extended_comp)
-            total_pieces += 1
-        else:
-            break
-
-
-
-    # # Step 6: 补充到目标数量
-    # if len(selected) < target_count:
-    #     sorted_indices = np.argsort(attention_scores)[::-1]
-    #     for pos in sorted_indices:
-    #         if pos not in selected:
-    #             selected.add(int(pos))
-    #             if len(selected) >= target_count:
-    #                 break
-
-    # Step 7: 如果超过目标，移除最低分的位置
-    # while len(selected) > target_count:
-    #     min_pos = min(selected, key=lambda p: attention_scores[p])
-    #     selected.remove(min_pos)
-
-    # outliers = find_outliers_zscore(list(selected))
-    # outliers_idx = [o[1] for o in outliers]
-    # selected = sorted(selected)
-    # selected = [i for i in selected if i not in outliers_idx]
-
-    # 转换为全局索引 (加上 system_len 偏移)
-    selected_global = [p + system_len for p in sorted(selected)]
-
-    return selected_global
+# def smarter_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
+#     """
+#     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
+#
+#     Args:
+#         attention_scores: torch.Tensor, shape [doc_len], 每个位置的 attention 分数
+#         doc_len: 文档长度
+#         target_ratio: 目标选择比例
+#         system_len: system prompt 长度
+#         device: 计算设备
+#
+#     Returns:
+#         List of selected positions (global indices, including system_len offset)
+#     """
+#     if isinstance(attention_scores, torch.Tensor):
+#         attention_scores = attention_scores.float().cpu().numpy()
+#
+#     target_count = int(doc_len * target_ratio)
+#
+#     # Step 1: 找到高 attention 位置
+#     mean_attn = np.mean(attention_scores)
+#     std_attn = np.std(attention_scores)
+#     threshold = mean_attn + 0.5 * std_attn
+#
+#     high_attn_positions = list(np.where(attention_scores > threshold)[0])
+#
+#     # Step 2: 连通分量分析
+#     components = find_connected_components(high_attn_positions, max_gap=20)
+#     ## remove all short contexts.
+#     components = [component for component in components if len(component) > 1]
+#     #components = find_connected_components(high_attn_positions, max_gap=20)
+#
+#     # Step 3: 计算每个分量的总 attention
+#     component_scores = []
+#     for comp in components:
+#         total_score = sum(attention_scores[p] for p in comp if p in high_attn_positions)
+#         component_scores.append((comp, total_score))
+#
+#     # Step 4: 按总 attention 排序
+#     component_scores.sort(key=lambda x: x[1], reverse=True)
+#
+#     # Step 5: 贪心选择分量 + 上下文扩展 (±1)
+#     selected = set()
+#     total_pieces = 0
+#     # for comp, total_score in component_scores[:5]:
+#     for comp, total_score in component_scores:
+#         # 扩展分量边界 (±1)
+#         extended_comp = set()
+#         for p in comp:
+#             extended_comp.add(p)
+#
+#         new_positions = extended_comp - selected
+#         print(f"total_score={total_score}")
+#         # drop too short pieces of enough info acquired.
+#         if total_pieces>=2 and total_score/component_scores[0][1] < 0.5:
+#             break
+#         if len(selected) + len(new_positions) <= target_count * 4:
+#             selected.update(extended_comp)
+#             total_pieces += 1
+#         else:
+#             break
+#
+#
+#
+#     # # Step 6: 补充到目标数量
+#     # if len(selected) < target_count:
+#     #     sorted_indices = np.argsort(attention_scores)[::-1]
+#     #     for pos in sorted_indices:
+#     #         if pos not in selected:
+#     #             selected.add(int(pos))
+#     #             if len(selected) >= target_count:
+#     #                 break
+#
+#     # Step 7: 如果超过目标，移除最低分的位置
+#     # while len(selected) > target_count:
+#     #     min_pos = min(selected, key=lambda p: attention_scores[p])
+#     #     selected.remove(min_pos)
+#
+#     # outliers = find_outliers_zscore(list(selected))
+#     # outliers_idx = [o[1] for o in outliers]
+#     # selected = sorted(selected)
+#     # selected = [i for i in selected if i not in outliers_idx]
+#
+#     # 转换为全局索引 (加上 system_len 偏移)
+#     selected_global = [p + system_len for p in sorted(selected)]
+#
+#     return selected_global
 
 
 def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
@@ -1162,12 +1168,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     device=draft_model_device
                 )
             elif reprocess_method == "DraftModel_smarter":
-                selected_indices = smarter_query_selection(
+                selected_indices = smart_query_selection(
                     attention_scores=multi_layer_attn,
                     doc_len=doc_len,
                     target_ratio=rate,
                     system_len=system_len,
-                    device=draft_model_device
+                    device=draft_model_device,
+                    smarter=True
                 )
             eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
             k_need_index = torch.tensor(selected_indices, device='cpu')
