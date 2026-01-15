@@ -1485,7 +1485,8 @@ def main(
                             # Skip invalid indices (from padding in PER_EXAMPLE mode)
                             if similar_global_idx < 0:
                                 continue
-                            if similar_global_idx == global_doc_idx:
+                            # Skip self-recall except in REPEAT_SELF mode
+                            if similar_global_idx == global_doc_idx and recall_method != RecallMethod.REPEAT_SELF:
                                 continue
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
                             similar_chunk_id = c_id + 1
@@ -1508,7 +1509,8 @@ def main(
                             # Skip invalid indices (from padding in PER_EXAMPLE mode)
                             if similar_global_idx < 0:
                                 continue
-                            if similar_global_idx == global_doc_idx:
+                            # Skip self-recall except in REPEAT_SELF mode
+                            if similar_global_idx == global_doc_idx and recall_method != RecallMethod.REPEAT_SELF:
                                 continue
 
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
@@ -1568,7 +1570,8 @@ def main(
                             # Skip invalid indices (from padding in PER_EXAMPLE mode)
                             if similar_global_idx < 0:
                                 continue
-                            if similar_global_idx == global_doc_idx:
+                            # Skip self-recall except in REPEAT_SELF mode
+                            if similar_global_idx == global_doc_idx and recall_method != RecallMethod.REPEAT_SELF:
                                 continue
 
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)

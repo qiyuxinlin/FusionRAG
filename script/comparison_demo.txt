@@ -1,0 +1,3787 @@
+====================================================================================================
+详细对比结果
+====================================================================================================
+
+总样本数: 250
+都答对: 184 (73.60%)
+只有 Rate-0.0 答对: 9 (3.60%)
+只有 Rate-0.5 答对: 36 (14.40%)
+都答错: 21 (8.40%)
+
+Rate-0.0 准确率: 193/250 = 77.20%
+Rate-0.5 准确率: 220/250 = 88.00%
+准确率提升: +10.80%
+
+====================================================================================================
+
+
+====================================================================================================
+只有 Rate-0.0 答对 (方案1优势) (9 个样本)
+====================================================================================================
+
+[1] 样本索引: 35
+主问题: When did the crowning of the person under whom the Chapter House was built happen?
+子问题: When was Henry III crowned?
+标准答案: Henry III was first crowned in 1216 at Gloucester Cathedral, and then again at Westminster Abbey in 1220.
+
+Rate-0.0:
+  预测答案: 1216 and 1220
+  正确性: True  |  F1: 0.4615  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1220
+  正确性: False  |  F1: 0.1818  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[2] 样本索引: 57
+主问题: When did military instruction start at the place where Larry Alcala was educated?
+子问题: When did military instruction begin at the University of the Philippines?
+标准答案: Military instruction began at the University of the Philippines in 1912.
+
+Rate-0.0:
+  预测答案: 1912
+  正确性: True  |  F1: 0.3750  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 3 July 1922
+  正确性: False  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[3] 样本索引: 59
+主问题: What county shares a border with Cedar Springs?
+子问题: Which counties share a border with Falls County, Texas?
+标准答案: Bell County shares a border with Falls County.
+
+Rate-0.0:
+  预测答案: Bell County and Falls County share a border with each other. Additionally, Cedar Springs, an unincorporated community in west Falls County, is near Troy Independent School District which extends into a small portion of Falls County, indicating Falls County borders itself. However, based on the direct information given, Bell County is the only external county mentioned to share a border with Falls County.
+  正确性: True  |  F1: 0.1515  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Bell County, Coleman County, Coryell County, Hamilton County, Limestone County, Milam County, Somervell County, and Williamson County share a border with Falls County, Texas.
+  正确性: False  |  F1: 0.2703  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[4] 样本索引: 79
+主问题: What is the movie starring Preity Zinta, Madhuri Dixit and the spouse of Kajol?
+子问题: Movies starring Preity Zinta, Madhuri Dixit, and Ajay Devgn
+标准答案: The movie 'Yeh Raaste Hain Pyaar Ke' (2001) stars Preity Zinta, Madhuri Dixit, and Ajay Devgn.
+
+Rate-0.0:
+  预测答案: Yeh Raaste Hain Pyaar Ke
+  正确性: True  |  F1: 0.4211  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Yeh Raaste Hain Pyaar Ke, Pyar Ka Devta, U Me Aur Hum
+  正确性: False  |  F1: 0.3830  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[5] 样本索引: 153
+主问题: Who is the child of Caroline LeRoy's spouse?
+子问题: Who is Daniel Webster's child?
+标准答案: Daniel Webster's child is Daniel Fletcher Webster.
+
+Rate-0.0:
+  预测答案: Fletcher Webster
+  正确性: True  |  F1: 0.4286  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Fletcher Webster and Hannibal Emery
+  正确性: False  |  F1: 0.3158  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[6] 样本索引: 191
+主问题: What other county does the county where Imperial is located share a border with?
+子问题: What other counties share a border with Pecos County, Texas?
+标准答案: Crockett County shares a border with Pecos County.
+
+Rate-0.0:
+  预测答案: Crockett County
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Crockett County and Culberson County share borders with Pecos County, Texas.
+  正确性: False  |  F1: 0.5455  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[7] 样本索引: 217
+主问题: The 1967 Federation Cup is an instance of this tournament which is named after what organization?
+子问题: What is the Federation Cup in sports?
+标准答案: The Federation Cup is the premier international team competition in women's tennis. It was launched in 1963 and is the world's largest annual women's international team sports competition in terms of participating nations.
+
+Rate-0.0:
+  预测答案: The Federation Cup is the premier international team competition in women's tennis, launched in 1963 to celebrate the 50th anniversary of the International Tennis Federation (ITF). It is now known as the Fed Cup.
+  正确性: True  |  F1: 0.5915  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1963 Federation Cup (tennis)
+  正确性: False  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[8] 样本索引: 221
+主问题: What record label is the performer of Almost Made Ya signed to?
+子问题: What record label is the duo Ali & Gipp signed to?
+标准答案: Ali & Gipp are signed to Derrty Entertainment and Universal Records.
+
+Rate-0.0:
+  预测答案: Derrty Entertainment and Universal Records
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Universal Records
+  正确性: False  |  F1: 0.1538  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[9] 样本索引: 244
+主问题: What is the competition the 1972 Federation Cup is part of named after?
+子问题: What is the Federation Cup in sports?
+标准答案: The Federation Cup is the premier international team competition in women's tennis. It was launched in 1963 and is the world's largest annual women's international team sports competition in terms of participating nations.
+
+Rate-0.0:
+  预测答案: The Federation Cup is the premier international team competition in women's tennis, launched in 1963 to celebrate the 50th anniversary of the International Tennis Federation (ITF). It is now known as the Fed Cup.
+  正确性: True  |  F1: 0.5915  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1963 Federation Cup (tennis)
+  正确性: False  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+
+====================================================================================================
+只有 Rate-0.5 答对 (方案2优势) (36 个样本)
+====================================================================================================
+
+[1] 样本索引: 4
+主问题: Who is the spouse of the child of Peter Andreas Heiberg?
+子问题: Who is the spouse of Johan Ludvig Heiberg?
+标准答案: Johanne Luise Heiberg
+
+Rate-0.0:
+  预测答案: Document: Johan Ludvig Heiberg (1791-1860) was a Danish poet, playwright, literary critic, and historian. He was the son of Peter Andreas Heiberg and the novelist Baroness Gyllembourg-Ehrensvärd. While the direct spouse of Johan Ludvig Heiberg is not explicitly named in the provided documents, it can be inferred from the information about his daughter Margareta Eriksdotter Vasa (Margareta Vasa) that his wife was likely Margareta's mother, who is referred to as "Magdalene Ericksdotter" in the context of Margareta's lineage. However, the specific name of his wife is not provided in the given documents.
+  正确性: False  |  F1: 0.0432  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Johanne Luise Heiberg
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[2] 样本索引: 5
+主问题: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+子问题: Who were the siblings of Alice de Lusignan, Countess of Surrey?
+标准答案: Alice de Lusignan had a uterine half-brother, King Henry III of England.
+
+Rate-0.0:
+  预测答案: Joan de Geneville, Countess of Leicester
+  正确性: False  |  F1: 0.2143  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Alice de Lusignan, Countess of Surrey had a half-brother, King Henry III of England. The documents do not provide information about any full siblings.
+  正确性: True  |  F1: 0.6531  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[3] 样本索引: 9
+主问题: Who is the employer of the physicist who Mach number is named after?
+子问题: Who was Ernst Mach's employer or academic institution during his career?
+标准答案: Ernst Mach was a professor at Charles University in Prague.
+
+Rate-0.0:
+  预测答案: Document: Friedrich Hayek: The document does not provide information about Ernst Mach's employer or academic institution. The provided document is about Friedrich Hayek and does not contain relevant information about Ernst Mach. Therefore, based on the given information, we cannot determine Ernst Mach's employer or academic institution during his career.
+  正确性: False  |  F1: 0.0606  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Charles University in Prague
+  正确性: True  |  F1: 0.6250  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[4] 样本索引: 10
+主问题: When did a storm disperse the fleet led by the English king who trusted William de Longchamp?
+子问题: Which English king trusted William de Longchamp?
+标准答案: King Richard I of England
+
+Rate-0.0:
+  预测答案: John, King of England
+  正确性: False  |  F1: 0.6000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Richard I
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[5] 样本索引: 20
+主问题: Who is the sibling of the actress that played the little girl in Miracle on 34th street 1947?
+子问题: Who played the little girl in the 1947 film Miracle on 34th Street?
+标准答案: Natalie Wood played the little girl, Susan Walker, in the 1947 film Miracle on 34th Street.
+
+Rate-0.0:
+  预测答案: Maureen O'Hara
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Natalie Wood
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[6] 样本索引: 21
+主问题: Who is the sibling of the actress that played the little girl in Miracle on 34th street 1947?
+子问题: Who is the sibling of actress Natalie Wood?
+标准答案: Lana Wood is the sibling of actress Natalie Wood.
+
+Rate-0.0:
+  预测答案: Maureen O'Hara
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Lana Wood
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[7] 样本索引: 29
+主问题: Whose sister played Susie in miracle on 34th street?
+子问题: Who is Natalie Wood's brother?
+标准答案: Natalie Wood's sister is Lana Wood. The documents do not mention a brother.
+
+Rate-0.0:
+  预测答案: Natalie Wood's brother is Lana Wood, who had an early screen appearance in the film "Five Finger Exercise".
+  正确性: False  |  F1: 0.4828  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Lana Wood, the sister of Natalie Wood.
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[8] 样本索引: 63
+主问题: Who is the father of Empress Wang's husband?
+子问题: Who is Empress Wang's husband?
+标准答案: Empress Wang's husband was Yang Pu (Emperor Rui), the final ruler of the Chinese state Wu during the Five Dynasties and Ten Kingdoms period.
+
+Rate-0.0:
+  预测答案: Wang Jian
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Yang Pu
+  正确性: True  |  F1: 0.0741  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[9] 样本索引: 67
+主问题: When was John's eldest son crowned?
+子问题: Who is John's eldest son?
+标准答案: Henry III
+
+Rate-0.0:
+  预测答案: John III, Margrave of Brandenburg-Salzwedel
+  正确性: False  |  F1: 0.1538  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Henry III
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[10] 样本索引: 72
+主问题: What character in A League of their Own was played by the actress who played Thelma in the movie Thelma and Louise?
+子问题: What character did Geena Davis play in the movie A League of Their Own?
+标准答案: Geena Davis played the character Dottie Hinson.
+
+Rate-0.0:
+  预测答案: Thelma
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Dottie Hinson
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[11] 样本索引: 74
+主问题: In A League of Their Own, who played the husband of the actress who played Thelma in Thelma and Louise?
+子问题: Which character did Geena Davis play in the film A League of Their Own?
+标准答案: Geena Davis played the character Dottie Hinson.
+
+Rate-0.0:
+  预测答案: Thelma
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Dottie Hinson
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[12] 样本索引: 78
+主问题: The actor who played Thelma in "Thelma and Louise" also played which character in "A League of Their Own"?
+子问题: Which character did Geena Davis play in the movie 'A League of Their Own'?
+标准答案: Geena Davis played the character Dottie Hinson.
+
+Rate-0.0:
+  预测答案: Thelma
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Dottie Hinson
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[13] 样本索引: 85
+主问题: Who was married to the star of No Escape?
+子问题: Which of the actors from No Escape (Valerie Hobson, Leslie Perrins, or Robert Cochran) was married and to whom?
+标准答案: Valerie Hobson was married to John Profumo.
+
+Rate-0.0:
+  预测答案: David Profumo was married to Valerie Hobson. However, Valerie Hobson was not married to any of the actors listed (Valerie Hobson, Leslie Perrins, or Robert Cochran). The information provided about David Profumo and Valerie Hobson seems to be unrelated to the actors in No Escape. The question as posed cannot be accurately answered based on the given documents, as there is no indication that any of the actors in No Escape were married to David Profumo or Valerie Hobson.
+  正确性: False  |  F1: 0.1600  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Valerie Hobson was married to John Profumo, who was a former British government minister.
+  正确性: True  |  F1: 0.7500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[14] 样本索引: 96
+主问题: Who is the voice of the character in Spongebob Squarepants with the same name as the creature that annelid larvae live like?
+子问题: Which character in Spongebob Squarepants has the same name as the creature that annelid larvae live like (plankton)?
+标准答案: Plankton
+
+Rate-0.0:
+  预测答案: Patrick Star
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Plankton
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[15] 样本索引: 104
+主问题: What award was received by the person who authored Missing Person?
+子问题: Who is the author of Missing Person?
+标准答案: Patrick Modiano
+
+Rate-0.0:
+  预测答案: Melissa Marr
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Patrick Modiano
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[16] 样本索引: 106
+主问题: What preity zinta and madhuri dixit movie had a cast member from U Me Aur Hum ?
+子问题: Who are the cast members of the movie U Me Aur Hum?
+标准答案: The cast includes Ajay Devgan, Kajol, Karan Khanna, Isha Sharvani, Sumeet Raghavan, and Divya Dutta.
+
+Rate-0.0:
+  预测答案: Ajay Devgan and Kajol
+  正确性: False  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ajay Devgan, Kajol, Karan Khanna, Isha Sharvani, Sumeet Raghavan, and Divya Dutta
+  正确性: True  |  F1: 0.9630  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[17] 样本索引: 121
+主问题: Who is the child of the actor who is a cast member of Love in Pawn?
+子问题: Who is the child of Bernard Braden or Barbara Kelly?
+标准答案: Kim Braden is the daughter of Bernard Braden and Barbara Kelly.
+
+Rate-0.0:
+  预测答案: Stephanie Ralph is the child of Bernard Braden or Barbara Kelly, as she is portrayed as Oscar Larkin's sister in The Darling Buds of May, and Oscar Larkin is the child of Bernard Braden and Barbara Kelly.
+  正确性: False  |  F1: 0.4127  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Kim Braden
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[18] 样本索引: 122
+主问题: Who is the spouse of the first nominated African American presidential candidate?
+子问题: Who was the first nominated African American presidential candidate?
+标准答案: Frederick Douglass was the first African American to be nominated as a presidential candidate, receiving one vote at the 1888 Republican National Convention.
+
+Rate-0.0:
+  预测答案: Barack Obama was the first nominated African American presidential candidate, as he won the Democratic Party's nomination in 2008.
+  正确性: False  |  F1: 0.4082  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Frederick Douglass was invited to speak at the Republican National Convention in 1888 and received one vote, making him the first African American to be a nominated candidate for President of the United States, though he was not a serious candidate in contemporary terms.
+  正确性: True  |  F1: 0.6479  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[19] 样本索引: 123
+主问题: Who is the spouse of the first nominated African American presidential candidate?
+子问题: Who was the spouse of Frederick Douglass?
+标准答案: Frederick Douglass had two spouses: his first wife was Anna Murray Douglass, and his second wife was Helen Pitts Douglass.
+
+Rate-0.0:
+  预测答案: Helen Pitts
+  正确性: False  |  F1: 0.2424  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Helen Pitts and Anna Murray
+  正确性: True  |  F1: 0.4737  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[20] 样本索引: 125
+主问题: What event caused the founder of Australia's liberal party to become Prime Minister?
+子问题: When did Robert Menzies serve as Prime Minister of Australia?
+标准答案: Robert Menzies served as Prime Minister of Australia from 1939 to 1941 and again from 1949 to 1966 (his tenure ended before the 1972 election, making him the longest-serving PM).
+
+Rate-0.0:
+  预测答案: 1939 to 1941
+  正确性: False  |  F1: 0.2951  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1939 to 1941 and again from 1949 until 1966
+  正确性: True  |  F1: 0.5867  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[21] 样本索引: 127
+主问题: What is the river that the Kettle Generating Station is located on a tributary of?
+子问题: On which river is the Kettle Generating Station located?
+标准答案: The Kettle Generating Station is located on the Lower Nelson River.
+
+Rate-0.0:
+  预测答案: Kettle River
+  正确性: False  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Lower Nelson River
+  正确性: True  |  F1: 0.4615  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[22] 样本索引: 130
+主问题: Who was the spouse of a leading speaker against slavery and publisher of an antislavery newspaper?
+子问题: Who was Frederick Douglass's spouse?
+标准答案: Frederick Douglass had two spouses: his first wife was Anna Murray Douglass, and his second wife was Helen Pitts Douglass.
+
+Rate-0.0:
+  预测答案: Helen Pitts
+  正确性: False  |  F1: 0.2424  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Helen Pitts and Anna Murray
+  正确性: True  |  F1: 0.4737  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[23] 样本索引: 135
+主问题: Whom is the birth place of Ravil Aryapov named after?
+子问题: Whom is the city of Tolyatti named after?
+标准答案: The city of Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.
+
+Rate-0.0:
+  预测答案: the longest-serving secretary of the Italian Communist Party
+  正确性: False  |  F1: 0.5185  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Palmiro Togliatti
+  正确性: True  |  F1: 0.3200  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[24] 样本索引: 137
+主问题: Who is the city that AvtoVAZ's headquarters is located in named after?
+子问题: Who is the city of Tolyatti named after?
+标准答案: The city of Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.
+
+Rate-0.0:
+  预测答案: the longest-serving secretary of the Italian Communist Party
+  正确性: False  |  F1: 0.5185  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Palmiro Togliatti
+  正确性: True  |  F1: 0.3200  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[25] 样本索引: 142
+主问题: Who founded the company that distributed the film UHF?
+子问题: Which company distributed the film UHF?
+标准答案: Orion Pictures
+
+Rate-0.0:
+  预测答案: UModcastDocumentDocument: UModcastDocumentDocument: UModcastPictures is an American film distribution company and a film and television production company founded by Kevin Smith in 2011. However, there is no direct mention of the distribution of the film UHF in the provided documents. Given the format of the question and the available information, it's not possible to definitively state which company distributed the film UHF based solely on the given documents. The question might require additional context or information not present in the provided texts.
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Orion Pictures
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[26] 样本索引: 147
+主问题: When did the person who first brought a postal service into Umayyad lands become caliph?
+子问题: Who first introduced the postal service in the Umayyad Caliphate?
+标准答案: Mu'awiyah introduced the postal service in the Umayyad Caliphate.
+
+Rate-0.0:
+  预测答案: Umar bin Abdul-Aziz first developed the postal service further by building caravanserais at stages along the Khurasan highway. However, the main development and extension of the postal service throughout the empire is attributed to Umar, Mu'awiyah, and Walid ibn Abd al-Malik.
+  正确性: False  |  F1: 0.1791  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Mu'awiyah introduced postal service, and Abd al-Malik extended it throughout his empire.
+  正确性: True  |  F1: 0.3871  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[27] 样本索引: 169
+主问题: Who is the grandmother of Philippe, Duke of Orléans?
+子问题: Who is Philippe, Duke of Orléans?
+标准答案: Philippe, Duke of Orléans (1640–1701) was the younger son of King Louis XIII of France and Anne of Austria, making him the younger brother of King Louis XIV. He was originally styled Duke of Anjou and became Duke of Orléans in 1660. He was also granted other titles such as Duke of Valois, Chartres, and Nemours. At court, he was known simply as 'Monsieur'.
+
+Rate-0.0:
+  预测答案: Philippe, Duke of Orléans was the younger son of Louis XIII of France and his wife, Anne of Austria. He became Duke of Orléans upon the death of his uncle Gaston in 1660. He was the father of Louis Philippe I, who would later become King of the French.
+  正确性: False  |  F1: 0.5503  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Philippe, Duke of Orléans was the younger son of Louis XIII of France and his wife, Anne of Austria. He became Duke of Orléans upon the death of his uncle Gaston in 1660.
+  正确性: True  |  F1: 0.5263  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[28] 样本索引: 174
+主问题: What province shares a border with the province where Lago District is located?
+子问题: In which province is Lago District located?
+标准答案: Niassa Province
+
+Rate-0.0:
+  预测答案: The reference material does not provide information about a Lago District. It describes a Lago District in Mozambique, but the question asks about a Lago District, which is not mentioned in the given documents. Based on the available information, Lago District is in Gaza Province, Mozambique.
+  正确性: False  |  F1: 0.0426  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Niassa Province
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[29] 样本索引: 185
+主问题: What company succeeded the owner of Empire Sports Network?
+子问题: What company succeeded Adelphia Communications Corporation?
+标准答案: Time Warner Cable acquired assets from the bankrupt Adelphia, and a new company, Windjammer Communications, was formed from the sale of some of these systems.
+
+Rate-0.0:
+  预测答案: Empire Sports Network
+The Empire Sports Network was an American regional sports network that was owned by the Adelphia Communications Corporation. Given that the network ceased operations on March 7, 2005, due to Adelphia's financial collapse and bankruptcy, it can be inferred that no other company directly succeeded Adelphia Communications Corporation as its primary business was the Empire Sports Network, which ceased operations after Adelphia's bankruptcy.
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Time Warner Cable
+  正确性: True  |  F1: 0.2143  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[30] 样本索引: 196
+主问题: In what county is William W. Blair's birthplace located?
+子问题: Where was William W. Blair born?
+标准答案: Holley, New York
+
+Rate-0.0:
+  预测答案: LaSalle County, Illinois
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Holley, New York
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[31] 样本索引: 198
+主问题: How old was Mary when engaged to the person from whom São José dos Campos takes it's name?
+子问题: Who is São José dos Campos named after?
+标准答案: São José dos Campos é nomeada em homenagem a São José (Saint Joseph).
+
+Rate-0.0:
+  预测答案: José Antunes Sobrinho
+  正确性: False  |  F1: 0.0870  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Saint Joseph of the Fields
+  正确性: True  |  F1: 0.1818  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[32] 样本索引: 204
+主问题: What award did the author of The Red Tree receive?
+子问题: What award did Shaun Tan receive?
+标准答案: Shaun Tan received an Academy Award for Best Animated Short Film in 2011.
+
+Rate-0.0:
+  预测答案: 2001 Caldecott Medal
+  正确性: False  |  F1: 0.1739  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Academy Award for Best Animated Short Film
+  正确性: True  |  F1: 0.5217  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[33] 样本索引: 231
+主问题: What is the competition that the 1965 Federation Cup is part of named after?
+子问题: What is the 1965 Federation Cup?
+标准答案: The 1965 Federation Cup was the third edition of the women's international team tennis competition, now known as the Fed Cup. It was held from 15–18 January at the Kooyong Lawn Tennis Club in Melbourne, Australia. Eleven nations participated, and Australia defended their title by defeating the United States in the final.
+
+Rate-0.0:
+  预测答案: 17 nations participated in the tournament, which was held at the Blau-Weiss Tennis Club in West Berlin from 6–11 June. United States defended their title, defeating Great Britain in the final.
+  正确性: False  |  F1: 0.4731  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 11 nations participated in the tournament, which was held at the Kooyong Lawn Tennis Club in Melbourne, Australia from 15–18 January. United States and Australia both reached the final for the third consecutive time, and Australia defended their title, defeating United States by winning both of their singles rubbers.
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[34] 样本索引: 237
+主问题: What record label did the person who is part of The Bruce Lee Band start?
+子问题: What record label did Mike Park start?
+标准答案: Mike Park started the record label Asian Man Records.
+
+Rate-0.0:
+  预测答案: Dill Records
+  正确性: False  |  F1: 0.2000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Asian Man Records
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[35] 样本索引: 238
+主问题: Who is the father of the performer of Je dis aime?
+子问题: Who performed the song 'Je dis aime'?
+标准答案: The work 'Je dis aime' is a studio album performed by French singer-songwriter Matthieu Chedid, under his persona -M-.
+
+Rate-0.0:
+  预测答案: Je dis aime was performed by French singer-songwriter Mylène Farmer.
+  正确性: False  |  F1: 0.4571  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: -M-
+  正确性: True  |  F1: 0.0000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[36] 样本索引: 249
+主问题: Where did the producer of On Dangerous Ground study or work?
+子问题: Where did John Houseman study or work?
+标准答案: John Houseman was educated at Clifton College in England and worked in the grain trade in London.
+
+Rate-0.0:
+  预测答案: England, grain trade in London, United States
+  正确性: False  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: John Houseman studied in England at Clifton College and worked in the grain trade in London before emigrating to the United States in 1925.
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+
+====================================================================================================
+都答对 (184 个样本)
+====================================================================================================
+
+[1] 样本索引: 0
+主问题: What is the network which National Cycle Route 57 is part of an example of?
+子问题: What network is National Cycle Route 57 part of?
+标准答案: National Cycle Route 57 is part of the United Kingdom's National Cycle Network (NCN).
+
+Rate-0.0:
+  预测答案: National Cycle Network
+  正确性: True  |  F1: 0.2353  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: National Cycle Network
+  正确性: True  |  F1: 0.2353  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[2] 样本索引: 1
+主问题: What district is the headquarter of Julia's House located?
+子问题: Where is the headquarters of Julia's House located?
+标准答案: Corfe Mullen, Dorset, England
+
+Rate-0.0:
+  预测答案: Corfe Mullen, Dorset, England
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Dorset, England
+  正确性: True  |  F1: 0.5455  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[3] 样本索引: 2
+主问题: What body of water includes the terrain feature where Coffee Swamp is located?
+子问题: Where is Coffee Swamp located?
+标准答案: Coffee Swamp is located on the northern edge of Washington Island, in Door County, Wisconsin.
+
+Rate-0.0:
+  预测答案: on the northern edge of Washington Island, in Door County Wisconsin
+  正确性: True  |  F1: 0.8333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Coffee Swamp is located on the northern edge of Washington Island, in Door County Wisconsin.
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[4] 样本索引: 3
+主问题: Who is the spouse of the child of Peter Andreas Heiberg?
+子问题: Who is the child of Peter Andreas Heiberg?
+标准答案: Johan Ludvig Heiberg is the child of Peter Andreas Heiberg.
+
+Rate-0.0:
+  预测答案: Johan Ludvig Heiberg
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Johan Ludvig Heiberg
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[5] 样本索引: 7
+主问题: Which university employed the person that Mach bands are named after?
+子问题: Which university employed Ernst Mach?
+标准答案: Ernst Mach was employed at Charles University in Prague.
+
+Rate-0.0:
+  预测答案: Charles University in Prague
+  正确性: True  |  F1: 0.6250  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Charles University in Prague
+  正确性: True  |  F1: 0.6250  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[6] 样本索引: 8
+主问题: Who is the employer of the physicist who Mach number is named after?
+子问题: Who is the physicist that the Mach number is named after?
+标准答案: The Mach number is named after the Austrian physicist and philosopher Ernst Mach.
+
+Rate-0.0:
+  预测答案: Ernst Mach
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ernst Mach
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[7] 样本索引: 11
+主问题: When did a storm disperse the fleet led by the English king who trusted William de Longchamp?
+子问题: What specific naval expedition or fleet did King Richard I lead that was dispersed by a storm?
+标准答案: King Richard I led a large fleet from Messina to Acre in April 1191, which was dispersed by a storm.
+
+Rate-0.0:
+  预测答案: Richard I's fleet in April 1191, which he left Messina with in order to reach Acre.
+  正确性: True  |  F1: 0.6364  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Richard the Lion-hearted left Messina with a large fleet in April 1191 in order to reach Acre, but a storm dispersed the fleet.
+  正确性: True  |  F1: 0.6531  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[8] 样本索引: 12
+主问题: The Unwinding author volunteered for which organisation?
+子问题: Who is the author of The Unwinding?
+标准答案: George Packer
+
+Rate-0.0:
+  预测答案: George Packer
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: George Packer
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[9] 样本索引: 13
+主问题: The Unwinding author volunteered for which organisation?
+子问题: Which organization did George Packer volunteer for?
+标准答案: Peace Corps
+
+Rate-0.0:
+  预测答案: Peace Corps
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Peace Corps
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[10] 样本索引: 14
+主问题: Who is the lead singer of the band performing Bang Bang Rock & Roll?
+子问题: Which band performed the song 'Bang Bang Rock & Roll'?
+标准答案: The song 'Bang Bang Rock & Roll' was performed by the British rock band Art Brut.
+
+Rate-0.0:
+  预测答案: Art Brut
+  正确性: True  |  F1: 0.1538  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Art Brut
+  正确性: True  |  F1: 0.1538  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[11] 样本索引: 15
+主问题: Who is the lead singer of the band performing Bang Bang Rock & Roll?
+子问题: Who is the lead singer of the band Art Brut?
+标准答案: Eddie Argos
+
+Rate-0.0:
+  预测答案: Eddie Argos
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Eddie Argos
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[12] 样本索引: 16
+主问题: What company did the company that initiated a successful price war among PC manufacturers in 1994 merge with in 2002?
+子问题: Which company initiated a successful price war among PC manufacturers in 1994?
+标准答案: Compaq initiated a successful price war among PC manufacturers in 1994.
+
+Rate-0.0:
+  预测答案: Compaq
+  正确性: True  |  F1: 0.1333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Compaq
+  正确性: True  |  F1: 0.1333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[13] 样本索引: 17
+主问题: What company did the company that initiated a successful price war among PC manufacturers in 1994 merge with in 2002?
+子问题: Which company did Compaq merge with in 2002?
+标准答案: Hewlett Packard
+
+Rate-0.0:
+  预测答案: Hewlett-Packard
+  正确性: True  |  F1: 0.4444  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Hewlett Packard
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[14] 样本索引: 18
+主问题: What year was the father of Katherine of England crowned?
+子问题: Who is Katherine of England?
+标准答案: Katherine of England was the fifth child of King Henry III and Eleanor of Provence. She was born on 25 November 1253, was either deaf-mute or deaf and mentally challenged, was very sickly, possibly had a degenerative disease, and died at Windsor on 3 May 1257 before reaching her fourth year.
+
+Rate-0.0:
+  预测答案: Katherine of England was the fifth child of Henry III and his wife, Eleanor of Provence. She was born either a deaf-mute or just deaf and mentally challenged and was very sickly. She possibly had a degenerative disease, did not survive her fourth year and died at Windsor.
+  正确性: True  |  F1: 0.7438  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Katherine of England was the fifth child of Henry III and his wife, Eleanor of Provence. She was born either a deaf-mute or just deaf and mentally challenged and was very sickly. She possibly had a degenerative disease, did not survive her fourth year and died at Windsor.
+  正确性: True  |  F1: 0.7438  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[15] 样本索引: 19
+主问题: What year was the father of Katherine of England crowned?
+子问题: What year was King Henry III of England crowned?
+标准答案: Henry III was first crowned in 1216 and had a second coronation in 1220.
+
+Rate-0.0:
+  预测答案: 1216
+  正确性: True  |  F1: 0.2400  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1216 and 1220
+  正确性: True  |  F1: 0.5806  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[16] 样本索引: 22
+主问题: What is the capital of the county that Pine Springs is located in?
+子问题: In which county is Pine Springs located?
+标准答案: Culberson County, Texas
+
+Rate-0.0:
+  预测答案: Culberson County
+  正确性: True  |  F1: 0.8571  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Culberson County
+  正确性: True  |  F1: 0.8571  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[17] 样本索引: 24
+主问题: In 2002, what company merged with the top PC manufacturer from 1994?
+子问题: Who was the top PC manufacturer in 1994?
+标准答案: Compaq was the top PC manufacturer in 1994.
+
+Rate-0.0:
+  预测答案: Compaq
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Compaq
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[18] 样本索引: 25
+主问题: In 2002, what company merged with the top PC manufacturer from 1994?
+子问题: What company did Compaq merge with in 2002?
+标准答案: Compaq merged with Hewlett Packard (HP) in 2002.
+
+Rate-0.0:
+  预测答案: Hewlett-Packard
+  正确性: True  |  F1: 0.2000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Hewlett Packard
+  正确性: True  |  F1: 0.4211  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[19] 样本索引: 26
+主问题: In the King's Speech, who played the person who was the King of England in 1950?
+子问题: Who was the King of England in 1950?
+标准答案: George VI was the King of the United Kingdom in 1950.
+
+Rate-0.0:
+  预测答案: George VI
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: George VI
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[20] 样本索引: 27
+主问题: In the King's Speech, who played the person who was the King of England in 1950?
+子问题: Which actor played King George VI in the film 'The King's Speech'?
+标准答案: Colin Firth
+
+Rate-0.0:
+  预测答案: Colin Firth
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Colin Firth
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[21] 样本索引: 28
+主问题: Whose sister played Susie in miracle on 34th street?
+子问题: Who played Susie in Miracle on 34th Street?
+标准答案: Natalie Wood played Susan Walker in Miracle on 34th Street.
+
+Rate-0.0:
+  预测答案: Natalie Wood
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Natalie Wood
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[22] 样本索引: 30
+主问题: What team was Anna Benson's husband on?
+子问题: Who is Anna Benson's husband?
+标准答案: Kris Benson, a former Major League Baseball pitcher.
+
+Rate-0.0:
+  预测答案: Kris Benson
+  正确性: True  |  F1: 0.5455  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Kris Benson
+  正确性: True  |  F1: 0.5455  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[23] 样本索引: 31
+主问题: What team was Anna Benson's husband on?
+子问题: What team did Kris Benson play for in Major League Baseball?
+标准答案: Kris Benson played for the Pittsburgh Pirates, New York Mets, and Baltimore Orioles.
+
+Rate-0.0:
+  预测答案: Pittsburgh Pirates, the New York Mets, and the Baltimore Orioles
+  正确性: True  |  F1: 0.8125  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Pittsburgh Pirates
+  正确性: True  |  F1: 0.2727  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[24] 样本索引: 32
+主问题: What is the record label for the singer who originally sang You Belong To Me.
+子问题: Who originally sang the song You Belong To Me?
+标准答案: Joni James
+
+Rate-0.0:
+  预测答案: Joni James
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Joni James
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[25] 样本索引: 33
+主问题: What is the record label for the singer who originally sang You Belong To Me.
+子问题: What record label was Joni James signed to when she released 'You Belong To Me' in 1952?
+标准答案: MGM Records
+
+Rate-0.0:
+  预测答案: M-G-M Records
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: M-G-M Records
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[26] 样本索引: 34
+主问题: When did the crowning of the person under whom the Chapter House was built happen?
+子问题: Who was the person under whom the Chapter House was built?
+标准答案: Henry III
+
+Rate-0.0:
+  预测答案: Henry III
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Henry III
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[27] 样本索引: 36
+主问题: What record label does the artist who sang you belong to me belong to?
+子问题: Who sang the song 'You Belong to Me'?
+标准答案: Joni James sang the song 'You Belong to Me'.
+
+Rate-0.0:
+  预测答案: Joni James initially sang the song 'You Belong to Me', with her version released in March 1952 on the local Sharp Records label.
+  正确性: True  |  F1: 0.4848  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Joni James
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[28] 样本索引: 37
+主问题: What record label does the artist who sang you belong to me belong to?
+子问题: What record label is Joni James signed to?
+标准答案: Joni James was signed to MGM Records.
+
+Rate-0.0:
+  预测答案: M-G-M Records
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: M-G-M Records
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[29] 样本索引: 38
+主问题: What place does the administrative territorial entity that Juba is located in share a border with?
+子问题: What is the administrative territorial entity that contains Juba?
+标准答案: Central Equatoria
+
+Rate-0.0:
+  预测答案: Central Equatoria state
+  正确性: True  |  F1: 0.8000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Central Equatoria
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[30] 样本索引: 40
+主问题: Who played the monarch at the end of WW2 in The King's Speech?
+子问题: Who played King George VI in The King's Speech?
+标准答案: Colin Firth
+
+Rate-0.0:
+  预测答案: Colin Firth
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Colin Firth
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[31] 样本索引: 41
+主问题: Who is the spouse of a cast member from King of the Mountain?
+子问题: Who are the cast members of King of the Mountain?
+标准答案: The cast includes Harry Hamlin as Steve and Deborah Van Valkenburgh as Tina.
+
+Rate-0.0:
+  预测答案: Harry Hamlin, Deborah Van Valkenburgh
+  正确性: True  |  F1: 0.6207  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Steve (Harry Hamlin), Tina (Deborah Van Valkenburgh)
+  正确性: True  |  F1: 0.8485  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[32] 样本索引: 42
+主问题: Who is the spouse of a cast member from King of the Mountain?
+子问题: Who is Harry Hamlin's spouse?
+标准答案: Lisa Rinna
+
+Rate-0.0:
+  预测答案: Lisa Rinna
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Lisa Rinna
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[33] 样本索引: 43
+主问题: Who played king whose regal Name did Albert Adopt in the king's speech?
+子问题: What was the regnal name adopted by King George VI?
+标准答案: Albert assumed the regnal name 'George VI'.
+
+Rate-0.0:
+  预测答案: George VI
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: George VI
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[34] 样本索引: 44
+主问题: Who played king whose regal Name did Albert Adopt in the king's speech?
+子问题: Who played King George VI in the film 'The King's Speech'?
+标准答案: Colin Firth
+
+Rate-0.0:
+  预测答案: Document: George VI (Albert Frederick Arthur George; 14 December 1895 – 6 February 1952) was King of the United Kingdom and the Dominions of the British Commonwealth from 11 December 1936 until his death. The document about Paul Bettany does not mention him playing King George VI. The document about Andy Serkis does not mention him playing King George VI either. However, the document about 'The King's Speech' states that Colin Firth plays the future King George VI in the film. Therefore, Colin Firth played King George VI in the film 'The King's Speech'.
+  正确性: True  |  F1: 0.0488  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Colin Firth
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[35] 样本索引: 45
+主问题: What administrative territorial entity contains the place where KPRM is licensed to broadcast to?
+子问题: Where is KPRM licensed to broadcast?
+标准答案: Park Rapids, Minnesota
+
+Rate-0.0:
+  预测答案: 870 AM, Park Rapids, Minnesota
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Park Rapids, Minnesota
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[36] 样本索引: 46
+主问题: What year did the author of Prince Prigio die?
+子问题: Who is the author of Prince Prigio?
+标准答案: The author of Prince Prigio is Andrew Lang.
+
+Rate-0.0:
+  预测答案: Andrew Lang
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Andrew Lang
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[37] 样本索引: 47
+主问题: What year did the author of Prince Prigio die?
+子问题: What year did Andrew Lang die?
+标准答案: Andrew Lang died in 1912.
+
+Rate-0.0:
+  预测答案: 1912
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1912
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[38] 样本索引: 48
+主问题: In which county is Mark Dismore's birthplace located?
+子问题: Where was Mark Dismore born?
+标准答案: Greenfield, Indiana
+
+Rate-0.0:
+  预测答案: Document: Mark Dismore (born October 12, 1956 in Greenfield, Indiana) is a former driver in the Indy Racing League...
+  正确性: True  |  F1: 0.2000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Greenfield, Indiana
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[39] 样本索引: 49
+主问题: In which county is Mark Dismore's birthplace located?
+子问题: Which county is Greenfield, Indiana located in?
+标准答案: Greenfield, Indiana is located in Hancock County.
+
+Rate-0.0:
+  预测答案: Hancock County
+  正确性: True  |  F1: 0.1818  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Hancock County
+  正确性: True  |  F1: 0.1818  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[40] 样本索引: 50
+主问题: Who was the sibling of Nannina de' Medici?
+子问题: Who were the parents of Nannina de' Medici?
+标准答案: Nannina de' Medici's parents were Piero di Cosimo de' Medici and Lucrezia Tornabuoni.
+
+Rate-0.0:
+  预测答案: Piero de' Medici and Lucrezia Tornabuoni
+  正确性: True  |  F1: 0.6286  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Piero de' Medici and Lucrezia Tornabuoni
+  正确性: True  |  F1: 0.6286  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[41] 样本索引: 52
+主问题: What county is the NRHEG High School located in?
+子问题: Where is NRHEG High School located?
+标准答案: NRHEG High School is located in New Richland, Minnesota.
+
+Rate-0.0:
+  预测答案: NRHEG High School is located in New Richland, Minnesota.
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: New Richland, Minnesota
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[42] 样本索引: 53
+主问题: What county is the NRHEG High School located in?
+子问题: Which county is New Richland, Minnesota located in?
+标准答案: New Richland is located in Waseca County, Minnesota.
+
+Rate-0.0:
+  预测答案: Waseca County
+  正确性: True  |  F1: 0.4286  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Waseca County
+  正确性: True  |  F1: 0.4286  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[43] 样本索引: 54
+主问题: Who founded the political party of Dimuthu Bandara Abayakoon?
+子问题: What is the name of the political party of Dimuthu Bandara Abayakoon?
+标准答案: Janatha Vimukthi Peramuna
+
+Rate-0.0:
+  预测答案: Janatha Vimukthi Peramuna
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Janatha Vimukthi Peramuna
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[44] 样本索引: 55
+主问题: Who founded the political party of Dimuthu Bandara Abayakoon?
+子问题: Who founded the Janatha Vimukthi Peramuna political party?
+标准答案: The Janatha Vimukthi Peramuna was founded by Rohana Wijeweera.
+
+Rate-0.0:
+  预测答案: Rohana Wijeweera
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Patabendi Don Jinadasa Nandasiri Wijeweera
+  正确性: True  |  F1: 0.2069  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[45] 样本索引: 56
+主问题: When did military instruction start at the place where Larry Alcala was educated?
+子问题: Where did Larry Alcala study?
+标准答案: Larry Alcala estudió en la Universidad de Filipinas, donde obtuvo un título de Licenciado en Bellas Artes en Pintura.
+
+Rate-0.0:
+  预测答案: University of the Philippines
+  正确性: True  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: University of the Philippines
+  正确性: True  |  F1: 0.0000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[46] 样本索引: 58
+主问题: What county shares a border with Cedar Springs?
+子问题: Where is Cedar Springs located?
+标准答案: Cedar Springs is an unincorporated community in west Falls County, Texas, United States, located on Farm-to-market road #2027.
+
+Rate-0.0:
+  预测答案: Cedar Springs is an unincorporated community in west Falls County, Texas, United States. It is located on Farm-to-market road #2027.
+  正确性: True  |  F1: 0.9630  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Cedar Springs is an unincorporated community in west Falls County, Texas, United States. It is located on Farm-to-market road #2027.
+  正确性: True  |  F1: 0.9630  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[47] 样本索引: 60
+主问题: Bancroft's county borders what county?
+子问题: Where is Bancroft located?
+标准答案: Bancroft is located in Ontario, Canada.
+
+Rate-0.0:
+  预测答案: Bancroft is located in Ontario, Canada.
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Bancroft is located in Ontario, Canada and serves students in the northern portion of Hastings County.
+  正确性: True  |  F1: 0.6429  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[48] 样本索引: 61
+主问题: Bancroft's county borders what county?
+子问题: Which county is Bancroft, Ontario located in?
+标准答案: Bancroft, Ontario is located in Hastings County.
+
+Rate-0.0:
+  预测答案: Hastings County
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Hastings County
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[49] 样本索引: 64
+主问题: Who is the father of Empress Wang's husband?
+子问题: Who was the father of Yang Pu (Emperor Rui of Wu)?
+标准答案: Yang Pu's father was Yang Xingmi, a late-Tang Dynasty warlord and military governor of Huainan Circuit.
+
+Rate-0.0:
+  预测答案: Yang Xingmi
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Yang Xingmi
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[50] 样本索引: 65
+主问题: Who played the king that was king of england in 1951 in the king's speech?
+子问题: Who was the king of England in 1951?
+标准答案: George VI was the King of the United Kingdom in 1951.
+
+Rate-0.0:
+  预测答案: George VI
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: George VI
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[51] 样本索引: 66
+主问题: Who played the king that was king of england in 1951 in the king's speech?
+子问题: Which actor played King George VI in the film 'The King's Speech'?
+标准答案: Colin Firth
+
+Rate-0.0:
+  预测答案: George VI was played by Colin Firth in the film 'The King's Speech'.
+  正确性: True  |  F1: 0.3750  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Colin Firth
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[52] 样本索引: 68
+主问题: When was John's eldest son crowned?
+子问题: When was John's eldest son crowned?
+标准答案: John I of Cyprus (John II of Jerusalem) was crowned on May 11, 1284.
+
+Rate-0.0:
+  预测答案: 1284
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1284
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[53] 样本索引: 69
+主问题: When was John's eldest son crowned?
+子问题: When was John's eldest son crowned?
+标准答案: John I of Cyprus (John II of Jerusalem) was crowned on May 11, 1284.
+
+Rate-0.0:
+  预测答案: 1284
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1284
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[54] 样本索引: 70
+主问题: When was John's eldest son crowned?
+子问题: When was John's eldest son crowned?
+标准答案: John I of Cyprus (John II of Jerusalem) was crowned on May 11, 1284.
+
+Rate-0.0:
+  预测答案: 1284
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1284
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[55] 样本索引: 71
+主问题: What character in A League of their Own was played by the actress who played Thelma in the movie Thelma and Louise?
+子问题: Who played Thelma in Thelma and Louise?
+标准答案: Geena Davis played Thelma in Thelma and Louise.
+
+Rate-0.0:
+  预测答案: Geena Davis
+  正确性: True  |  F1: 0.3529  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Geena Davis
+  正确性: True  |  F1: 0.3529  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[56] 样本索引: 73
+主问题: In A League of Their Own, who played the husband of the actress who played Thelma in Thelma and Louise?
+子问题: Who played Thelma in Thelma and Louise?
+标准答案: Geena Davis played Thelma in Thelma and Louise.
+
+Rate-0.0:
+  预测答案: Geena Davis
+  正确性: True  |  F1: 0.3529  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Geena Davis
+  正确性: True  |  F1: 0.3529  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[57] 样本索引: 75
+主问题: In A League of Their Own, who played the husband of the actress who played Thelma in Thelma and Louise?
+子问题: Who played the husband of Dottie Hinson in the film A League of Their Own?
+标准答案: Bill Pullman played Bob, the husband of Dottie Hinson.
+
+Rate-0.0:
+  预测答案: Bill Pullman
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Bill Pullman
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[58] 样本索引: 76
+主问题: Who is the child of Chiang Hsiao-wen's father?
+子问题: Who is Chiang Hsiao-wen's father?
+标准答案: Chiang Hsiao-wen's father is Chiang Ching-kuo.
+
+Rate-0.0:
+  预测答案: Chiang Ching-kuo
+  正确性: True  |  F1: 0.5556  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Chiang Ching-kuo
+  正确性: True  |  F1: 0.5556  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[59] 样本索引: 77
+主问题: The actor who played Thelma in "Thelma and Louise" also played which character in "A League of Their Own"?
+子问题: Who played Thelma in the movie 'Thelma and Louise'?
+标准答案: Geena Davis played Thelma in the movie 'Thelma & Louise'.
+
+Rate-0.0:
+  预测答案: Geena Davis
+  正确性: True  |  F1: 0.3529  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Geena Davis
+  正确性: True  |  F1: 0.3529  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[60] 样本索引: 80
+主问题: The territory containing Bansaan Island is located at which island?
+子问题: Where is Bansaan Island located?
+标准答案: Bansaan Island is a boomerang-shaped island located off the mid-northern coast of Bohol Island, Philippines, and is part of the municipality of Talibon.
+
+Rate-0.0:
+  预测答案: Bansaan is a boomerang-shaped island located off the mid-northern coast of Bohol Island, in the municipality of Talibon, province.
+  正确性: True  |  F1: 0.8571  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Bansaan is a boomerang-shaped island located off the mid-northern coast of Bohol Island, part of the municipality of Talibon, province.
+  正确性: True  |  F1: 0.9123  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[61] 样本索引: 81
+主问题: In which district was Ernie Watts born?
+子问题: Where was Ernie Watts born?
+标准答案: Woolhampton in Berkshire
+
+Rate-0.0:
+  预测答案: Woolhampton in Berkshire
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Woolhampton in Berkshire
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[62] 样本索引: 82
+主问题: In which county was James Finch born?
+子问题: Where was James Finch born?
+标准答案: Lynn Haven, Florida
+
+Rate-0.0:
+  预测答案: 1950, Lynn Haven, Florida
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1950, Lynn Haven, Florida
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[63] 样本索引: 83
+主问题: In which county was James Finch born?
+子问题: Which county is Lynn Haven, Florida located in?
+标准答案: Bay County
+
+Rate-0.0:
+  预测答案: Bay County
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Bay County
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[64] 样本索引: 84
+主问题: Who was married to the star of No Escape?
+子问题: Who starred in the movie No Escape?
+标准答案: Valerie Hobson, Leslie Perrins, and Robert Cochran starred in the movie No Escape.
+
+Rate-0.0:
+  预测答案: Valerie Hobson, Leslie Perrins and Robert Cochran
+  正确性: True  |  F1: 0.8387  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Valerie Hobson, Leslie Perrins and Robert Cochran
+  正确性: True  |  F1: 0.8387  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[65] 样本索引: 86
+主问题: Who is the other child of Chian Hsiao-chang's father?
+子问题: Who is the father of Chian Hsiao-chang?
+标准答案: Chiang Ching-kuo
+
+Rate-0.0:
+  预测答案: Chiang Ching-kuo
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Chiang Ching-kuo
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[66] 样本索引: 88
+主问题: In which county did Snappy Tomato Pizza form?
+子问题: Where was Snappy Tomato Pizza founded?
+标准答案: Fort Mitchell, Kentucky
+
+Rate-0.0:
+  预测答案: Fort Mitchell, Kentucky
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Fort Mitchell, Kentucky
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[67] 样本索引: 89
+主问题: In which county did Snappy Tomato Pizza form?
+子问题: Which county is Fort Mitchell, Kentucky located in?
+标准答案: Kenton County
+
+Rate-0.0:
+  预测答案: Kenton County
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Kenton County
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[68] 样本索引: 90
+主问题: Where are the headquarters for the publisher of In the Shadow of Greatness?
+子问题: Who is the publisher of In the Shadow of Greatness?
+标准答案: The United States Naval Institute
+
+Rate-0.0:
+  预测答案: United States Naval Institute
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: United States Naval Institute
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[69] 样本索引: 91
+主问题: Where are the headquarters for the publisher of In the Shadow of Greatness?
+子问题: Where are the headquarters of the United States Naval Institute located?
+标准答案: Annapolis, Maryland
+
+Rate-0.0:
+  预测答案: Annapolis, Maryland
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Annapolis, Maryland
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[70] 样本索引: 92
+主问题: What political party was the socialist candidate part of who ran for president in 1912?
+子问题: Who was the socialist candidate in the 1912 US presidential election?
+标准答案: Eugene V. Debs was the Socialist Party candidate in the 1912 US presidential election.
+
+Rate-0.0:
+  预测答案: Eugene V. Debs
+  正确性: True  |  F1: 0.4348  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Eugene V. Debs
+  正确性: True  |  F1: 0.4348  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[71] 样本索引: 94
+主问题: Which county does Lloyd Dane's birthplace belong to?
+子问题: Which county does Eldon, Missouri belong to?
+标准答案: Miller County
+
+Rate-0.0:
+  预测答案: Miller County
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Miller County
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[72] 样本索引: 97
+主问题: Who is part of the band that performed Full Cooperation?
+子问题: Who performed the song Full Cooperation?
+标准答案: The song 'Full Cooperation' was performed by the American hip hop group Def Squad.
+
+Rate-0.0:
+  预测答案: Def Squad
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Def Squad
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[73] 样本索引: 98
+主问题: Who is part of the band that performed Full Cooperation?
+子问题: Who are the members of the American hip hop group Def Squad?
+标准答案: The American hip hop group Def Squad consists of Erick Sermon, Redman, and Keith Murray. Jamal is considered an honorary member.
+
+Rate-0.0:
+  预测答案: Erick Sermon, Redman and Keith Murray
+  正确性: True  |  F1: 0.5625  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Erick Sermon, Redman and Keith Murray
+  正确性: True  |  F1: 0.5625  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[74] 样本索引: 99
+主问题: What film features Anil Devgan's sibling?
+子问题: Who is Anil Devgan's sibling?
+标准答案: Anil Devgan's sibling is Ajay Devgan.
+
+Rate-0.0:
+  预测答案: Ajay Devgan
+  正确性: True  |  F1: 0.4615  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ajay Devgan
+  正确性: True  |  F1: 0.4615  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[75] 样本索引: 101
+主问题: What political party was the candidate who garnered a million votes during the 1920 election despite being in prison, a member of?
+子问题: Who was the candidate that received a million votes in the 1920 election while in prison?
+标准答案: Eugene V. Debs was the Socialist Party candidate who received 913,664 votes in the 1920 election while in prison.
+
+Rate-0.0:
+  预测答案: Eugene V. Debs
+  正确性: True  |  F1: 0.2941  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Eugene V. Debs
+  正确性: True  |  F1: 0.2941  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[76] 样本索引: 102
+主问题: Who was the US physicist who directed the project that developed the first atomic bomb at the same place where Feynman worked on Water Boiler?
+子问题: Where did Richard Feynman work on the Water Boiler reactor?
+标准答案: Richard Feynman worked on the Water Boiler reactor at Los Alamos.
+
+Rate-0.0:
+  预测答案: Los Alamos
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Los Alamos
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[77] 样本索引: 103
+主问题: Who was the US physicist who directed the project that developed the first atomic bomb at the same place where Feynman worked on Water Boiler?
+子问题: Which atomic bomb development project took place at Los Alamos and who was its director?
+标准答案: The Manhattan Project took place at Los Alamos, and its director was Robert Oppenheimer.
+
+Rate-0.0:
+  预测答案: The Manhattan Project was developed at Los Alamos, and its director was Robert Oppenheimer.
+  正确性: True  |  F1: 0.8750  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: The Manhattan Project was developed at Los Alamos and its director was Robert Oppenheimer.
+  正确性: True  |  F1: 0.8750  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[78] 样本索引: 105
+主问题: What award was received by the person who authored Missing Person?
+子问题: What award did Patrick Modiano receive?
+标准答案: Patrick Modiano received the 2014 Nobel Prize in Literature, the 2012 Austrian State Prize for European Literature, the 2010 Prix mondial Cino Del Duca, the 1978 Prix Goncourt, and the 1972 Grand Prix du roman de l'Académie française.
+
+Rate-0.0:
+  预测答案: 2014 Nobel Prize in Literature
+  正确性: True  |  F1: 0.2286  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 2014 Nobel Prize in Literature
+  正确性: True  |  F1: 0.2286  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[79] 样本索引: 108
+主问题: What preity zinta and madhuri dixit movie had a cast member from U Me Aur Hum ?
+子问题: What is the cast list for the movie 'Yeh Raaste Hain Pyaar Ke'?
+标准答案: The cast includes Madhuri Dixit, Ajay Devgn, and Preity Zinta.
+
+Rate-0.0:
+  预测答案: Madhuri Dixit, Ajay Devgn, Preity Zinta, Saurabh Shukla, Mukesh Tiwari, Dev Singh, Gagandeep Singh
+  正确性: True  |  F1: 0.5306  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Madhuri Dixit, Ajay Devgn, Preity Zinta, Saurabh Shukla, Mukesh Tiwari, Dev Singh, Gagandeep Singh
+  正确性: True  |  F1: 0.5306  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[80] 样本索引: 110
+主问题: What political party does the person that Adversary in the House is based on a member of?
+子问题: Who is the book 'Adversary in the House' based on?
+标准答案: The book 'Adversary in the House' is based on the life of Eugene V. Debs and his wife Kate.
+
+Rate-0.0:
+  预测答案: Eugene V. Debs and of his wife Kate
+  正确性: True  |  F1: 0.7333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Eugene V. Debs and of his wife Kate
+  正确性: True  |  F1: 0.7333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[81] 样本索引: 111
+主问题: What political party does the person that Adversary in the House is based on a member of?
+子问题: What political party did Eugene V. Debs belong to?
+标准答案: Eugene V. Debs belonged to the Socialist Party of America.
+
+Rate-0.0:
+  预测答案: Socialist Party of America
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Socialist Party
+  正确性: True  |  F1: 0.1538  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[82] 样本索引: 112
+主问题: What event caused the Liberal Party of Australia's longest-serving leader to become Prime Minister?
+子问题: Who is the longest-serving leader of the Liberal Party of Australia?
+标准答案: Robert Menzies
+
+Rate-0.0:
+  预测答案: Robert Menzies
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Robert Menzies
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[83] 样本索引: 113
+主问题: What event caused the Liberal Party of Australia's longest-serving leader to become Prime Minister?
+子问题: What specific political event or circumstance caused Robert Menzies to become Prime Minister of Australia?
+标准答案: Robert Menzies became Prime Minister following the death of the incumbent Prime Minister, Joseph Lyons, in 1939.
+
+Rate-0.0:
+  预测答案: Menzies became Prime Minister of Australia following the death of Joseph Lyons in 1939, when he assumed the Prime Ministership on the eve of World War II.
+  正确性: True  |  F1: 0.6909  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Menzies became the Prime Minister of Australia on the death of Joseph Lyons in 1939.
+  正确性: True  |  F1: 0.7907  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[84] 样本索引: 114
+主问题: Who founded the publisher of The Final Testament of the Holy Bible?
+子问题: Who is the publisher of The Final Testament of the Holy Bible?
+标准答案: The Final Testament of the Holy Bible was published by Gagosian Gallery.
+
+Rate-0.0:
+  预测答案: Gagosian Gallery
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Gagosian Gallery
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[85] 样本索引: 115
+主问题: Who founded the publisher of The Final Testament of the Holy Bible?
+子问题: Who founded the Gagosian Gallery?
+标准答案: The Gagosian Gallery was founded by Larry Gagosian.
+
+Rate-0.0:
+  预测答案: Larry Gagosian
+  正确性: True  |  F1: 0.5333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Larry Gagosian
+  正确性: True  |  F1: 0.5333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[86] 样本索引: 116
+主问题: The Nicole and Natalie album's band is named after who?
+子问题: What is the name of the band that released the album 'Nicole and Natalie'?
+标准答案: Nina Sky
+
+Rate-0.0:
+  预测答案: Nicole and Natalie is the second studio album by the American female duo Nina Sky.
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Nicole and Natalie is the second studio album by the New York City-based duo Nina Sky.
+  正确性: True  |  F1: 0.2000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[87] 样本索引: 117
+主问题: Of which river is the river Kichi Sipi Bridge crosses a tributary?
+子问题: Which river does the Kichi Sipi Bridge cross?
+标准答案: The Kichi Sipi Bridge crosses the Nelson River.
+
+Rate-0.0:
+  预测答案: The Nelson River
+  正确性: True  |  F1: 0.2000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Nelson River
+  正确性: True  |  F1: 0.2000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[88] 样本索引: 118
+主问题: Of which river is the river Kichi Sipi Bridge crosses a tributary?
+子问题: Into which larger river does the Nelson River flow as a tributary?
+标准答案: The Nelson River flows directly into Hudson Bay, not into a larger river as a tributary.
+
+Rate-0.0:
+  预测答案: The Nelson River flows into the Hudson Bay.
+  正确性: True  |  F1: 0.6087  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Hudson Bay
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[89] 样本索引: 119
+主问题: Who is the child of the actor who is a cast member of Love in Pawn?
+子问题: Who are the cast members of Love in Pawn?
+标准答案: Bernard Braden and Barbara Kelly
+
+Rate-0.0:
+  预测答案: Bernard Braden, Barbara Kelly
+  正确性: True  |  F1: 0.9333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Bernard Braden, Barbara Kelly
+  正确性: True  |  F1: 0.9333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[90] 样本索引: 120
+主问题: Who is the child of the actor who is a cast member of Love in Pawn?
+子问题: Which of the cast members of 'Love in Pawn' (Bernard Braden and Barbara Kelly) are actors?
+标准答案: Both Bernard Braden and Barbara Kelly are actors.
+
+Rate-0.0:
+  预测答案: Bernard Braden and Barbara Kelly are actors.
+  正确性: True  |  F1: 0.9524  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Bernard Braden and Barbara Kelly
+  正确性: True  |  F1: 0.8421  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[91] 样本索引: 124
+主问题: What event caused the founder of Australia's liberal party to become Prime Minister?
+子问题: Who founded the Liberal Party of Australia?
+标准答案: Robert Menzies founded the Liberal Party of Australia.
+
+Rate-0.0:
+  预测答案: Robert Menzies
+  正确性: True  |  F1: 0.6154  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Robert Menzies
+  正确性: True  |  F1: 0.6154  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[92] 样本索引: 126
+主问题: What event caused the founder of Australia's liberal party to become Prime Minister?
+子问题: What specific political event or circumstance led to Robert Menzies first becoming Prime Minister of Australia in 1939?
+标准答案: Robert Menzies first became Prime Minister of Australia in 1939 following the death of the previous Prime Minister, Joseph Lyons.
+
+Rate-0.0:
+  预测答案: Menzies first became Prime Minister of Australia in 1939 following the death of Joseph Lyons, the leader of the United Australia Party (UAP) and Prime Minister at the time.
+  正确性: True  |  F1: 0.7797  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Lyons' death in 1939 saw Robert Menzies assume the Prime Ministership on the eve of war.
+  正确性: True  |  F1: 0.5532  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[93] 样本索引: 128
+主问题: What is the river that the Kettle Generating Station is located on a tributary of?
+子问题: Is the Lower Nelson River a tributary of a larger river system, and if so, which main river does it flow into?
+标准答案: Yes, the Lower Nelson River is part of the Nelson River system, and it flows into Hudson Bay.
+
+Rate-0.0:
+  预测答案: The Lower Nelson River is a tributary of the Nelson River, which flows into Hudson Bay.
+  正确性: True  |  F1: 0.7429  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: The Lower Nelson River is a tributary of the Nelson River, which flows into Hudson Bay.
+  正确性: True  |  F1: 0.7429  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[94] 样本索引: 129
+主问题: Who was the spouse of a leading speaker against slavery and publisher of an antislavery newspaper?
+子问题: Who was a leading speaker against slavery and publisher of an antislavery newspaper?
+标准答案: Frederick Douglass
+
+Rate-0.0:
+  预测答案: Frederick Douglass
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Frederick Douglass
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[95] 样本索引: 131
+主问题: Where is Ulrich Walter's employer headquartered?
+子问题: Who is Ulrich Walter's employer?
+标准答案: Ulrich Walter's employers were the German astronaut team and the German Aerospace Center (DLR).
+
+Rate-0.0:
+  预测答案: German Aerospace Center
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: German Aerospace Center
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[96] 样本索引: 132
+主问题: Who is the city where Lesnoye Sanatorium is located named after?
+子问题: Where is Lesnoye Sanatorium located?
+标准答案: Lesnoye Sanatorium is located in the city of Tolyatti, Russia.
+
+Rate-0.0:
+  预测答案: Tolyatti, Russia
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Tolyatti, Russia
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[97] 样本索引: 133
+主问题: Who is the city where Lesnoye Sanatorium is located named after?
+子问题: Who is the city of Tolyatti named after?
+标准答案: The city of Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.
+
+Rate-0.0:
+  预测答案: Tolyatti is named after Palmiro Togliatti, the longest-serving secretary of the Italian Communist Party.
+  正确性: True  |  F1: 0.8947  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Palmiro Togliatti
+  正确性: True  |  F1: 0.3200  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[98] 样本索引: 134
+主问题: Whom is the birth place of Ravil Aryapov named after?
+子问题: Who is Ravil Aryapov and where was he born?
+标准答案: Ravil Aryapov is a Russian professional football coach and former player. He was born in Stavropol, which is now the city of Tolyatti.
+
+Rate-0.0:
+  预测答案: Ravil Velimukhamedovich Aryapov is a Russian professional football coach and former player. He was born on February 1, 1948 in Stavropol, now Tolyatti.
+  正确性: True  |  F1: 0.6970  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ravil Velimukhamedovich Aryapov is a Russian professional football coach and former player. He was born on February 1, 1948 in Stavropol.
+  正确性: True  |  F1: 0.6129  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[99] 样本索引: 136
+主问题: Who is the city that AvtoVAZ's headquarters is located in named after?
+子问题: In which city is AvtoVAZ's headquarters located?
+标准答案: Tolyatti
+
+Rate-0.0:
+  预测答案: Tolyatti
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Tolyatti
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[100] 样本索引: 138
+主问题: Where was the founder of the National Women's Party born?
+子问题: Who is the founder of the National Women's Party?
+标准答案: Alice Paul
+
+Rate-0.0:
+  预测答案: Alice Paul
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Alice Paul
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[101] 样本索引: 139
+主问题: Where was the founder of the National Women's Party born?
+子问题: Where was Alice Paul born?
+标准答案: Mount Laurel Township, New Jersey.
+
+Rate-0.0:
+  预测答案: Paulsdale, in Mount Laurel Township, New Jersey
+  正确性: True  |  F1: 0.7143  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Paulsdale, in Mount Laurel Township, New Jersey
+  正确性: True  |  F1: 0.7143  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[102] 样本索引: 140
+主问题: What administrative territorial entity is the owner of Ciudad Deportiva located?
+子问题: Where is Ciudad Deportiva located?
+标准答案: Ciudad Deportiva is located in Nuevo Laredo, Mexico.
+
+Rate-0.0:
+  预测答案: Ciudad Deportiva is located in Nuevo Laredo, Mexico.
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Ciudad Deportiva is located in Nuevo Laredo, Mexico.
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[103] 样本索引: 141
+主问题: What administrative territorial entity is the owner of Ciudad Deportiva located?
+子问题: What administrative territorial entity owns the Ciudad Deportiva sports complex in Nuevo Laredo, Mexico?
+标准答案: The Ciudad Deportiva sports complex is owned by the Nuevo Laredo Municipality.
+
+Rate-0.0:
+  预测答案: Ciudad Deportiva is owned by the city of Nuevo Laredo. However, since the question asks for the administrative territorial entity, the correct answer would be the Municipality of Nuevo Laredo.
+  正确性: True  |  F1: 0.5116  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: The Municipality of Nuevo Laredo
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[104] 样本索引: 143
+主问题: Who founded the company that distributed the film UHF?
+子问题: Who founded Orion Pictures?
+标准答案: Morris Mike Medavoy was a co-founder of Orion Pictures.
+
+Rate-0.0:
+  预测答案: Morris Mike Medavoy
+  正确性: True  |  F1: 0.5882  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Morris Mike Medavoy
+  正确性: True  |  F1: 0.5882  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[105] 样本索引: 144
+主问题: What is the place of birth of the person who submitted the first version of the equal rights amendment to congress in 1923?
+子问题: Who submitted the first version of the Equal Rights Amendment to Congress in 1923?
+标准答案: Alice Paul, the head of the National Women's Party, revised the proposed Equal Rights Amendment in 1923.
+
+Rate-0.0:
+  预测答案: Alice Paul
+  正确性: True  |  F1: 0.1111  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Alice Paul
+  正确性: True  |  F1: 0.1111  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[106] 样本索引: 145
+主问题: What is the place of birth of the person who submitted the first version of the equal rights amendment to congress in 1923?
+子问题: What is the place of birth of Alice Paul?
+标准答案: Paulsdale, Mount Laurel Township, New Jersey
+
+Rate-0.0:
+  预测答案: Paulsdale, in Mount Laurel Township, New Jersey
+  正确性: True  |  F1: 0.9412  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Paulsdale, in Mount Laurel Township, New Jersey
+  正确性: True  |  F1: 0.9412  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[107] 样本索引: 146
+主问题: Since 2004, what is the location of the body to which, if a matter is not specifically reserved, it is devolved?
+子问题: What is the location of the devolved body responsible for non-reserved matters since 2004?
+标准答案: The devolved body is the Scottish Parliament, located in the Holyrood area of Edinburgh since September 2004.
+
+Rate-0.0:
+  预测答案: Holyrood area of Edinburgh
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Holyrood area of Edinburgh
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[108] 样本索引: 148
+主问题: When did the person who first brought a postal service into Umayyad lands become caliph?
+子问题: When did Mu'awiyah become caliph of the Umayyad Caliphate?
+标准答案: Mu'awiyah became caliph in 661 CE.
+
+Rate-0.0:
+  预测答案: 661
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 661
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[109] 样本索引: 149
+主问题: This is an instance of who was named commander in chief of texas forces by the new national government of texas National Forest?
+子问题: Who was named commander in chief of Texas forces by the new national government of Texas?
+标准答案: Sam Houston was named commander in chief of the Texas forces by the new national government of Texas.
+
+Rate-0.0:
+  预测答案: Sam Houston
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Sam Houston
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[110] 样本索引: 150
+主问题: What university did the author of The Secret World of Og go to?
+子问题: Who is the author of The Secret World of Og?
+标准答案: Pierre Berton
+
+Rate-0.0:
+  预测答案: Pierre Berton
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Pierre Berton
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[111] 样本索引: 151
+主问题: What university did the author of The Secret World of Og go to?
+子问题: Which university did Pierre Berton attend?
+标准答案: Pierre Berton attended the University of British Columbia.
+
+Rate-0.0:
+  预测答案: University of British Columbia
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: University of British Columbia
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[112] 样本索引: 152
+主问题: Who is the child of Caroline LeRoy's spouse?
+子问题: Who is Caroline LeRoy's spouse?
+标准答案: Daniel Webster
+
+Rate-0.0:
+  预测答案: 19th Century statesman Daniel Webster.
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 19th Century statesman Daniel Webster
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[113] 样本索引: 155
+主问题: Where was the person featured on the Chester Arthur coin born?
+子问题: Where was suffragette Alice Paul born?
+标准答案: Alice Paul was born in Paulsdale, Mount Laurel Township, New Jersey.
+
+Rate-0.0:
+  预测答案: Paulsdale, in Mount Laurel Township, New Jersey
+  正确性: True  |  F1: 0.7619  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Paulsdale, in Mount Laurel Township, New Jersey
+  正确性: True  |  F1: 0.7619  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[114] 样本索引: 156
+主问题: Where did the author of The National Dream go to university?
+子问题: Who is the author of The National Dream?
+标准答案: Pierre Berton
+
+Rate-0.0:
+  预测答案: Pierre Berton
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Pierre Berton
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[115] 样本索引: 157
+主问题: Where did the author of The National Dream go to university?
+子问题: Where did Pierre Berton go to university?
+标准答案: Pierre Berton estudió en la Universidad de British Columbia.
+
+Rate-0.0:
+  预测答案: University of British Columbia
+  正确性: True  |  F1: 0.3158  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: University of British Columbia
+  正确性: True  |  F1: 0.3158  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[116] 样本索引: 158
+主问题: What type of animal is Xiao Liwu's mother?
+子问题: What is Xiao Liwu?
+标准答案: Xiao Liwu is a giant panda, the sixth cub born to his mother Bai Yun and the fifth for his father Gao Gao at the San Diego Zoo.
+
+Rate-0.0:
+  预测答案: Xiao Liwu is a giant panda cub.
+  正确性: True  |  F1: 0.3784  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Xiao Liwu is the sixth cub born to his mother Bai Yun, and the fifth for his father Gao Gao. He has one half-sister, Hua Mei, through Bai Yun. He also has two full brothers, Mei Sheng and Yun Zi, and two full sisters, Su Lin and Zhen Zhen. Like his full siblings, he was conceived via natural mating.
+  正确性: True  |  F1: 0.4466  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[117] 样本索引: 159
+主问题: What university did the author of 1967: The Last Good Year attend?
+子问题: Who is the author of the book '1967: The Last Good Year'?
+标准答案: Pierre Berton
+
+Rate-0.0:
+  预测答案: 1967: The Last Good Year is authored by Pierre Berton, a Canadian author.
+  正确性: True  |  F1: 0.2222  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Pierre Berton
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[118] 样本索引: 160
+主问题: What university did the author of 1967: The Last Good Year attend?
+子问题: Which university did Pierre Berton attend?
+标准答案: Pierre Berton attended the University of British Columbia.
+
+Rate-0.0:
+  预测答案: University of British Columbia
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: University of British Columbia
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[119] 样本索引: 162
+主问题: The Directory of Public Worship was approved by a parliament whose modern equivalent has been based where since 2004?
+子问题: Which parliament approved the Directory of Public Worship?
+标准答案: The Scottish Parliament approved the Directory of Public Worship.
+
+Rate-0.0:
+  预测答案: Scottish Parliament
+  正确性: True  |  F1: 0.5455  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Scottish Parliament
+  正确性: True  |  F1: 0.5455  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[120] 样本索引: 163
+主问题: The Directory of Public Worship was approved by a parliament whose modern equivalent has been based where since 2004?
+子问题: Where has the modern Scottish Parliament been based since 2004?
+标准答案: The modern Scottish Parliament has been based in the new Scottish Parliament Building in the Holyrood area of Edinburgh since September 2004.
+
+Rate-0.0:
+  预测答案: Holyrood area of Edinburgh
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Holyrood area of Edinburgh
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[121] 样本索引: 164
+主问题: What city is located in the county containing Qiantong?
+子问题: Which county contains Qiantong?
+标准答案: Qiantong is located in Ninghai County.
+
+Rate-0.0:
+  预测答案: Ninghai County
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ninghai County
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[122] 样本索引: 165
+主问题: What city is located in the county containing Qiantong?
+子问题: What city is located in Ninghai County?
+标准答案: Qiantong is a town located in Ninghai County.
+
+Rate-0.0:
+  预测答案: Qiantong
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Qiantong
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[123] 样本索引: 166
+主问题: What city is located in the county containing Qiantong?
+子问题: What cities are located within Ninghai County, Zhejiang province?
+标准答案: The town of Qiantong is located within Ninghai County, Zhejiang province.
+
+Rate-0.0:
+  预测答案: Qiantong, Ninghai County, Zhejiang province. Ninghai County, Zhejiang province.
+  正确性: True  |  F1: 0.6000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Qiantong, Ninghai County, Zhejiang province.
+  正确性: True  |  F1: 0.7826  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[124] 样本索引: 167
+主问题: What city is located in the county containing Qiantong?
+子问题: What cities are located in Ninghai County, Zhejiang province?
+标准答案: Qiantong is a town located in Ninghai County, Zhejiang province.
+
+Rate-0.0:
+  预测答案: Qiantong
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Qiantong, Ninghai County, Zhejiang province
+  正确性: True  |  F1: 0.8182  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[125] 样本索引: 168
+主问题: What pantheon is the God of the underworld in ancient Egypt a part of?
+子问题: Who is the god of the underworld in ancient Egyptian mythology?
+标准答案: Osiris is the god of the underworld in ancient Egyptian mythology.
+
+Rate-0.0:
+  预测答案: Osiris
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Osiris
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[126] 样本索引: 171
+主问题: In which district was Alhandra born?
+子问题: Who is Alhandra?
+标准答案: Alhandra is the nickname for Luís Miguel Assunção Joaquim, a Portuguese retired footballer who played mainly as a left back but could also appear as a midfielder. He was born on 5 March 1979 in Vila Franca de Xira, Lisbon.
+
+Rate-0.0:
+  预测答案: Luís Miguel Assunção Joaquim (born 5 March 1979 in Vila Franca de Xira, Lisbon), known as Alhandra, is a Portuguese retired footballer who played mainly as a left back – he could also appear as a midfielder.
+  正确性: True  |  F1: 0.9057  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Luís Miguel Assunção Joaquim
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[127] 样本索引: 172
+主问题: What recognition did the actor of Truman Capote from Capote receive?
+子问题: Who played Truman Capote in the movie Capote?
+标准答案: Philip Seymour Hoffman played Truman Capote in the movie 'Capote'.
+
+Rate-0.0:
+  预测答案: Philip Seymour Hoffman
+  正确性: True  |  F1: 0.6087  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Philip Seymour Hoffman
+  正确性: True  |  F1: 0.6087  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[128] 样本索引: 173
+主问题: In which borough was Callum McManaman born?
+子问题: Callum McManaman birthplace
+标准答案: Whiston, Merseyside
+
+Rate-0.0:
+  预测答案: Whiston, Merseyside
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Whiston, Merseyside
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[129] 样本索引: 176
+主问题: What is the record label of the Metalworks Studio founder?
+子问题: Who is the founder of Metalworks Studio?
+标准答案: Gil Moore
+
+Rate-0.0:
+  预测答案: Gil Moore
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Gil Moore
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[130] 样本索引: 177
+主问题: What is the record label of the Metalworks Studio founder?
+子问题: What record label is Gil Moore associated with?
+标准答案: Gil Moore is associated with the record label TRC (later renamed TML Entertainment).
+
+Rate-0.0:
+  预测答案: TML Entertainment
+  正确性: True  |  F1: 0.1333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: TML Entertainment
+  正确性: True  |  F1: 0.1333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[131] 样本索引: 178
+主问题: What is the goal of the group that European Movement Germany is a member of?
+子问题: Which group is European Movement Germany a member of?
+标准答案: European Movement Germany is a member of the European Movement International.
+
+Rate-0.0:
+  预测答案: European Movement International
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: European Movement International
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[132] 样本索引: 179
+主问题: What is the goal of the group that European Movement Germany is a member of?
+子问题: What is the goal or mission of the European Movement International?
+标准答案: The goal of the European Movement International is to promote European integration and disseminate information about it.
+
+Rate-0.0:
+  预测答案: promoting European integration, and disseminating information about it
+  正确性: True  |  F1: 0.5833  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: promoting European integration, and disseminating information about it
+  正确性: True  |  F1: 0.5833  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[133] 样本索引: 180
+主问题: The city which contains Broadhurst Park shares a border with what town?
+子问题: Which city contains Broadhurst Park?
+标准答案: Moston, Manchester, England
+
+Rate-0.0:
+  预测答案: Manchester
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Manchester
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[134] 样本索引: 182
+主问题: In which state is Vera Barbosa's place of birth located?
+子问题: What is Vera Barbosa's place of birth?
+标准答案: Vila Franca de Xira, Portugal
+
+Rate-0.0:
+  预测答案: 13 January 1989 in Vila Franca de Xira
+  正确性: True  |  F1: 0.4545  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 13 January 1989 in Vila Franca de Xira
+  正确性: True  |  F1: 0.4545  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[135] 样本索引: 183
+主问题: In which state is Vera Barbosa's place of birth located?
+子问题: In which state is Vila Franca de Xira, Portugal located?
+标准答案: Vila Franca de Xira is located in the Lisbon District of Portugal.
+
+Rate-0.0:
+  预测答案: Lisbon District
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Lisbon District
+  正确性: True  |  F1: 0.2500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[136] 样本索引: 184
+主问题: What company succeeded the owner of Empire Sports Network?
+子问题: Who owned Empire Sports Network?
+标准答案: Empire Sports Network was owned by the Adelphia Communications Corporation.
+
+Rate-0.0:
+  预测答案: Adelphia Communications Corporation
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Adelphia Communications Corporation
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[137] 样本索引: 186
+主问题: What is the mouth of watercourse for the body of water where Bartram's Covered Bridge is located?
+子问题: What body of water is Bartram's Covered Bridge located on?
+标准答案: Crum Creek
+
+Rate-0.0:
+  预测答案: Crum Creek
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Crum Creek
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[138] 样本索引: 187
+主问题: What is the mouth of watercourse for the body of water where Bartram's Covered Bridge is located?
+子问题: What watercourse does Crum Creek flow into?
+标准答案: Crum Creek flows into the Delaware River.
+
+Rate-0.0:
+  预测答案: the Delaware River
+  正确性: True  |  F1: 0.4444  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Delaware River
+  正确性: True  |  F1: 0.4444  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[139] 样本索引: 188
+主问题: What is the ruler of the underworld in ancient Egypt a part of?
+子问题: Who is the ruler of the underworld in ancient Egyptian mythology?
+标准答案: Osiris is the ruler of the underworld in ancient Egyptian mythology.
+
+Rate-0.0:
+  预测答案: Osiris
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Osiris
+  正确性: True  |  F1: 0.1667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[140] 样本索引: 189
+主问题: What is the ruler of the underworld in ancient Egypt a part of?
+子问题: What broader mythological system, pantheon, or conceptual framework is Osiris a part of in ancient Egyptian religion?
+标准答案: Osiris is a part of the ancient Egyptian mythological system and pantheon of deities.
+
+Rate-0.0:
+  预测答案: Ancient Egyptian religion
+  正确性: True  |  F1: 0.2727  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ancient Egyptian religion
+  正确性: True  |  F1: 0.2727  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[141] 样本索引: 190
+主问题: What other county does the county where Imperial is located share a border with?
+子问题: In which county is Imperial located?
+标准答案: Imperial is located in Pecos County, Texas.
+
+Rate-0.0:
+  预测答案: Pecos County
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Imperial is a census-designated place in Pecos County, Texas, United States.
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[142] 样本索引: 192
+主问题: In which state is Póvoa de Santa Iria's municipality located?
+子问题: What is the municipality of Póvoa de Santa Iria?
+标准答案: Vila Franca de Xira
+
+Rate-0.0:
+  预测答案: Póvoa de Santa Iria is a civil parish in the municipality of Vila Franca de Xira, Portugal.
+  正确性: True  |  F1: 0.3846  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Póvoa de Santa Iria is a civil parish in the municipality of Vila Franca de Xira, Portugal.
+  正确性: True  |  F1: 0.3846  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[143] 样本索引: 193
+主问题: In which state is Póvoa de Santa Iria's municipality located?
+子问题: In which district is the municipality of Vila Franca de Xira located?
+标准答案: Lisbon District
+
+Rate-0.0:
+  预测答案: Lisbon District
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Lisbon District
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[144] 样本索引: 194
+主问题: What is a notable work written by the author of The Timothy files?
+子问题: Who is the author of The Timothy Files?
+标准答案: Lawrence Sanders
+
+Rate-0.0:
+  预测答案: Lawrence Sanders
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Lawrence Sanders
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[145] 样本索引: 195
+主问题: What is a notable work written by the author of The Timothy files?
+子问题: What is a notable work written by Lawrence Sanders?
+标准答案: A notable work written by Lawrence Sanders is 'The Anderson Tapes', his debut crime fiction novel published in 1970 that won the Edgar Award for best first mystery novel. Another notable work is 'The Timothy Files', a 1987 bestselling fiction collection.
+
+Rate-0.0:
+  预测答案: The Timothy Files
+  正确性: True  |  F1: 0.0784  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: The Anderson Tapes
+  正确性: True  |  F1: 0.0784  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[146] 样本索引: 197
+主问题: In what county is William W. Blair's birthplace located?
+子问题: In what county is Holley, New York located?
+标准答案: Holley, New York is located in Orleans County.
+
+Rate-0.0:
+  预测答案: Orleans County
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Orleans County
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[147] 样本索引: 199
+主问题: How old was Mary when engaged to the person from whom São José dos Campos takes it's name?
+子问题: How old was Mary when she was engaged to Joseph according to historical or biblical records?
+标准答案: According to apocryphal accounts, Mary was 12–14 years old when she was engaged to Joseph.
+
+Rate-0.0:
+  预测答案: 12–14 years old
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 12–14 years old
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[148] 样本索引: 200
+主问题: What was the old show that was named after a character that Walt Disney created in 1928 called?
+子问题: What is the name of the old show named after Mickey Mouse?
+标准答案: The Mickey Mouse Club
+
+Rate-0.0:
+  预测答案: The Mickey Mouse Club
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: The Mickey Mouse Club
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[149] 样本索引: 201
+主问题: Where is the country with ISO code ISO 3166-2:CV located?
+子问题: What country has the ISO 3166-1 alpha-2 code CV?
+标准答案: Cabo Verde
+
+Rate-0.0:
+  预测答案: Cabo Verde
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Cabo Verde
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[150] 样本索引: 202
+主问题: Where is the country with ISO code ISO 3166-2:CV located?
+子问题: Where is Cabo Verde located geographically?
+标准答案: Cabo Verde is an island country located in the central Atlantic Ocean, approximately 570 kilometers (350 miles) west of the Cape Verde Peninsula off the coast of Northwest Africa.
+
+Rate-0.0:
+  预测答案: 570 kilometres (350 mi) west of the Cape Verde Peninsula off the coast of Northwest Africa
+  正确性: True  |  F1: 0.6400  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 570 kilometres (350 mi) west of the Cape Verde Peninsula off the coast of Northwest Africa
+  正确性: True  |  F1: 0.6400  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[151] 样本索引: 203
+主问题: What award did the author of The Red Tree receive?
+子问题: Who is the author of The Red Tree?
+标准答案: Shaun Tan
+
+Rate-0.0:
+  预测答案: Shaun Tan
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Shaun Tan
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[152] 样本索引: 205
+主问题: What was the show named after the character featured in the video game Mickey's Safari in Letterland?
+子问题: What character is featured in the video game Mickey's Safari in Letterland?
+标准答案: Mickey Mouse
+
+Rate-0.0:
+  预测答案: Mickey Mouse
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Mickey Mouse
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[153] 样本索引: 206
+主问题: What was the show named after the character featured in the video game Mickey's Safari in Letterland?
+子问题: What television show is named after the character Mickey Mouse?
+标准答案: The Mickey Mouse Club
+
+Rate-0.0:
+  预测答案: The Mickey Mouse Club
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: The Mickey Mouse Club
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[154] 样本索引: 207
+主问题: In which county is Southern Maryland Electric Cooperative headquartered?
+子问题: Where is the headquarters of Southern Maryland Electric Cooperative?
+标准答案: The headquarters of Southern Maryland Electric Cooperative is in Hughesville, Maryland.
+
+Rate-0.0:
+  预测答案: Hughesville, Maryland
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Hughesville, Maryland
+  正确性: True  |  F1: 0.5000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[155] 样本索引: 208
+主问题: Where is Amílcar Cabral International Airport?
+子问题: Amílcar Cabral International Airport location
+标准答案: Amílcar Cabral International Airport is located two km west-southwest from Espargos on Sal Island.
+
+Rate-0.0:
+  预测答案: 2 km west-southwest from Espargos on Sal Island
+  正确性: True  |  F1: 0.6875  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 2 km west-southwest from Espargos on Sal Island
+  正确性: True  |  F1: 0.6875  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[156] 样本索引: 209
+主问题: Where was the author of Hannibal and Scipio educated at?
+子问题: Who is the author of the book 'Hannibal and Scipio'?
+标准答案: Thomas Nabbes
+
+Rate-0.0:
+  预测答案: Thomas Nabbes
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Thomas Nabbes
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[157] 样本索引: 210
+主问题: Where was the author of Hannibal and Scipio educated at?
+子问题: Where was Thomas Nabbes educated?
+标准答案: Thomas Nabbes was educated at Exeter College, Oxford in 1621.
+
+Rate-0.0:
+  预测答案: Exeter College, Oxford
+  正确性: True  |  F1: 0.3810  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Exeter College, Oxford
+  正确性: True  |  F1: 0.3810  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[158] 样本索引: 212
+主问题: Where was Tyler MacDuff's child educated?
+子问题: Where was Dana MacDuff educated?
+标准答案: He graduated from Blair International Baccalaureate School in Pasadena.
+
+Rate-0.0:
+  预测答案: 1972 graduate of Blair High School
+  正确性: True  |  F1: 0.2609  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Pasadena, California
+  正确性: True  |  F1: 0.1250  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[159] 样本索引: 213
+主问题: In which county is Kimbrough Memorial Stadium located?
+子问题: In which city is Kimbrough Memorial Stadium located?
+标准答案: Canyon, Texas
+
+Rate-0.0:
+  预测答案: Canyon
+  正确性: True  |  F1: 0.8000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Canyon
+  正确性: True  |  F1: 0.8000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[160] 样本索引: 214
+主问题: In which county is Kimbrough Memorial Stadium located?
+子问题: Which county is Canyon, Texas located in?
+标准答案: Canyon, Texas is located in Randall County.
+
+Rate-0.0:
+  预测答案: Randall County
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Randall County
+  正确性: True  |  F1: 0.3636  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[161] 样本索引: 215
+主问题: What military overran much of Erich Zakowski's place of birth?
+子问题: Where was Erich Zakowski born?
+标准答案: Erich Zakowski was born in East Prussia.
+
+Rate-0.0:
+  预测答案: 东普鲁士
+  正确性: True  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 25 November 1934 in East Prussia
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[162] 样本索引: 216
+主问题: What military overran much of Erich Zakowski's place of birth?
+子问题: Which military force overran much of East Prussia during World War II?
+标准答案: The Soviet Union overran much of East Prussia during World War II.
+
+Rate-0.0:
+  预测答案: Soviet Union
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Soviet Union
+  正确性: True  |  F1: 0.2667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[163] 样本索引: 218
+主问题: The 1967 Federation Cup is an instance of this tournament which is named after what organization?
+子问题: Which organization is the Federation Cup in women's tennis named after?
+标准答案: The International Tennis Federation (ITF)
+
+Rate-0.0:
+  预测答案: International Tennis Federation (ITF)
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: International Tennis Federation (ITF)
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[164] 样本索引: 219
+主问题: What is another notable work made by the author of Miss Sara Sampson?
+子问题: What are notable works by Gotthold Ephraim Lessing?
+标准答案: Notable works by Gotthold Ephraim Lessing include the plays 'Emilia Galotti', a classic bourgeois tragedy, and 'Miss Sara Sampson', considered one of the first bourgeois tragedies.
+
+Rate-0.0:
+  预测答案: Emilia Galotti, Miss Sara Sampson
+  正确性: True  |  F1: 0.3902  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Emilia Galotti, Miss Sara Sampson
+  正确性: True  |  F1: 0.3902  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[165] 样本索引: 220
+主问题: What record label is the performer of Almost Made Ya signed to?
+子问题: Who is the performer of the song Almost Made Ya?
+标准答案: The performers of the song 'Almost Made Ya' are the duo Ali & Gipp, featuring LeToya Luckett.
+
+Rate-0.0:
+  预测答案: Ali & Gipp
+  正确性: True  |  F1: 0.2105  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Ali & Gipp
+  正确性: True  |  F1: 0.2105  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[166] 样本索引: 222
+主问题: According to the agency that published U.S. and World Population Clock, what is the total area in square miles?
+子问题: Which agency publishes the U.S. and World Population Clock?
+标准答案: The United States Census Bureau publishes the U.S. and World Population Clock.
+
+Rate-0.0:
+  预测答案: United States Census Bureau
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: United States Census Bureau
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[167] 样本索引: 223
+主问题: According to the agency that published U.S. and World Population Clock, what is the total area in square miles?
+子问题: What total area in square miles does the United States Census Bureau report?
+标准答案: 3.8 million square miles
+
+Rate-0.0:
+  预测答案: 3.8 million square miles
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: 3.8 million square miles (9.8 million km2)
+  正确性: True  |  F1: 0.5714  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[168] 样本索引: 224
+主问题: According to the developer of Topologically Integrated Geographic Encoding and Referencing, what is the total area of Atlantic City in square miles?
+子问题: What is the total area of Atlantic City in square miles according to TIGER?
+标准答案: The total area of Atlantic City is 17.037 square miles.
+
+Rate-0.0:
+  预测答案: 17.037 square miles
+  正确性: True  |  F1: 0.6000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 17.037
+  正确性: True  |  F1: 0.4444  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[169] 样本索引: 225
+主问题: Who is the child of Sigrid Eskilsdotter's child?
+子问题: Who is the child of Sigrid Eskilsdotter?
+标准答案: Christina Gyllenstierna
+
+Rate-0.0:
+  预测答案: Christina Gyllenstierna
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Christina Gyllenstierna
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[170] 样本索引: 227
+主问题: Who is the child of the Victim of Romance performer?
+子问题: Who performed the song 'Victim of Romance'?
+标准答案: Michelle Phillips
+
+Rate-0.0:
+  预测答案: Michelle Phillips
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Michelle Phillips
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[171] 样本索引: 229
+主问题: What happened to the Curonians who lived in the area where Erich Zakowski was born?
+子问题: Where was Erich Zakowski born?
+标准答案: Erich Zakowski was born in East Prussia.
+
+Rate-0.0:
+  预测答案: 东普鲁士
+  正确性: True  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 25 November 1934 in East Prussia
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[172] 样本索引: 232
+主问题: What is the competition that the 1965 Federation Cup is part of named after?
+子问题: What is the Fed Cup (formerly Federation Cup) tennis competition named after?
+标准答案: The Fed Cup (formerly the Federation Cup) is named in honor of the 50th anniversary of the International Tennis Federation (ITF).
+
+Rate-0.0:
+  预测答案: International Tennis Federation (ITF)
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: International Tennis Federation (ITF)
+  正确性: True  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[173] 样本索引: 233
+主问题: What county was Tim Dubois born in?
+子问题: Where was Tim Dubois born?
+标准答案: Tim DuBois was born in Southwest City, Missouri.
+
+Rate-0.0:
+  预测答案: Southwest City, Missouri
+  正确性: True  |  F1: 0.4615  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Southwest City, Missouri
+  正确性: True  |  F1: 0.4615  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[174] 样本索引: 234
+主问题: What county was Tim Dubois born in?
+子问题: What county is Southwest City, Missouri located in?
+标准答案: Southwest City is located in McDonald County, Missouri.
+
+Rate-0.0:
+  预测答案: McDonald County
+  正确性: True  |  F1: 0.4286  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: McDonald County
+  正确性: True  |  F1: 0.4286  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[175] 样本索引: 235
+主问题: Who is the father of the performer of Qui de noux deux?
+子问题: Who performed the song 'Qui de nous deux'?
+标准答案: Matthieu Chedid, in his persona as -M-.
+
+Rate-0.0:
+  预测答案: Matthieu Chedid
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Matthieu Chedid
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[176] 样本索引: 236
+主问题: What record label did the person who is part of The Bruce Lee Band start?
+子问题: Who are the members of The Bruce Lee Band?
+标准答案: The Bruce Lee Band is Mike Park and his backing band, which has included members from Less Than Jake and the Rx Bandits.
+
+Rate-0.0:
+  预测答案: Mike Park and his backing band, which has included Less Than Jake and the Rx Bandits.
+  正确性: True  |  F1: 0.8000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Mike Park and his backing band, which has included Less Than Jake and the Rx Bandits.
+  正确性: True  |  F1: 0.8000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[177] 样本索引: 239
+主问题: Who is the father of the performer of Je dis aime?
+子问题: Who is the father of Matthieu Chedid?
+标准答案: Louis Chedid
+
+Rate-0.0:
+  预测答案: Louis Chedid
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Louis Chedid
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[178] 样本索引: 240
+主问题: Who is the father of the Labo M performer?
+子问题: What is Labo M?
+标准答案: Labo M is the third studio album by French singer-songwriter Matthieu Chedid (under his persona -M-). It is an all-instrumental work released in 2003.
+
+Rate-0.0:
+  预测答案: Labo M is the third studio album by French singer-songwriter Matthieu Chedid in his persona as -M-.
+  正确性: True  |  F1: 0.7500  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Labo M is the third studio album by French singer-songwriter Matthieu Chedid in his persona as -M-.
+  正确性: True  |  F1: 0.7500  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[179] 样本索引: 241
+主问题: Who is the father of the Labo M performer?
+子问题: Who is the father of French singer-songwriter Matthieu Chedid?
+标准答案: Louis Chedid
+
+Rate-0.0:
+  预测答案: Louis Chedid
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+Rate-0.5:
+  预测答案: Louis Chedid
+  正确性: True  |  F1: 1.0000  |  EM: 1.0000
+
+----------------------------------------------------------------------------------------------------
+
+[180] 样本索引: 243
+主问题: Where did the producer of Julius Caesar study or work?
+子问题: Where did John Houseman study or work?
+标准答案: John Houseman was educated at Clifton College in England and worked in the grain trade in London.
+
+Rate-0.0:
+  预测答案: Houseman was educated in England at Clifton College, became a British subject, and worked in the grain trade in London before emigrating to the United States in 1925.
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: John Houseman studied in England at Clifton College and worked in the grain trade in London before emigrating to the United States in 1925.
+  正确性: True  |  F1: 0.6667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[181] 样本索引: 245
+主问题: What is the competition the 1972 Federation Cup is part of named after?
+子问题: What is the Federation Cup in women's tennis named after?
+标准答案: The Federation Cup was named in honor of the International Tennis Federation (ITF), as it was launched to celebrate the ITF's 50th anniversary.
+
+Rate-0.0:
+  预测答案: the International Tennis Federation (ITF)
+  正确性: True  |  F1: 0.2759  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: International Tennis Federation (ITF)
+  正确性: True  |  F1: 0.2759  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[182] 样本索引: 246
+主问题: What is the seat of the county where Van Hook Township is located?
+子问题: In which county is Van Hook Township located?
+标准答案: Van Hook Township is located in Mountrail County, North Dakota.
+
+Rate-0.0:
+  预测答案: Mountrail County
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Mountrail County
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[183] 样本索引: 247
+主问题: What is the seat of the county where Van Hook Township is located?
+子问题: What is the county seat of Mountrail County, North Dakota?
+标准答案: Stanley, North Dakota
+
+Rate-0.0:
+  预测答案: Stanley
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Stanley
+  正确性: True  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[184] 样本索引: 248
+主问题: Where did the producer of On Dangerous Ground study or work?
+子问题: Who produced the film On Dangerous Ground?
+标准答案: John Houseman produced the 1951 film 'On Dangerous Ground'.
+
+Rate-0.0:
+  预测答案: John Houseman
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: John Houseman
+  正确性: True  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+
+====================================================================================================
+都答错 (21 个样本)
+====================================================================================================
+
+[1] 样本索引: 6
+主问题: When was the sibling of Alice de Lusignan, Countess of Surrey crowned?
+子问题: When was King Henry III of England crowned?
+标准答案: Henry III was first crowned in 1216 at Gloucester Cathedral and had a second coronation on 17 May 1220 at Westminster Abbey.
+
+Rate-0.0:
+  预测答案: 1066
+  正确性: False  |  F1: 0.1026  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: 1220
+  正确性: False  |  F1: 0.1538  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[2] 样本索引: 23
+主问题: What is the capital of the county that Pine Springs is located in?
+子问题: What is the county seat of Culberson County, Texas?
+标准答案: Van Horn
+
+Rate-0.0:
+  预测答案: Pine Springs
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Pine Springs
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[3] 样本索引: 39
+主问题: What place does the administrative territorial entity that Juba is located in share a border with?
+子问题: What places share a border with Central Equatoria?
+标准答案: Eastern Equatoria shares a border with Central Equatoria.
+
+Rate-0.0:
+  预测答案: Jimma Arjo, Enemorina Eaner, Sodo, Geta, Hadiya Zone, Illubabor Zone, Diga Leka, Nunu Kumba, Central Equatoria states, Oromia Region, Silt'e Zone, Gedeb Asasa, Shabelle River, Didessa River share a border with Central Equatoria.
+  正确性: False  |  F1: 0.2121  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Badigeru Swamp, Terekeka, Lafon, and Gera woreda share a border with Central Equatoria.
+  正确性: False  |  F1: 0.3333  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[4] 样本索引: 51
+主问题: Who was the sibling of Nannina de' Medici?
+子问题: Based on Nannina de' Medici's parents Piero di Cosimo de' Medici and Lucrezia Tornabuoni, who were her siblings?
+标准答案: Nannina de' Medici's siblings were Lorenzo de' Medici and Giuliano de' Medici.
+
+Rate-0.0:
+  预测答案: Lorenzo de' Medici
+  正确性: False  |  F1: 0.3200  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Lorenzo de' Medici
+  正确性: False  |  F1: 0.3200  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[5] 样本索引: 62
+主问题: Bancroft's county borders what county?
+子问题: Which counties border Hastings County in Ontario?
+标准答案: Renfrew County and Haliburton County border Hastings County in Ontario.
+
+Rate-0.0:
+  预测答案: Renfrew County and Hastings County border themselves, and Haliburton County borders Hastings County in Ontario.
+  正确性: False  |  F1: 0.8333  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Wellington, Renfrew, and Haliburton counties border Hastings County in Ontario.
+  正确性: False  |  F1: 0.8387  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[6] 样本索引: 87
+主问题: Who is the other child of Chian Hsiao-chang's father?
+子问题: What are all the children of Chiang Ching-kuo?
+标准答案: Chiang Ching-kuo had four legitimate children with his wife Faina Ipatyevna Vakhreva (Chiang Fang-liang): Chiang Hsiao-wen (eldest son), Chiang Hsiao-chang (daughter), Chiang Hsiao-wu (second son), and Chiang Hsiao-yung (youngest son). He also had two half-brothers with other mothers: Winston Chang and John Chiang.
+
+Rate-0.0:
+  预测答案: Chiang Hsiao-wen, Chiang Hsiao-wen's siblings Hsiao-wen, Hsiao-chang, Hsiao-wu, Hsiao-yung, and Chiang Hsiao-wen's half-brothers Winston Chang and John Chiang.
+  正确性: False  |  F1: 0.5246  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Chiang Hsiao-chang, Chiang Hsiao-wen, Chiang Hsiao-wu, Hsiao-chang, Hsiao-wen, Hsiao-wu, Hsiao-yung, Winston Chang, John Chiang
+  正确性: False  |  F1: 0.4828  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[7] 样本索引: 93
+主问题: Which county does Lloyd Dane's birthplace belong to?
+子问题: Where was Lloyd Dane born?
+标准答案: Lloyd Dane was born in Eldon, Missouri.
+
+Rate-0.0:
+  预测答案: Missouri
+  正确性: False  |  F1: 0.2000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: The reference material does not provide Lloyd Dane's place of birth.
+  正确性: False  |  F1: 0.1000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[8] 样本索引: 95
+主问题: Who is the voice of the character in Spongebob Squarepants with the same name as the creature that annelid larvae live like?
+子问题: What creature do annelid larvae live like?
+标准答案: Annelid larvae live like plankton.
+
+Rate-0.0:
+  预测答案: ertiform (caterpillar-like)
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: elateriform
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[9] 样本索引: 100
+主问题: What film features Anil Devgan's sibling?
+子问题: Which films feature Ajay Devgan?
+标准答案: The films featuring Ajay Devgan are: U Me Aur Hum, Yeh Raaste Hain Pyaar Ke, and Dil Kya Kare.
+
+Rate-0.0:
+  预测答案: U Me Aur Hum, Raju Chacha, Blackmail (2005 film)
+  正确性: False  |  F1: 0.1538  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: U Me Aur Hum, Dil Kya Kare, Yeh Raaste Hain Pyaar Ke, Har Dil Jo Pyar Karega, Raju Chacha, Blackmail
+  正确性: False  |  F1: 0.6182  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[10] 样本索引: 107
+主问题: What preity zinta and madhuri dixit movie had a cast member from U Me Aur Hum ?
+子问题: Which Bollywood movies feature both Preity Zinta and Madhuri Dixit in their cast?
+标准答案: The only Bollywood movie featuring both Preity Zinta and Madhuri Dixit is 'Yeh Raaste Hain Pyaar Ke'.
+
+Rate-0.0:
+  预测答案: Diya Aur Toofan, Dil Kya Kare
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Pyar Ka Devta, Yeh Raaste Hain Pyaar Ke
+  正确性: False  |  F1: 0.4615  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[11] 样本索引: 109
+主问题: Who married the publisher of abolitionist newspaper The North Star?
+子问题: Who was Frederick Douglass married to?
+标准答案: Frederick Douglass was married first to Anna Murray Douglass and second to Helen Pitts Douglass.
+
+Rate-0.0:
+  预测答案: Helen Pitts DocumentDocument: Helen Pitts Douglass (1838–1903) was an American suffragist and abolitionist, known for being the second wife of Frederick Douglass. She also created the Frederick Douglass Memorial and Historical Association.
+  正确性: False  |  F1: 0.3947  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Helen Pitts and Susan Paul
+  正确性: False  |  F1: 0.3125  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[12] 样本索引: 154
+主问题: Where was the person featured on the Chester Arthur coin born?
+子问题: Who is featured on the Chester Arthur coin?
+标准答案: The coin for Chester A. Arthur features suffragette Alice Paul.
+
+Rate-0.0:
+  预测答案: Queen Elizabeth II
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Chester Alan Arthur II
+  正确性: False  |  F1: 0.2667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[13] 样本索引: 161
+主问题: Who was honoured with the highest award a citizen without military experience in India before becoming a president?
+子问题: Which Indian Presidents received the Bharat Ratna award before becoming President?
+标准答案: Sarvepalli Radhakrishnan received the Bharat Ratna in 1954 before becoming President.
+
+Rate-0.0:
+  预测答案: None of the Indian Presidents received the Bharat Ratna award before becoming President. The document states that the Bharat Ratna was awarded to 45 individuals since its institution in 1954, including 12 posthumously. It does not mention any Indian President who received this award prior to their presidency.
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: C. Rajagopalachari, Sarvepalli Radhakrishnan, C.V. Raman
+  正确性: False  |  F1: 0.4000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[14] 样本索引: 170
+主问题: Who is the grandmother of Philippe, Duke of Orléans?
+子问题: Who was the mother of King Louis XIII of France?
+标准答案: Marie de' Medici was the mother of King Louis XIII of France.
+
+Rate-0.0:
+  预测答案: Anne of Austria
+  正确性: False  |  F1: 0.1250  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Anne of Austria
+  正确性: False  |  F1: 0.1250  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[15] 样本索引: 175
+主问题: What province shares a border with the province where Lago District is located?
+子问题: Which provinces share a border with Niassa Province?
+标准答案: Niassa Province borders Cabo Delgado Province and Tanzania.
+
+Rate-0.0:
+  预测答案: Inhambane, Gaza, Maputo, Cabo Delgado, Lichinga, Sanga, and Tanzania.
+  正确性: False  |  F1: 0.4667  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Chigubo, Chókwè, Gaza, Inharrime, Lichinga, Sanga, Tete, and Zimbabwe share a border with Niassa Province.
+  正确性: False  |  F1: 0.2105  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[16] 样本索引: 181
+主问题: The city which contains Broadhurst Park shares a border with what town?
+子问题: Which towns share a border with the city of Manchester, England?
+标准答案: Moston shares a border with the city of Manchester.
+
+Rate-0.0:
+  预测答案: Moston, Middleton
+  正确性: False  |  F1: 0.1818  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Middleton and Moston
+  正确性: False  |  F1: 0.1667  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[17] 样本索引: 211
+主问题: Where was Tyler MacDuff's child educated?
+子问题: Who is Tyler MacDuff?
+标准答案: Tyler MacDuff is an actor and the father of Dana MacDuff.
+
+Rate-0.0:
+  预测答案: Tyler MacDuff is the son of actor Tyler MacDuff and Beverlie May Anderson. He is named after his father's close friend, Dana Andrews. Tyler MacDuff graduated from Blair International Baccalaureate School in Pasadena in 1974. He served in the United States Navy from 1974 to 1977. After his military service, he worked as a page at the American Broadcasting Company and later as a floor and stage manager with the BBC in Belfast, Northern Ireland. He then returned to Hollywood in 1995 to produce films. He and his brother Brandon R. MacDuff have formed Oakdale Pictures, a production company in Reno.
+  正确性: False  |  F1: 0.1711  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Tyler MacDuff is a U.S. actor and producer, born in Pasadena, California. He is the older brother of Brandon R. MacDuff and served in the U.S. Navy. He co-founded Oakdale Pictures with his brother.
+  正确性: False  |  F1: 0.4151  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[18] 样本索引: 226
+主问题: Who is the child of Sigrid Eskilsdotter's child?
+子问题: Who are the children of Christina Gyllenstierna?
+标准答案: Christina Gyllenstierna's children include a daughter (mother of King Gustav Vasa) and a child who was the parent of Sigrid Sture.
+
+Rate-0.0:
+  预测答案: Christina Gyllenstierna's children are the children of Sigrid Sture, who was Christina Gyllenstierna's daughter. Therefore, the children of Christina Gyllenstierna are not directly stated in the given documents, but based on the family relationships provided, Sigrid Sture's children would be the grandchildren of Christina Gyllenstierna. Specifically, Svante Turesson Bielke, who was the son of Sigrid Sture and Ture Pedersson Bielke, would be one of her grandchildren.
+  正确性: False  |  F1: 0.2903  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Christina Gyllenstierna's children are Sigrid Eskilsdotter (Banér) and Svante Turesson Bielke. Sigrid Eskilsdotter (Banér) is her daughter from her marriage to Ture Pedersson Bielke, and Svante Turesson Bielke is her son from the same marriage.
+  正确性: False  |  F1: 0.2857  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[19] 样本索引: 228
+主问题: Who is the child of the Victim of Romance performer?
+子问题: Who is Michelle Phillips' child?
+标准答案: Chynna Phillips
+
+Rate-0.0:
+  预测答案: Michelle Phillips' child is Isabelle Willis, as Michelle Phillips married Matt Willis (who is also known as Ewan McGregor's co-star in Nanny McPhee and the Big Bang) and they had a daughter named Isabelle in June 2009. However, it's important to note that Michelle Phillips is not related to Ewan McGregor's character in Nanny McPhee and the Big Bang, as the document about Nanny McPhee and the Big Bang is about a different Michelle Phillips (not the singer). The correct answer based on the given information is that Michelle Phillips, the singer, had a daughter named Isabelle.
+  正确性: False  |  F1: 0.0465  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Michelle Phillips' child is Isabelle Willis, born in June 2009, though Michelle Phillips is not the biological mother as she was part of the musical group The Mamas & the Papas. The reference to Michelle Phillips having a child seems to be in error or contextually misplaced, as the provided documents do not directly link Michelle Phillips to any specific child without clarification on her identity in the context of the question. Given the documents, there's no direct mention of Michelle Phillips having a child, but if we consider the document about "Victim of Romance" which mistakenly attributes a child to Michelle Phillips, it refers to Isabelle as her daughter through her marriage to Matt Willis.
+  正确性: False  |  F1: 0.0438  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[20] 样本索引: 230
+主问题: What happened to the Curonians who lived in the area where Erich Zakowski was born?
+子问题: Which specific Curonian population historically inhabited East Prussia?
+标准答案: The Curonians who lived in the area around the Curonian Lagoon in East Prussia.
+
+Rate-0.0:
+  预测答案: 219 Curonians lived along the Curonian Spit in 1955 in East Prussia.
+  正确性: False  |  F1: 0.5714  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Curonians that remained behind were subsequently expelled by the Soviet Union. Only 219 lived along the Curonian Spit in 1955.
+  正确性: False  |  F1: 0.2727  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+
+[21] 样本索引: 242
+主问题: Where did the producer of Julius Caesar study or work?
+子问题: Who is the producer of Julius Caesar?
+标准答案: John Houseman
+
+Rate-0.0:
+  预测答案: romeo and julietDocument: Caesar Must Die () is a 2012 Italian drama film directed by Paolo and Vittorio Taviani. The film competed at the 62nd Berlin International Film Festival where it won the Golden Bear. The film is set in Rebibbia Prison (suburb of Rome), and follows convicts in their rehearsals ahead of a prison performance of "Julius Caesar".
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+Rate-0.5:
+  预测答案: Metro-Goldwyn-Mayer
+  正确性: False  |  F1: 0.0000  |  EM: 0.0000
+
+----------------------------------------------------------------------------------------------------
+

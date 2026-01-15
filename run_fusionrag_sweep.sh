@@ -6,10 +6,10 @@
 #####################################################################
 
 # 基础配置
-GPUS="5"
+GPUS="6"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/fixed_doc"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/repeat_self"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -28,7 +28,7 @@ REPROCESS_METHOD="FusionRAG"  # 可修改: FusionRAG, Oracle, OracleAdaptive, et
 TOPK="10"
 PREPROCESS="true"
 USE_RANDOM_RECALL="true"     # [已废弃] 请使用 RECALL_METHOD
-RECALL_METHOD="fixed_doc"       # 召回方法: bge, random, repeat_self, fixed_doc
+RECALL_METHOD="repeat_self"       # 召回方法: bge, random, repeat_self, fixed_doc
 RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效)
 FIXED_DOC_IDX="0"             # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 REVERT_ROPE="true"

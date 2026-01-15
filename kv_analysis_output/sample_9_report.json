@@ -1,0 +1,146 @@
+{
+  "sample_idx": 9,
+  "question": "Who is the employer of the physicist who Mach number is named after?",
+  "ground_truth": "Ernst Mach was a professor at Charles University in Prague.",
+  "predictions": {
+    "bge": {
+      "predicted": "Charles University in Prague",
+      "correct": true
+    },
+    "random": {
+      "predicted": "University of Vienna, Charles University in Prague",
+      "correct": true
+    },
+    "no_prep": {
+      "predicted": "University of Vienna",
+      "correct": false
+    }
+  },
+  "kv_statistics": {
+    "bge": {
+      "method": "BGE",
+      "layer": "all",
+      "key_shape": [
+        28,
+        1,
+        4,
+        96,
+        128
+      ],
+      "key_norm_mean": 42.7035026550293,
+      "key_norm_std": 99.44470977783203,
+      "key_mean": -0.024613579735159874,
+      "key_std": 9.565502166748047,
+      "key_min": -420.0,
+      "key_max": 237.0,
+      "key_sparsity": 0.0066077820956707,
+      "value_shape": [
+        28,
+        1,
+        4,
+        96,
+        128
+      ],
+      "value_norm_mean": 10.96372127532959,
+      "value_norm_std": 10.341594696044922,
+      "value_mean": 0.004909501411020756,
+      "value_std": 1.332112193107605,
+      "value_min": -37.25,
+      "value_max": 21.375,
+      "value_sparsity": 0.0179465152323246
+    },
+    "random": {
+      "method": "Random",
+      "layer": "all",
+      "key_shape": [
+        28,
+        1,
+        4,
+        96,
+        128
+      ],
+      "key_norm_mean": 41.73319625854492,
+      "key_norm_std": 99.69371795654297,
+      "key_mean": -0.025925269350409508,
+      "key_std": 9.55228042602539,
+      "key_min": -420.0,
+      "key_max": 236.0,
+      "key_sparsity": 0.006527128629386425,
+      "value_shape": [
+        28,
+        1,
+        4,
+        96,
+        128
+      ],
+      "value_norm_mean": 10.328669548034668,
+      "value_norm_std": 9.851705551147461,
+      "value_mean": 0.002122053410857916,
+      "value_std": 1.2615963220596313,
+      "value_min": -33.75,
+      "value_max": 20.5,
+      "value_sparsity": 0.0182204470038414
+    },
+    "no_prep": {
+      "method": "No Preprocess",
+      "layer": "all",
+      "key_shape": [
+        28,
+        1,
+        4,
+        96,
+        128
+      ],
+      "key_norm_mean": 41.296226501464844,
+      "key_norm_std": 99.77021789550781,
+      "key_mean": -0.028888225555419922,
+      "key_std": 9.543670654296875,
+      "key_min": -418.0,
+      "key_max": 236.0,
+      "key_sparsity": 0.006657191552221775,
+      "value_shape": [
+        28,
+        1,
+        4,
+        96,
+        128
+      ],
+      "value_norm_mean": 10.31385326385498,
+      "value_norm_std": 9.745481491088867,
+      "value_mean": 0.0019466059748083353,
+      "value_std": 1.254183053970337,
+      "value_min": -34.0,
+      "value_max": 20.625,
+      "value_sparsity": 0.0182037353515625
+    }
+  },
+  "kv_similarity": {
+    "bge_vs_random": {
+      "pair": "BGE vs Random",
+      "key_cosine_similarity": 0.9966829419136047,
+      "value_cosine_similarity": 0.7656844258308411,
+      "key_l2_distance": 934.275146484375,
+      "value_l2_distance": 1044.3553466796875,
+      "key_mse": 0.6342127919197083,
+      "value_mse": 0.7924776673316956
+    },
+    "bge_vs_no_prep": {
+      "pair": "BGE vs No Preprocess",
+      "key_cosine_similarity": 0.996593713760376,
+      "value_cosine_similarity": 0.762087345123291,
+      "key_l2_distance": 946.3746337890625,
+      "value_l2_distance": 1049.9376220703125,
+      "key_mse": 0.6507455706596375,
+      "value_mse": 0.800970196723938
+    },
+    "random_vs_no_prep": {
+      "pair": "Random vs No Preprocess",
+      "key_cosine_similarity": 0.9994296431541443,
+      "value_cosine_similarity": 0.9659099578857422,
+      "key_l2_distance": 426.92828369140625,
+      "value_l2_distance": 385.2408142089844,
+      "key_mse": 0.13244235515594482,
+      "value_mse": 0.10784025490283966
+    }
+  }
+}
