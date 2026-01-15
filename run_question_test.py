@@ -645,21 +645,21 @@ def test_question_multiprocess(total_run=-1,
 
 if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
+
     questions_to_run = [
-        "What is the birth year of Curtis Bernhardt?"
+        "When did Robert Menzies serve as Prime Minister of Australia?"
     ]
-    questions_to_run = []
-    # 运行多进程测试
+    # questions_to_run = []
+
     max_memories = [{0: "0GiB", 1: "35GiB", 2: "35GiB"}]
     total_run = 200
-    all_gpu_configs = [[([3,4,5], 0)], [([0,1,2], 0)],[([3,6,7], 0)]]
+    all_gpu_configs = [([0,1,2], 0)],[[([3,4,5], 0)],[([3,6,7], 0)]]
     reprocess_methods = ["DraftModel_smarter", "DraftModel"]
-    rates = [0.1, 0.3]
+    rates = [0.2, 0.3]
 
-    run_index = 0
+    run_index = 1
 
     if run_index ==0:
-
         for idx in range(len(rates)):
             test_question_multiprocess(
                 total_run=total_run,  ## -1 means run all
@@ -669,7 +669,7 @@ if __name__ == '__main__':
                 preprocess_method="default",  ## change this  1. space 2. default
                 questions_to_run=questions_to_run,
                 sep=1,  ## 1/2/3/4
-                dataset="musique",  ## 1. locomo 2. musique
+                dataset="2wiki",  ## 1. locomo 2. musique
                 preprocess=True,  ## if locomo then false, otherwise True
                 test_last_keep=True,  ## set=True if keep running
                 gpu_configs=all_gpu_configs[run_index],  ## personalize if need
@@ -686,7 +686,7 @@ if __name__ == '__main__':
                 preprocess_method="default",  ## change this  1. space 2. default
                 questions_to_run=questions_to_run,
                 sep=1,  ## 1/2/3/4
-                dataset="2wiki",  ## 1. locomo 2. musique
+                dataset="musique",  ## 1. locomo 2. musique
                 preprocess=True,  ## if locomo then false, otherwise True
                 test_last_keep=True,  ## set=True if keep running
                 gpu_configs=all_gpu_configs[run_index],  ## personalize if need

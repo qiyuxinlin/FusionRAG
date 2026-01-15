@@ -756,7 +756,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
-                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None):
+                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None, prefix_cache_path=""):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
@@ -772,6 +772,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         past_key_values.past_tokens[layer_idx] = 0
 
     system_len = passages[0].shape[0]
+    first_doc_len = passages[1].shape[0]
 
     key_cache = []
     value_cache = []
@@ -786,8 +787,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         passage_len = passage.shape[0]
 
         if isinstance(hash_keys, list):
-            chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
-            chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
+            if idx == 1 and prefix_cache_path!="":
+                chunk_key_cache = torch.load(f'{prefix_cache_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
+                chunk_value_cache = torch.load(f'{prefix_cache_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
+            else:
+                chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
+                chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
         else:
             chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
             chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
@@ -1167,12 +1172,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     system_len=system_len,
                     device=draft_model_device
                 )
+
             elif reprocess_method == "DraftModel_smarter":
                 selected_indices = smart_query_selection(
-                    attention_scores=multi_layer_attn,
-                    doc_len=doc_len,
+                    attention_scores=multi_layer_attn[first_doc_len:],
+                    doc_len=doc_len-first_doc_len,
                     target_ratio=rate,
-                    system_len=system_len,
+                    system_len=system_len+first_doc_len,
                     device=draft_model_device,
                     smarter=True
                 )

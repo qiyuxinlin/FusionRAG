@@ -765,6 +765,7 @@ class FusionRAGModel:
                 device=self.input_device,
                 device_map=self.device_map,
                 draft_model_device=self.draft_model_device,
+                prefix_cache_path=self.save_path,
             )
             eigenvalue.update(eigenvalue_)
 
