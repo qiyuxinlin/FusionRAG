@@ -20,7 +20,7 @@
 cd /home/shm/document/exp/FusionRAG
 
 # 解析参数
-NUM_SAMPLES=${1:-5}         # 默认分析5个样本
+NUM_SAMPLES=${1:-20}         # 默认分析5个样本
 OUTPUT_DIR=${2:-"./kv_tsne_analysis"}
 PERPLEXITY=${3:-30}         # 默认perplexity=30
 

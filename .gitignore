@@ -19,3 +19,4 @@ ktransformers/server/local_store/
 ktransformers/server_test1.db
 *.patch
 result/*
+kv_pca_analysis_all/*
