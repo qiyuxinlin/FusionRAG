@@ -20,3 +20,4 @@ ktransformers/server_test1.db
 *.patch
 result/*
 kv_pca_analysis_all/*
+kv_tsne_analysis_all/*

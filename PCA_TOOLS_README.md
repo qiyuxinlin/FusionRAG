@@ -1,8 +1,8 @@
-# KV Cache PCA 可视化工具集
+# KV Cache 可视化工具集
 
 ## 📦 工具总览
 
-FusionRAG项目现在提供完整的PCA可视化工具集，支持单方法分析和多方法对比。
+FusionRAG项目现在提供完整的降维可视化工具集，支持PCA和t-SNE，单方法和多方法对比。
 
 ### 工具列表
 
@@ -10,7 +10,8 @@ FusionRAG项目现在提供完整的PCA可视化工具集，支持单方法分�
 |------|------|----------|
 | **原版PCA** | no_preprocess vs bge 固定对比 | 快速验证BGE效果 |
 | **多方法PCA** | 任意方法灵活对比（2-8个） | Ablation实验分析 |
-| **t-SNE** | 非线性降维，发现聚类 | 补充PCA分析 |
+| **原版t-SNE** | no_preprocess vs bge，发现聚类 | 补充PCA，深层分析 |
+| **多方法t-SNE** | 任意方法t-SNE对比（2-8个） | 多方法聚类对比 ✨新
 
 ---
 
@@ -68,6 +69,33 @@ bash run_kv_tsne_quick.sh 5
 
 ---
 
+### 何时使用多方法t-SNE？✨新
+
+```bash
+bash run_kv_tsne_multi.sh bge random repeat_self 3
+```
+
+✅ **适合场景**：
+- **多方法聚类对比**：想看3种以上方法的聚类模式
+- **补充多方法PCA**：PCA已完成，想用t-SNE进一步验证
+- **发现局部结构**：关心相似样本之间的局部关系
+- **Ablation可视化**：需要更直观的多方法对比图
+
+❌ **不适合场景**：
+- 只对比2种方法（用原版t-SNE更快）
+- 时间非常紧迫（多方法+t-SNE=双重慢）
+
+**建议工作流**：
+```bash
+# 1. 先用多方法PCA快速扫描
+bash run_kv_pca_multi.sh bge random repeat_self 5
+
+# 2. 再用多方法t-SNE深入关键层
+bash run_kv_tsne_multi.sh bge random repeat_self 3
+```
+
+---
+
 ## 🚀 快速开始
 
 ### 方案 1: 最简单 - 使用预设
@@ -98,6 +126,7 @@ bash run_kv_pca_multi.sh bge random repeat_self fixed_doc 5 ./my_output
 
 ### 方案 3: 完全控制 - Python直接调用
 
+**PCA多方法**：
 ```bash
 python visualize_kv_pca_multi.py \
     --methods no_preprocess bge random \
@@ -107,13 +136,25 @@ python visualize_kv_pca_multi.py \
     --output_dir ./custom_analysis
 ```
 
+**t-SNE多方法** ✨新：
+```bash
+python visualize_kv_tsne_multi.py \
+    --methods bge random repeat_self \
+    --sample_ids 0 1 2 \
+    --layers 0 18 27 \
+    --max_tokens 500 \
+    --perplexity 30 \
+    --output_dir ./custom_tsne
+```
+
 ---
 
 ## 📚 详细文档
 
 - **原版PCA使用指南**：无专门文档（原始脚本，直观易用）
 - **多方法PCA使用指南**：[MULTI_METHOD_PCA_GUIDE.md](./MULTI_METHOD_PCA_GUIDE.md)
-- **t-SNE使用指南**：[KV_TSNE_USAGE_GUIDE.md](./KV_TSNE_USAGE_GUIDE.md)
+- **原版t-SNE使用指南**：[KV_TSNE_USAGE_GUIDE.md](./KV_TSNE_USAGE_GUIDE.md)
+- **多方法t-SNE使用指南** ✨新：[TSNE_MULTI_METHOD_GUIDE.md](./TSNE_MULTI_METHOD_GUIDE.md)
 - **PCA vs t-SNE对比**：[PCA_vs_TSNE_COMPARISON.md](./PCA_vs_TSNE_COMPARISON.md)
 
 ---
@@ -125,7 +166,8 @@ python visualize_kv_pca_multi.py \
 ```
 visualize_kv_pca.py         # 原版PCA（no_preprocess vs bge）
 visualize_kv_pca_multi.py   # 多方法PCA（任意方法对比）
-visualize_kv_tsne.py        # t-SNE可视化
+visualize_kv_tsne.py        # 原版t-SNE（no_preprocess vs bge）
+visualize_kv_tsne_multi.py  # 多方法t-SNE（任意方法对比）✨新
 ```
 
 ### Shell运行脚本
@@ -143,18 +185,25 @@ run_kv_pca_multi.sh         # 多方法对比（自定义方法）
 run_kv_pca_compare_preset.sh # 预设对比（常用组合）
 ```
 
-#### t-SNE
+#### 原版t-SNE
 ```
 run_kv_tsne_quick.sh        # 快速分析
 run_kv_tsne_range.sh        # 范围分析
 ```
 
+#### 多方法t-SNE ✨新
+```
+run_kv_tsne_multi.sh        # 多方法对比（自定义方法）
+run_kv_tsne_compare_preset.sh # 预设对比（常用组合）
+```
+
 ### 文档
 ```
 MULTI_METHOD_PCA_GUIDE.md   # 多方法PCA详细指南
-KV_TSNE_USAGE_GUIDE.md      # t-SNE使用指南
+TSNE_MULTI_METHOD_GUIDE.md  # 多方法t-SNE详细指南 ✨新
+KV_TSNE_USAGE_GUIDE.md      # 原版t-SNE使用指南
 PCA_vs_TSNE_COMPARISON.md   # PCA与t-SNE对比
-PCA_TOOLS_README.md         # 本文档
+PCA_TOOLS_README.md         # 本文档（工具总览）
 ```
 
 ---
