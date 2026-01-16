@@ -653,7 +653,7 @@ if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
 
     questions_to_run = [
-        "Which character did Geena Davis play in the movie A League of Their Own?"
+        "When was King Henry III of England crowned?"
     ]
     questions_to_run = []
 
@@ -697,6 +697,11 @@ if __name__ == '__main__':
                 test_last_keep=True,  ## set=True if keep running
                 gpu_configs=all_gpu_configs[run_index],  ## personalize if need
                 max_memories=max_memories,
+
+                test_last_wrong=True,
+                last_rate=rates[idx],
+                last_reprocess_method=reprocess_methods[idx],
+                last_preprocess_method="default"
             )
 
     elif run_index == 2:

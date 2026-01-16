@@ -116,9 +116,14 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
 
+
+    # 1. max_gap=5, min_len=3
+    # 2. max_gap=20, min_len=20
     # Step 2: 连通分量分析
     if smarter:
         max_gap = 5
+        min_len = 5
+        min_chosen_weight = 1 / 2
         components = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
         max_gap = 2
@@ -135,22 +140,18 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     if smarter:
         max_score = 1e-8
-        min_chosen_len = 3
-        min_chosen_weight = 1/5
-        component_scores_avg = sum([x[1] for x in component_scores])/len([x[1] for x in component_scores])
-        print(f"component_scores_avg={component_scores_avg}")
         all_tokens = []
         if tokenizer is not None:
             input_tokens_ = torch.cat(input_tokens)
             for cs, score in component_scores:
-                if len(cs) > max_gap:
+                if len(cs) > min_len:
                     if max_score == 1e-8:
                         max_score = score # set max score
                 input_str = tokenizer.decode(input_tokens_[cs], skip_special_tokens=True)
                 print(f"\033[31m{input_str}\033[0m, score={score} len={len(cs)}")
                 #for debug
                 chosen = False
-                if len(cs) >= min_chosen_len and score/max_score > min_chosen_weight:
+                if len(cs) >= min_len and score/max_score > min_chosen_weight:
                     chosen = True
                 all_tokens.append({
                     "str": input_str,
@@ -160,7 +161,7 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
                 })
         eigenvalue["chosen_tokens"] = all_tokens
         # mengyao_debug: make sure the token we select is not a single token and has some weights on it.
-        component_scores = [cs for cs in component_scores if len(cs[0]) >= min_chosen_len and cs[1]/max_score > min_chosen_weight]
+        component_scores = [cs for cs in component_scores if len(cs[0]) >= min_len and cs[1]/max_score > min_chosen_weight]
 
 
     # for cs in component_scores:
@@ -695,7 +696,7 @@ def concentration_coefficient_v1(tensor: torch.Tensor, eps: float = 1e-8) -> flo
 
     return concentration.item()
 
-def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k, draft_attention, query_start, system_len, doc_len, total_len):
+def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k, draft_attention, query_start, system_len, doc_len, total_len, smarter=False):
     # 如果没有传入 draft_attention，需要用 draft_model 计算
     if draft_attention is None:
         if draft_model is None:
@@ -715,11 +716,16 @@ def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k
         doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
         layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
 
-    # 基于熵动态选层（DraftModel 默认使用熵选层）
-    active_layers, layer_entropy = entropy_layer_selection(
-        layer_attention_dict, top_k=entropy_top_k, return_entropy=True
-    )
-    print(f"  DraftModel 熵选层: 选择了 {active_layers}")
+    if not smarter:
+        # 基于熵动态选层（DraftModel 默认使用熵选层）
+        active_layers, layer_entropy = entropy_layer_selection(
+            layer_attention_dict, top_k=entropy_top_k, return_entropy=True
+        )
+        print(f"  DraftModel 熵选层: 选择了 {active_layers}")
+    else:
+        # I'm dumb.
+        print(f"  DraftModel dumb version")
+        active_layers = [k for k,v in layer_attention_dict.items()]
 
     # 聚合选中层的 attention
     layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
@@ -1230,9 +1236,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             doc_len = sum(passages_len[1:-1])
             query_start = sum(passages_len[:-1])
             total_len = sum(passages_len)
+            smarter = reprocess_method == "DraftModel_smarter"
             multi_layer_attn, doc_to_doc_attns = get_multilayer_attn(passages, draft_model, draft_model_device,
                                                                      entropy_top_k, draft_attention, query_start,
-                                                                     system_len, doc_len, total_len)
+                                                                     system_len, doc_len, total_len,smarter=smarter)
             eigenvalue["coefficient"] = concentration_coefficient_v1(tensor=multi_layer_attn)
             eigenvalue["dispersion"] = topk_position_dispersion(multi_layer_attn, top_percent=0.1)
             # 使用 smart_query_selection 进行选择
