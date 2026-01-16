@@ -6,10 +6,10 @@
 #####################################################################
 
 # 基础配置
-GPUS="2"
+GPUS="3"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/topk_sweep2"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/repeat_self_topk"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                                  # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -29,7 +29,7 @@ RATE="0.15"                    # 固定的 rate 值
 PREPROCESS="true" # 是否有offline处理
 
 USE_RANDOM_RECALL="false"     # [已废弃] 请使用 RECALL_METHOD
-RECALL_METHOD="bge"           # 召回方法: bge, random, repeat_self, fixed_doc, random_text, bge_shuffled, random_docs
+RECALL_METHOD="repeat_self"           # 召回方法: bge, random, repeat_self, fixed_doc, random_text, bge_shuffled, random_docs
 RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效)
 FIXED_DOC_IDX="0"             # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 REVERT_ROPE="true"
@@ -50,7 +50,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # TopK 列表 - 遍历不同的融合文档数量
-TOPK_LIST=(5 8 10 12 15)
+TOPK_LIST=(1 2 3 5 8 10)
 
 # 可选参数
 MAX_SAMPLES=""  # 留空测试全部，或设置为数字如 "10" 快速测试

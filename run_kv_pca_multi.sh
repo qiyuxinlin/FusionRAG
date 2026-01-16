@@ -8,7 +8,7 @@
 #
 # 示例：
 #   # 对比 no_preprocess 和 bge
-#   bash /home/shm/document/exp/FusionRAG/run_kv_pca_multi.sh bge no_preprocess fixed_doc 20
+#   bash /home/shm/document/exp/FusionRAG/run_kv_pca_multi.sh bge random 20 /home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v11
 #
 #   # 对比 no_preprocess, bge, random 三种方法
 #   bash run_kv_pca_multi.sh no_preprocess bge random
@@ -27,6 +27,7 @@
 #   - fixed_doc: 固定文档
 #   - random_docs: 随机文档
 #   - random_text: 随机文本
+# VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled")
 #####################################################################
 
 cd /home/shm/document/exp/FusionRAG
@@ -49,7 +50,7 @@ LAYERS="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 2
 # 解析参数
 METHODS=()
 NUM_SAMPLES=""
-OUTPUT_DIR="/home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v9"
+OUTPUT_DIR="/home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v10"
 
 # 可用方法列表
 VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled")
@@ -59,8 +60,8 @@ for arg in "$@"; do
     if [[ $arg =~ ^[0-9]+$ ]]; then
         NUM_SAMPLES=$arg
     # 检查是否是路径（包含/或.）
-    # elif [[ $arg == *"/"* ]] || [[ $arg == "."* ]]; then
-    #     OUTPUT_DIR=$arg
+    elif [[ $arg == *"/"* ]] || [[ $arg == "."* ]]; then
+        OUTPUT_DIR=$arg
     # 检查是否是有效方法
     elif [[ " ${VALID_METHODS[@]} " =~ " ${arg} " ]]; then
         METHODS+=("$arg")

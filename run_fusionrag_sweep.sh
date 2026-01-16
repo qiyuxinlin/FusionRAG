@@ -9,7 +9,7 @@
 GPUS="6"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/repeat_self"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/repeat_self2"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
