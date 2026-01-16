@@ -18,6 +18,7 @@
 """PyTorch Qwen3 model."""
 
 import math
+import os
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -255,6 +256,8 @@ class Qwen3Attention(nn.Module):
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor]]]:
+        draft = kwargs.get("draft", False)
+        attn_layer_idx = kwargs.get("attn_layer_idx", 1)
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
@@ -273,6 +276,27 @@ class Qwen3Attention(nn.Module):
         attention_interface: Callable = eager_attention_forward
         if self.config._attn_implementation != "eager":
             attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
+
+        if draft and self.layer_idx == attn_layer_idx:
+            attn_output, attn_weights = sdpa_attention_forward(
+                self,
+                query_states,
+                key_states,
+                value_states,
+                attention_mask,
+                dropout=0.0 if not self.training else self.attention_dropout,
+                scaling=self.scaling,
+                sliding_window=self.sliding_window,
+                **kwargs,
+            )
+            query_start = kwargs.get("query_start", False)
+            attn_weights = attn_weights.squeeze(dim=0)[:,query_start:,:].sum(dim=-2)
+            past_key_value.importance_cache[self.layer_idx][:,:attn_weights.size(1)].copy_(
+                attn_weights)
+            attn_output = attn_output.reshape(*input_shape, -1).contiguous()
+            attn_output = self.o_proj(attn_output)
+            return attn_output, attn_weights
+
 
         attn_output, attn_weights = attention_interface(
             self,
@@ -567,7 +591,7 @@ class Qwen3Model(Qwen3PreTrainedModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
 
-        for decoder_layer in self.layers[: self.config.num_hidden_layers]:
+        for layer_idx, decoder_layer in enumerate(self.layers[: self.config.num_hidden_layers]):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
@@ -582,6 +606,10 @@ class Qwen3Model(Qwen3PreTrainedModel):
                 position_embeddings=position_embeddings,
                 **flash_attn_kwargs,
             )
+            draft = flash_attn_kwargs.get("draft", False)
+            attn_layer_idx = flash_attn_kwargs.get("attn_layer_idx", 1)
+            if draft and layer_idx == attn_layer_idx:
+                return None
 
             hidden_states = layer_outputs[0]
 
@@ -695,6 +723,9 @@ class Qwen3ForCausalLM(Qwen3PreTrainedModel, GenerationMixin):
             cache_position=cache_position,
             **kwargs,
         )
+        draft = kwargs.get("draft", False)
+        if draft:
+            return None
 
         hidden_states = outputs.last_hidden_state
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
@@ -956,3 +987,77 @@ __all__ = [
     "Qwen3ForSequenceClassification",
     "Qwen3ForTokenClassification",
 ]
+
+def sdpa_attention_forward(
+    module: torch.nn.Module,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    dropout: float = 0.0,
+    scaling: Optional[float] = None,
+    is_causal: Optional[bool] = None,
+    **kwargs,
+) -> tuple[torch.Tensor, torch.Tensor]:
+
+    if hasattr(module, "num_key_value_groups"):
+        key = repeat_kv(key, module.num_key_value_groups)
+        value = repeat_kv(value, module.num_key_value_groups)
+
+    if attention_mask is not None and attention_mask.ndim == 4:
+        attention_mask = attention_mask[:, :, :, : key.shape[-2]]
+
+    query = query.contiguous()
+    key = key.contiguous()
+    value = value.contiguous()
+    length = query.size(2)
+
+    if is_causal is None:
+        # The last condition is for encoder (decoder) models which specify this by passing their own `is_causal` flag
+        # This is mainly due to those models having mixed implementations for encoder, decoder, and encoder-decoder attns
+        is_causal = query.shape[2] > 1 and attention_mask is None and getattr(module, "is_causal", True)
+
+    # Shapes (e.g. query.shape[2]) are tensors during jit tracing, resulting in `is_causal` being a tensor.
+    # We convert it to a bool for the SDPA kernel that only accepts bools.
+    if torch.jit.is_tracing() and isinstance(is_causal, torch.Tensor):
+        is_causal = is_causal.item()
+
+    attn_output, attn_weight = scaled_dot_product_attention(
+        query,
+        key[:,:,:length,:],
+        value[:,:,:length,:],
+        attn_mask=attention_mask[:,:,:length,:length],
+        dropout_p=dropout,
+        scale=scaling,
+        is_causal=is_causal
+    )
+
+    return attn_output, attn_weight
+
+
+def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0,
+        is_causal=False, scale=None, enable_gqa=False) -> (torch.Tensor, torch.Tensor):
+    with torch.no_grad():
+        L, S = query.size(-2), key.size(-2)
+        scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+        attn_bias = torch.zeros(query.size(0), query.size(1), L, S, dtype=query.dtype, device=query.device)
+        if is_causal:
+            assert attn_mask is None
+            temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+            attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+            else:
+                attn_bias = attn_mask + attn_bias
+
+        if enable_gqa:
+            key = key.repeat_interleave(query.size(-3)//key.size(-3), -3)
+            value = value.repeat_interleave(query.size(-3)//value.size(-3), -3)
+
+        attn_weight = query @ key.transpose(-2, -1) * scale_factor
+        attn_weight += attn_bias
+        attn_weight = torch.softmax(attn_weight, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p, train=False)
+        return attn_weight @ value, attn_weight

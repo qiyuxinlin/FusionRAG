@@ -235,6 +235,8 @@ def run_test_process(
     draft_model_path = "/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct"
     if "DraftModel" not in reprocess_method:
         draft_model_path = ""
+    if reprocess_method == "DraftModel_origin":
+        draft_model_path = ""
 
     if dataset == "musique":
         file_input = "/home/qy_tmp/xumengyao/work/DATASET/musique_data/musique_input.json"
@@ -349,6 +351,7 @@ def run_test_process(
             revert_rope=revert_rope,
             max_new_tokens=500,
         )
+        print(f"rate={rate} answer=\n{answer}\n")
         if "</think>" in answer:
             answer = answer.split("</think>")[1].replace("\n\n", "")
         answer = answer.strip("\n")
@@ -647,17 +650,17 @@ if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
 
     questions_to_run = [
-        "When did Robert Menzies serve as Prime Minister of Australia?"
+        "Who was Frederick Douglass's spouse?"
     ]
-    # questions_to_run = []
+    questions_to_run = []
 
-    max_memories = [{0: "0GiB", 1: "35GiB", 2: "35GiB"}]
+    max_memories = [{0: "40GiB", 1: "40GiB", 2: "40GiB"}]
     total_run = 200
-    all_gpu_configs = [([0,1,2], 0)],[[([3,4,5], 0)],[([3,6,7], 0)]]
-    reprocess_methods = ["DraftModel_smarter", "DraftModel"]
-    rates = [0.2, 0.3]
+    all_gpu_configs = [[([0,1,2], 0)], [([3,4,5], 0)],[([3,6,7], 0)]]
+    reprocess_methods = ["DraftModel_smarter"]
+    rates = [0.3]
 
-    run_index = 1
+    run_index = 2
 
     if run_index ==0:
         for idx in range(len(rates)):

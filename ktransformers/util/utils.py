@@ -6,6 +6,8 @@ Author       : Boxin Zhang, Azure-Tang
 Version      : 0.1.0
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 '''
+import copy
+
 import torch
 from torch import nn
 import itertools
@@ -481,14 +483,21 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
                 # print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
         return key_cache, value_cache
 
-def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs):
+def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs, rate=0.0, path=""):
     inputs_embeds = model.model.embed_tokens(cur_token)
     # with torch.cuda.stream(custom_stream):
+    # path_ = path.split("question is")[1].split("?")[0].replace(" ", "")
+    # import os
+    # save_path = f'/data1/qy_tmp/xumengyao/attention/{path_}/{rate}'
+    # os.makedirs(save_path, exist_ok=True)
     logits=model(inputs_embeds=inputs_embeds,
                 position_ids=position_ids,
                 cache_position=cache_position,
                 past_key_values=past_key_values,
-                return_dict=False, use_cache=True)[0]
+                return_dict=False,
+                 use_cache=True,
+                 rate=rate,
+                 )[0]
     if past_key_values != None:
         past_key_values.change_seq_length(1)
     #print(logits)
@@ -756,7 +765,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
-                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None, prefix_cache_path=""):
+                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None, prefix_cache_path="", query=""):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
@@ -830,6 +839,31 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
             # k_need_index = k_need_index + system_len
             k_need_index = v_need_index
+        elif reprocess_method == 'Draftmodel_origin':
+            with torch.no_grad():
+                inputs = torch.cat(passages).unsqueeze(0).to(input_device)
+                inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
+                cache_position = torch.arange(0, sum(passages_len), device=input_device)
+                start_idx = passages_len[0] + passages_len[1]
+                end_idx = sum(passages_len[:-1])
+                attn_layer_idx = 1
+                model(
+                    inputs_embeds=inputs_embeds, past_key_values=past_key_values,
+                    cache_position=cache_position, reprocess_method=reprocess_method,
+                    return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache,
+                    draft=True, query_start=end_idx, attn_layer_idx=attn_layer_idx
+                )
+                result = past_key_values.importance_cache[attn_layer_idx][:, :sum(passages_len)].sum(dim=0)
+                sublist = result[start_idx:end_idx]
+                tensor_sublist = torch.tensor(sublist)
+
+                topk_values, topk_indices = torch.topk(tensor_sublist, k=int(rate*(end_idx-start_idx)))
+                print(topk_values)
+
+                k_need_index = topk_indices.to('cpu') + start_idx
+                print(k_need_index)
+
+
         elif reprocess_method == 'FusionRAG':
             select_time = time.time()
             query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
@@ -1199,6 +1233,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # reprocess kv cache and prefill question
         k_need_index = torch.sort(k_need_index)[0].tolist()
+
         ## add query itself
         k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
     else:
@@ -1220,7 +1255,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
     cache_position = torch.tensor(k_need_index, device=input_device)
     if rate > 0.0:
-        highlight_tokens_compare(k_need_index, passages, tokenizer)
+        k_need_index_ = copy.deepcopy(k_need_index)
+        ## first is prefix cache
+        if reprocess_method == "DraftModel_smarter":
+            k_need_index_.extend(range(passages_len[0], passages_len[0]+passages_len[1]))
+        highlight_tokens_compare(k_need_index_, passages, tokenizer)
     with torch.no_grad():
         without_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
@@ -1254,7 +1293,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
-            next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs)
+            next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs, rate=rate, path=query)
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
             generated_ids[:, cache_position] = next_token.int()
             tokens.append(next_token.int())
