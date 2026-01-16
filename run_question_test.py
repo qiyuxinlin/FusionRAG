@@ -304,7 +304,7 @@ def run_test_process(
                         "llm_judge"] is False:
                         all_questions_wrong.append(q)
             all_questions = all_questions_wrong
-    if test_last_keep:
+    elif test_last_keep:
         if len(last_questions) > 0:
             last_questions = [q["query"] for q in last_questions]
             all_questions = [q for q in all_questions if q["query"] not in last_questions]
@@ -338,6 +338,9 @@ def run_test_process(
         "answer": ""
         }
         """
+        ## fixme: mengyao_debug locomo quick fix
+        if dataset == "locomo":
+            gold_docs = [f"Document: {text}\n" for text in gold_docs if not text.startswith("Document:")]
 
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
             query=f'Given these documents, please first output a short piece of reason, and then '
@@ -370,7 +373,7 @@ def run_test_process(
             openai_model="deepseek-v3.2",
             question=question["query"],
             ground_truth_answer=question["answer"],
-            predicted_answer=answer,
+            predicted_answer=f"{reason} {answer}",
         )
         if "调用 OpenAI API 时出错" in judge_reason:
             continue
@@ -414,7 +417,7 @@ def real_time_monitor(result_queue, total_processes, keyword_base, test_last_kee
             with open(summary_file, 'r', encoding='utf-8') as f:
                 all_results = json.load(f)
         except Exception as E:
-            print(f"fail to load last time questions")
+            print(f"fail to load last time questions E={E}")
 
 
     while completed_processes < total_processes:
@@ -650,13 +653,13 @@ if __name__ == '__main__':
     print(f"start testing run_question with multiprocess")
 
     questions_to_run = [
-        "Who was Frederick Douglass's spouse?"
+        "Which character did Geena Davis play in the movie A League of Their Own?"
     ]
     questions_to_run = []
 
-    max_memories = [{0: "40GiB", 1: "40GiB", 2: "40GiB"}]
+    max_memories = [{0: "0GiB", 1: "40GiB", 2: "40GiB"}]
     total_run = 200
-    all_gpu_configs = [[([0,1,2], 0)], [([3,4,5], 0)],[([3,6,7], 0)]]
+    all_gpu_configs = [[([0,1,2], 0)], [([3,4,5], 0)], [([3,6,7], 0)]]
     reprocess_methods = ["DraftModel_smarter"]
     rates = [0.3]
 

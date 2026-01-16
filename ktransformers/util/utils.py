@@ -90,7 +90,7 @@ def find_outliers_zscore(data, threshold=2):
 
     return outliers
 
-def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False):
+def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False, eigenvalue=None, tokenizer=None, input_tokens=None):
     """
     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
 
@@ -118,9 +118,11 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     # Step 2: 连通分量分析
     if smarter:
-        components = find_connected_components(high_attn_positions, max_gap=10, within=True)
+        max_gap = 5
+        components = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
-        components = find_connected_components(high_attn_positions, max_gap=2, within=False)
+        max_gap = 2
+        components = find_connected_components(high_attn_positions, max_gap=max_gap, within=False)
 
     # Step 3: 计算每个分量的总 attention
     component_scores = []
@@ -130,6 +132,41 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     # Step 4: 按总 attention 排序
     component_scores.sort(key=lambda x: x[1], reverse=True)
+
+    if smarter:
+        max_score = 1e-8
+        min_chosen_len = 3
+        min_chosen_weight = 1/5
+        component_scores_avg = sum([x[1] for x in component_scores])/len([x[1] for x in component_scores])
+        print(f"component_scores_avg={component_scores_avg}")
+        all_tokens = []
+        if tokenizer is not None:
+            input_tokens_ = torch.cat(input_tokens)
+            for cs, score in component_scores:
+                if len(cs) > max_gap:
+                    if max_score == 1e-8:
+                        max_score = score # set max score
+                input_str = tokenizer.decode(input_tokens_[cs], skip_special_tokens=True)
+                print(f"\033[31m{input_str}\033[0m, score={score} len={len(cs)}")
+                #for debug
+                chosen = False
+                if len(cs) >= min_chosen_len and score/max_score > min_chosen_weight:
+                    chosen = True
+                all_tokens.append({
+                    "str": input_str,
+                    "score": float(score),
+                    "len": len(cs),
+                    "chosen": chosen
+                })
+        eigenvalue["chosen_tokens"] = all_tokens
+        # mengyao_debug: make sure the token we select is not a single token and has some weights on it.
+        component_scores = [cs for cs in component_scores if len(cs[0]) >= min_chosen_len and cs[1]/max_score > min_chosen_weight]
+
+
+    # for cs in component_scores:
+    #     print(f"component len={len(cs[0])}, score={cs[1]}")
+    if eigenvalue != None:
+        eigenvalue["components"] = len(component_scores)
 
     # Step 5: 贪心选择分量 + 上下文扩展 (±1)
     selected = set()
@@ -149,13 +186,14 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
             selected.update(extended_comp)
 
     # Step 6: 补充到目标数量
-    if len(selected) < target_count:
-        sorted_indices = np.argsort(attention_scores)[::-1]
-        for pos in sorted_indices:
-            if pos not in selected:
-                selected.add(int(pos))
-                if len(selected) >= target_count:
-                    break
+    if not smarter:
+        if len(selected) < target_count:
+            sorted_indices = np.argsort(attention_scores)[::-1]
+            for pos in sorted_indices:
+                if pos not in selected:
+                    selected.add(int(pos))
+                    if len(selected) >= target_count:
+                        break
 
     # Step 7: 如果超过目标，移除最低分的位置
     while len(selected) > target_count:
@@ -878,10 +916,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
                 model(
                     inputs_embeds = inputs_embeds, past_key_values=past_key_values,
-                    cache_position=cache_position, reprocess_method=reprocess_method, 
+                    cache_position=cache_position, reprocess_method=reprocess_method,
                     return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
                     )
-                
+
                 k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:cache_position[0]]
                 end_time = time.perf_counter() - ss_time
                 if group:
@@ -965,7 +1003,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
             k_need_index = torch.topk(chunk_score, k_lens).indices.to('cpu')
             k_need_index = k_need_index + system_len
-        
+
         elif reprocess_method == "speculative_prefill":
             inputs = torch.cat(passages).to(input_device).unsqueeze(0)
             cache_position = torch.arange(0, inputs.shape[1], device=input_device)
@@ -981,7 +1019,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 inputs_embeds = draft_model.model.embed_tokens(inputs).to(input_device)
                 draft_model(
                     inputs_embeds = inputs_embeds, past_key_values=tmp_past_key_values,
-                    cache_position=cache_position, reprocess_method=reprocess_method, 
+                    cache_position=cache_position, reprocess_method=reprocess_method,
                     return_dict=False, use_cache=True, passages_len=passages_len
                     )
 
@@ -1210,12 +1248,49 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             elif reprocess_method == "DraftModel_smarter":
                 selected_indices = smart_query_selection(
                     attention_scores=multi_layer_attn[first_doc_len:],
+                    input_tokens=passages[2:],
                     doc_len=doc_len-first_doc_len,
                     target_ratio=rate,
                     system_len=system_len+first_doc_len,
                     device=draft_model_device,
-                    smarter=True
+                    smarter=True,
+                    tokenizer=tokenizer,
+                    eigenvalue=eigenvalue
                 )
+                passages_len_chosen = set()
+                ## add system prompt and the first document.
+                passages_len_chosen.add(0)
+                passages_len_chosen.add(1)
+                ## add query
+                passages_len_chosen.add(len(passages_len)-1)
+                selected_indices_passage = []
+                for selected_index in selected_indices:
+                    for i in range(len(passages_len)):
+                        start_idx = sum(passages_len[:i])
+                        end_idx = sum(passages_len[:i+1])
+                        if selected_index >= start_idx and selected_index<end_idx:
+                            passages_len_chosen.add(i)
+                            selected_indices_passage.append(i)
+                passages_len_chosen = sorted(list(passages_len_chosen))
+                selected_index_new = []
+                for i, index in enumerate(selected_indices):
+                    passage_index = selected_indices_passage[i]
+                    all_before_passage_index = list(range(passage_index))
+                    all_cur_passage_index = [x for x in all_before_passage_index if x in passages_len_chosen]
+                    before_len = sum(passages_len[x] for x in all_before_passage_index)
+                    cur_len = sum(passages_len[x] for x in all_cur_passage_index)
+                    selected_index_new.append(index-before_len+cur_len)
+                selected_indices = selected_index_new
+                passages_len = [passages_len[x] for x in passages_len_chosen]
+                eigenvalue["passages_chosen"] = len(passages_len_chosen) - 3 #
+                passages = [passages[x] for x in passages_len_chosen]
+                chunk_ids = list(range(len(passages) - 1))
+                key_cache = [cache for i, cache in enumerate(key_cache) if i in passages_len_chosen]
+                value_cache = [cache for i, cache in enumerate(value_cache) if i in passages_len_chosen]
+                past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values,
+                                   revert_rope, system_len)
+
+
             eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
             k_need_index = torch.tensor(selected_indices, device='cpu')
             if reprocess_method == 'DraftModel_ppr':
@@ -1273,7 +1348,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         )[0]
 
         logits = model_output[:,-1,:].unsqueeze(0).clone()
-        
+
         first_token_time = time.time() - start_time
         stream = TextStreamer(tokenizer)
         logits_warper = tf_logits_warper(temperature=0.01, top_k=1)
@@ -1290,7 +1365,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         cache_position = torch.tensor([past_len], device=output_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
-        
+
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs, rate=rate, path=query)
@@ -1299,13 +1374,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             tokens.append(next_token.int())
             # print(f"mengyao_debug current token is {tokenizer.decode(torch.tensor(tokens[:-1]))}")
             seq_length += 1
-            
+
             if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>':
                 break
 
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
-        
+
 
     total_time = time.time() - decode_time
     tokens_generated = len(tokens)
@@ -1353,7 +1428,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
     inputs = inputs.to(input_device)
 
     tokens = []
-    
+
     def decode_one_tokens(cuda_graph_runner, cur_token, position_ids, cache_position, past_key_values, use_cuda_graph: bool = False):
         if use_cuda_graph:
             logits = cuda_graph_runner(cur_token, position_ids, cache_position)
@@ -1373,7 +1448,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
         next_token = torch.argmax(next_token_scores, dim=-1)
         return next_token
-    
+
     with torch.no_grad():
         stream = TextStreamer(tokenizer)
 
@@ -1426,13 +1501,13 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
         cache_position = torch.tensor([seq_length], device=input_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
-        
+
         if use_cuda_graph:
             cuda_graph_runner = CUDAGraphRunner()
             cuda_graph_runner.capture(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, device, return_dict=False, use_cache=True)
         else:
             cuda_graph_runner = None
-            
+
         start_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(cuda_graph_runner, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, use_cuda_graph).to(input_device)
@@ -1440,14 +1515,14 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
             generated_ids[:, cache_position] = next_token.int()
             tokens.append(next_token.int())
             seq_length += 1
-            
+
             if next_token[0].item() == tokenizer.eos_token_id or tokenizer.decode(next_token) == '<|im_end|>' or tokenizer.decode(next_token) == '[unused10]':
                 # print(stream.end(), end="", flush=True)
                 break
 
             cache_position += 1
             position_ids = cache_position.unsqueeze(0)
-        
+
 
     total_time = time.time() - start_time
     tokens_generated = len(tokens)

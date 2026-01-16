@@ -115,6 +115,9 @@ class FusionRAGModel:
             with open(file_input, "r") as f:
                 all_input = json.load(f)
                 self.all_texts = [input["text"] for input in all_input]
+                ## fixme: mengyao_debug locomo quick fix
+                if "locomo" in dataset_name :
+                    self.all_texts = [f"Document: {text}\n" for text in self.all_texts if not text.startswith("Document:")]
             if os.path.exists(self.similar_index_file_path):
                 self.similar_idx = np.load(self.similar_index_file_path)
                 print(f"index load from {self.similar_index_file_path}")
@@ -293,9 +296,9 @@ class FusionRAGModel:
         try:
             current_doc_index = self.all_texts.index(current_doc)
         except ValueError:
-            print(f"字符串不存在")
+            print(f"字符串不存在, try to find replacement")
             current_doc_index = self.find_closest_by_edit_distance(texts=self.all_texts, target=current_doc, return_all_min=False)
-            print(f"字符串不存在！{current_doc}, replace with {self.all_texts[current_doc_index]}")
+            print(f"字符串不存在, found replacement.")
 
         current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
@@ -303,7 +306,7 @@ class FusionRAGModel:
         # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
         if os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_value.pt') \
                 and os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_key.pt'):
-            print(f"preprocess_all_documents skipping doc {current_doc}.")
+            # print(f"preprocess_all_documents skipping doc {current_doc}.")
             return
 
         similar_doc_indeces = self.similar_idx[current_doc_index]
@@ -434,7 +437,7 @@ class FusionRAGModel:
             # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
             if os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_value.pt') \
                     and os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_key.pt'):
-                print(f"preprocess_all_documents skipping doc {current_doc}.")
+                # print(f"preprocess_all_documents skipping doc {current_doc}.")
                 continue
 
             similar_doc_indeces = context_rank[current_doc_index]

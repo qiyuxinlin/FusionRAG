@@ -752,7 +752,7 @@ class OnlineEncoder:
             end_idx = min(start_idx + single_batch_size, len(text))
             batch_texts = text[start_idx:end_idx]
 
-            print(f"mengyao_debug processing batch {batch_index + 1}/{total_batches}: {batch_texts}")
+            # print(f"mengyao_debug processing batch {batch_index + 1}/{total_batches}: {batch_texts}")
 
             # 调用API获取嵌入
             response = self.client.embeddings.create(
