@@ -26,6 +26,14 @@ from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
 from FlagEmbedding import BGEM3FlagModel
 
+# KV Calibration support
+try:
+    from kv_calibration import KVCalibrator, KVCalibrationStats, CalibrationConfig
+    KV_CALIBRATION_AVAILABLE = True
+except ImportError:
+    KV_CALIBRATION_AVAILABLE = False
+    print("Warning: kv_calibration module not found. KV Calibration features will be disabled.")
+
 # Add project directory to path
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
@@ -1281,6 +1289,18 @@ def main(
     # Long decode 模式参数
     long_decode=False,  # 是否启用长 decode 模式（要求输出答案和支撑材料）
     long_decode_max_tokens=1000,  # long_decode 模式下的最大生成 token 数
+    # KV Calibration 参数 (NEW - 2026-01-16)
+    enable_kv_calibration=False,  # 是否启用KV校准
+    kv_calibration_mode='online',  # 'offline' 或 'online'
+    calibration_reference_method='bge',  # offline时的参考方法
+    calibration_sample_ratio=0.1,  # offline时的样本比例
+    calibration_granularity='per_layer',  # 统计粒度: per_layer, per_head, per_position
+    calibration_aggregation='mean',  # 聚合方式: mean, mean_std, weighted
+    calibration_key_layers='',  # 要校准的Key层（逗号分隔），留空=所有层
+    calibration_value_layers='',  # 要校准的Value层（逗号分隔），留空=所有层
+    calibration_auto_select_layers=False,  # 是否自动选择显著层
+    calibration_threshold=0.1,  # 自动选择的L2范数阈值
+    calibration_stats_path='',  # 统计量文件路径
 ):
     """
     Main function for FusionRAG testing on result_reflect.json
@@ -1379,6 +1399,91 @@ def main(
 
     # 初始化评判缓存
     _load_judge_cache(csv_path)
+
+    # ========== 初始化KV Calibration (NEW - 2026-01-16) ==========
+    calibrator = None
+    if enable_kv_calibration:
+        if not KV_CALIBRATION_AVAILABLE:
+            print("\n⚠️  Warning: KV Calibration is enabled but kv_calibration module is not available!")
+            print("    KV Calibration will be disabled.")
+        else:
+            # 解析层列表
+            def parse_layer_list(layer_str: str) -> List[int]:
+                if not layer_str or layer_str.strip() == '':
+                    return []
+                return [int(x.strip()) for x in layer_str.split(',') if x.strip()]
+
+            key_layers = parse_layer_list(calibration_key_layers)
+            value_layers = parse_layer_list(calibration_value_layers)
+
+            if kv_calibration_mode == 'online':
+                # Online模式：加载统计量
+                if not calibration_stats_path or calibration_stats_path == '':
+                    # 自动生成stats路径
+                    calibration_stats_path = os.path.join(
+                        model_cache_root,
+                        f"calibration_stats_{calibration_reference_method}_{calibration_granularity}.pt"
+                    )
+
+                if not os.path.exists(calibration_stats_path):
+                    print(f"\n⚠️  Warning: Calibration stats not found: {calibration_stats_path}")
+                    print("    KV Calibration will be disabled. Please run offline mode first.")
+                else:
+                    print(f"\n{'='*60}")
+                    print(f"KV Calibration - Online Mode")
+                    print(f"{'='*60}")
+                    stats = KVCalibrationStats.load(calibration_stats_path)
+                    calibrator = KVCalibrator(stats.config)
+                    calibrator.stats = stats
+
+                    # 如果指定了自定义层，覆盖stats中的配置
+                    if key_layers:
+                        calibrator.config.key_layers = key_layers
+                    if value_layers:
+                        calibrator.config.value_layers = value_layers
+
+                    print(f"✓ Loaded calibration stats from {calibration_stats_path}")
+                    print(f"  Granularity: {stats.config.granularity}")
+                    print(f"  Reference method: {stats.config.reference_method}")
+                    print(f"  Key layers: {calibrator.config.key_layers if calibrator.config.key_layers else 'All'}")
+                    print(f"  Value layers: {calibrator.config.value_layers if calibrator.config.value_layers else 'All'}")
+                    print(f"{'='*60}\n")
+
+            elif kv_calibration_mode == 'offline':
+                # Offline模式：统计偏移（在处理完数据后执行）
+                print(f"\n{'='*60}")
+                print(f"KV Calibration - Offline Mode")
+                print(f"{'='*60}")
+                print(f"Will compute calibration statistics after processing {int(calibration_sample_ratio * 100)}% samples")
+                print(f"  Reference method: {calibration_reference_method}")
+                print(f"  Granularity: {calibration_granularity}")
+                print(f"  Aggregation: {calibration_aggregation}")
+                print(f"  Auto select layers: {calibration_auto_select_layers}")
+                if calibration_auto_select_layers:
+                    print(f"  Threshold: {calibration_threshold}")
+                print(f"{'='*60}\n")
+
+                # 创建配置（统计将在数据处理后执行）
+                config = CalibrationConfig(
+                    granularity=calibration_granularity,
+                    aggregation=calibration_aggregation,
+                    sample_ratio=calibration_sample_ratio,
+                    reference_method=calibration_reference_method,
+                    key_layers=key_layers,
+                    value_layers=value_layers,
+                    auto_select_layers=calibration_auto_select_layers,
+                    threshold=calibration_threshold,
+                )
+                calibrator = KVCalibrator(config)
+
+                # 设置stats保存路径
+                if not calibration_stats_path or calibration_stats_path == '':
+                    calibration_stats_path = os.path.join(
+                        model_cache_root,
+                        f"calibration_stats_{calibration_reference_method}_{calibration_granularity}.pt"
+                    )
+                print(f"  Stats will be saved to: {calibration_stats_path}\n")
+    # ========== End KV Calibration Init ==========
 
     recall_method_display = {
         RecallMethod.BGE: "BGE Similarity",
@@ -1870,6 +1975,14 @@ def main(
                                     chunk_key_cache = torch.load(f"{random_text_cache_dir}/text_{text_id}_key.pt", weights_only=True)
                                     chunk_value_cache = torch.load(f"{random_text_cache_dir}/text_{text_id}_value.pt", weights_only=True)
 
+                                    # Apply KV Calibration if enabled (NEW - 2026-01-16)
+                                    if calibrator is not None and kv_calibration_mode == 'online':
+                                        chunk_key_cache, chunk_value_cache = calibrator.apply_calibration_online(
+                                            kv_cache_key=chunk_key_cache,
+                                            kv_cache_value=chunk_value_cache,
+                                            device=str(input_device)
+                                        )
+
                                     # Adjust KV cache to target length (only for RANDOM_TEXT mode)
                                     # KV cache shape: [num_layers][seq_len, hidden_dim] or [num_layers][batch, seq_len, hidden_dim]
                                     for layer_idx in range(len(past_key_values.key_cache)):
@@ -1924,6 +2037,14 @@ def main(
 
                             chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt", weights_only=True)
                             chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{similar_chunk_id}_value.pt", weights_only=True)
+
+                            # Apply KV Calibration if enabled (NEW - 2026-01-16)
+                            if calibrator is not None and kv_calibration_mode == 'online':
+                                chunk_key_cache, chunk_value_cache = calibrator.apply_calibration_online(
+                                    kv_cache_key=chunk_key_cache,
+                                    kv_cache_value=chunk_value_cache,
+                                    device=str(input_device)
+                                )
 
                             # Shuffle KV positions if BGE_SHUFFLED mode (for recalled documents only, not current doc)
                             if recall_method_enum == RecallMethod.BGE_SHUFFLED:
@@ -2904,6 +3025,33 @@ if __name__ == '__main__':
     parser.add_argument('--long_decode_max_tokens', type=int, default=1000,
                         help='Max tokens for long decode mode')
 
+    # KV Calibration 参数
+    parser.add_argument('--enable_kv_calibration', type=lambda x: x.lower() == 'true', default=False,
+                        help='Enable KV calibration (True/False)')
+    parser.add_argument('--kv_calibration_mode', type=str, default='online',
+                        choices=['offline', 'online'],
+                        help='KV calibration mode: offline (compute stats) or online (apply calibration)')
+    parser.add_argument('--calibration_reference_method', type=str, default='bge',
+                        help='Reference preprocess method for computing offsets (offline mode)')
+    parser.add_argument('--calibration_sample_ratio', type=float, default=0.1,
+                        help='Sample ratio for offline statistics (0.0-1.0)')
+    parser.add_argument('--calibration_granularity', type=str, default='per_layer',
+                        choices=['per_layer', 'per_head', 'per_position'],
+                        help='Statistics granularity')
+    parser.add_argument('--calibration_aggregation', type=str, default='mean',
+                        choices=['mean', 'mean_std', 'weighted'],
+                        help='Aggregation method')
+    parser.add_argument('--calibration_key_layers', type=str, default='',
+                        help='Layers to calibrate for Key (comma-separated, e.g., "0,1,2,3"). Empty = all layers')
+    parser.add_argument('--calibration_value_layers', type=str, default='',
+                        help='Layers to calibrate for Value (comma-separated). Empty = all layers')
+    parser.add_argument('--calibration_auto_select_layers', type=lambda x: x.lower() == 'true', default=False,
+                        help='Auto-select significant layers based on L2 norm (True/False)')
+    parser.add_argument('--calibration_threshold', type=float, default=0.1,
+                        help='L2 norm threshold for auto layer selection')
+    parser.add_argument('--calibration_stats_path', type=str, default='',
+                        help='Path to save/load calibration statistics')
+
     # GPU 配置
     parser.add_argument('--device', type=str, default='cuda:0',
                         help='Device to use for single GPU')
@@ -2976,6 +3124,18 @@ if __name__ == '__main__':
         rerank_multiplier=args.rerank_multiplier,
         long_decode=args.long_decode,
         long_decode_max_tokens=args.long_decode_max_tokens,
+        # KV Calibration 参数
+        enable_kv_calibration=args.enable_kv_calibration,
+        kv_calibration_mode=args.kv_calibration_mode,
+        calibration_reference_method=args.calibration_reference_method,
+        calibration_sample_ratio=args.calibration_sample_ratio,
+        calibration_granularity=args.calibration_granularity,
+        calibration_aggregation=args.calibration_aggregation,
+        calibration_key_layers=args.calibration_key_layers,
+        calibration_value_layers=args.calibration_value_layers,
+        calibration_auto_select_layers=args.calibration_auto_select_layers,
+        calibration_threshold=args.calibration_threshold,
+        calibration_stats_path=args.calibration_stats_path,
     )
     # for rate in [0.2]:
     #     main(

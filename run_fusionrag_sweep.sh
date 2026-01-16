@@ -35,6 +35,20 @@ REVERT_ROPE="true"
 PREPROCESS_SCOPE="global"
 USE_MULTI_GPU="false"
 
+# KV Calibration 参数 (NEW - 2026-01-16)
+# 启用KV校准功能，类似BatchNorm：offline统计偏移，online直接校准no_preprocess的KV
+ENABLE_KV_CALIBRATION="false"           # 是否启用KV校准
+KV_CALIBRATION_MODE="online"            # offline: 统计偏移并保存 | online: 加载偏移并应用校准
+CALIBRATION_REFERENCE_METHOD="bge"      # 参考方法（用于计算偏移的preprocess方法）
+CALIBRATION_SAMPLE_RATIO="0.1"          # Offline阶段：统计偏移的样本比例
+CALIBRATION_GRANULARITY="per_layer"     # 统计粒度：per_layer | per_head | per_position
+CALIBRATION_AGGREGATION="mean"          # 聚合方式：mean | mean_std | weighted
+CALIBRATION_KEY_LAYERS=""               # 对Key校准的层（逗号分隔，如"0,1,2,3"）。留空表示所有层
+CALIBRATION_VALUE_LAYERS=""             # 对Value校准的层（逗号分隔）。留空表示所有层
+CALIBRATION_AUTO_SELECT_LAYERS="false"  # 是否自动选择偏移显著的层
+CALIBRATION_THRESHOLD="0.1"             # 自动选择层的L2范数阈值
+CALIBRATION_STATS_PATH=""               # 偏移统计量文件路径（留空则自动生成）
+
 # 其他参数
 USE_ENTROPY_SELECTION="false"
 ENTROPY_TOP_K="4"
@@ -118,6 +132,17 @@ for RATE in "${RATE_LIST[@]}"; do
         "--vattention_topk_ratio" "${VATTENTION_TOPK_RATIO}"
         "--long_decode" "${LONG_DECODE}"
         "--long_decode_max_tokens" "${LONG_DECODE_MAX_TOKENS}"
+        "--enable_kv_calibration" "${ENABLE_KV_CALIBRATION}"
+        "--kv_calibration_mode" "${KV_CALIBRATION_MODE}"
+        "--calibration_reference_method" "${CALIBRATION_REFERENCE_METHOD}"
+        "--calibration_sample_ratio" "${CALIBRATION_SAMPLE_RATIO}"
+        "--calibration_granularity" "${CALIBRATION_GRANULARITY}"
+        "--calibration_aggregation" "${CALIBRATION_AGGREGATION}"
+        "--calibration_key_layers" "${CALIBRATION_KEY_LAYERS}"
+        "--calibration_value_layers" "${CALIBRATION_VALUE_LAYERS}"
+        "--calibration_auto_select_layers" "${CALIBRATION_AUTO_SELECT_LAYERS}"
+        "--calibration_threshold" "${CALIBRATION_THRESHOLD}"
+        "--calibration_stats_path" "${CALIBRATION_STATS_PATH}"
     )
 
     # 添加可选参数
