@@ -193,6 +193,61 @@ def load_kv_distribution_stats(stats_path: str) -> Dict:
     return stats
 
 
+def parse_layer_selection(layer_spec: str, max_layers: int = 28) -> set:
+    """
+    Parse layer selection specification into a set of layer indices.
+
+    Args:
+        layer_spec: Layer specification string. Formats:
+            - "all": All layers (0 to max_layers-1)
+            - "0-10": Range from layer 0 to 10 (inclusive)
+            - "0,5,10": Specific layers
+            - "0-10,15,20-25": Mixed format (ranges and specific layers)
+        max_layers: Maximum number of layers (default: 28 for Qwen2.5-7B)
+
+    Returns:
+        Set of layer indices to apply steering vector
+
+    Examples:
+        >>> parse_layer_selection("all", 28)
+        {0, 1, 2, ..., 27}
+        >>> parse_layer_selection("0-5", 28)
+        {0, 1, 2, 3, 4, 5}
+        >>> parse_layer_selection("0,5,10", 28)
+        {0, 5, 10}
+        >>> parse_layer_selection("0-5,10,15-20", 28)
+        {0, 1, 2, 3, 4, 5, 10, 15, 16, 17, 18, 19, 20}
+    """
+    if layer_spec.lower() == "all":
+        return set(range(max_layers))
+
+    layers = set()
+    parts = layer_spec.split(',')
+
+    for part in parts:
+        part = part.strip()
+        if '-' in part:
+            # Range format: "0-10"
+            start, end = part.split('-')
+            start_idx = int(start.strip())
+            end_idx = int(end.strip())
+            if start_idx < 0 or end_idx >= max_layers:
+                raise ValueError(
+                    f"Layer range {start_idx}-{end_idx} out of bounds [0, {max_layers-1}]"
+                )
+            layers.update(range(start_idx, end_idx + 1))
+        else:
+            # Single layer: "5"
+            layer_idx = int(part)
+            if layer_idx < 0 or layer_idx >= max_layers:
+                raise ValueError(
+                    f"Layer index {layer_idx} out of bounds [0, {max_layers-1}]"
+                )
+            layers.add(layer_idx)
+
+    return layers
+
+
 def apply_steering_vector(kv_cache: torch.Tensor, steering_vector: torch.Tensor,
                          layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
     """
@@ -1321,6 +1376,9 @@ def main(
     random_seed=42,  # 随机种子（当 recall_method=random 时生效）
     fixed_doc_idx=0,  # 固定文档索引（当 recall_method=fixed_doc 时生效）
     kv_stats_path=None,  # 分布统计文件路径（当 recall_method=no_preprocess_with_bias 时必需）
+    steering_alpha=1.0,  # Steering vector 强度系数（当 recall_method=no_preprocess_with_bias 时生效）
+    steering_key_layers='all',  # 应用 key steering vector 的层（格式: "all", "0-10", "0,5,10"）
+    steering_value_layers='all',  # 应用 value steering vector 的层（格式: "all", "0-10", "0,5,10"）
     preprocess_scope=PreprocessScope.GLOBAL,
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
@@ -1420,7 +1478,16 @@ def main(
         if kv_stats_path is None:
             raise ValueError("--kv_stats_path must be provided when using no_preprocess_with_bias method")
         kv_distribution_stats = load_kv_distribution_stats(kv_stats_path)
-        print(f"Loaded distribution statistics for {len(kv_distribution_stats['key_stats'])} layers")
+
+        # Check format and print appropriate message
+        if 'key_steering' in kv_distribution_stats:
+            num_layers = len(kv_distribution_stats['key_steering'])
+            print(f"Loaded steering vectors for {num_layers} layers (manifold steering format)")
+        elif 'key_stats' in kv_distribution_stats:
+            num_layers = len(kv_distribution_stats['key_stats'])
+            print(f"Loaded distribution statistics for {num_layers} layers (BatchNorm format)")
+        else:
+            raise ValueError(f"Unknown format in KV stats file: {kv_stats_path}")
 
     # Format: preprocess_kv_cache_{scope}_topk{topk}_{recall_method}
     if preprocess_scope == PreprocessScope.GLOBAL:
@@ -2044,6 +2111,14 @@ def main(
             print(f"Method: Manifold Steering (from overthinking paper)")
             print("="*80)
 
+            # Parse layer selection
+            key_layers_to_apply = parse_layer_selection(steering_key_layers, max_layers=28)
+            value_layers_to_apply = parse_layer_selection(steering_value_layers, max_layers=28)
+
+            print(f"\nLayer selection:")
+            print(f"  Key steering layers: {steering_key_layers} -> {sorted(key_layers_to_apply)}")
+            print(f"  Value steering layers: {steering_value_layers} -> {sorted(value_layers_to_apply)}")
+
             # Copy system cache (chunk_id=0) to preprocess_save_path
             os.makedirs(preprocess_save_path, exist_ok=True)
             system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
@@ -2053,7 +2128,7 @@ def main(
 
             # Determine data format (old BatchNorm or new steering vector)
             use_steering = 'key_steering' in kv_distribution_stats
-            alpha = 1.0  # Steering strength (can be tuned)
+            alpha = steering_alpha  # Use parameter from command line
 
             if use_steering:
                 print(f"  Using manifold steering vectors (α={alpha})")
@@ -2085,19 +2160,31 @@ def main(
                         if use_steering:
                             # New steering vector format
                             if layer_name in kv_distribution_stats['key_steering']:
-                                # Apply steering vector to key cache: h' = h + α * r_M
-                                key_steering = kv_distribution_stats['key_steering'][layer_name]['steering_vector']
-                                steered_key_layer = apply_steering_vector(
-                                    no_prep_key[layer_idx], key_steering, layer_idx, alpha
-                                )
-                                steered_key.append(steered_key_layer)
+                                # Check if we should apply steering to this layer
+                                apply_key_steering = layer_idx in key_layers_to_apply
+                                apply_value_steering = layer_idx in value_layers_to_apply
 
-                                # Apply steering vector to value cache
-                                value_steering = kv_distribution_stats['value_steering'][layer_name]['steering_vector']
-                                steered_value_layer = apply_steering_vector(
-                                    no_prep_value[layer_idx], value_steering, layer_idx, alpha
-                                )
-                                steered_value.append(steered_value_layer)
+                                # Apply steering vector to key cache if layer is selected
+                                if apply_key_steering:
+                                    key_steering = kv_distribution_stats['key_steering'][layer_name]['steering_vector']
+                                    steered_key_layer = apply_steering_vector(
+                                        no_prep_key[layer_idx], key_steering, layer_idx, alpha
+                                    )
+                                    steered_key.append(steered_key_layer)
+                                else:
+                                    # Layer not selected for key steering, use original
+                                    steered_key.append(no_prep_key[layer_idx])
+
+                                # Apply steering vector to value cache if layer is selected
+                                if apply_value_steering:
+                                    value_steering = kv_distribution_stats['value_steering'][layer_name]['steering_vector']
+                                    steered_value_layer = apply_steering_vector(
+                                        no_prep_value[layer_idx], value_steering, layer_idx, alpha
+                                    )
+                                    steered_value.append(steered_value_layer)
+                                else:
+                                    # Layer not selected for value steering, use original
+                                    steered_value.append(no_prep_value[layer_idx])
                             else:
                                 # No steering vector for this layer, use original
                                 steered_key.append(no_prep_key[layer_idx])
@@ -3061,6 +3148,12 @@ if __name__ == '__main__':
                         help='Fixed document index to use (when recall_method=fixed_doc)')
     parser.add_argument('--kv_stats_path', type=str, default=None,
                         help='Path to KV distribution statistics file (.pt) for no_preprocess_with_bias method')
+    parser.add_argument('--steering_alpha', type=float, default=1.0,
+                        help='Steering vector strength (alpha) for no_preprocess_with_bias method (default: 1.0)')
+    parser.add_argument('--steering_key_layers', type=str, default='all',
+                        help='Layers to apply key steering vector. Format: "all", "0-10", "0,5,10", or "0-10,15,20-25" (default: all)')
+    parser.add_argument('--steering_value_layers', type=str, default='all',
+                        help='Layers to apply value steering vector. Format: "all", "0-10", "0,5,10", or "0-10,15,20-25" (default: all)')
     parser.add_argument('--reprocess_method', type=str, default='FusionRAG',
                         choices=['FusionRAG', 'Oracle', 'OracleAdaptive', 'OracleDynamic',
                                 'vAttention', 'DraftModel', 'QueryAttention', 'DraftModelLayerwise'],
@@ -3164,6 +3257,9 @@ if __name__ == '__main__':
         random_seed=args.random_seed,
         fixed_doc_idx=args.fixed_doc_idx,
         kv_stats_path=args.kv_stats_path,
+        steering_alpha=args.steering_alpha,
+        steering_key_layers=args.steering_key_layers,
+        steering_value_layers=args.steering_value_layers,
         preprocess_scope=preprocess_scope,
         reprocess_method=args.reprocess_method,
         use_entropy_selection=args.use_entropy_selection,

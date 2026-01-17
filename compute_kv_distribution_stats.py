@@ -94,6 +94,52 @@ class KVDistributionAnalyzer:
             self.method_paths[method] = path
             print(f"Method '{method}': {path}")
 
+    def scan_all_samples(self, chunk_id: int = 1) -> List[int]:
+        """
+        Automatically scan the cache directory to find all available sample IDs.
+
+        Args:
+            chunk_id: Chunk ID to search for (default: 1)
+
+        Returns:
+            List of sample IDs found in both no_preprocess and bge directories
+        """
+        # Scan no_preprocess directory for all sample IDs
+        no_prep_path = self.method_paths['no_preprocess']
+        bge_path = self.method_paths['bge']
+
+        # Find all key files matching the pattern {sample_id}_{chunk_id}_key.pt
+        no_prep_samples = set()
+        bge_samples = set()
+
+        for key_file in no_prep_path.glob(f"*_{chunk_id}_key.pt"):
+            sample_id = int(key_file.stem.split('_')[0])
+            # Check if corresponding value file exists
+            value_file = no_prep_path / f"{sample_id}_{chunk_id}_value.pt"
+            if value_file.exists():
+                no_prep_samples.add(sample_id)
+
+        for key_file in bge_path.glob(f"*_{chunk_id}_key.pt"):
+            sample_id = int(key_file.stem.split('_')[0])
+            # Check if corresponding value file exists
+            value_file = bge_path / f"{sample_id}_{chunk_id}_value.pt"
+            if value_file.exists():
+                bge_samples.add(sample_id)
+
+        # Return samples that exist in both directories
+        common_samples = sorted(no_prep_samples & bge_samples)
+
+        if not common_samples:
+            raise ValueError(
+                f"No common samples found in both no_preprocess and bge directories "
+                f"for chunk_id={chunk_id}"
+            )
+
+        print(f"Found {len(common_samples)} samples with chunk_id={chunk_id}")
+        print(f"Sample IDs: {common_samples[:10]}{'...' if len(common_samples) > 10 else ''}")
+
+        return common_samples
+
     def load_kv_cache(self, method: str, example_id: int, chunk_id: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Load key and value cache for a specific method, example and chunk"""
         path = self.method_paths[method]
@@ -112,14 +158,25 @@ class KVDistributionAnalyzer:
         """
         Compute mean activation for a cache tensor (averaged over seq_len)
 
+        Supports both standard and grouped attention formats:
+        - Standard: [num_heads, seq_len, head_dim]
+        - Grouped: [num_groups, num_heads_per_group, seq_len, head_dim]
+
         Args:
-            cache_tensor: shape [num_heads, seq_len, head_dim]
+            cache_tensor: KV cache tensor (3D or 4D)
 
         Returns:
             mean: [num_heads, head_dim]
         """
-        if cache_tensor.dim() == 3:
-            # [num_heads, seq_len, head_dim]
+        if cache_tensor.dim() == 4:
+            # Grouped attention: [num_groups, num_heads_per_group, seq_len, head_dim]
+            num_groups, num_heads_per_group, seq_len, head_dim = cache_tensor.shape
+            # Reshape to standard format: [num_heads, seq_len, head_dim]
+            cache_tensor = cache_tensor.reshape(num_groups * num_heads_per_group, seq_len, head_dim)
+            # Mean over seq_len
+            mean = cache_tensor.mean(dim=1)  # [num_heads, head_dim]
+        elif cache_tensor.dim() == 3:
+            # Standard attention: [num_heads, seq_len, head_dim]
             mean = cache_tensor.mean(dim=1)  # [num_heads, head_dim]
         else:
             raise ValueError(f"Unexpected cache tensor shape: {cache_tensor.shape}")
@@ -138,6 +195,10 @@ class KVDistributionAnalyzer:
         Returns:
             projection_matrix: [n_features, n_features] projection matrix P_M
         """
+        # Convert to float32 if needed (numpy doesn't support bfloat16)
+        if activations.dtype == torch.bfloat16:
+            activations = activations.float()
+
         # Convert to numpy for sklearn PCA
         activations_np = activations.numpy()
 
@@ -173,12 +234,23 @@ class KVDistributionAnalyzer:
             projected_vector: [num_heads, head_dim] projected vector
         """
         original_shape = vector.shape
+        original_dtype = vector.dtype
+
+        # Convert to float32 for computation if needed
+        if vector.dtype == torch.bfloat16:
+            vector = vector.float()
+
         # Flatten to 1D
         vector_flat = vector.reshape(-1)
         # Project
         projected_flat = projection_matrix @ vector_flat
         # Reshape back
         projected = projected_flat.reshape(original_shape)
+
+        # Convert back to original dtype if needed
+        if original_dtype == torch.bfloat16:
+            projected = projected.to(torch.bfloat16)
+
         return projected
 
     def compute_distribution_stats(self, sample_ids: List[int], chunk_id: int = 1,
@@ -225,9 +297,16 @@ class KVDistributionAnalyzer:
             valid_samples += 1
 
             # Determine number of layers from cache shape
-            if bge_key.dim() == 4:
+            # Support both 4D [num_layers, num_heads, seq_len, head_dim] (standard)
+            # and 5D [num_layers, num_groups, num_heads_per_group, seq_len, head_dim] (grouped attention)
+            if bge_key.dim() == 5:
+                # Grouped attention format (e.g., 2wikimqa, musique)
+                num_layers = bge_key.shape[0]
+            elif bge_key.dim() == 4:
+                # Standard format
                 num_layers = bge_key.shape[0]
             else:
+                # Single layer, add layer dimension
                 num_layers = 1
                 bge_key = bge_key.unsqueeze(0)
                 bge_value = bge_value.unsqueeze(0)
@@ -239,7 +318,10 @@ class KVDistributionAnalyzer:
                 layer_name = f'layer_{layer_idx}'
 
                 # Extract layer data
-                bge_key_layer = bge_key[layer_idx]      # [num_heads, seq_len, head_dim]
+                # After extraction, can be either:
+                # - 4D [num_groups, num_heads_per_group, seq_len, head_dim] (grouped)
+                # - 3D [num_heads, seq_len, head_dim] (standard)
+                bge_key_layer = bge_key[layer_idx]
                 bge_value_layer = bge_value[layer_idx]
                 no_prep_key_layer = no_prep_key[layer_idx]
                 no_prep_value_layer = no_prep_value[layer_idx]
@@ -258,11 +340,26 @@ class KVDistributionAnalyzer:
 
                 # Collect raw activations for PCA
                 if use_manifold_projection:
-                    # Flatten: [num_heads, seq_len, head_dim] -> [seq_len, num_heads * head_dim]
-                    bge_key_flat = bge_key_layer.transpose(0, 1).reshape(bge_key_layer.shape[1], -1)
-                    no_prep_key_flat = no_prep_key_layer.transpose(0, 1).reshape(no_prep_key_layer.shape[1], -1)
-                    bge_value_flat = bge_value_layer.transpose(0, 1).reshape(bge_value_layer.shape[1], -1)
-                    no_prep_value_flat = no_prep_value_layer.transpose(0, 1).reshape(no_prep_value_layer.shape[1], -1)
+                    # Handle both standard (3D) and grouped attention (4D) formats
+                    def flatten_for_pca(tensor):
+                        """
+                        Flatten KV cache for PCA
+                        Input: [num_heads, seq_len, head_dim] or [num_groups, num_heads_per_group, seq_len, head_dim]
+                        Output: [seq_len, num_heads * head_dim]
+                        """
+                        if tensor.dim() == 4:
+                            # Grouped: [num_groups, num_heads_per_group, seq_len, head_dim]
+                            num_groups, num_heads_per_group, seq_len, head_dim = tensor.shape
+                            # Reshape to [num_heads, seq_len, head_dim]
+                            tensor = tensor.reshape(num_groups * num_heads_per_group, seq_len, head_dim)
+                        # Now tensor is [num_heads, seq_len, head_dim]
+                        # Transpose and flatten: [seq_len, num_heads * head_dim]
+                        return tensor.transpose(0, 1).reshape(tensor.shape[1], -1)
+
+                    bge_key_flat = flatten_for_pca(bge_key_layer)
+                    no_prep_key_flat = flatten_for_pca(no_prep_key_layer)
+                    bge_value_flat = flatten_for_pca(bge_value_layer)
+                    no_prep_value_flat = flatten_for_pca(no_prep_value_layer)
 
                     # Combine both methods for PCA (to find shared manifold)
                     key_raw_activations[layer_name].append(torch.cat([bge_key_flat, no_prep_key_flat], dim=0))
@@ -371,8 +468,10 @@ def main():
                        help="Dataset name")
     parser.add_argument("--model_name", type=str, default="Qwen2.5-7B-Instruct",
                        help="Model name")
-    parser.add_argument("--sample_ids", type=int, nargs='+', required=True,
-                       help="List of sample IDs to analyze")
+    parser.add_argument("--sample_ids", type=int, nargs='+', required=False,
+                       help="List of sample IDs to analyze (mutually exclusive with --use_all_samples)")
+    parser.add_argument("--use_all_samples", action='store_true', default=False,
+                       help="Automatically use all available samples in the dataset (mutually exclusive with --sample_ids)")
     parser.add_argument("--chunk_id", type=int, default=1,
                        help="Chunk ID to analyze")
     parser.add_argument("--max_layers", type=int, default=28,
@@ -388,6 +487,12 @@ def main():
 
     args = parser.parse_args()
 
+    # Validate sample_ids and use_all_samples arguments
+    if args.use_all_samples and args.sample_ids:
+        parser.error("--use_all_samples and --sample_ids are mutually exclusive. Please use only one.")
+    if not args.use_all_samples and not args.sample_ids:
+        parser.error("Either --use_all_samples or --sample_ids must be specified.")
+
     # Create output directory
     output_dir = Path(args.output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -399,9 +504,19 @@ def main():
         model_name=args.model_name
     )
 
+    # Determine sample IDs to use
+    if args.use_all_samples:
+        print(f"\n{'='*60}")
+        print("Auto-scanning for all available samples...")
+        print(f"{'='*60}")
+        sample_ids = analyzer.scan_all_samples(chunk_id=args.chunk_id)
+    else:
+        sample_ids = args.sample_ids
+        print(f"\nUsing specified {len(sample_ids)} sample IDs: {sample_ids}")
+
     # Compute statistics
     stats = analyzer.compute_distribution_stats(
-        sample_ids=args.sample_ids,
+        sample_ids=sample_ids,
         chunk_id=args.chunk_id,
         max_layers=args.max_layers,
         use_manifold_projection=args.use_manifold_projection,
