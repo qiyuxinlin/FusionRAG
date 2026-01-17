@@ -41,6 +41,7 @@ METHOD_DIR_MAP = {
     'random_docs': 'preprocess_kv_cache_global_topk10_random_docs',
     'random_text': 'preprocess_kv_cache_global_topk10_random_text',
     'bge_shuffled': 'preprocess_kv_cache_global_topk10_bge_shuffled',
+    'repeat_self2': 'preprocess_kv_cache_global_topk1_repeat_self',
 }
 
 # Color scheme for different methods (up to 8 methods)
@@ -74,8 +75,8 @@ class MultiMethodKVCacheAnalyzer:
 
         # Build paths for each method
         for method in methods:
-            if method not in METHOD_DIR_MAP:
-                raise ValueError(f"Unknown method: {method}. Valid methods: {list(METHOD_DIR_MAP.keys())}")
+            # if method not in METHOD_DIR_MAP:
+            #     raise ValueError(f"Unknown method: {method}. Valid methods: {list(METHOD_DIR_MAP.keys())}")
 
             dir_name = METHOD_DIR_MAP[method]
             path = self.cache_dir / model_name / dataset / dir_name

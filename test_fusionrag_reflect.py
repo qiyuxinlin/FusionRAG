@@ -67,6 +67,7 @@ class RecallMethod(Enum):
     RANDOM_TEXT: Use BGE to get document lengths, but fuse with random unrelated text KV (for ablation study)
     BGE_SHUFFLED: Use BGE recall, but shuffle KV positions within each recalled document (for ablation study)
     RANDOM_DOCS: Randomly pick topk unrelated texts from library, use original KV without length adjustment (for ablation study)
+    NO_PREPROCESS_WITH_BIAS: Use no_preprocess KV cache with distribution bias correction (BatchNorm-like)
     """
     BGE = "bge"
     RANDOM = "random"
@@ -75,6 +76,7 @@ class RecallMethod(Enum):
     RANDOM_TEXT = "random_text"
     BGE_SHUFFLED = "bge_shuffled"
     RANDOM_DOCS = "random_docs"  # Pick topk random texts from library, use original KV without trimming
+    NO_PREPROCESS_WITH_BIAS = "no_preprocess_with_bias"  # Use no_preprocess KV with distribution alignment
 
 
 
@@ -157,6 +159,73 @@ def load_system_prompt(model_family: str, dataset_type: str = "2wikimqa") -> str
 
     # Default to Qwen2.5 2wikimqa
     return config["system_prompt"]["Qwen3"]["2wikimqa"]
+
+
+def load_kv_distribution_stats(stats_path: str) -> Dict:
+    """
+    Load pre-computed KV steering vectors for manifold steering
+
+    Args:
+        stats_path: Path to the steering vectors file (.pt)
+
+    Returns:
+        Dictionary containing layer-wise steering vectors with keys:
+        - 'key_steering': layer-wise key steering vectors
+        - 'value_steering': layer-wise value steering vectors
+        - 'metadata': metadata about the steering vectors
+    """
+    if not os.path.exists(stats_path):
+        raise FileNotFoundError(f"Steering vectors file not found: {stats_path}")
+
+    print(f"Loading KV steering vectors from: {stats_path}")
+    stats = torch.load(stats_path, map_location='cpu')
+
+    # Check if old format (key_stats/value_stats) or new format (key_steering/value_steering)
+    if 'key_stats' in stats:
+        print(f"  Loaded statistics for {len(stats['key_stats'])} layers (old BatchNorm format)")
+    elif 'key_steering' in stats:
+        print(f"  Loaded steering vectors for {len(stats['key_steering'])} layers (manifold steering format)")
+    else:
+        raise ValueError(f"Unknown format in stats file")
+
+    print(f"  Computed from {stats['metadata']['num_samples']} samples")
+
+    return stats
+
+
+def apply_steering_vector(kv_cache: torch.Tensor, steering_vector: torch.Tensor,
+                         layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
+    """
+    Apply steering vector to KV cache (Manifold Steering from overthinking paper)
+
+    Following the paper's method:
+    h' = h + α * r_M
+
+    Where:
+    - h: original activation (no_preprocess KV cache)
+    - r_M: steering vector (projected onto manifold)
+    - α: steering strength (default: 1.0)
+
+    Args:
+        kv_cache: KV cache tensor [num_heads, seq_len, head_dim]
+        steering_vector: Steering vector [num_heads, head_dim]
+        layer_idx: Layer index (for debugging)
+        alpha: Steering strength (default: 1.0)
+
+    Returns:
+        Steered KV cache with same shape as input
+    """
+    # kv_cache: [num_heads, seq_len, head_dim]
+    # steering_vector: [num_heads, head_dim]
+
+    # Expand steering vector to match kv_cache shape
+    # steering_vector: [num_heads, head_dim] -> [num_heads, 1, head_dim]
+    steering_expanded = steering_vector.unsqueeze(1)  # [num_heads, 1, head_dim]
+
+    # Apply intervention: KV_aligned = KV_no_preprocess + α * r_M
+    kv_steered = kv_cache + alpha * steering_expanded
+
+    return kv_steered
 import json
 import torch
 import numpy as np
@@ -1248,9 +1317,10 @@ def main(
     topk=10,
     preprocess=True,
     use_random_recall=False,  # 已废弃，保留用于向后兼容。请使用 recall_method_str
-    recall_method_str='bge',  # 召回方法: 'bge', 'random', 'repeat_self', 'fixed_doc'
+    recall_method_str='bge',  # 召回方法: 'bge', 'random', 'repeat_self', 'fixed_doc', 'no_preprocess_with_bias'
     random_seed=42,  # 随机种子（当 recall_method=random 时生效）
     fixed_doc_idx=0,  # 固定文档索引（当 recall_method=fixed_doc 时生效）
+    kv_stats_path=None,  # 分布统计文件路径（当 recall_method=no_preprocess_with_bias 时必需）
     preprocess_scope=PreprocessScope.GLOBAL,
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
@@ -1340,8 +1410,17 @@ def main(
         'random_text': RecallMethod.RANDOM_TEXT,
         'bge_shuffled': RecallMethod.BGE_SHUFFLED,
         'random_docs': RecallMethod.RANDOM_DOCS,
+        'no_preprocess_with_bias': RecallMethod.NO_PREPROCESS_WITH_BIAS,
     }
     recall_method_enum = recall_method_map.get(recall_method_str.lower(), RecallMethod.BGE)
+
+    # Load KV distribution statistics for no_preprocess_with_bias method
+    kv_distribution_stats = None
+    if recall_method_enum == RecallMethod.NO_PREPROCESS_WITH_BIAS:
+        if kv_stats_path is None:
+            raise ValueError("--kv_stats_path must be provided when using no_preprocess_with_bias method")
+        kv_distribution_stats = load_kv_distribution_stats(kv_stats_path)
+        print(f"Loaded distribution statistics for {len(kv_distribution_stats['key_stats'])} layers")
 
     # Format: preprocess_kv_cache_{scope}_topk{topk}_{recall_method}
     if preprocess_scope == PreprocessScope.GLOBAL:
@@ -1387,7 +1466,8 @@ def main(
         RecallMethod.FIXED_DOC: f"Fixed Doc (idx={fixed_doc_idx})",
         RecallMethod.RANDOM_TEXT: "Random Text (BGE lengths)",
         RecallMethod.BGE_SHUFFLED: "BGE Shuffled (KV positions)",
-        RecallMethod.RANDOM_DOCS: "Random Docs (original lengths)"
+        RecallMethod.RANDOM_DOCS: "Random Docs (original lengths)",
+        RecallMethod.NO_PREPROCESS_WITH_BIAS: "No Preprocess + Distribution Bias"
     }
     print(f"Cache directories created under: {model_cache_root}")
     print(f"  - KV cache: {save_path}")
@@ -1677,8 +1757,8 @@ def main(
                 if random_text_tensors:
                     print(f"  Generated KV cache for {len(random_text_tensors)} random texts")
 
-        # Step 2: FusionRAG preprocess (if enabled)
-        if preprocess and rate != 1:
+        # Step 2: FusionRAG preprocess (if enabled, but skip for NO_PREPROCESS_WITH_BIAS)
+        if preprocess and rate != 1 and recall_method_enum != RecallMethod.NO_PREPROCESS_WITH_BIAS:
             # Copy system cache (chunk_id=0)
             system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
             if not os.path.exists(system_preprocess_key):
@@ -1948,13 +2028,116 @@ def main(
                 # Add current document
                 corpus_passages.append(doc_tensors[doc_idx])
 
-                # Preprocess with fused KV cache
+                # Preprocess with fused KV cache (normal methods only, not NO_PREPROCESS_WITH_BIAS)
                 prefill_with_cache_and_save_preprocess(
                     model, tokenizer, past_key_values, corpus_passages,
                     preprocess_save_path, example_id, chunk_id,
                     system_len=system_len, revert_rope=revert_rope,
                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                 )
+
+        # Step 2.5: Apply steering vector for NO_PREPROCESS_WITH_BIAS method
+        # Following the paper's manifold steering approach: h' = h + α * r_M
+        if preprocess and recall_method_enum == RecallMethod.NO_PREPROCESS_WITH_BIAS:
+            print("\n" + "="*80)
+            print(f"Applying steering vectors to no_preprocess KV caches for example {example_id+1}")
+            print(f"Method: Manifold Steering (from overthinking paper)")
+            print("="*80)
+
+            # Copy system cache (chunk_id=0) to preprocess_save_path
+            os.makedirs(preprocess_save_path, exist_ok=True)
+            system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
+            if not os.path.exists(system_preprocess_key):
+                shutil.copy(f'{save_path}/{example_id}_0_key.pt', system_preprocess_key)
+                shutil.copy(f'{save_path}/{example_id}_0_value.pt', f"{preprocess_save_path}/{example_id}_0_value.pt")
+
+            # Determine data format (old BatchNorm or new steering vector)
+            use_steering = 'key_steering' in kv_distribution_stats
+            alpha = 1.0  # Steering strength (can be tuned)
+
+            if use_steering:
+                print(f"  Using manifold steering vectors (α={alpha})")
+            else:
+                print(f"  Using old BatchNorm format (scale/bias)")
+
+            # Apply steering/bias to all document chunks for this example
+            for doc_idx in range(len(doc_tensors)):
+                chunk_id = doc_idx + 1  # chunk_id starts from 1
+
+                # Load no_preprocess KV cache
+                no_prep_key_path = f"{save_path}/{example_id}_{chunk_id}_key.pt"
+                no_prep_value_path = f"{save_path}/{example_id}_{chunk_id}_value.pt"
+
+                if os.path.exists(no_prep_key_path) and os.path.exists(no_prep_value_path):
+                    print(f"  Processing chunk {chunk_id}/{len(doc_tensors)}...")
+
+                    no_prep_key = torch.load(no_prep_key_path, weights_only=True, map_location='cpu')
+                    no_prep_value = torch.load(no_prep_value_path, weights_only=True, map_location='cpu')
+
+                    # Apply steering vector or bias for each layer
+                    num_layers = len(no_prep_key)
+                    steered_key = []
+                    steered_value = []
+
+                    for layer_idx in range(num_layers):
+                        layer_name = f'layer_{layer_idx}'
+
+                        if use_steering:
+                            # New steering vector format
+                            if layer_name in kv_distribution_stats['key_steering']:
+                                # Apply steering vector to key cache: h' = h + α * r_M
+                                key_steering = kv_distribution_stats['key_steering'][layer_name]['steering_vector']
+                                steered_key_layer = apply_steering_vector(
+                                    no_prep_key[layer_idx], key_steering, layer_idx, alpha
+                                )
+                                steered_key.append(steered_key_layer)
+
+                                # Apply steering vector to value cache
+                                value_steering = kv_distribution_stats['value_steering'][layer_name]['steering_vector']
+                                steered_value_layer = apply_steering_vector(
+                                    no_prep_value[layer_idx], value_steering, layer_idx, alpha
+                                )
+                                steered_value.append(steered_value_layer)
+                            else:
+                                # No steering vector for this layer, use original
+                                steered_key.append(no_prep_key[layer_idx])
+                                steered_value.append(no_prep_value[layer_idx])
+                        else:
+                            # Old BatchNorm format (for backward compatibility)
+                            if layer_name in kv_distribution_stats['key_stats']:
+                                # Apply bias to key cache (old method)
+                                key_bias = kv_distribution_stats['key_stats'][layer_name]['bias']
+                                key_scale = kv_distribution_stats['key_stats'][layer_name]['scale']
+                                # Expand and apply
+                                bias_expanded = key_bias.unsqueeze(1)
+                                scale_expanded = key_scale.unsqueeze(1)
+                                steered_key_layer = no_prep_key[layer_idx] * scale_expanded + bias_expanded
+                                steered_key.append(steered_key_layer)
+
+                                # Apply bias to value cache (old method)
+                                value_bias = kv_distribution_stats['value_stats'][layer_name]['bias']
+                                value_scale = kv_distribution_stats['value_stats'][layer_name]['scale']
+                                bias_expanded = value_bias.unsqueeze(1)
+                                scale_expanded = value_scale.unsqueeze(1)
+                                steered_value_layer = no_prep_value[layer_idx] * scale_expanded + bias_expanded
+                                steered_value.append(steered_value_layer)
+                            else:
+                                # No statistics for this layer, use original
+                                steered_key.append(no_prep_key[layer_idx])
+                                steered_value.append(no_prep_value[layer_idx])
+
+                    # Stack layers back
+                    steered_key = torch.stack(steered_key) if len(steered_key) > 0 else no_prep_key
+                    steered_value = torch.stack(steered_value) if len(steered_value) > 0 else no_prep_value
+
+                    # Save to preprocess_save_path (temporary for this example)
+                    os.makedirs(preprocess_save_path, exist_ok=True)
+                    torch.save(steered_key, f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt")
+                    torch.save(steered_value, f"{preprocess_save_path}/{example_id}_{chunk_id}_value.pt")
+                else:
+                    print(f"  Warning: No_preprocess KV cache not found for chunk {chunk_id}")
+
+            print(f"✓ Steering vectors applied to all chunks for example {example_id+1}")
 
         # Step 3: Answer sub-questions
         # 使用线程池异步判断，主线程继续生成下一个答案
@@ -2255,6 +2438,34 @@ def main(
             print(f"\n✓ Main question {example_id+1}: ALL {len(q_data['sub_questions'])} sub-questions CORRECT")
         else:
             print(f"\n✗ Main question {example_id+1}: Some sub-questions INCORRECT")
+
+        # Clean up temporary biased KV cache for NO_PREPROCESS_WITH_BIAS method
+        if preprocess and recall_method_enum == RecallMethod.NO_PREPROCESS_WITH_BIAS:
+            print(f"🧹 Cleaning up temporary biased KV cache for example {example_id+1}...")
+            doc_tensors = q_data['doc_tensors']
+
+            # Delete system cache copy
+            system_key_path = f"{preprocess_save_path}/{example_id}_0_key.pt"
+            system_value_path = f"{preprocess_save_path}/{example_id}_0_value.pt"
+            if os.path.exists(system_key_path):
+                os.remove(system_key_path)
+            if os.path.exists(system_value_path):
+                os.remove(system_value_path)
+
+            # Delete biased document caches
+            deleted_count = 0
+            for doc_idx in range(len(doc_tensors)):
+                chunk_id = doc_idx + 1
+                key_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt"
+                value_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_value.pt"
+
+                if os.path.exists(key_path):
+                    os.remove(key_path)
+                    deleted_count += 1
+                if os.path.exists(value_path):
+                    os.remove(value_path)
+
+            print(f"  ✓ Deleted {deleted_count} temporary KV cache files")
 
     # Final results
     main_q_acc = correct_main_questions / total_main_questions if total_main_questions > 0 else 0
@@ -2842,12 +3053,14 @@ if __name__ == '__main__':
     parser.add_argument('--use_random_recall', type=lambda x: x.lower() == 'true', default=False,
                         help='[DEPRECATED] Use random document sampling. Please use --recall_method instead')
     parser.add_argument('--recall_method', type=str, default='bge',
-                        # choices=['bge', 'random', 'repeat_self', 'fixed_doc'],
-                        help='Document recall method: bge (similarity), random, repeat_self, or fixed_doc')
+                        # choices=['bge', 'random', 'repeat_self', 'fixed_doc', 'no_preprocess_with_bias'],
+                        help='Document recall method: bge (similarity), random, repeat_self, fixed_doc, or no_preprocess_with_bias')
     parser.add_argument('--random_seed', type=int, default=42,
                         help='Random seed for reproducibility (when recall_method=random)')
     parser.add_argument('--fixed_doc_idx', type=int, default=0,
                         help='Fixed document index to use (when recall_method=fixed_doc)')
+    parser.add_argument('--kv_stats_path', type=str, default=None,
+                        help='Path to KV distribution statistics file (.pt) for no_preprocess_with_bias method')
     parser.add_argument('--reprocess_method', type=str, default='FusionRAG',
                         choices=['FusionRAG', 'Oracle', 'OracleAdaptive', 'OracleDynamic',
                                 'vAttention', 'DraftModel', 'QueryAttention', 'DraftModelLayerwise'],
@@ -2950,6 +3163,7 @@ if __name__ == '__main__':
         recall_method_str=args.recall_method,
         random_seed=args.random_seed,
         fixed_doc_idx=args.fixed_doc_idx,
+        kv_stats_path=args.kv_stats_path,
         preprocess_scope=preprocess_scope,
         reprocess_method=args.reprocess_method,
         use_entropy_selection=args.use_entropy_selection,

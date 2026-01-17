@@ -8,7 +8,7 @@
 #
 # 示例：
 #   # 对比 no_preprocess 和 bge
-#   bash /home/shm/document/exp/FusionRAG/run_kv_pca_multi.sh bge random 20 /home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v11
+#   bash /home/shm/document/exp/FusionRAG/run_kv_pca_multi.sh repeat_self2 repeat_self no_preprocess 20 /home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v13
 #
 #   # 对比 no_preprocess, bge, random 三种方法
 #   bash run_kv_pca_multi.sh no_preprocess bge random
@@ -53,7 +53,7 @@ NUM_SAMPLES=""
 OUTPUT_DIR="/home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v10"
 
 # 可用方法列表
-VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled")
+VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled" "repeat_self2")
 
 for arg in "$@"; do
     # 检查是否是数字（样本数）
@@ -88,17 +88,6 @@ fi
 # 生成样本 ID 列表
 SAMPLE_IDS=$(seq 0 $((NUM_SAMPLES-1)))
 
-echo "==========================================="
-echo "多方法 KV Cache PCA 对比分析"
-echo "==========================================="
-echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo "对比方法: ${METHODS[@]}"
-echo "分析样本数: ${NUM_SAMPLES}"
-echo "样本 IDs: ${SAMPLE_IDS}"
-echo "分析层: ${LAYERS}"
-echo "输出目录: ${OUTPUT_DIR}"
-echo "==========================================="
-echo ""
 
 # 检查KV cache是否存在
 echo "检查 KV cache 可用性..."
@@ -115,6 +104,9 @@ for method in "${METHODS[@]}"; do
             ;;
         repeat_self)
             dir_path="${CACHE_DIR}/${MODEL_NAME}/${DATASET}/preprocess_kv_cache_global_topk10_repeat_self"
+            ;;
+        repeat_self2)
+            dir_path="${CACHE_DIR}/${MODEL_NAME}/${DATASET}/preprocess_kv_cache_global_topk1_repeat_self"
             ;;
         fixed_doc)
             dir_path="${CACHE_DIR}/${MODEL_NAME}/${DATASET}/preprocess_kv_cache_global_topk10_fixed_doc"
