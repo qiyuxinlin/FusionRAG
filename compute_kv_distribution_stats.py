@@ -255,7 +255,7 @@ class KVDistributionAnalyzer:
 
     def compute_distribution_stats(self, sample_ids: List[int], chunk_id: int = 1,
                                    max_layers: int = 28, use_manifold_projection: bool = True,
-                                   pca_variance_threshold: float = 0.7) -> Dict:
+                                   pca_variance_threshold: float = 0.7, per_head_stats: bool = False) -> Dict:
         """
         Compute distribution statistics across samples and layers with manifold projection
 
@@ -265,6 +265,7 @@ class KVDistributionAnalyzer:
             max_layers: Maximum number of layers
             use_manifold_projection: Whether to use PCA-based manifold projection (default: True)
             pca_variance_threshold: Variance threshold for PCA components (default: 0.7)
+            per_head_stats: Whether to compute statistics separately for each attention head (default: False)
 
         Returns:
             Dictionary containing layer-wise statistics
@@ -272,6 +273,7 @@ class KVDistributionAnalyzer:
         print(f"\nComputing distribution statistics for {len(sample_ids)} samples...")
         print(f"Chunk ID: {chunk_id}, Max layers: {max_layers}")
         print(f"Manifold projection: {use_manifold_projection}, Variance threshold: {pca_variance_threshold}")
+        print(f"Per-head statistics: {per_head_stats}")
 
         # Initialize accumulators for each layer
         # Store mean activations for computing steering vectors
@@ -382,6 +384,7 @@ class KVDistributionAnalyzer:
                 'chunk_id': chunk_id,
                 'use_manifold_projection': use_manifold_projection,
                 'pca_variance_threshold': pca_variance_threshold if use_manifold_projection else None,
+                'per_head_stats': per_head_stats,
             }
         }
 
@@ -427,6 +430,54 @@ class KVDistributionAnalyzer:
                 'no_prep_mean': no_prep_key_mean_avg  # for reference
             }
 
+            # ========== Per-Head Key Steering (if enabled) ==========
+            if per_head_stats:
+                num_heads = bge_key_mean_avg.shape[0]
+                per_head_key_stats = {}
+
+                for head_idx in range(num_heads):
+                    # Extract per-head means
+                    bge_key_head_mean = bge_key_mean_avg[head_idx]  # [head_dim]
+                    no_prep_key_head_mean = no_prep_key_mean_avg[head_idx]  # [head_dim]
+
+                    # Compute per-head steering vector
+                    key_head_steering = bge_key_head_mean - no_prep_key_head_mean  # [head_dim]
+
+                    # Apply per-head manifold projection if enabled
+                    if use_manifold_projection and key_raw_activations[layer_name]:
+                        # Extract per-head activations from all samples
+                        # key_activations_all: [total_seq_len, num_heads*head_dim]
+                        head_dim = bge_key_head_mean.shape[0]
+                        head_start_idx = head_idx * head_dim
+                        head_end_idx = (head_idx + 1) * head_dim
+
+                        # Extract activations for this specific head
+                        key_head_activations = key_activations_all[:, head_start_idx:head_end_idx]  # [total_seq_len, head_dim]
+
+                        # Compute per-head projection matrix
+                        key_head_projection_matrix = self.compute_manifold_projection(
+                            key_head_activations, variance_threshold=pca_variance_threshold
+                        )
+
+                        # Project: r_M = P_M @ r (for 1D vector)
+                        key_head_steering_flat = key_head_steering.reshape(-1)
+                        if key_head_steering.dtype == torch.bfloat16:
+                            key_head_steering_flat = key_head_steering_flat.float()
+                        key_head_steering_projected = key_head_projection_matrix @ key_head_steering_flat
+                        if bge_key_head_mean.dtype == torch.bfloat16:
+                            key_head_steering_projected = key_head_steering_projected.to(torch.bfloat16)
+                        key_head_steering = key_head_steering_projected.reshape(head_dim)
+
+                    per_head_key_stats[f'head_{head_idx}'] = {
+                        'steering_vector': key_head_steering,
+                        'bge_mean': bge_key_head_mean,
+                        'no_prep_mean': no_prep_key_head_mean
+                    }
+
+                final_stats['key_steering'][layer_name]['per_head'] = per_head_key_stats
+                if layer_idx == 0:
+                    print(f"  Layer {layer_idx} - Per-head key statistics: {num_heads} heads")
+
             # ========== Value Steering Vector ==========
             bge_value_means = torch.stack(value_means[layer_name]['bge'])
             no_prep_value_means = torch.stack(value_means[layer_name]['no_prep'])
@@ -454,6 +505,53 @@ class KVDistributionAnalyzer:
                 'bge_mean': bge_value_mean_avg,
                 'no_prep_mean': no_prep_value_mean_avg
             }
+
+            # ========== Per-Head Value Steering (if enabled) ==========
+            if per_head_stats:
+                num_heads = bge_value_mean_avg.shape[0]
+                per_head_value_stats = {}
+
+                for head_idx in range(num_heads):
+                    # Extract per-head means
+                    bge_value_head_mean = bge_value_mean_avg[head_idx]  # [head_dim]
+                    no_prep_value_head_mean = no_prep_value_mean_avg[head_idx]  # [head_dim]
+
+                    # Compute per-head steering vector
+                    value_head_steering = bge_value_head_mean - no_prep_value_head_mean  # [head_dim]
+
+                    # Apply per-head manifold projection if enabled
+                    if use_manifold_projection and value_raw_activations[layer_name]:
+                        # Extract per-head activations from all samples
+                        head_dim = bge_value_head_mean.shape[0]
+                        head_start_idx = head_idx * head_dim
+                        head_end_idx = (head_idx + 1) * head_dim
+
+                        # Extract activations for this specific head
+                        value_head_activations = value_activations_all[:, head_start_idx:head_end_idx]  # [total_seq_len, head_dim]
+
+                        # Compute per-head projection matrix
+                        value_head_projection_matrix = self.compute_manifold_projection(
+                            value_head_activations, variance_threshold=pca_variance_threshold
+                        )
+
+                        # Project: r_M = P_M @ r
+                        value_head_steering_flat = value_head_steering.reshape(-1)
+                        if value_head_steering.dtype == torch.bfloat16:
+                            value_head_steering_flat = value_head_steering_flat.float()
+                        value_head_steering_projected = value_head_projection_matrix @ value_head_steering_flat
+                        if bge_value_head_mean.dtype == torch.bfloat16:
+                            value_head_steering_projected = value_head_steering_projected.to(torch.bfloat16)
+                        value_head_steering = value_head_steering_projected.reshape(head_dim)
+
+                    per_head_value_stats[f'head_{head_idx}'] = {
+                        'steering_vector': value_head_steering,
+                        'bge_mean': bge_value_head_mean,
+                        'no_prep_mean': no_prep_value_head_mean
+                    }
+
+                final_stats['value_steering'][layer_name]['per_head'] = per_head_value_stats
+                if layer_idx == 0:
+                    print(f"  Layer {layer_idx} - Per-head value statistics: {num_heads} heads")
 
         return final_stats
 
@@ -484,6 +582,8 @@ def main():
                        help="Disable manifold projection")
     parser.add_argument("--pca_variance_threshold", type=float, default=0.7,
                        help="PCA cumulative variance threshold for component selection (default: 0.7)")
+    parser.add_argument("--per_head_stats", action='store_true', default=False,
+                       help="Compute statistics separately for each attention head (default: False)")
 
     args = parser.parse_args()
 
@@ -520,7 +620,8 @@ def main():
         chunk_id=args.chunk_id,
         max_layers=args.max_layers,
         use_manifold_projection=args.use_manifold_projection,
-        pca_variance_threshold=args.pca_variance_threshold
+        pca_variance_threshold=args.pca_variance_threshold,
+        per_head_stats=args.per_head_stats
     )
 
     # Save statistics
@@ -536,6 +637,7 @@ def main():
         'chunk_id': stats['metadata']['chunk_id'],
         'use_manifold_projection': stats['metadata']['use_manifold_projection'],
         'pca_variance_threshold': stats['metadata']['pca_variance_threshold'],
+        'per_head_stats': stats['metadata']['per_head_stats'],
         'layers_processed': list(stats['key_steering'].keys()),
         'method': 'manifold_steering',
     }
@@ -553,6 +655,10 @@ def main():
         print(f"  - Manifold projection: Enabled (variance threshold: {stats['metadata']['pca_variance_threshold']})")
     else:
         print(f"  - Manifold projection: Disabled")
+    if stats['metadata']['per_head_stats']:
+        print(f"  - Per-head statistics: Enabled (each head computed separately)")
+    else:
+        print(f"  - Per-head statistics: Disabled (all heads computed together)")
     print(f"  - Output file: {args.output_path}")
     print(f"\nUsage: KV_aligned = KV_no_preprocess + steering_vector")
 

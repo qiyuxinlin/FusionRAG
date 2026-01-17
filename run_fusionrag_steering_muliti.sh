@@ -6,10 +6,10 @@
 #####################################################################
 
 # 基础配置
-GPUS="7"
+GPUS="4"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/steering_key_layer_16_19_25_27_value_5_21"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/steering_per_head"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -46,9 +46,11 @@ USE_ALL_SAMPLES="true"       # 是否使用所有样本计算 steering (true) �
 STEERING_OUTPUT_DIR="/mnt/data3/tmp/fusionrag/kv_stats"  # Steering vectors 输出目录
 USE_MANIFOLD_PROJECTION="true"    # 是否使用 manifold projection
 PCA_VARIANCE_THRESHOLD="0.7"      # PCA 方差阈值
-STEERING_ALPHA_LIST=(0.1 0.2 0.5 0.8 0.9 1.0)  # Steering vector 强度系数列表（遍历）
-STEERING_KEY_LAYERS="5-21"         # 应用 key steering 的层 ("all", "0-10", "0,5,10", 等)
-STEERING_VALUE_LAYERS="16,17,18,19,25,26,27"       # 应用 value steering 的层
+PER_HEAD_STATS="true"            # 是否对每层的每个head单独统计 (false: 所有heads一起统计, true: 每个head独立)
+
+STEERING_ALPHA_LIST=(1.2 1.5 1.8 2.0)  # Steering vector 强度系数列表（遍历）
+STEERING_KEY_LAYERS="all"         # 应用 key steering 的层 ("all", "0-10", "0,5,10", 等)
+STEERING_VALUE_LAYERS="all"       # 应用 value steering 的层
 
 KV_STATS_PATH=""              # KV分布统计文件路径 (自动设置或手动指定)
 REVERT_ROPE="true"
@@ -122,6 +124,7 @@ if [ "${RECALL_METHOD}" = "no_preprocess_with_bias" ]; then
         if [ "${USE_MANIFOLD_PROJECTION}" = "true" ]; then
             echo "  PCA 阈值: ${PCA_VARIANCE_THRESHOLD}"
         fi
+        echo "  Per-head 统计: ${PER_HEAD_STATS}"
     fi
     echo "  Alpha 列表: ${STEERING_ALPHA_LIST[@]}"
     echo "  Key 层: ${STEERING_KEY_LAYERS}"
@@ -161,8 +164,16 @@ if [ "${RECALL_METHOD}" = "no_preprocess_with_bias" ] && [ "${COMPUTE_STEERING}"
         # 自动生成文件名
         if [ "${USE_MANIFOLD_PROJECTION}" = "true" ]; then
             SUFFIX="manifold"
+            # 添加PCA阈值到文件名（去掉小数点，如0.7→07，0.95→095）
+            PCA_SUFFIX=$(echo "${PCA_VARIANCE_THRESHOLD}" | sed 's/0\.//' | sed 's/\.//')
+            SUFFIX="${SUFFIX}_pca${PCA_SUFFIX}"
         else
             SUFFIX="no_proj"
+        fi
+
+        # 添加per-head标记
+        if [ "${PER_HEAD_STATS}" = "true" ]; then
+            SUFFIX="${SUFFIX}_perhead"
         fi
 
         # 如果是跨数据集，文件名中体现训练→测试的关系
@@ -216,6 +227,14 @@ if [ "${RECALL_METHOD}" = "no_preprocess_with_bias" ] && [ "${COMPUTE_STEERING}"
         else
             CMD="${CMD} --no_manifold_projection"
             echo "  Manifold projection: 禁用"
+        fi
+
+        # 添加 per-head statistics 参数
+        if [ "${PER_HEAD_STATS}" = "true" ]; then
+            CMD="${CMD} --per_head_stats"
+            echo "  Per-head statistics: 启用 (每个head单独统计)"
+        else
+            echo "  Per-head statistics: 禁用 (所有heads一起统计)"
         fi
 
         echo ""
