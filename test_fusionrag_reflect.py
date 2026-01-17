@@ -281,6 +281,61 @@ def apply_steering_vector(kv_cache: torch.Tensor, steering_vector: torch.Tensor,
     kv_steered = kv_cache + alpha * steering_expanded
 
     return kv_steered
+
+
+def apply_per_head_steering_vector(kv_cache: torch.Tensor, per_head_steering_dict: dict,
+                                    layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
+    """
+    Apply per-head steering vectors to KV cache
+
+    Each attention head gets its own steering vector, allowing finer-grained control.
+
+    Args:
+        kv_cache: KV cache tensor [num_heads, seq_len, head_dim] or [num_groups, num_heads_per_group, seq_len, head_dim]
+        per_head_steering_dict: Dictionary with per-head steering vectors
+                               {'head_0': {'steering_vector': [head_dim]}, 'head_1': {...}, ...}
+        layer_idx: Layer index (for debugging)
+        alpha: Steering strength (default: 1.0)
+
+    Returns:
+        Steered KV cache with same shape as input
+    """
+    original_shape = kv_cache.shape
+    is_grouped = (kv_cache.dim() == 4)
+
+    # Handle grouped attention format
+    if is_grouped:
+        # [num_groups, num_heads_per_group, seq_len, head_dim]
+        num_groups, num_heads_per_group, seq_len, head_dim = kv_cache.shape
+        # Reshape to standard format: [num_heads, seq_len, head_dim]
+        kv_cache = kv_cache.reshape(num_groups * num_heads_per_group, seq_len, head_dim)
+
+    num_heads, seq_len, head_dim = kv_cache.shape
+    kv_steered = kv_cache.clone()
+
+    # Apply steering vector to each head individually
+    for head_idx in range(num_heads):
+        head_key = f'head_{head_idx}'
+        if head_key in per_head_steering_dict:
+            # Get steering vector for this specific head: [head_dim]
+            steering_vec = per_head_steering_dict[head_key]['steering_vector']
+
+            # Ensure correct device and dtype
+            steering_vec = steering_vec.to(kv_cache.device).to(kv_cache.dtype)
+
+            # Expand to match sequence length: [head_dim] -> [1, head_dim] -> broadcast to [seq_len, head_dim]
+            steering_expanded = steering_vec.unsqueeze(0)  # [1, head_dim]
+
+            # Apply intervention: h' = h + α * r_M
+            kv_steered[head_idx] = kv_cache[head_idx] + alpha * steering_expanded
+
+    # Reshape back to original format if needed
+    if is_grouped:
+        kv_steered = kv_steered.reshape(original_shape)
+
+    return kv_steered
+
+
 import json
 import torch
 import numpy as np
@@ -1379,6 +1434,7 @@ def main(
     steering_alpha=1.0,  # Steering vector 强度系数（当 recall_method=no_preprocess_with_bias 时生效）
     steering_key_layers='all',  # 应用 key steering vector 的层（格式: "all", "0-10", "0,5,10"）
     steering_value_layers='all',  # 应用 value steering vector 的层（格式: "all", "0-10", "0,5,10"）
+    use_per_head_steering=False,  # 是否使用per-head steering vectors（如果文件中有）
     preprocess_scope=PreprocessScope.GLOBAL,
     reprocess_method='FusionRAG',
     use_entropy_selection=False,  # 是否使用熵选层 (用于 QueryAttention 消融实验)
@@ -2130,8 +2186,19 @@ def main(
             use_steering = 'key_steering' in kv_distribution_stats
             alpha = steering_alpha  # Use parameter from command line
 
-            if use_steering:
-                print(f"  Using manifold steering vectors (α={alpha})")
+            # Check if per-head steering data is available and requested
+            use_per_head = False
+            if use_steering and use_per_head_steering:
+                # Check if per-head data exists in the first layer
+                first_layer = list(kv_distribution_stats['key_steering'].keys())[0]
+                if 'per_head' in kv_distribution_stats['key_steering'][first_layer]:
+                    use_per_head = True
+                    print(f"  Using per-head manifold steering vectors (α={alpha})")
+                else:
+                    print(f"  Warning: --use_per_head_steering requested but per-head data not found in stats file")
+                    print(f"  Falling back to layer-level steering (α={alpha})")
+            elif use_steering:
+                print(f"  Using layer-level manifold steering vectors (α={alpha})")
             else:
                 print(f"  Using old BatchNorm format (scale/bias)")
 
@@ -2166,10 +2233,18 @@ def main(
 
                                 # Apply steering vector to key cache if layer is selected
                                 if apply_key_steering:
-                                    key_steering = kv_distribution_stats['key_steering'][layer_name]['steering_vector']
-                                    steered_key_layer = apply_steering_vector(
-                                        no_prep_key[layer_idx], key_steering, layer_idx, alpha
-                                    )
+                                    if use_per_head and 'per_head' in kv_distribution_stats['key_steering'][layer_name]:
+                                        # Use per-head steering vectors
+                                        per_head_key_steering = kv_distribution_stats['key_steering'][layer_name]['per_head']
+                                        steered_key_layer = apply_per_head_steering_vector(
+                                            no_prep_key[layer_idx], per_head_key_steering, layer_idx, alpha
+                                        )
+                                    else:
+                                        # Use layer-level steering vector
+                                        key_steering = kv_distribution_stats['key_steering'][layer_name]['steering_vector']
+                                        steered_key_layer = apply_steering_vector(
+                                            no_prep_key[layer_idx], key_steering, layer_idx, alpha
+                                        )
                                     steered_key.append(steered_key_layer)
                                 else:
                                     # Layer not selected for key steering, use original
@@ -2177,10 +2252,18 @@ def main(
 
                                 # Apply steering vector to value cache if layer is selected
                                 if apply_value_steering:
-                                    value_steering = kv_distribution_stats['value_steering'][layer_name]['steering_vector']
-                                    steered_value_layer = apply_steering_vector(
-                                        no_prep_value[layer_idx], value_steering, layer_idx, alpha
-                                    )
+                                    if use_per_head and 'per_head' in kv_distribution_stats['value_steering'][layer_name]:
+                                        # Use per-head steering vectors
+                                        per_head_value_steering = kv_distribution_stats['value_steering'][layer_name]['per_head']
+                                        steered_value_layer = apply_per_head_steering_vector(
+                                            no_prep_value[layer_idx], per_head_value_steering, layer_idx, alpha
+                                        )
+                                    else:
+                                        # Use layer-level steering vector
+                                        value_steering = kv_distribution_stats['value_steering'][layer_name]['steering_vector']
+                                        steered_value_layer = apply_steering_vector(
+                                            no_prep_value[layer_idx], value_steering, layer_idx, alpha
+                                        )
                                     steered_value.append(steered_value_layer)
                                 else:
                                     # Layer not selected for value steering, use original
@@ -3154,6 +3237,8 @@ if __name__ == '__main__':
                         help='Layers to apply key steering vector. Format: "all", "0-10", "0,5,10", or "0-10,15,20-25" (default: all)')
     parser.add_argument('--steering_value_layers', type=str, default='all',
                         help='Layers to apply value steering vector. Format: "all", "0-10", "0,5,10", or "0-10,15,20-25" (default: all)')
+    parser.add_argument('--use_per_head_steering', action='store_true', default=False,
+                        help='Use per-head steering vectors if available in the stats file (default: False, use layer-level steering)')
     parser.add_argument('--reprocess_method', type=str, default='FusionRAG',
                         choices=['FusionRAG', 'Oracle', 'OracleAdaptive', 'OracleDynamic',
                                 'vAttention', 'DraftModel', 'QueryAttention', 'DraftModelLayerwise'],
@@ -3260,6 +3345,7 @@ if __name__ == '__main__':
         steering_alpha=args.steering_alpha,
         steering_key_layers=args.steering_key_layers,
         steering_value_layers=args.steering_value_layers,
+        use_per_head_steering=args.use_per_head_steering,
         preprocess_scope=preprocess_scope,
         reprocess_method=args.reprocess_method,
         use_entropy_selection=args.use_entropy_selection,
