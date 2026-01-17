@@ -60,6 +60,7 @@ def find_connected_components(positions, max_gap=2, within=False):
     positions = sorted(positions)
     components = []
     current_component = [positions[0]]
+    connect_positions = set()
 
     for i in range(1, len(positions)):
         if positions[i] - positions[i-1] <= max_gap:
@@ -67,12 +68,14 @@ def find_connected_components(positions, max_gap=2, within=False):
                 current_component.append(positions[i])
             else:
                 current_component.extend([p for p in range(positions[i - 1] + 1, positions[i] + 1)])
+                for c in range(positions[i - 1] + 1, positions[i]-1):
+                    connect_positions.add(c)
         else:
             components.append(current_component)
             current_component = [positions[i]]
 
     components.append(current_component)
-    return components
+    return components, list(connect_positions)
 
 def find_outliers_zscore(data, threshold=2):
     """
@@ -123,11 +126,11 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     if smarter:
         max_gap = 5
         min_len = 5
-        min_chosen_weight = 1 / 2
-        components = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
+        min_chosen_weight = 0.2 # easy
+        components, connect_positions = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
         max_gap = 2
-        components = find_connected_components(high_attn_positions, max_gap=max_gap, within=False)
+        components, _ = find_connected_components(high_attn_positions, max_gap=max_gap, within=False)
 
     # Step 3: 计算每个分量的总 attention
     component_scores = []
@@ -137,6 +140,7 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     # Step 4: 按总 attention 排序
     component_scores.sort(key=lambda x: x[1], reverse=True)
+    component_scores_ = copy.deepcopy(component_scores)
 
     if smarter:
         max_score = 1e-8
@@ -171,6 +175,7 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     # Step 5: 贪心选择分量 + 上下文扩展 (±1)
     selected = set()
+    selected_reserved = set()
 
     for comp, total_score in component_scores:
         # 扩展分量边界 (±1)
@@ -185,6 +190,14 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
         new_positions = extended_comp - selected
         if len(selected) + len(new_positions) <= target_count * 1.1:
             selected.update(extended_comp)
+
+    for cs in component_scores_:
+        if cs not in component_scores:
+            comp, total_score = cs
+            extended_comp = set()
+            for p in comp:
+                extended_comp.add(p)
+            selected_reserved.update(extended_comp)
 
     # Step 6: 补充到目标数量
     if not smarter:
@@ -203,6 +216,11 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     # 转换为全局索引 (加上 system_len 偏移)
     selected_global = [p + system_len for p in sorted(selected)]
+    selected_global_reserved = [p + system_len for p in sorted(selected_reserved) if p not in connect_positions]
+    # selected_global_reserved = [p + system_len for p in sorted(selected_reserved)]
+
+    if smarter:
+        return selected_global, selected_global_reserved
 
     return selected_global
 
@@ -1253,17 +1271,31 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 )
 
             elif reprocess_method == "DraftModel_smarter":
-                selected_indices = smart_query_selection(
-                    attention_scores=multi_layer_attn[first_doc_len:],
-                    input_tokens=passages[2:],
-                    doc_len=doc_len-first_doc_len,
+                selected_indices, reserved_selected_indices = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    input_tokens=passages[1:],
+                    doc_len=doc_len,
                     target_ratio=rate,
-                    system_len=system_len+first_doc_len,
+                    system_len=system_len,
                     device=draft_model_device,
                     smarter=True,
                     tokenizer=tokenizer,
                     eigenvalue=eigenvalue
                 )
+                # selected_indices, reserved_selected_indices = smart_query_selection(
+                #     attention_scores=multi_layer_attn[first_doc_len:],
+                #     input_tokens=passages[2:],
+                #     doc_len=doc_len-first_doc_len,
+                #     target_ratio=rate,
+                #     system_len=system_len+first_doc_len,
+                #     device=draft_model_device,
+                #     smarter=True,
+                #     tokenizer=tokenizer,
+                #     eigenvalue=eigenvalue
+                # )
+
+                selected_indices = [x for x in selected_indices if x >= system_len+first_doc_len]
+                reserved_selected_indices = [x for x in reserved_selected_indices if x >= system_len + first_doc_len]
                 passages_len_chosen = set()
                 ## add system prompt and the first document.
                 passages_len_chosen.add(0)
@@ -1271,6 +1303,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 ## add query
                 passages_len_chosen.add(len(passages_len)-1)
                 selected_indices_passage = []
+                selected_indices_passage_reserve = {}
+                # looks slow but actually really fast
                 for selected_index in selected_indices:
                     for i in range(len(passages_len)):
                         start_idx = sum(passages_len[:i])
@@ -1278,6 +1312,16 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                         if selected_index >= start_idx and selected_index<end_idx:
                             passages_len_chosen.add(i)
                             selected_indices_passage.append(i)
+
+                for selected_index in reserved_selected_indices:
+                    for i in range(len(passages_len)):
+                        start_idx = sum(passages_len[:i])
+                        end_idx = sum(passages_len[:i+1])
+                        if selected_index >= start_idx and selected_index<end_idx and i in selected_indices_passage:
+                            reserve = selected_indices_passage_reserve.get(i, [])
+                            reserve.append(selected_index)
+                            selected_indices_passage_reserve[i] = reserve
+
                 passages_len_chosen = sorted(list(passages_len_chosen))
                 selected_index_new = []
                 for i, index in enumerate(selected_indices):
@@ -1287,7 +1331,18 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     before_len = sum(passages_len[x] for x in all_before_passage_index)
                     cur_len = sum(passages_len[x] for x in all_cur_passage_index)
                     selected_index_new.append(index-before_len+cur_len)
+
+                reserved_indices = set()
+                for passage_index, reserved_idx in selected_indices_passage_reserve.items():
+                    all_before_passage_index = list(range(passage_index))
+                    all_cur_passage_index = [x for x in all_before_passage_index if x in passages_len_chosen]
+                    before_len = sum(passages_len[x] for x in all_before_passage_index)
+                    cur_len = sum(passages_len[x] for x in all_cur_passage_index)
+                    for x in reserved_idx:
+                        reserved_indices.add(x-before_len+cur_len)
+
                 selected_indices = selected_index_new
+                selected_indices.extend(list(reserved_indices))
                 passages_len = [passages_len[x] for x in passages_len_chosen]
                 eigenvalue["passages_chosen"] = len(passages_len_chosen) - 3 #
                 passages = [passages[x] for x in passages_len_chosen]

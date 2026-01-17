@@ -663,7 +663,7 @@ if __name__ == '__main__':
     reprocess_methods = ["DraftModel_smarter"]
     rates = [0.3]
 
-    run_index = 2
+    run_index = 1
 
     if run_index ==0:
         for idx in range(len(rates)):
@@ -701,7 +701,7 @@ if __name__ == '__main__':
                 test_last_wrong=True,
                 last_rate=rates[idx],
                 last_reprocess_method=reprocess_methods[idx],
-                last_preprocess_method="default"
+                last_preprocess_method="default",
             )
 
     elif run_index == 2:
