@@ -366,6 +366,7 @@ def run_test_process(
         except:
             reason = ""
         print(f"answer={answer}")
+        print(f"GTanswer={question['answer']}")
         print(f"reason={reason}")
 
         is_correct, judge_reason = judge_answer_with_openai(
@@ -663,7 +664,7 @@ if __name__ == '__main__':
     reprocess_methods = ["DraftModel_smarter"]
     rates = [0.3]
 
-    run_index = 1
+    run_index = 0
 
     if run_index ==0:
         for idx in range(len(rates)):
@@ -697,16 +698,11 @@ if __name__ == '__main__':
                 test_last_keep=True,  ## set=True if keep running
                 gpu_configs=all_gpu_configs[run_index],  ## personalize if need
                 max_memories=max_memories,
-
-                test_last_wrong=True,
-                last_rate=rates[idx],
-                last_reprocess_method=reprocess_methods[idx],
-                last_preprocess_method="default",
             )
 
     elif run_index == 2:
         for idx in range(len(rates)):
-            for category in [2,3,1]:
+            for category in [1,2,3]:
                 all_results = test_question_multiprocess(
                     total_run=total_run, ## -1 means run all
                     rate=rates[idx], ## change this
@@ -727,19 +723,9 @@ if __name__ == '__main__':
 
 
 
-
-
-
-
     print("All tests completed!")
 
-# test_last_wrong=True, ##change this
-# last_rate=0.2,  ## change this to the lasttime running
-# last_reprocess_method="average",  ## change this  1. DraftModel 2. DraftModel_ppr 3. average
-# last_preprocess_method="default",  ## change this  1. space 2. default
-
-
-  # max_memories = [
-  #               {0: "20GiB", 1: "30GiB", 2: "30GiB"}
-  #               # {0: "0GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB"},
-  #           ]
+test_last_wrong = True,
+last_rate = rates[idx],
+last_preprocess_method = "default",
+last_reprocess_method = reprocess_methods[idx]

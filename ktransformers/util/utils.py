@@ -115,18 +115,21 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     # Step 1: 找到高 attention 位置
     mean_attn = np.mean(attention_scores)
     std_attn = np.std(attention_scores)
-    threshold = mean_attn + 0.5 * std_attn
+    threshold = mean_attn + 0.25 * std_attn ## 1/4 std
 
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
 
 
     # 1. max_gap=5, min_len=3
     # 2. max_gap=20, min_len=20
+    # 2. max_gap=min_len=5, 0.5 * std_attn, min_chosen_weight = 0.4/0.2: this is the current best, but will leftout some important infos
+    # 3. max_gap=min_len=5, 0.1 * std_attn, min_chosen_weight = 0.2: let more relevant data be found, but cut the irelevant
+    # 4. max_gap=min_len=5, 0.25 * std_attn, min_chosen_weight = 0.0002
     # Step 2: 连通分量分析
     if smarter:
         max_gap = 5
-        min_len = 5
-        min_chosen_weight = 0.2 # easy
+        min_len = max_gap
+        min_chosen_weight = 0.002 # easy
         components, connect_positions = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
         max_gap = 2
