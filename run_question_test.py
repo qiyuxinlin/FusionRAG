@@ -208,7 +208,8 @@ def run_test_process(
         preprocess=True,
         test_last_wrong=False,
         test_last_keep=False,
-        category=2
+        category=2,
+        cache_path="",
 ):
     last_questions = []
     try:
@@ -251,7 +252,7 @@ def run_test_process(
         model_type="qwen3",
         model_name="Qwen3-32B",
         device=main_device,
-        cache_path='/data1/qy_tmp/xumengyao/fusionrag/',
+        cache_path=cache_path,
         draft_model_device=draft_device,
         draft_model_path=draft_model_path,
         draft_model_type="qwen",
@@ -343,9 +344,10 @@ def run_test_process(
             gold_docs = [f"Document: {text}\n" for text in gold_docs if not text.startswith("Document:")]
 
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
-            query=f'Given these documents, please first output a short piece of reason, and then '
+            query=f'question is {question["query"]}',
+            question_prefix=f'Given these paragraphs, please first output a short piece of reason, and then '
                   f'generate an appropriate answer for the query.'
-                  f'{prefix} question is {question["query"]} {format_postfix}',
+                  f'{prefix} {format_postfix}',
             # query=question["query"],
             retrieved_docs=gold_docs,
             model_type='qwen3',
@@ -495,7 +497,8 @@ def test_question_multiprocess(total_run=-1,
                                preprocess=True,
                                gpu_configs=None,
                                max_memories=None,
-                               category=2):
+                               category=2,
+                               cache_path=""):
     """多进程测试主函数（改进版：支持动态GPU分配）
 
     Args:
@@ -624,7 +627,8 @@ def test_question_multiprocess(total_run=-1,
                 preprocess,
                 test_last_wrong,
                 test_last_keep,
-                category
+                category,
+                cache_path
             )
         )
         processes.append(p)
@@ -658,13 +662,14 @@ if __name__ == '__main__':
     ]
     questions_to_run = []
 
-    max_memories = [{0: "0GiB", 1: "40GiB", 2: "40GiB"}]
+    max_memories = [{0: "0GiB", 1: "35GiB", 2: "35GiB"}]
     total_run = 200
     all_gpu_configs = [[([0,1,2], 0)], [([3,4,5], 0)], [([3,6,7], 0)]]
     reprocess_methods = ["DraftModel_smarter"]
     rates = [0.3]
+    cache_path="/data1/qy_tmp/xumengyao/fusionrag/" ## 10024 is data1, 10026 is data2
 
-    run_index = 0
+    run_index = 2
 
     if run_index ==0:
         for idx in range(len(rates)):
@@ -681,6 +686,7 @@ if __name__ == '__main__':
                 test_last_keep=True,  ## set=True if keep running
                 gpu_configs=all_gpu_configs[run_index],  ## personalize if need
                 max_memories=max_memories,
+                cache_path=cache_path
             )
     #
     elif run_index ==1:
@@ -698,6 +704,7 @@ if __name__ == '__main__':
                 test_last_keep=True,  ## set=True if keep running
                 gpu_configs=all_gpu_configs[run_index],  ## personalize if need
                 max_memories=max_memories,
+                cache_path=cache_path
             )
 
     elif run_index == 2:
@@ -716,6 +723,7 @@ if __name__ == '__main__':
                     gpu_configs=all_gpu_configs[run_index],  ## personalize if need
                     category=category,
                     max_memories=max_memories,
+                    cache_path=cache_path
                 )
     #
     #

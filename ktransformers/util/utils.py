@@ -19,7 +19,7 @@ import string
 import json
 import collections
 import numpy as np
-from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare, topk_position_dispersion, OnlineEncoder
+from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare, topk_position_dispersion, OnlineEncoder, calculate_vector_set_similarity
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 from ktransformers.util.textstream import TextStreamer
@@ -125,15 +125,21 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     # 2. max_gap=min_len=5, 0.5 * std_attn, min_chosen_weight = 0.4/0.2: this is the current best, but will leftout some important infos
     # 3. max_gap=min_len=5, 0.1 * std_attn, min_chosen_weight = 0.2: let more relevant data be found, but cut the irelevant
     # 4. max_gap=min_len=5, 0.25 * std_attn, min_chosen_weight = 0.0002
+    # 5. max_gap=min_len=5, 0.25 * std_attn, min_chosen_weight = 0.01
     # Step 2: 连通分量分析
     if smarter:
         max_gap = 5
         min_len = max_gap
-        min_chosen_weight = 0.002 # easy
+        min_chosen_weight = 0.2 # easy
+        if eigenvalue is not None:
+            eigenvalue["max_gap"] = max_gap
+            eigenvalue["min_len"] = min_len
+            eigenvalue["min_chosen_weight"] = min_chosen_weight
         components, connect_positions = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
         max_gap = 2
         components, _ = find_connected_components(high_attn_positions, max_gap=max_gap, within=False)
+
 
     # Step 3: 计算每个分量的总 attention
     component_scores = []
@@ -155,7 +161,10 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
                     if max_score == 1e-8:
                         max_score = score # set max score
                 input_str = tokenizer.decode(input_tokens_[cs], skip_special_tokens=True)
-                print(f"\033[31m{input_str}\033[0m, score={score} len={len(cs)}")
+                prefix = ""
+                if len(cs) >= min_len and score/max_score > min_chosen_weight:
+                    prefix = "【Chosen】"
+                print(f"{prefix} \033[31m{input_str}\033[0m, score={score} len={len(cs)}")
                 #for debug
                 chosen = False
                 if len(cs) >= min_len and score/max_score > min_chosen_weight:
@@ -830,7 +839,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
-                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="", hash_keys=None, prefix_cache_path="", query=""):
+                          group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="",
+                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
@@ -1303,6 +1313,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 ## add system prompt and the first document.
                 passages_len_chosen.add(0)
                 passages_len_chosen.add(1)
+                embedding_index_chosen = set()
                 ## add query
                 passages_len_chosen.add(len(passages_len)-1)
                 selected_indices_passage = []
@@ -1314,6 +1325,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                         end_idx = sum(passages_len[:i+1])
                         if selected_index >= start_idx and selected_index<end_idx:
                             passages_len_chosen.add(i)
+                            embedding_index_chosen.add(i-2)
                             selected_indices_passage.append(i)
 
                 for selected_index in reserved_selected_indices:
@@ -1346,17 +1358,42 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                 selected_indices = selected_index_new
                 selected_indices.extend(list(reserved_indices))
+
+                ## insert the query prefix now
+                passages.insert(-1, question_prefix_tensor)
+                passages_len.insert(-1, question_prefix_tensor.shape[0])
+                passages_len_chosen.append(len(passages)-1)
+                ## rebuild passages_len
                 passages_len = [passages_len[x] for x in passages_len_chosen]
-                eigenvalue["passages_chosen"] = len(passages_len_chosen) - 3 #
+                # systemprompt, first passage and query and query_prefix
+                eigenvalue["passages_chosen"] = len(passages_len_chosen) - 4 #
                 passages = [passages[x] for x in passages_len_chosen]
-                chunk_ids = list(range(len(passages) - 1))
+                # 2 is query and query prefix
+                chunk_ids = list(range(len(passages) - 2))
                 key_cache = [cache for i, cache in enumerate(key_cache) if i in passages_len_chosen]
                 value_cache = [cache for i, cache in enumerate(value_cache) if i in passages_len_chosen]
-                past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values,
+
+                ## passages
+                past_len = load_kv(model, passages[:-1], chunk_ids, key_cache, value_cache, input_device, past_key_values,
                                    revert_rope, system_len)
 
+                # do it now because later will add query prefix
+                eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
 
-            eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
+                ## add query prefix
+                selected_indices.extend(range(sum(passages_len[:-2]), sum(passages_len[:-1])))
+
+                embedding_index_chosen = list(embedding_index_chosen)
+                if len(embedding_index_chosen) <=1:
+                    sim = 0
+                else:
+                    sim = calculate_vector_set_similarity(embeddings[embedding_index_chosen])
+                eigenvalue = {
+                    "similarity": float(sim)
+                }
+
+            if reprocess_method != "DraftModel_smarter":
+                eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
             k_need_index = torch.tensor(selected_indices, device='cpu')
             if reprocess_method == 'DraftModel_ppr':
                 print(f"using ppr to draft.")

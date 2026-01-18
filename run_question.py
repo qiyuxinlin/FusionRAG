@@ -603,13 +603,11 @@ class FusionRAGModel:
             max_new_tokens=150,
             use_entropy_selection=False,
             entropy_top_k=4,
+            question_prefix=""
     ) -> (int, int, int, int, str, list[int]):
 
         embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
-        sim = calculate_vector_set_similarity(embeddings)
-        eigenvalue = {
-            "similarity": float(sim)
-        }
+        eigenvalue = {}
         print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
@@ -705,15 +703,22 @@ class FusionRAGModel:
                     print(f"no method={self.preprocess_method}")
                     exit(1)
 
+
         if model_type == 'qwen3':
             question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         else:
             question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
+        question_prefix_tokens = self.tokenizer.encode(question_prefix, add_special_tokens=False)
+        question_with_prefix_tokens = self.tokenizer.encode(question_prefix + question_text, add_special_tokens=False)
         question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+        question_prefix_tensor = torch.tensor(question_prefix_tokens, dtype=torch.long)
         query_len = len(question_tensor)
 
-        iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
+        if reprocess_method == "DraftModel_smarter":
+            iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
+        else:
+            iter_tokens = [system_tensor] + doc_tensors + [question_prefix_tensor, question_tensor]
         iter_token_len = len(torch.cat(iter_tokens))
         if rate == 1:
             print(f"full recompute")
@@ -770,6 +775,8 @@ class FusionRAGModel:
                 draft_model_device=self.draft_model_device,
                 prefix_cache_path=self.save_path,
                 query=query,
+                embeddings=embeddings,
+                question_prefix_tensor=question_prefix_tensor,
             )
             eigenvalue.update(eigenvalue_)
 
