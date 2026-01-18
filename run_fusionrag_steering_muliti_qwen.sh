@@ -6,7 +6,7 @@
 #####################################################################
 
 # 基础配置
-GPUS="6"
+GPUS="5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
 RESULT_DIR="/home/shm/document/exp/FusionRAG/result/steering_head_0.9"       # 结果保存目录（CSV等）
@@ -14,7 +14,7 @@ CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
-MODEL_TYPE="qwen3"
+MODEL_TYPE="qwen"
 MODEL_PATH="/mnt/data/models/Qwen3-32B"
 MODEL_NAME="Qwen3-32B"
 BGE_MODEL_PATH="/mnt/data/models/bge-m3-FP16"
@@ -48,7 +48,7 @@ USE_MANIFOLD_PROJECTION="true"    # 是否使用 manifold projection
 PCA_VARIANCE_THRESHOLD="0.9"      # PCA 方差阈值
 PER_HEAD_STATS="true"            # 是否对每层的每个head单独统计 (false: 所有heads一起统计, true: 每个head独立)
 
-STEERING_ALPHA_LIST=(0.3)  # Steering vector 强度系数列表（遍历）
+STEERING_ALPHA_LIST=(0.2 0.3 0.4 0.5)  # Steering vector 强度系数列表（遍历）
 STEERING_KEY_LAYERS="all"         # 应用 key steering 的层 ("all", "0-10", "0,5,10", 等)
 STEERING_VALUE_LAYERS="all"       # 应用 value steering 的层
 
@@ -71,7 +71,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表
-RATE_LIST=(0.1 0.15 0.3 0.5 0.8 0.9 ) 
+RATE_LIST=(0.1 0.15 0.3 0.5 0.8 ) 
 
 # 可选参数
 MAX_SAMPLES="" 

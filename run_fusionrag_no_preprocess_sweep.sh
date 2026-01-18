@@ -6,7 +6,7 @@
 #####################################################################
 
 # 基础配置
-GPUS="5"
+GPUS="4,5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
 RESULT_DIR="/home/shm/document/exp/FusionRAG/result/no_preprocess"       # 结果保存目录（CSV等）
@@ -14,9 +14,9 @@ CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
-MODEL_TYPE="qwen"
-MODEL_PATH="/mnt/data/models/Qwen2.5-7B-Instruct"
-MODEL_NAME="Qwen2.5-7B-Instruct"
+MODEL_TYPE="qwen3"
+MODEL_PATH="/mnt/data/models/Qwen3-32B"
+MODEL_NAME="Qwen3-32B"
 BGE_MODEL_PATH="/mnt/data/models/bge-m3-FP16"
 
 # 数据配置
@@ -31,7 +31,7 @@ USE_RANDOM_RECALL="true"     # 是否使用随机召回 (true=随机, false=BGE�
 RANDOM_SEED="42"              # 随机种子
 REVERT_ROPE="true"
 PREPROCESS_SCOPE="global"
-USE_MULTI_GPU="false"
+USE_MULTI_GPU="true"
 
 # 其他参数
 USE_ENTROPY_SELECTION="false"
@@ -47,7 +47,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表
-RATE_LIST=(0.0 0.15 )
+RATE_LIST=(0.0 0.1 0.15 0.3 0.5 )
 
 # 可选参数
 MAX_SAMPLES="" 

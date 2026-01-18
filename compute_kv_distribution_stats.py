@@ -209,6 +209,7 @@ class KVDistributionAnalyzer:
         # Find number of components that explain variance_threshold of variance
         cumsum_variance = np.cumsum(pca.explained_variance_ratio_)
         n_components = np.searchsorted(cumsum_variance, variance_threshold) + 1
+        n_components = min(n_components, len(cumsum_variance))  # Ensure n_components doesn't exceed array size
 
         print(f"    PCA: {n_components} components capture {cumsum_variance[n_components-1]:.2%} variance")
         print(f"    Dimension reduction: {activations.shape[1]} -> {n_components}")

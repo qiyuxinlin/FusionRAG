@@ -6,7 +6,7 @@
 #####################################################################
 
 # 基础配置
-GPUS="6"
+GPUS="7"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
 RESULT_DIR="/home/shm/document/exp/FusionRAG/result/steering_head_0.9"       # 结果保存目录（CSV等）
@@ -14,9 +14,9 @@ CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
-MODEL_TYPE="qwen3"
-MODEL_PATH="/mnt/data/models/Qwen3-32B"
-MODEL_NAME="Qwen3-32B"
+MODEL_TYPE="qwen"
+MODEL_PATH="/mnt/data/models/Qwen2.5-7B-Instruct"
+MODEL_NAME="Qwen2.5-7B-Instruct"
 BGE_MODEL_PATH="/mnt/data/models/bge-m3-FP16"
 
 # 数据配置
@@ -45,10 +45,10 @@ USE_ALL_SAMPLES="true"       # 是否使用所有样本计算 steering (true) �
 # STEERING_SAMPLE_IDS="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"  # 样本 ID 列表
 STEERING_OUTPUT_DIR="/mnt/data3/tmp/fusionrag/kv_stats"  # Steering vectors 输出目录
 USE_MANIFOLD_PROJECTION="true"    # 是否使用 manifold projection
-PCA_VARIANCE_THRESHOLD="0.9"      # PCA 方差阈值
+PCA_VARIANCE_THRESHOLD="1.0"      # PCA 方差阈值
 PER_HEAD_STATS="true"            # 是否对每层的每个head单独统计 (false: 所有heads一起统计, true: 每个head独立)
 
-STEERING_ALPHA_LIST=(0.3)  # Steering vector 强度系数列表（遍历）
+STEERING_ALPHA_LIST=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1)  # Steering vector 强度系数列表（遍历）
 STEERING_KEY_LAYERS="all"         # 应用 key steering 的层 ("all", "0-10", "0,5,10", 等)
 STEERING_VALUE_LAYERS="all"       # 应用 value steering 的层
 
@@ -71,7 +71,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表
-RATE_LIST=(0.1 0.15 0.3 0.5 0.8 0.9 ) 
+RATE_LIST=(0.0 ) 
 
 # 可选参数
 MAX_SAMPLES="" 
