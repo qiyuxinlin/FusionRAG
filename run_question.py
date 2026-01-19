@@ -117,7 +117,7 @@ class FusionRAGModel:
                 self.all_texts = [input["text"] for input in all_input]
                 ## fixme: mengyao_debug locomo quick fix
                 if "locomo" in dataset_name :
-                    self.all_texts = [f"Document: {text}\n" for text in self.all_texts if not text.startswith("Document:")]
+                    self.all_texts = [f" {text}" for text in self.all_texts if not text.startswith("Document:")]
             if os.path.exists(self.similar_index_file_path):
                 self.similar_idx = np.load(self.similar_index_file_path)
                 print(f"index load from {self.similar_index_file_path}")

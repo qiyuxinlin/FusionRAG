@@ -341,7 +341,8 @@ def run_test_process(
         """
         ## fixme: mengyao_debug locomo quick fix
         if dataset == "locomo":
-            gold_docs = [f"Document: {text}\n" for text in gold_docs if not text.startswith("Document:")]
+            # gold_docs = [f"Document: {text}\n" for text in gold_docs if not text.startswith("Document:")]
+            gold_docs = [f" {text}" for text in gold_docs if not text.startswith("Document:")]
 
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
             query=f'question is {question["query"]}',
@@ -669,7 +670,7 @@ if __name__ == '__main__':
     rates = [0.3]
     cache_path="/data1/qy_tmp/xumengyao/fusionrag/" ## 10024 is data1, 10026 is data2
 
-    run_index = 2
+    run_index = 1
 
     if run_index ==0:
         for idx in range(len(rates)):
@@ -723,7 +724,12 @@ if __name__ == '__main__':
                     gpu_configs=all_gpu_configs[run_index],  ## personalize if need
                     category=category,
                     max_memories=max_memories,
-                    cache_path=cache_path
+                    cache_path=cache_path,
+
+                    test_last_wrong=True,
+                    last_rate=rates[idx],
+                    last_preprocess_method="default",
+                    last_reprocess_method=reprocess_methods[idx]
                 )
     #
     #

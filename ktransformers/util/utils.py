@@ -68,7 +68,7 @@ def find_connected_components(positions, max_gap=2, within=False):
                 current_component.append(positions[i])
             else:
                 current_component.extend([p for p in range(positions[i - 1] + 1, positions[i] + 1)])
-                for c in range(positions[i - 1] + 1, positions[i]-1):
+                for c in range(positions[i - 1] + 1, positions[i]):
                     connect_positions.add(c)
         else:
             components.append(current_component)
@@ -130,7 +130,7 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     if smarter:
         max_gap = 5
         min_len = max_gap
-        min_chosen_weight = 0.2 # easy
+        min_chosen_weight = 0.05 # easy
         if eigenvalue is not None:
             eigenvalue["max_gap"] = max_gap
             eigenvalue["min_len"] = min_len
@@ -144,7 +144,7 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     # Step 3: 计算每个分量的总 attention
     component_scores = []
     for comp in components:
-        total_score = sum(attention_scores[p] for p in comp)
+        total_score = sum(attention_scores[p] for p in comp if p not in connect_positions)
         component_scores.append((comp, total_score))
 
     # Step 4: 按总 attention 排序
@@ -755,7 +755,7 @@ def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k
     else:
         # I'm dumb.
         print(f"  DraftModel dumb version")
-        active_layers = [k for k,v in layer_attention_dict.items()]
+        active_layers = [k for k, v in layer_attention_dict.items()]
 
     # 聚合选中层的 attention
     layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
@@ -1388,9 +1388,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     sim = 0
                 else:
                     sim = calculate_vector_set_similarity(embeddings[embedding_index_chosen])
-                eigenvalue = {
-                    "similarity": float(sim)
-                }
+                eigenvalue["similarity"] = sim
 
             if reprocess_method != "DraftModel_smarter":
                 eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
