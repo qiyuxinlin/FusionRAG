@@ -109,6 +109,7 @@ class FusionRAGModel:
         if preprocess and self.preprocess_method == "default":
             print(f"file_input={file_input}")
             dataset_name = os.path.basename(file_input).split(".")[0]
+            self.dataset_name = dataset_name
             similar_index_save_path = os.path.join(self.preprocess_save_path, "similar_index")
             self.similar_index_file_path = os.path.join(similar_index_save_path, f"{dataset_name}.npy")
             os.makedirs(similar_index_save_path, exist_ok=True)
@@ -117,7 +118,7 @@ class FusionRAGModel:
                 self.all_texts = [input["text"] for input in all_input]
                 ## fixme: mengyao_debug locomo quick fix
                 if "locomo" in dataset_name :
-                    self.all_texts = [f" {text}" for text in self.all_texts if not text.startswith("Document:")]
+                    self.all_texts = [f" {text}" for text in self.all_texts if not text.startswith(" ")]
             if os.path.exists(self.similar_index_file_path):
                 self.similar_idx = np.load(self.similar_index_file_path)
                 print(f"index load from {self.similar_index_file_path}")
@@ -606,6 +607,9 @@ class FusionRAGModel:
             question_prefix=""
     ) -> (int, int, int, int, str, list[int]):
 
+        ## fixme: mengyao_debug locomo quick fix
+        if "locomo" in self.dataset_name:
+            retrieved_docs = [f" {text}" for text in retrieved_docs if not text.startswith(" ")]
         embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
         eigenvalue = {}
         print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")

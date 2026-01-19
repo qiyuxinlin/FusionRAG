@@ -339,10 +339,6 @@ def run_test_process(
         "answer": ""
         }
         """
-        ## fixme: mengyao_debug locomo quick fix
-        if dataset == "locomo":
-            # gold_docs = [f"Document: {text}\n" for text in gold_docs if not text.startswith("Document:")]
-            gold_docs = [f" {text}" for text in gold_docs if not text.startswith("Document:")]
 
         system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
             query=f'question is {question["query"]}',
