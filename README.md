@@ -108,7 +108,6 @@ print("All dependencies installed successfully!")
 | `model_type` | str | `'mistral'` | 模型架构类型。可选值：`'mistral'`、`'pangu'`、`'qwen'`、`'llama'` |
 | `model_path` | str | `'/mnt/data/models/Mistral-7B-Instruct-v0.3'` | 主模型路径 |
 | `model_name` | str | `'Mistral-7B-Instruct-v0.3'` | 模型名称（用于日志和输出文件命名） |
-| `draft_model_path` | str | `None` | draft 模型路径，用于 speculative_prefill 方法（可选，所有模型类型都可使用任意 draft 模型） |
 
 ### 数据配置
 
@@ -130,7 +129,7 @@ print("All dependencies installed successfully!")
 |------|------|--------|------|
 | `rate` | float | `0.2` | 重计算比例（0.0 = 无重计算，1.0 = 完全重计算） |
 | `revert_rope` | bool | `False` | 是否还原 RoPE（旋转位置编码） |
-| `reprocess_method` | str | `'CacheBlend'` | 重处理方法。可选值：<br>- `'processCache'`：查询引导的重处理（论文方法）<br>- `'CacheBlend'`：SOTA CacheBlend 基线<br>- `'Cache-Craft'`：SOTA Cache-Craft 基线<br>- `'speculative_prefill'`：使用 draft 模型的推测预填充<br>- `'frontRow'`：前排基线 |
+| `reprocess_method` | str | `'FusionRAG'` | 重处理方法。可选值：<br>- `'FusionRAG'`：查询引导的重处理（论文方法）<br>- `'CacheBlend'`：SOTA CacheBlend 基线<br>- `'Cache-Craft'`：SOTA Cache-Craft 基线|
 
 ### 预处理配置
 
@@ -173,20 +172,7 @@ main(
 )
 ```
 
-### 示例 3：PanGu + 推测预填充
-```python
-main(
-    model_type='pangu',
-    model_path='/mnt/data/models/openPangu-Embedded-1B-V1.1',
-    model_name='openPangu-Embedded-1B-V1.1',
-    draft_model_path='/mnt/data/models/Qwen2.5-1.5B-Instruct',  # 任意模型都可作为 draft 模型
-    data_name='triviaqa-270-100-10-doc.jsonl',
-    rate=0.1,
-    reprocess_method='speculative_prefill'
-)
-```
-
-### 示例 4：在 NPU 设备上运行（华为昇腾）
+### 示例 3：在 NPU 设备上运行（华为昇腾）
 ```python
 # 在华为昇腾 NPU 上运行
 main(
