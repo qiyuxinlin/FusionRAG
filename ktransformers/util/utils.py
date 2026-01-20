@@ -36,6 +36,33 @@ from filelock import FileLock
 
 
 # ============================================================
+# RoPE 辅助函数
+# ============================================================
+
+def rotate_half(x):
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+def apply_rotary_pos_emb_single(x, cos, sin):
+    """Apply Rotary Position Embedding to a single tensor (key or value).
+
+    Args:
+        x: Input tensor (key or value)
+        cos: Cosine part of rotary embedding
+        sin: Sine part of rotary embedding
+
+    Returns:
+        Tensor with rotary position embedding applied
+    """
+    cos = cos.unsqueeze(1)  # Add head dimension
+    sin = sin.unsqueeze(1)
+    x_embed = (x * cos) + (rotate_half(x) * sin)
+    return x_embed
+
+
+# ============================================================
 # Smart Query Selection 辅助函数
 # ============================================================
 
@@ -1083,117 +1110,106 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             if query_prefix_len >= len(passages[-1]):
                 query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question：')[0]))+1
 
-            # Calculate importance using only question (original FusionRAG behavior)
-            inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
-            seq_length = passages[-1][query_prefix_len:].shape[0]
+            # ONLINE LAZY: Check if we only have system loaded (all docs are missing)
+            # In this case, skip importance calculation and go directly to reprocess
+            only_system_loaded = (past_len == system_len)
 
-            cache_position = torch.arange(past_len, past_len+seq_length, device=input_device)
-            with torch.no_grad():
-                ss_time = time.perf_counter()
-                inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
-                model(
-                    inputs_embeds = inputs_embeds, past_key_values=past_key_values,
-                    cache_position=cache_position, reprocess_method=reprocess_method,
-                    return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
-                    )
+            if only_system_loaded and missing_chunks:
+                # All documents are missing, skip importance calculation
+                # Set k_need_index to include all missing chunks (will add question later)
+                print(f"    → All documents missing, skipping importance calculation")
+                k_need_index = []  # Will be populated with missing chunks before reprocess
+            else:
+                # Calculate importance using only question (original FusionRAG behavior)
+                # Missing chunks will be handled in reprocess stage (like question)
+                inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
+                seq_length = passages[-1][query_prefix_len:].shape[0]
 
-                # Calculate k_sum for all expected documents (including missing ones)
-                all_docs_len = sum(passages_len[:-1])  # All docs except question
+                cache_position = torch.arange(past_len, past_len+seq_length, device=input_device)
 
-                # Initialize k_sum
-                if past_len < all_docs_len:
-                    # Some documents are missing - extend importance with zeros
-                    k_sum_loaded = torch.sum(past_key_values.importance_cache[-1], dim=0)[:past_len]
-                    k_sum_missing = torch.zeros(all_docs_len - past_len)
-                    k_sum = torch.cat([k_sum_loaded, k_sum_missing])
-                else:
-                    # All documents loaded
-                    k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:all_docs_len]
+                with torch.no_grad():
+                    ss_time = time.perf_counter()
+                    inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
+                    model(
+                        inputs_embeds = inputs_embeds, past_key_values=past_key_values,
+                        cache_position=cache_position, reprocess_method=reprocess_method,
+                        return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
+                        )
 
-                end_time = time.perf_counter() - ss_time
+                    # Calculate k_sum for LOADED documents only (not missing chunks)
+                    k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:past_len]
+                    end_time = time.perf_counter() - ss_time
 
-                # ========== Force recompute for missing chunks (ONLINE_LAZY) ==========
-                # Mark all tokens from missing chunks as must-recompute by setting high scores
-                if missing_chunks:
-                    passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
-                    for idx, chunk_id, passage in missing_chunks:
-                        # Find the start and end positions of this chunk in the ORIGINAL passages order
-                        chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
-                        chunk_end = passages_len_cumsum[idx]
-                        # Set very high importance scores to force selection
-                        k_sum[chunk_start:chunk_end] = float('inf')
-                    print(f"    → Forcing recompute for {len(missing_chunks)} new chunks")
+                    if group:
+                        k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
+                        k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
 
-                if group:
-                    k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
-                    k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
+                        # 计算需要选择的 token 数量
+                        total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
+                        k_lens = int(rate * total_relevant_tokens)
 
-                    # 计算需要选择的 token 数量
-                    total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
-                    k_lens = int(rate * total_relevant_tokens)
+                        # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
+                        if missing_chunks:
+                            missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                            if k_lens < missing_docs_len:
+                                print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
+                                k_lens = missing_docs_len
 
-                    # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
-                    if missing_chunks:
-                        missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
-                        if k_lens < missing_docs_len:
-                            print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
-                            k_lens = missing_docs_len
+                        # === 新增：按组选择逻辑 ===
+                        group_size = 16
+                        num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
 
-                    # === 新增：按组选择逻辑 ===
-                    group_size = 16
-                    num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
+                        # 将分数按组重塑（最后一组可能不足 8 个）
+                        # 先 pad 到能被 group_size 整除
+                        padded_length = num_groups * group_size
+                        if total_relevant_tokens < padded_length:
+                            # 用很小的负数填充，确保不会被选中
+                            padding = torch.full((padded_length - total_relevant_tokens,),
+                                                -float('inf'), device=input_device)
+                            k_sum_padded = torch.cat([k_sum_relevant, padding])
+                        else:
+                            k_sum_padded = k_sum_relevant
 
-                    # 将分数按组重塑（最后一组可能不足 8 个）
-                    # 先 pad 到能被 group_size 整除
-                    padded_length = num_groups * group_size
-                    if total_relevant_tokens < padded_length:
-                        # 用很小的负数填充，确保不会被选中
-                        padding = torch.full((padded_length - total_relevant_tokens,),
-                                            -float('inf'), device=input_device)
-                        k_sum_padded = torch.cat([k_sum_relevant, padding])
+                        # 重塑为 [num_groups, group_size]
+                        k_sum_grouped = k_sum_padded.view(num_groups, group_size)
+
+                        # 计算每组的最大分数
+                        group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
+
+                        # 根据组的最大分数选择 top-k 组
+                        num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
+                        num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
+
+                        top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
+
+                        # 将选中的组展开为 token 索引
+                        selected_token_indices = []
+                        for group_idx in top_group_indices.tolist():
+                            start_idx = group_idx * group_size
+                            end_idx = min(start_idx + group_size, total_relevant_tokens)
+                            selected_token_indices.extend(range(start_idx, end_idx))
+
+                        # 转换为 tensor 并加上 system_len 偏移
+                        k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
+
+                        print(f"选择了 {len(selected_token_indices)} 个 tokens，"
+                              f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
                     else:
-                        k_sum_padded = k_sum_relevant
+                        k_sum = k_sum.tolist()
+                        k_sum = k_sum[system_len:]
+                        k_sum = torch.tensor(k_sum,device=input_device)
+                        k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
 
-                    # 重塑为 [num_groups, group_size]
-                    k_sum_grouped = k_sum_padded.view(num_groups, group_size)
+                        # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
+                        if missing_chunks:
+                            missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                            if k_lens < missing_docs_len:
+                                print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
+                                k_lens = missing_docs_len
 
-                    # 计算每组的最大分数
-                    group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
-
-                    # 根据组的最大分数选择 top-k 组
-                    num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
-                    num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
-
-                    top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
-
-                    # 将选中的组展开为 token 索引
-                    selected_token_indices = []
-                    for group_idx in top_group_indices.tolist():
-                        start_idx = group_idx * group_size
-                        end_idx = min(start_idx + group_size, total_relevant_tokens)
-                        selected_token_indices.extend(range(start_idx, end_idx))
-
-                    # 转换为 tensor 并加上 system_len 偏移
-                    k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
-
-                    print(f"选择了 {len(selected_token_indices)} 个 tokens，"
-                          f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
-                else:
-                    k_sum = k_sum.tolist()
-                    k_sum = k_sum[system_len:]
-                    k_sum = torch.tensor(k_sum,device=input_device)
-                    k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
-
-                    # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
-                    if missing_chunks:
-                        missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
-                        if k_lens < missing_docs_len:
-                            print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
-                            k_lens = missing_docs_len
-
-                    k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
-                    k_need_index = k_need_index + system_len
-                    print(f'select_time: {time.time() - select_time}')
+                        k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
+                        k_need_index = k_need_index + system_len
+                        print(f'select_time: {time.time() - select_time}')
         elif reprocess_method == 'frontRow':
             k_need_index = []
             for i in range(len(passages_start[:-1])):
@@ -2404,6 +2420,17 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             print(f"  (Note: Using union for forward pass; per-layer rates documented in extra_info)")
         else:
             k_need_index = torch.sort(k_need_index)[0].tolist()
+
+        # ========== ONLINE LAZY: Add ALL missing chunks tokens to k_need_index ==========
+        if missing_chunks:
+            passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
+            for idx, chunk_id, passage in missing_chunks:
+                chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
+                chunk_end = passages_len_cumsum[idx]
+                k_need_index.extend(range(chunk_start, chunk_end))
+            k_need_index = sorted(k_need_index)  # Keep sorted
+            print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing chunk tokens to reprocess")
+
         k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
     else:
         k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
@@ -2435,46 +2462,49 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             past_key_values=past_key_values, return_dict=False, use_cache=True, use_sparse_attention=use_sparse_attention,
         )[0]
 
-        # ========== ONLINE LAZY: Extract and save KV for missing chunks after reprocess ==========
+        # ========== ONLINE LAZY: Extract and save missing chunks KV after reprocess ==========
         if missing_chunks:
+            print(f"    ⚡ Extracting and saving KV for {len(missing_chunks)} new document(s)...")
             passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
-            for idx, chunk_id, passage in missing_chunks:
-                passage_len = passage.shape[0]
 
-                # Find positions in the ORIGINAL passages order
+            for idx, chunk_id, passage in missing_chunks:
+                # Calculate chunk position range
                 chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
                 chunk_end = passages_len_cumsum[idx]
+                chunk_len = chunk_end - chunk_start
 
-                # Extract KV from past_key_values at these positions
-                chunk_key = torch.stack([
-                    past_key_values.key_cache[layer_idx][:, :, chunk_start:chunk_end, :].cpu()
-                    for layer_idx in range(len(past_key_values.key_cache))
-                ])
-                chunk_value = torch.stack([
-                    past_key_values.value_cache[layer_idx][:, :, chunk_start:chunk_end, :].cpu()
-                    for layer_idx in range(len(past_key_values.value_cache))
-                ])
+                # Extract key and value for this chunk
+                chunk_key = past_key_values.key_cache[-1][:, :, chunk_start:chunk_end, :].clone()
+                chunk_value = past_key_values.value_cache[-1][:, :, chunk_start:chunk_end, :].clone()
 
-                # Adjust RoPE for saving (revert to relative position)
-                position_ids = torch.full((1, passage_len), system_len - chunk_start, device='cpu')
-                chunk_key_for_rope = chunk_key[0].to(input_device)
+                # Apply RoPE adjustment: revert to relative position 0
+                if revert_rope:
+                    # Get rotary_emb from model
+                    rotary_emb = model.model.layers[-1].self_attn.rotary_emb
 
-                try:
-                    cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_for_rope, position_ids.to(input_device))
-                except:
-                    cos, sin = model.model.rotary_emb(chunk_key_for_rope, position_ids.to(input_device))
+                    # Original absolute positions [chunk_start, chunk_start+1, ..., chunk_end-1]
+                    original_position_ids = torch.arange(chunk_start, chunk_end, device=chunk_key.device).unsqueeze(0)
 
-                cos = cos.unsqueeze(1).cpu()
-                sin = sin.unsqueeze(1).cpu()
-                chunk_key = (chunk_key * cos) + (rotate_half(chunk_key) * sin)
+                    # Target relative positions [0, 1, 2, ..., chunk_len-1]
+                    target_position_ids = torch.arange(0, chunk_len, device=chunk_key.device).unsqueeze(0)
+
+                    # Get cos/sin for both positions
+                    original_cos, original_sin = rotary_emb(chunk_value, original_position_ids)
+                    target_cos, target_sin = rotary_emb(chunk_value, target_position_ids)
+
+                    # Revert original RoPE
+                    chunk_key = apply_rotary_pos_emb_single(chunk_key, original_cos, -original_sin)
+                    # Apply new RoPE at position 0
+                    chunk_key = apply_rotary_pos_emb_single(chunk_key, target_cos, target_sin)
 
                 # Save to disk
-                key_path = f'{load_path}/{example_id}_{chunk_id}_key.pt'
-                value_path = f'{load_path}/{example_id}_{chunk_id}_value.pt'
-                torch.save(chunk_key.clone(), key_path)
-                torch.save(chunk_value.clone(), value_path)
+                key_save_path = f'{load_path}/{example_id}_{chunk_id}_key.pt'
+                value_save_path = f'{load_path}/{example_id}_{chunk_id}_value.pt'
 
-                print(f"    ✓ Chunk {chunk_id} KV generated and saved ({passage_len} tokens)")
+                torch.save(chunk_key.to('cpu'), key_save_path)
+                torch.save(chunk_value.to('cpu'), value_save_path)
+
+                print(f"      ✓ Chunk {chunk_id} KV generated and saved ({chunk_len} tokens)")
 
         logits = model_output[:,-1,:].unsqueeze(0).clone()
         with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
