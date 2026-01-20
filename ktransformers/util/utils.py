@@ -1023,22 +1023,36 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         value_path = f'{kv_path}/{example_id}_{chunk_id}_value.pt'
 
         if os.path.exists(key_path) and os.path.exists(value_path):
-            # KV cache exists - load it
+            # KV cache exists - try to load it
             # Note: Saved as list of layers, each layer is [1, num_heads, seq_len, head_dim]
-            chunk_key_cache = torch.load(key_path, weights_only=True)
-            chunk_value_cache = torch.load(value_path, weights_only=True)
+            try:
+                chunk_key_cache = torch.load(key_path, weights_only=True)
+                chunk_value_cache = torch.load(value_path, weights_only=True)
 
-            # Move to CPU if not already
-            if isinstance(chunk_key_cache, list):
-                chunk_key_cache = [k.to('cpu') if k.device.type != 'cpu' else k for k in chunk_key_cache]
-                chunk_value_cache = [v.to('cpu') if v.device.type != 'cpu' else v for v in chunk_value_cache]
-            else:
-                # Old format (single tensor) - shouldn't happen after clearing cache
-                chunk_key_cache = chunk_key_cache.to('cpu')
-                chunk_value_cache = chunk_value_cache.to('cpu')
+                # Move to CPU if not already
+                if isinstance(chunk_key_cache, list):
+                    chunk_key_cache = [k.to('cpu') if k.device.type != 'cpu' else k for k in chunk_key_cache]
+                    chunk_value_cache = [v.to('cpu') if v.device.type != 'cpu' else v for v in chunk_value_cache]
+                else:
+                    # Old format (single tensor) - shouldn't happen after clearing cache
+                    chunk_key_cache = chunk_key_cache.to('cpu')
+                    chunk_value_cache = chunk_value_cache.to('cpu')
 
-            key_cache.append(chunk_key_cache)
-            value_cache.append(chunk_value_cache)
+                key_cache.append(chunk_key_cache)
+                value_cache.append(chunk_value_cache)
+            except Exception as e:
+                # Corrupted cache file - delete and treat as missing
+                print(f"  ⚠ Chunk {chunk_id}: KV cache corrupted ({e}), deleting and will regenerate")
+                try:
+                    if os.path.exists(key_path):
+                        os.remove(key_path)
+                    if os.path.exists(value_path):
+                        os.remove(value_path)
+                except:
+                    pass
+                key_cache.append(None)
+                value_cache.append(None)
+                missing_chunks.append((idx, chunk_id, passage))
         else:
             # KV cache missing - will generate during forward pass
             print(f"  ⚠ Chunk {chunk_id}: KV cache not found, will generate during answer generation")
@@ -2583,14 +2597,30 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     chunk_key_all_layers.append(layer_chunk_key)
                     chunk_value_all_layers.append(layer_chunk_value)
 
-                # Save to disk (all layers as a list)
+                # Save to disk (all layers as a list) using atomic write
                 key_save_path = f'{load_path}/{example_id}_{chunk_id}_key.pt'
                 value_save_path = f'{load_path}/{example_id}_{chunk_id}_value.pt'
+                key_temp_path = f'{key_save_path}.tmp'
+                value_temp_path = f'{value_save_path}.tmp'
 
-                torch.save([k.to('cpu') for k in chunk_key_all_layers], key_save_path)
-                torch.save([v.to('cpu') for v in chunk_value_all_layers], value_save_path)
+                try:
+                    # Write to temporary files first
+                    torch.save([k.to('cpu') for k in chunk_key_all_layers], key_temp_path)
+                    torch.save([v.to('cpu') for v in chunk_value_all_layers], value_temp_path)
 
-                print(f"      ✓ Chunk {chunk_id} KV generated and saved ({chunk_len} tokens)")
+                    # Atomic rename (replaces existing file if any)
+                    os.rename(key_temp_path, key_save_path)
+                    os.rename(value_temp_path, value_save_path)
+
+                    print(f"      ✓ Chunk {chunk_id} KV generated and saved ({chunk_len} tokens)")
+                except Exception as e:
+                    # Clean up temporary files on error
+                    if os.path.exists(key_temp_path):
+                        os.remove(key_temp_path)
+                    if os.path.exists(value_temp_path):
+                        os.remove(value_temp_path)
+                    print(f"      ✗ Failed to save Chunk {chunk_id} KV: {e}")
+                    raise
 
         logits = model_output[:,-1,:].unsqueeze(0).clone()
         with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()

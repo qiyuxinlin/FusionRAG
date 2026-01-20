@@ -552,9 +552,20 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 for context_id, context_len in enumerate(passages_len[:-1]):
                     if context_id <= 1:
                         continue
-                    
+
+                    # Skip missing chunks (ONLINE_LAZY mode)
+                    cached_kv = history_key_cache[context_id]
+                    if cached_kv is None:
+                        continue
+
                     past_len = sum(passages_len[:context_id])
-                    context_key = history_key_cache[context_id].to(query_states.device)[self.layer_idx]
+                    # Handle both old format (single tensor) and new format (list of layers)
+                    if isinstance(cached_kv, list):
+                        # New format: list of layers
+                        context_key = cached_kv[self.layer_idx].to(query_states.device)
+                    else:
+                        # Old format: single tensor with all layers
+                        context_key = cached_kv.to(query_states.device)[self.layer_idx]
                     context_key = repeat_kv(context_key, self.num_key_value_groups)
                     context_key = context_key.transpose(-1, -2)
                     attn_weights = torch.matmul(query_states, context_key)
