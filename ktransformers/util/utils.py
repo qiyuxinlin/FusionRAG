@@ -1024,8 +1024,19 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         if os.path.exists(key_path) and os.path.exists(value_path):
             # KV cache exists - load it
-            chunk_key_cache = torch.load(key_path, weights_only=True).to('cpu')
-            chunk_value_cache = torch.load(value_path, weights_only=True).to('cpu')
+            # Note: Saved as list of layers, each layer is [1, num_heads, seq_len, head_dim]
+            chunk_key_cache = torch.load(key_path, weights_only=True)
+            chunk_value_cache = torch.load(value_path, weights_only=True)
+
+            # Move to CPU if not already
+            if isinstance(chunk_key_cache, list):
+                chunk_key_cache = [k.to('cpu') if k.device.type != 'cpu' else k for k in chunk_key_cache]
+                chunk_value_cache = [v.to('cpu') if v.device.type != 'cpu' else v for v in chunk_value_cache]
+            else:
+                # Old format (single tensor) - shouldn't happen after clearing cache
+                chunk_key_cache = chunk_key_cache.to('cpu')
+                chunk_value_cache = chunk_value_cache.to('cpu')
+
             key_cache.append(chunk_key_cache)
             value_cache.append(chunk_value_cache)
         else:
@@ -1044,34 +1055,59 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         if key_cache[idx] is None:
             continue
 
-        key_cache[idx] = key_cache[idx].to(input_device)
+        # chunk_key_cache and chunk_value_cache are lists (one per layer)
         chunk_key_cache = key_cache[idx]
-        chunk_value_cache = value_cache[idx].to(input_device)
-        assert passage_len == chunk_key_cache.shape[3]
-        if revert_rope and chunk_id > 0:
-            all_position_ids = []
-            # Get the device of the rotary embedding layer from inv_freq buffer
-            rotary_emb = model.model.layers[0].self_attn.rotary_emb
-            if hasattr(rotary_emb, 'inv_freq') and rotary_emb.inv_freq is not None:
-                rotary_device = rotary_emb.inv_freq.device
+        chunk_value_cache = value_cache[idx]
+
+        # Verify it's the correct format
+        if isinstance(chunk_key_cache, list):
+            # New format: list of layers
+            assert passage_len == chunk_key_cache[0].shape[2], f"passage_len={passage_len}, but KV shape={chunk_key_cache[0].shape}"
+
+            # Apply RoPE adjustment if needed
+            if revert_rope and chunk_id > 0:
+                for layer_idx in range(len(chunk_key_cache)):
+                    # Get the device of the rotary embedding layer
+                    rotary_emb = model.model.layers[layer_idx].self_attn.rotary_emb
+                    if hasattr(rotary_emb, 'inv_freq') and rotary_emb.inv_freq is not None:
+                        rotary_device = rotary_emb.inv_freq.device
+                    else:
+                        rotary_device = next(model.model.layers[layer_idx].parameters()).device
+
+                    layer_chunk_key = chunk_key_cache[layer_idx].to(rotary_device)
+                    layer_chunk_value = chunk_value_cache[layer_idx].to(rotary_device)
+
+                    position_ids = torch.full((1, layer_chunk_key.shape[2]), past_len - system_len, device=rotary_device)
+                    cos, sin = rotary_emb(layer_chunk_value, position_ids)
+                    cos = cos.unsqueeze(1)
+                    sin = sin.unsqueeze(1)
+
+                    # Apply RoPE
+                    layer_chunk_key = (layer_chunk_key * cos) + (rotate_half(layer_chunk_key) * sin)
+
+                    # Update in list
+                    chunk_key_cache[layer_idx] = layer_chunk_key.to(input_device)
+                    chunk_value_cache[layer_idx] = layer_chunk_value.to(input_device)
             else:
-                # Fallback: use the device of the first layer
-                rotary_device = next(model.model.layers[0].parameters()).device
+                # Just move to input_device
+                chunk_key_cache = [k.to(input_device) for k in chunk_key_cache]
+                chunk_value_cache = [v.to(input_device) for v in chunk_value_cache]
 
-            position_ids = torch.full((1, chunk_key_cache[0].shape[2]), past_len - system_len, device=rotary_device)
-            chunk_key_for_rope = chunk_key_cache[0].to(rotary_device)
-            cos, sin = rotary_emb(chunk_key_for_rope, position_ids)
-            # mistral 限定
-            cos = cos.unsqueeze(1).to(input_device)
-            sin = sin.unsqueeze(1).to(input_device)
-            chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
-        elif chunk_id > 0:
-            all_position_ids.append(torch.arange(system_len,system_len+passage_len).to(input_device).unsqueeze(0))
+            # Copy to past_key_values
+            for layer_idx in range(len(past_key_values.key_cache)):
+                past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
+                past_key_values.value_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_value_cache[layer_idx])
+                past_key_values.past_tokens[layer_idx] += passage_len
+        else:
+            # Old format (shouldn't happen after clearing cache) - keep for compatibility
+            chunk_key_cache = chunk_key_cache.to(input_device)
+            chunk_value_cache = chunk_value_cache.to(input_device)
+            assert passage_len == chunk_key_cache.shape[3]
 
-        for layer_idx in range(len(past_key_values.key_cache)):
-            past_key_values.key_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_key_cache[layer_idx])
-            past_key_values.value_cache[layer_idx].narrow(2,past_len,passage_len).copy_(chunk_value_cache[layer_idx])
-            past_key_values.past_tokens[layer_idx] += passage_len
+            for layer_idx in range(len(past_key_values.key_cache)):
+                past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
+                past_key_values.value_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_value_cache[layer_idx])
+                past_key_values.past_tokens[layer_idx] += passage_len
         past_len += passage_len
     storage_time = time.time() - start_time 
     print(f'storage_time: {storage_time}')
@@ -1110,106 +1146,128 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             if query_prefix_len >= len(passages[-1]):
                 query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question：')[0]))+1
 
-            # ONLINE LAZY: Check if we only have system loaded (all docs are missing)
-            # In this case, skip importance calculation and go directly to reprocess
-            only_system_loaded = (past_len == system_len)
+            # Calculate importance using question
+            # ONLINE LAZY: For importance calculation, use a temporary past_key_values
+            # to avoid writing question KV at wrong position
+            inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
+            seq_length = passages[-1][query_prefix_len:].shape[0]
 
-            if only_system_loaded and missing_chunks:
-                # All documents are missing, skip importance calculation
-                # Set k_need_index to include all missing chunks (will add question later)
-                print(f"    → All documents missing, skipping importance calculation")
-                k_need_index = []  # Will be populated with missing chunks before reprocess
-            else:
-                # Calculate importance using only question (original FusionRAG behavior)
-                # Missing chunks will be handled in reprocess stage (like question)
-                inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
-                seq_length = passages[-1][query_prefix_len:].shape[0]
+            with torch.no_grad():
+                ss_time = time.perf_counter()
+                inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
 
-                cache_position = torch.arange(past_len, past_len+seq_length, device=input_device)
+                if missing_chunks:
+                    # When there are missing chunks, use a temporary cache for importance calculation
+                    # Create a temporary past_key_values that only contains loaded docs
+                    temp_past_key_values = StaticCache(
+                        config=past_key_values.config,
+                        max_batch_size=past_key_values.max_batch_size,
+                        max_cache_len=past_key_values.max_cache_len,
+                        device=past_key_values.key_cache[0].device,
+                        dtype=past_key_values.key_cache[0].dtype
+                    )
 
-                with torch.no_grad():
-                    ss_time = time.perf_counter()
-                    inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
+                    # Copy loaded KV to temp cache
+                    for layer_idx in range(len(past_key_values.key_cache)):
+                        temp_past_key_values.key_cache[layer_idx][:, :, :past_len, :] = \
+                            past_key_values.key_cache[layer_idx][:, :, :past_len, :].clone()
+                        temp_past_key_values.value_cache[layer_idx][:, :, :past_len, :] = \
+                            past_key_values.value_cache[layer_idx][:, :, :past_len, :].clone()
+
+                    # Use temp cache for forward (question KV written to temp, not original)
+                    cache_position = torch.arange(past_len, past_len + seq_length, device=input_device)
+                    model(
+                        inputs_embeds = inputs_embeds, past_key_values=temp_past_key_values,
+                        cache_position=cache_position, reprocess_method=reprocess_method,
+                        return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
+                    )
+
+                    # Extract importance from temp cache
+                    k_sum = torch.sum(temp_past_key_values.importance_cache[-1], dim=0)[:past_len]
+                else:
+                    # No missing chunks, use original logic
+                    cache_position = torch.arange(past_len, past_len + seq_length, device=input_device)
                     model(
                         inputs_embeds = inputs_embeds, past_key_values=past_key_values,
                         cache_position=cache_position, reprocess_method=reprocess_method,
                         return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
-                        )
+                    )
 
-                    # Calculate k_sum for LOADED documents only (not missing chunks)
+                    # Calculate k_sum for LOADED documents only
                     k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:past_len]
-                    end_time = time.perf_counter() - ss_time
 
-                    if group:
-                        k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
-                        k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
+                end_time = time.perf_counter() - ss_time
 
-                        # 计算需要选择的 token 数量
-                        total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
-                        k_lens = int(rate * total_relevant_tokens)
+            if group:
+                k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
+                k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
 
-                        # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
-                        if missing_chunks:
-                            missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
-                            if k_lens < missing_docs_len:
-                                print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
-                                k_lens = missing_docs_len
+                # 计算需要选择的 token 数量
+                total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
+                k_lens = int(rate * total_relevant_tokens)
 
-                        # === 新增：按组选择逻辑 ===
-                        group_size = 16
-                        num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
+                # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
+                if missing_chunks:
+                    missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                    if k_lens < missing_docs_len:
+                        print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
+                        k_lens = missing_docs_len
 
-                        # 将分数按组重塑（最后一组可能不足 8 个）
-                        # 先 pad 到能被 group_size 整除
-                        padded_length = num_groups * group_size
-                        if total_relevant_tokens < padded_length:
-                            # 用很小的负数填充，确保不会被选中
-                            padding = torch.full((padded_length - total_relevant_tokens,),
-                                                -float('inf'), device=input_device)
-                            k_sum_padded = torch.cat([k_sum_relevant, padding])
-                        else:
-                            k_sum_padded = k_sum_relevant
+                # === 新增：按组选择逻辑 ===
+                group_size = 16
+                num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
 
-                        # 重塑为 [num_groups, group_size]
-                        k_sum_grouped = k_sum_padded.view(num_groups, group_size)
+                # 将分数按组重塑（最后一组可能不足 8 个）
+                # 先 pad 到能被 group_size 整除
+                padded_length = num_groups * group_size
+                if total_relevant_tokens < padded_length:
+                    # 用很小的负数填充，确保不会被选中
+                    padding = torch.full((padded_length - total_relevant_tokens,),
+                                        -float('inf'), device=input_device)
+                    k_sum_padded = torch.cat([k_sum_relevant, padding])
+                else:
+                    k_sum_padded = k_sum_relevant
 
-                        # 计算每组的最大分数
-                        group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
+                # 重塑为 [num_groups, group_size]
+                k_sum_grouped = k_sum_padded.view(num_groups, group_size)
 
-                        # 根据组的最大分数选择 top-k 组
-                        num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
-                        num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
+                # 计算每组的最大分数
+                group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
 
-                        top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
+                # 根据组的最大分数选择 top-k 组
+                num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
+                num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
 
-                        # 将选中的组展开为 token 索引
-                        selected_token_indices = []
-                        for group_idx in top_group_indices.tolist():
-                            start_idx = group_idx * group_size
-                            end_idx = min(start_idx + group_size, total_relevant_tokens)
-                            selected_token_indices.extend(range(start_idx, end_idx))
+                top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
 
-                        # 转换为 tensor 并加上 system_len 偏移
-                        k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
+                # 将选中的组展开为 token 索引
+                selected_token_indices = []
+                for group_idx in top_group_indices.tolist():
+                    start_idx = group_idx * group_size
+                    end_idx = min(start_idx + group_size, total_relevant_tokens)
+                    selected_token_indices.extend(range(start_idx, end_idx))
 
-                        print(f"选择了 {len(selected_token_indices)} 个 tokens，"
-                              f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
-                    else:
-                        k_sum = k_sum.tolist()
-                        k_sum = k_sum[system_len:]
-                        k_sum = torch.tensor(k_sum,device=input_device)
-                        k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+                # 转换为 tensor 并加上 system_len 偏移
+                k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
 
-                        # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
-                        if missing_chunks:
-                            missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
-                            if k_lens < missing_docs_len:
-                                print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
-                                k_lens = missing_docs_len
+                print(f"选择了 {len(selected_token_indices)} 个 tokens，"
+                      f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
+            else:
+                k_sum = k_sum.tolist()
+                k_sum = k_sum[system_len:]
+                k_sum = torch.tensor(k_sum,device=input_device)
+                k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
 
-                        k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
-                        k_need_index = k_need_index + system_len
-                        print(f'select_time: {time.time() - select_time}')
+                # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
+                if missing_chunks:
+                    missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                    if k_lens < missing_docs_len:
+                        print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
+                        k_lens = missing_docs_len
+
+                k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
+                k_need_index = k_need_index + system_len
+                print(f'select_time: {time.time() - select_time}')
         elif reprocess_method == 'frontRow':
             k_need_index = []
             for i in range(len(passages_start[:-1])):
@@ -2421,27 +2479,38 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         else:
             k_need_index = torch.sort(k_need_index)[0].tolist()
 
-        # ========== ONLINE LAZY: Add ALL missing chunks tokens to k_need_index ==========
-        if missing_chunks:
-            passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
-            for idx, chunk_id, passage in missing_chunks:
-                chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
-                chunk_end = passages_len_cumsum[idx]
-                k_need_index.extend(range(chunk_start, chunk_end))
-            k_need_index = sorted(k_need_index)  # Keep sorted
-            print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing chunk tokens to reprocess")
-
         k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
     else:
         k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
-    past_len = sum(passages_len)
+
+    # ========== ONLINE LAZY: Add ALL missing chunks tokens to k_need_index ==========
+    # This must be done AFTER the if/else block above, for both rate=0 and rate!=0
+    if missing_chunks:
+        # Convert k_need_index to list if it's a range
+        if not isinstance(k_need_index, list):
+            k_need_index = list(k_need_index)
+
+        passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
+        for idx, chunk_id, passage in missing_chunks:
+            chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
+            chunk_end = passages_len_cumsum[idx]
+            k_need_index.extend(range(chunk_start, chunk_end))
+        k_need_index = sorted(k_need_index)  # Keep sorted
+        print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing chunk tokens to reprocess")
+
+    # ONLINE LAZY: Don't reset past_len - it should remain as the actual loaded length
+    # past_len = sum(passages_len)  # This line is for offline mode only
+    # In offline mode, all docs are loaded, so past_len == sum(passages_len)
+    # In online lazy mode, only loaded docs are in past_key_values
+    final_len = sum(passages_len)  # Total length after reprocess
 
     batch_size, seq_length = 1, len(k_need_index)
 
+    # Use final_len for generated_ids size (includes all passages)
     generated_ids = torch.zeros(
-        batch_size, past_len + max_new_tokens + 1, dtype=torch.int, device=input_device
+        batch_size, final_len + max_new_tokens + 1, dtype=torch.int, device=input_device
     )
-    generated_ids[:, :past_len] = torch.cat(passages).unsqueeze(0).to(input_device)
+    generated_ids[:, :final_len] = torch.cat(passages).unsqueeze(0).to(input_device)
     tokens = []
 
     if reprocess_method != 'FusionRAG':
@@ -2451,12 +2520,21 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
     cache_position = torch.tensor(k_need_index, device=input_device)
 
+    # Debug: Print cache position info for Online Lazy
+    if missing_chunks:
+        print(f"  [DEBUG] past_len from load stage: {past_len}")
+        print(f"  [DEBUG] sum(passages_len): {sum(passages_len)}")
+        print(f"  [DEBUG] k_need_index length: {len(k_need_index)}")
+        print(f"  [DEBUG] k_need_index range: [{min(k_need_index)}, {max(k_need_index)}]")
+        print(f"  [DEBUG] cache_position range: [{cache_position.min().item()}, {cache_position.max().item()}]")
+
     with torch.no_grad():
         without_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
 
         # Don't force move to input_device - keep on the device where model output is
         # This avoids cross-GPU transfer deadlock in PP mode
+
         model_output = model(
             inputs_embeds = inputs_embeds, cache_position=cache_position,
             past_key_values=past_key_values, return_dict=False, use_cache=True, use_sparse_attention=use_sparse_attention,
@@ -2473,36 +2551,44 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 chunk_end = passages_len_cumsum[idx]
                 chunk_len = chunk_end - chunk_start
 
-                # Extract key and value for this chunk
-                chunk_key = past_key_values.key_cache[-1][:, :, chunk_start:chunk_end, :].clone()
-                chunk_value = past_key_values.value_cache[-1][:, :, chunk_start:chunk_end, :].clone()
+                # Extract key and value for this chunk (ALL LAYERS)
+                num_layers = len(past_key_values.key_cache)
+                chunk_key_all_layers = []
+                chunk_value_all_layers = []
 
-                # Apply RoPE adjustment: revert to relative position 0
-                if revert_rope:
-                    # Get rotary_emb from model
-                    rotary_emb = model.model.layers[-1].self_attn.rotary_emb
+                for layer_idx in range(num_layers):
+                    layer_chunk_key = past_key_values.key_cache[layer_idx][:, :, chunk_start:chunk_end, :].clone()
+                    layer_chunk_value = past_key_values.value_cache[layer_idx][:, :, chunk_start:chunk_end, :].clone()
 
-                    # Original absolute positions [chunk_start, chunk_start+1, ..., chunk_end-1]
-                    original_position_ids = torch.arange(chunk_start, chunk_end, device=chunk_key.device).unsqueeze(0)
+                    # Apply RoPE adjustment: revert to relative position 0 (only for keys)
+                    if revert_rope and chunk_id > 0:
+                        # Get rotary_emb from this layer
+                        rotary_emb = model.model.layers[layer_idx].self_attn.rotary_emb
 
-                    # Target relative positions [0, 1, 2, ..., chunk_len-1]
-                    target_position_ids = torch.arange(0, chunk_len, device=chunk_key.device).unsqueeze(0)
+                        # Original absolute positions [chunk_start, chunk_start+1, ..., chunk_end-1]
+                        original_position_ids = torch.arange(chunk_start, chunk_end, device=layer_chunk_key.device).unsqueeze(0)
 
-                    # Get cos/sin for both positions
-                    original_cos, original_sin = rotary_emb(chunk_value, original_position_ids)
-                    target_cos, target_sin = rotary_emb(chunk_value, target_position_ids)
+                        # Target relative positions [0, 1, 2, ..., chunk_len-1]
+                        target_position_ids = torch.arange(0, chunk_len, device=layer_chunk_key.device).unsqueeze(0)
 
-                    # Revert original RoPE
-                    chunk_key = apply_rotary_pos_emb_single(chunk_key, original_cos, -original_sin)
-                    # Apply new RoPE at position 0
-                    chunk_key = apply_rotary_pos_emb_single(chunk_key, target_cos, target_sin)
+                        # Get cos/sin for both positions
+                        original_cos, original_sin = rotary_emb(layer_chunk_value, original_position_ids)
+                        target_cos, target_sin = rotary_emb(layer_chunk_value, target_position_ids)
 
-                # Save to disk
+                        # Revert original RoPE
+                        layer_chunk_key = apply_rotary_pos_emb_single(layer_chunk_key, original_cos, -original_sin)
+                        # Apply new RoPE at position 0
+                        layer_chunk_key = apply_rotary_pos_emb_single(layer_chunk_key, target_cos, target_sin)
+
+                    chunk_key_all_layers.append(layer_chunk_key)
+                    chunk_value_all_layers.append(layer_chunk_value)
+
+                # Save to disk (all layers as a list)
                 key_save_path = f'{load_path}/{example_id}_{chunk_id}_key.pt'
                 value_save_path = f'{load_path}/{example_id}_{chunk_id}_value.pt'
 
-                torch.save(chunk_key.to('cpu'), key_save_path)
-                torch.save(chunk_value.to('cpu'), value_save_path)
+                torch.save([k.to('cpu') for k in chunk_key_all_layers], key_save_path)
+                torch.save([v.to('cpu') for v in chunk_value_all_layers], value_save_path)
 
                 print(f"      ✓ Chunk {chunk_id} KV generated and saved ({chunk_len} tokens)")
 
@@ -2521,13 +2607,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         prefill_count = seq_length
         prefill_time = first_token_time
         # print(stream.put(next_token.item()), end="", flush=True)
-        generated_ids[:, past_len+1] = next_token
+        generated_ids[:, final_len+1] = next_token
         tokens.append(next_token)
 
         # Use the device where logits/next_token are (model output device in PP mode)
         output_device = next_token.device
         inputs = torch.cat((torch.cat(passages).unsqueeze(0).to(output_device), next_token.unsqueeze(0)), dim=-1)
-        cache_position = torch.tensor([past_len], device=output_device)
+        cache_position = torch.tensor([final_len], device=output_device)
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
         

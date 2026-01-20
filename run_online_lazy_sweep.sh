@@ -40,13 +40,13 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表 - 测试不同的重算比例
-RATE_LIST=(0.0 0.1 0.15 0.3 0.5 0.7 1.0)
+RATE_LIST=(0.0 0.1 0.15 0.3 0.5 0.8 0.9)
 
 # 可选参数
 MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
 
 # 是否清除之前的缓存（可选）
-CLEAR_CACHE_BEFORE_START="false"
+CLEAR_CACHE_BEFORE_START="true"
 
 #####################################################################
 # 开始遍历
@@ -106,7 +106,7 @@ for RATE in "${RATE_LIST[@]}"; do
 
     # 记录单次测试开始时间
     TEST_START_TIME=$(date +%s)
-
+    
     # 构建参数列表
     PYTHON_ARGS=(
         "--model_type" "${MODEL_TYPE}"
