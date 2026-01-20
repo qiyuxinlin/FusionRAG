@@ -942,6 +942,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           layerwise_final_rate=0.05,  # 最后一层的 rate
                           # 文本块1用原始KV cache (prefix cache)
                           original_kv_path=None):  # 原始KV cache路径，用于文本块1 (chunk_id=0)
+    import os
+
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
 
@@ -976,6 +978,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     if chunk_ids is None:
         chunk_ids = list(range(len(passages) - 1))
 
+    # ========== ONLINE LAZY LOADING: Check which documents have no KV cache ==========
+    missing_chunks = []  # Track chunks without KV cache: [(idx, chunk_id, passage)]
+
     for idx, passage in enumerate(passages[:-1]):
         chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
@@ -987,14 +992,31 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         else:
             kv_path = load_path
 
-        chunk_key_cache = torch.load(f'{kv_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
-        chunk_value_cache = torch.load(f'{kv_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
-        key_cache.append(chunk_key_cache)
-        value_cache.append(chunk_value_cache)
+        key_path = f'{kv_path}/{example_id}_{chunk_id}_key.pt'
+        value_path = f'{kv_path}/{example_id}_{chunk_id}_value.pt'
+
+        if os.path.exists(key_path) and os.path.exists(value_path):
+            # KV cache exists - load it
+            chunk_key_cache = torch.load(key_path, weights_only=True).to('cpu')
+            chunk_value_cache = torch.load(value_path, weights_only=True).to('cpu')
+            key_cache.append(chunk_key_cache)
+            value_cache.append(chunk_value_cache)
+        else:
+            # KV cache missing - will generate during forward pass
+            print(f"  ⚠ Chunk {chunk_id}: KV cache not found, will generate during answer generation")
+            key_cache.append(None)  # Placeholder
+            value_cache.append(None)
+            missing_chunks.append((idx, chunk_id, passage))
+
     start_time = time.time()
     for idx, passage in enumerate(passages[:-1]):
         chunk_id = chunk_ids[idx]
         passage_len = passage.shape[0]
+
+        # Skip missing chunks - they will be generated during forward pass
+        if key_cache[idx] is None:
+            continue
+
         key_cache[idx] = key_cache[idx].to(input_device)
         chunk_key_cache = key_cache[idx]
         chunk_value_cache = value_cache[idx].to(input_device)
@@ -1060,6 +1082,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
             if query_prefix_len >= len(passages[-1]):
                 query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question：')[0]))+1
+
+            # Calculate importance using only question (original FusionRAG behavior)
             inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
             seq_length = passages[-1][query_prefix_len:].shape[0]
 
@@ -1069,12 +1093,37 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
                 model(
                     inputs_embeds = inputs_embeds, past_key_values=past_key_values,
-                    cache_position=cache_position, reprocess_method=reprocess_method, 
+                    cache_position=cache_position, reprocess_method=reprocess_method,
                     return_dict=False, use_cache=True, passages_len=passages_len, history_key_cache=key_cache
                     )
-                
-                k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:cache_position[0]]
+
+                # Calculate k_sum for all expected documents (including missing ones)
+                all_docs_len = sum(passages_len[:-1])  # All docs except question
+
+                # Initialize k_sum
+                if past_len < all_docs_len:
+                    # Some documents are missing - extend importance with zeros
+                    k_sum_loaded = torch.sum(past_key_values.importance_cache[-1], dim=0)[:past_len]
+                    k_sum_missing = torch.zeros(all_docs_len - past_len)
+                    k_sum = torch.cat([k_sum_loaded, k_sum_missing])
+                else:
+                    # All documents loaded
+                    k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:all_docs_len]
+
                 end_time = time.perf_counter() - ss_time
+
+                # ========== Force recompute for missing chunks (ONLINE_LAZY) ==========
+                # Mark all tokens from missing chunks as must-recompute by setting high scores
+                if missing_chunks:
+                    passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
+                    for idx, chunk_id, passage in missing_chunks:
+                        # Find the start and end positions of this chunk in the ORIGINAL passages order
+                        chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
+                        chunk_end = passages_len_cumsum[idx]
+                        # Set very high importance scores to force selection
+                        k_sum[chunk_start:chunk_end] = float('inf')
+                    print(f"    → Forcing recompute for {len(missing_chunks)} new chunks")
+
                 if group:
                     k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
                     k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
@@ -1082,6 +1131,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     # 计算需要选择的 token 数量
                     total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
                     k_lens = int(rate * total_relevant_tokens)
+
+                    # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
+                    if missing_chunks:
+                        missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                        if k_lens < missing_docs_len:
+                            print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
+                            k_lens = missing_docs_len
 
                     # === 新增：按组选择逻辑 ===
                     group_size = 16
@@ -1127,6 +1183,14 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     k_sum = k_sum[system_len:]
                     k_sum = torch.tensor(k_sum,device=input_device)
                     k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+
+                    # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
+                    if missing_chunks:
+                        missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                        if k_lens < missing_docs_len:
+                            print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
+                            k_lens = missing_docs_len
+
                     k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
                     k_need_index = k_need_index + system_len
                     print(f'select_time: {time.time() - select_time}')
@@ -2371,6 +2435,47 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             past_key_values=past_key_values, return_dict=False, use_cache=True, use_sparse_attention=use_sparse_attention,
         )[0]
 
+        # ========== ONLINE LAZY: Extract and save KV for missing chunks after reprocess ==========
+        if missing_chunks:
+            passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
+            for idx, chunk_id, passage in missing_chunks:
+                passage_len = passage.shape[0]
+
+                # Find positions in the ORIGINAL passages order
+                chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
+                chunk_end = passages_len_cumsum[idx]
+
+                # Extract KV from past_key_values at these positions
+                chunk_key = torch.stack([
+                    past_key_values.key_cache[layer_idx][:, :, chunk_start:chunk_end, :].cpu()
+                    for layer_idx in range(len(past_key_values.key_cache))
+                ])
+                chunk_value = torch.stack([
+                    past_key_values.value_cache[layer_idx][:, :, chunk_start:chunk_end, :].cpu()
+                    for layer_idx in range(len(past_key_values.value_cache))
+                ])
+
+                # Adjust RoPE for saving (revert to relative position)
+                position_ids = torch.full((1, passage_len), system_len - chunk_start, device='cpu')
+                chunk_key_for_rope = chunk_key[0].to(input_device)
+
+                try:
+                    cos, sin = model.model.layers[0].self_attn.rotary_emb(chunk_key_for_rope, position_ids.to(input_device))
+                except:
+                    cos, sin = model.model.rotary_emb(chunk_key_for_rope, position_ids.to(input_device))
+
+                cos = cos.unsqueeze(1).cpu()
+                sin = sin.unsqueeze(1).cpu()
+                chunk_key = (chunk_key * cos) + (rotate_half(chunk_key) * sin)
+
+                # Save to disk
+                key_path = f'{load_path}/{example_id}_{chunk_id}_key.pt'
+                value_path = f'{load_path}/{example_id}_{chunk_id}_value.pt'
+                torch.save(chunk_key.clone(), key_path)
+                torch.save(chunk_value.clone(), value_path)
+
+                print(f"    ✓ Chunk {chunk_id} KV generated and saved ({passage_len} tokens)")
+
         logits = model_output[:,-1,:].unsqueeze(0).clone()
         with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
         v_sub_all = without_attn_value - with_attn_value
@@ -2397,7 +2502,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         seq_length += 1
         
  
-        
+    
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs)

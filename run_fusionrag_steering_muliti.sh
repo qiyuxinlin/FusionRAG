@@ -21,7 +21,7 @@ BGE_MODEL_PATH="/mnt/data/models/bge-m3-FP16"
 
 # 数据配置
 # 注意：如果使用跨数据集 steering（如 2wikimqa → musique），需要分别设置训练和测试数据集
-TRAIN_DATASET="2wikimqa"              # 用于计算 steering vectors 的数据集（影响 KV cache 路径）
+TRAIN_DATASET="2wikimqa"               # 用于计算 steering vectors 的数据集（影响 KV cache 路径）
 TEST_DATASET="musique"                # 用于实际测试的数据集
 TEST_DATA_PATH="./data/result_reflect.json"  # 测试数据的 JSON 文件路径
 

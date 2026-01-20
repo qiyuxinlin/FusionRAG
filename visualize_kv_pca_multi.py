@@ -42,18 +42,21 @@ METHOD_DIR_MAP = {
     'random_text': 'preprocess_kv_cache_global_topk10_random_text',
     'bge_shuffled': 'preprocess_kv_cache_global_topk10_bge_shuffled',
     'repeat_self2': 'preprocess_kv_cache_global_topk1_repeat_self',
+    # Note: 'steering' method is handled specially (no_preprocess + steering vectors)
 }
 
-# Color scheme for different methods (up to 8 methods)
+# Color scheme for different methods (up to 10 methods)
 METHOD_COLORS = {
     'no_preprocess': "#211fb4",  # Blue
-    'bge': '#d62728',             # Orange
+    'bge': '#d62728',             # Red
     'random': '#2ca02c',          # Green
-    'repeat_self': '#9467bd',     # Red
-    'fixed_doc': '#ff7f0e',       # Purple
+    'repeat_self': '#9467bd',     # Purple
+    'fixed_doc': '#ff7f0e',       # Orange
     'random_docs': '#8c564b',     # Brown
     'random_text': '#e377c2',     # Pink
     'bge_shuffled': '#7f7f7f',    # Gray
+    'steering': "#037678",        # Cyan (for steering method)
+    'repeat_self2': '#bcbd22',    # Yellow-green
 }
 
 
@@ -61,10 +64,21 @@ class MultiMethodKVCacheAnalyzer:
     """Analyzer for comparing KV Cache across multiple methods using PCA"""
 
     def __init__(self, cache_dir: str, dataset: str = "musique",
-                 model_name: str = "Qwen2.5-7B-Instruct", methods: List[str] = None):
+                 model_name: str = "Qwen2.5-7B-Instruct", methods: List[str] = None,
+                 steering_path: str = None, steering_alpha: float = 1.0,
+                 steering_key_layers: str = 'all', steering_value_layers: str = 'all',
+                 use_per_head_steering: bool = False):
         self.cache_dir = Path(cache_dir)
         self.dataset = dataset
         self.model_name = model_name
+
+        # Steering configuration
+        self.steering_path = steering_path
+        self.steering_alpha = steering_alpha
+        self.steering_key_layers = steering_key_layers
+        self.steering_value_layers = steering_value_layers
+        self.use_per_head_steering = use_per_head_steering
+        self.steering_stats = None
 
         # Default to comparing no_preprocess and bge
         if methods is None:
@@ -73,19 +87,104 @@ class MultiMethodKVCacheAnalyzer:
         self.methods = methods
         self.method_paths = {}
 
+        # Load steering vectors if 'steering' method is used
+        if 'steering' in methods:
+            if steering_path is None:
+                raise ValueError("--steering_path must be provided when using 'steering' method")
+            self.steering_stats = self._load_steering_vectors(steering_path)
+            print(f"Loaded steering vectors from: {steering_path}")
+            print(f"  Alpha: {steering_alpha}")
+            print(f"  Key layers: {steering_key_layers}")
+            print(f"  Value layers: {steering_value_layers}")
+            print(f"  Per-head steering: {use_per_head_steering}")
+
         # Build paths for each method
         for method in methods:
-            # if method not in METHOD_DIR_MAP:
-            #     raise ValueError(f"Unknown method: {method}. Valid methods: {list(METHOD_DIR_MAP.keys())}")
+            # Special handling for 'steering' method
+            if method == 'steering':
+                # Use no_preprocess path as base
+                dir_name = METHOD_DIR_MAP['no_preprocess']
+                path = self.cache_dir / model_name / dataset / dir_name
+            else:
+                if method not in METHOD_DIR_MAP:
+                    raise ValueError(f"Unknown method: {method}. Valid methods: {list(METHOD_DIR_MAP.keys()) + ['steering']}")
 
-            dir_name = METHOD_DIR_MAP[method]
-            path = self.cache_dir / model_name / dataset / dir_name
+                dir_name = METHOD_DIR_MAP[method]
+                path = self.cache_dir / model_name / dataset / dir_name
 
             if not path.exists():
                 raise FileNotFoundError(f"Method '{method}' KV cache not found at: {path}")
 
             self.method_paths[method] = path
             print(f"Method '{method}': {path}")
+
+    def _load_steering_vectors(self, stats_path: str) -> Dict:
+        """Load steering vectors from file"""
+        if not os.path.exists(stats_path):
+            raise FileNotFoundError(f"Steering vectors file not found: {stats_path}")
+
+        stats = torch.load(stats_path, map_location='cpu')
+
+        # Verify format
+        if 'key_steering' not in stats or 'value_steering' not in stats:
+            raise ValueError("Invalid steering vectors file format")
+
+        return stats
+
+    def _parse_layer_selection(self, layer_spec: str, max_layers: int = 28) -> set:
+        """Parse layer selection specification into a set of layer indices"""
+        if layer_spec.lower() == 'all':
+            return set(range(max_layers))
+
+        layers = set()
+        parts = layer_spec.split(',')
+        for part in parts:
+            part = part.strip()
+            if '-' in part:
+                start_str, end_str = part.split('-')
+                start_idx, end_idx = int(start_str), int(end_str)
+                layers.update(range(start_idx, end_idx + 1))
+            else:
+                layers.add(int(part))
+        return layers
+
+    def _apply_steering_vector(self, kv_cache: torch.Tensor, steering_vector: torch.Tensor,
+                               layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
+        """Apply steering vector to KV cache (layer-level)"""
+        # kv_cache: [num_heads, seq_len, head_dim]
+        # steering_vector: [num_heads, head_dim]
+        steering_expanded = steering_vector.unsqueeze(1)  # [num_heads, 1, head_dim]
+        kv_steered = kv_cache + alpha * steering_expanded
+        return kv_steered
+
+    def _apply_per_head_steering_vector(self, kv_cache: torch.Tensor, per_head_steering_dict: dict,
+                                        layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
+        """Apply per-head steering vectors to KV cache"""
+        original_shape = kv_cache.shape
+        is_grouped = (kv_cache.dim() == 4)
+
+        # Handle grouped attention format
+        if is_grouped:
+            num_groups, num_heads_per_group, seq_len, head_dim = kv_cache.shape
+            kv_cache = kv_cache.reshape(num_groups * num_heads_per_group, seq_len, head_dim)
+
+        num_heads, seq_len, head_dim = kv_cache.shape
+        kv_steered = kv_cache.clone()
+
+        # Apply steering vector to each head individually
+        for head_idx in range(num_heads):
+            head_key = f'head_{head_idx}'
+            if head_key in per_head_steering_dict:
+                steering_vec = per_head_steering_dict[head_key]['steering_vector']
+                steering_vec = steering_vec.to(kv_cache.device).to(kv_cache.dtype)
+                steering_expanded = steering_vec.unsqueeze(0)  # [1, head_dim]
+                kv_steered[head_idx] = kv_cache[head_idx] + alpha * steering_expanded
+
+        # Reshape back to original format if needed
+        if is_grouped:
+            kv_steered = kv_steered.reshape(original_shape)
+
+        return kv_steered
 
     def load_kv_cache(self, method: str, example_id: int, chunk_id: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Load key and value cache for a specific method, example and chunk"""
@@ -99,7 +198,79 @@ class MultiMethodKVCacheAnalyzer:
         key_cache = torch.load(key_file, weights_only=True, map_location='cpu')
         value_cache = torch.load(value_file, weights_only=True, map_location='cpu')
 
+        # Apply steering vectors if method is 'steering'
+        if method == 'steering' and self.steering_stats is not None:
+            key_cache = self._apply_steering_to_cache(
+                key_cache, 'key', max_layers=key_cache.shape[0]
+            )
+            value_cache = self._apply_steering_to_cache(
+                value_cache, 'value', max_layers=value_cache.shape[0]
+            )
+
         return key_cache, value_cache
+
+    def _apply_steering_to_cache(self, kv_cache: torch.Tensor, cache_type: str, max_layers: int) -> torch.Tensor:
+        """Apply steering vectors to entire KV cache (all layers)"""
+        # Determine which layers to apply steering
+        if cache_type == 'key':
+            layer_selection = self._parse_layer_selection(self.steering_key_layers, max_layers)
+            steering_dict = self.steering_stats['key_steering']
+        else:  # value
+            layer_selection = self._parse_layer_selection(self.steering_value_layers, max_layers)
+            steering_dict = self.steering_stats['value_steering']
+
+        # Clone cache to avoid modifying original
+        steered_cache = kv_cache.clone()
+
+        # Apply steering per layer
+        for layer_idx in range(max_layers):
+            if layer_idx not in layer_selection:
+                continue
+
+            layer_name = f'layer_{layer_idx}'
+            if layer_name not in steering_dict:
+                continue
+
+            layer_stats = steering_dict[layer_name]
+
+            # Extract layer from cache
+            layer_cache = steered_cache[layer_idx]
+
+            # Handle grouped attention format
+            original_shape = layer_cache.shape
+            is_grouped = (layer_cache.dim() == 4)
+
+            if is_grouped:
+                # [num_groups, num_heads_per_group, seq_len, head_dim]
+                num_groups, num_heads_per_group, seq_len, head_dim = layer_cache.shape
+                layer_cache = layer_cache.reshape(num_groups * num_heads_per_group, seq_len, head_dim)
+
+            # Apply steering (per-head or layer-level)
+            if self.use_per_head_steering and 'per_head' in layer_stats:
+                layer_cache = self._apply_per_head_steering_vector(
+                    layer_cache.reshape(original_shape) if is_grouped else layer_cache,
+                    layer_stats['per_head'],
+                    layer_idx,
+                    self.steering_alpha
+                )
+            else:
+                # Layer-level steering
+                steering_vec = layer_stats['steering_vector']
+                layer_cache = self._apply_steering_vector(
+                    layer_cache,
+                    steering_vec,
+                    layer_idx,
+                    self.steering_alpha
+                )
+
+            # Reshape back if needed
+            if is_grouped and not self.use_per_head_steering:
+                layer_cache = layer_cache.reshape(original_shape)
+
+            # Update steered cache
+            steered_cache[layer_idx] = layer_cache
+
+        return steered_cache
 
     def extract_layer_features(self, kv_cache: torch.Tensor, layer_idx: int,
                                max_tokens: int = None) -> np.ndarray:
@@ -422,17 +593,36 @@ def main():
     parser.add_argument('--output_dir', type=str, default='./kv_pca_multi_analysis',
                        help='Output directory for plots')
 
+    # Steering-related arguments
+    parser.add_argument('--steering_path', type=str, default=None,
+                       help='Path to steering vectors file (.pt) - required when using "steering" method')
+    parser.add_argument('--steering_alpha', type=float, default=1.0,
+                       help='Steering vector strength coefficient (default: 1.0)')
+    parser.add_argument('--steering_key_layers', type=str, default='all',
+                       help='Layers to apply key steering (e.g., "all", "0-10", "0,5,10")')
+    parser.add_argument('--steering_value_layers', type=str, default='all',
+                       help='Layers to apply value steering (e.g., "all", "0-10", "0,5,10")')
+    parser.add_argument('--use_per_head_steering', action='store_true',
+                       help='Use per-head steering vectors (if available in steering file)')
+
     args = parser.parse_args()
 
     print(f"\n{'='*80}")
     print(f"Multi-Method KV Cache PCA Analysis")
     print(f"{'='*80}")
     print(f"Methods to compare: {', '.join(args.methods)}")
-    print(f"Available methods: {', '.join(METHOD_DIR_MAP.keys())}")
+    print(f"Available methods: {', '.join(list(METHOD_DIR_MAP.keys()) + ['steering'])}")
     print(f"{'='*80}\n")
 
     # Initialize analyzer
-    analyzer = MultiMethodKVCacheAnalyzer(args.cache_dir, args.dataset, args.model_name, args.methods)
+    analyzer = MultiMethodKVCacheAnalyzer(
+        args.cache_dir, args.dataset, args.model_name, args.methods,
+        steering_path=args.steering_path,
+        steering_alpha=args.steering_alpha,
+        steering_key_layers=args.steering_key_layers,
+        steering_value_layers=args.steering_value_layers,
+        use_per_head_steering=args.use_per_head_steering
+    )
 
     # Select layers to analyze
     if args.layers is None:

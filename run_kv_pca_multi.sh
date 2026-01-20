@@ -8,7 +8,7 @@
 #
 # 示例：
 #   # 对比 no_preprocess 和 bge
-#   bash /home/shm/document/exp/FusionRAG/run_kv_pca_multi.sh repeat_self2 repeat_self no_preprocess 20 /home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v13
+#   bash /home/shm/document/exp/FusionRAG/run_kv_pca_multi.sh repeat_self fixed_doc no_preprocess 20 /home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v15
 #
 #   # 对比 no_preprocess, bge, random 三种方法
 #   bash run_kv_pca_multi.sh no_preprocess bge random
@@ -19,6 +19,9 @@
 #   # 对比所有ablation方法
 #   bash run_kv_pca_multi.sh no_preprocess bge random repeat_self fixed_doc random_docs
 #
+#   # 对比 no_preprocess, bge 和 steering 方法 (需要先设置 STEERING_PATH)
+#   bash run_kv_pca_multi.sh no_preprocess bge steering 10
+#
 # 可用方法：
 #   - no_preprocess: 无预处理（baseline）
 #   - bge: BGE相似度召回（主要方法）
@@ -27,7 +30,8 @@
 #   - fixed_doc: 固定文档
 #   - random_docs: 随机文档
 #   - random_text: 随机文本
-# VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled")
+#   - steering: no_preprocess + steering vectors (需要配置 STEERING_PATH)
+# VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled" "steering")
 #####################################################################
 
 cd /home/shm/document/exp/FusionRAG
@@ -47,13 +51,20 @@ MAX_LAYERS="28"
 MAX_TOKENS="500"
 LAYERS="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27"
 
+# Steering 配置 (当使用 'steering' 方法时需要)
+STEERING_PATH="/mnt/data3/tmp/fusionrag/kv_stats/2wikimqa_to_musique_steering_manifold_pca9.pt"  # 设置为你的steering vectors文件路径，例如: "/mnt/data3/tmp/fusionrag/kv_stats/musique_steering_manifold_pca09_perhead.pt"
+STEERING_ALPHA="0.5"
+STEERING_KEY_LAYERS="all"
+STEERING_VALUE_LAYERS="all"
+USE_PER_HEAD_STEERING="false"
+
 # 解析参数
 METHODS=()
 NUM_SAMPLES=""
 OUTPUT_DIR="/home/shm/document/exp/FusionRAG/kv_pca_analysis_all/v10"
 
 # 可用方法列表
-VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled" "repeat_self2")
+VALID_METHODS=("no_preprocess" "bge" "random" "repeat_self" "fixed_doc" "random_docs" "random_text" "bge_shuffled" "repeat_self2" "steering")
 
 for arg in "$@"; do
     # 检查是否是数字（样本数）
@@ -91,6 +102,7 @@ SAMPLE_IDS=$(seq 0 $((NUM_SAMPLES-1)))
 
 # 检查KV cache是否存在
 echo "检查 KV cache 可用性..."
+STEERING_USED=false
 for method in "${METHODS[@]}"; do
     case $method in
         no_preprocess)
@@ -120,6 +132,11 @@ for method in "${METHODS[@]}"; do
         bge_shuffled)
             dir_path="${CACHE_DIR}/${MODEL_NAME}/${DATASET}/preprocess_kv_cache_global_topk10_bge_shuffled"
             ;;
+        steering)
+            # Steering uses no_preprocess cache + steering vectors
+            dir_path="${CACHE_DIR}/${MODEL_NAME}/${DATASET}/kv_cache"
+            STEERING_USED=true
+            ;;
     esac
 
     if [ -d "$dir_path" ]; then
@@ -128,23 +145,60 @@ for method in "${METHODS[@]}"; do
         echo "  ✗ ${method}: 目录不存在 ${dir_path}"
     fi
 done
+
+# Check steering vectors file if steering method is used
+if [ "$STEERING_USED" = true ]; then
+    if [ -z "$STEERING_PATH" ]; then
+        echo ""
+        echo "⚠️  错误: 使用 'steering' 方法时必须设置 STEERING_PATH 变量！"
+        echo "   请在脚本中设置 STEERING_PATH，例如："
+        echo "   STEERING_PATH=\"/mnt/data3/tmp/fusionrag/kv_stats/musique_steering_manifold_pca09_perhead.pt\""
+        exit 1
+    elif [ ! -f "$STEERING_PATH" ]; then
+        echo ""
+        echo "⚠️  错误: Steering vectors 文件不存在: ${STEERING_PATH}"
+        exit 1
+    else
+        echo "  ✓ Steering vectors: ${STEERING_PATH}"
+        echo "    Alpha: ${STEERING_ALPHA}"
+        echo "    Key layers: ${STEERING_KEY_LAYERS}"
+        echo "    Value layers: ${STEERING_VALUE_LAYERS}"
+        echo "    Per-head: ${USE_PER_HEAD_STEERING}"
+    fi
+fi
 echo ""
 
 # 创建输出目录
 mkdir -p "${OUTPUT_DIR}"
 
-# 运行分析
-${PYTHON_PATH} ${SCRIPT_PATH} \
-    --cache_dir "${CACHE_DIR}" \
-    --dataset "${DATASET}" \
-    --model_name "${MODEL_NAME}" \
+# 构建命令
+CMD="${PYTHON_PATH} ${SCRIPT_PATH} \
+    --cache_dir \"${CACHE_DIR}\" \
+    --dataset \"${DATASET}\" \
+    --model_name \"${MODEL_NAME}\" \
     --methods ${METHODS[@]} \
     --sample_ids ${SAMPLE_IDS} \
     --chunk_id ${CHUNK_ID} \
     --layers ${LAYERS} \
     --max_layers ${MAX_LAYERS} \
     --max_tokens ${MAX_TOKENS} \
-    --output_dir "${OUTPUT_DIR}"
+    --output_dir \"${OUTPUT_DIR}\""
+
+# 添加 steering 相关参数（如果使用 steering 方法）
+if [ "$STEERING_USED" = true ]; then
+    CMD="${CMD} \
+    --steering_path \"${STEERING_PATH}\" \
+    --steering_alpha ${STEERING_ALPHA} \
+    --steering_key_layers \"${STEERING_KEY_LAYERS}\" \
+    --steering_value_layers \"${STEERING_VALUE_LAYERS}\""
+
+    if [ "$USE_PER_HEAD_STEERING" = "true" ]; then
+        CMD="${CMD} --use_per_head_steering"
+    fi
+fi
+
+# 运行分析
+eval ${CMD}
 
 EXIT_CODE=$?
 

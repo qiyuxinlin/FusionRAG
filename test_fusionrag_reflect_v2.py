@@ -68,6 +68,7 @@ class RecallMethod(Enum):
     BGE_SHUFFLED: Use BGE recall, but shuffle KV positions within each recalled document (for ablation study)
     RANDOM_DOCS: Randomly pick topk unrelated texts from library, use original KV without length adjustment (for ablation study)
     NO_PREPROCESS_WITH_BIAS: Use no_preprocess KV cache with distribution bias correction (BatchNorm-like)
+    ONLINE_LAZY: Online mode - no preprocessing, generate KV on-demand during answer generation
     """
     BGE = "bge"
     RANDOM = "random"
@@ -77,6 +78,7 @@ class RecallMethod(Enum):
     BGE_SHUFFLED = "bge_shuffled"
     RANDOM_DOCS = "random_docs"  # Pick topk random texts from library, use original KV without trimming
     NO_PREPROCESS_WITH_BIAS = "no_preprocess_with_bias"  # Use no_preprocess KV with distribution alignment
+    ONLINE_LAZY = "online_lazy"  # Online lazy loading mode
 
 
 
@@ -1541,6 +1543,7 @@ def main(
         'bge_shuffled': RecallMethod.BGE_SHUFFLED,
         'random_docs': RecallMethod.RANDOM_DOCS,
         'no_preprocess_with_bias': RecallMethod.NO_PREPROCESS_WITH_BIAS,
+        'online_lazy': RecallMethod.ONLINE_LAZY,
     }
     recall_method_enum = recall_method_map.get(recall_method_str.lower(), RecallMethod.BGE)
 
@@ -1854,50 +1857,54 @@ def main(
                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                 )
 
-            # Generate KV cache for each document in THIS main question
-            for doc_idx, doc_tensor in enumerate(doc_tensors):
-                chunk_id = doc_idx + 1
-                cache_key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
+            # Skip document KV generation for ONLINE_LAZY mode (will be generated on-demand in load_kv_and_generate)
+            if recall_method_enum == RecallMethod.ONLINE_LAZY:
+                print(f"  ONLINE_LAZY mode: Skipping document KV pre-generation (will generate on-demand)")
+            else:
+                # Generate KV cache for each document in THIS main question
+                for doc_idx, doc_tensor in enumerate(doc_tensors):
+                    chunk_id = doc_idx + 1
+                    cache_key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
 
-                if not os.path.exists(cache_key_path):
-                    passage_len = doc_tensor.shape[0]
-                    input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
+                    if not os.path.exists(cache_key_path):
+                        passage_len = doc_tensor.shape[0]
+                        input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
 
-                    prefill_and_save_kv_cache(
-                        model, tokenizer, past_key_values, input_tensor.to(input_device),
-                        save_path=save_path, example_id=example_id, chunk_id=chunk_id,
-                        system_len=system_len, passage_len=passage_len,
-                        reprocess_method=reprocess_method, device=input_device, device_map=device_map
-                    )
-                    print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
-
-            # Generate random text KV cache (for RANDOM_TEXT and RANDOM_DOCS modes)
-            if recall_method_enum in [RecallMethod.RANDOM_TEXT, RecallMethod.RANDOM_DOCS]:
-                random_text_cache_dir = os.path.join(save_path, 'random_texts')
-                os.makedirs(random_text_cache_dir, exist_ok=True)
-
-                random_text_tensors = q_data.get('random_text_tensors', [])
-                for text_idx, random_text_tensor in enumerate(random_text_tensors):
-                    random_cache_key_path = f'{random_text_cache_dir}/text_{text_idx}_key.pt'
-
-                    if not os.path.exists(random_cache_key_path):
-                        passage_len = random_text_tensor.shape[0]
-                        # Random text doesn't need system prefix, use it directly
-                        input_tensor = random_text_tensor.unsqueeze(0)
-
-                        # Save as "text_{idx}" format
                         prefill_and_save_kv_cache(
                             model, tokenizer, past_key_values, input_tensor.to(input_device),
-                            save_path=random_text_cache_dir, example_id=f'text', chunk_id=text_idx,
-                            system_len=0, passage_len=passage_len,
+                            save_path=save_path, example_id=example_id, chunk_id=chunk_id,
+                            system_len=system_len, passage_len=passage_len,
                             reprocess_method=reprocess_method, device=input_device, device_map=device_map
                         )
+                        print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
 
-                if random_text_tensors:
-                    print(f"  Generated KV cache for {len(random_text_tensors)} random texts")
+                # Generate random text KV cache (for RANDOM_TEXT and RANDOM_DOCS modes)
+                if recall_method_enum in [RecallMethod.RANDOM_TEXT, RecallMethod.RANDOM_DOCS]:
+                    random_text_cache_dir = os.path.join(save_path, 'random_texts')
+                    os.makedirs(random_text_cache_dir, exist_ok=True)
 
-        # Step 2: FusionRAG preprocess (if enabled, but skip for NO_PREPROCESS_WITH_BIAS)
-        if preprocess and rate != 1 and recall_method_enum != RecallMethod.NO_PREPROCESS_WITH_BIAS:
+                    random_text_tensors = q_data.get('random_text_tensors', [])
+                    for text_idx, random_text_tensor in enumerate(random_text_tensors):
+                        random_cache_key_path = f'{random_text_cache_dir}/text_{text_idx}_key.pt'
+
+                        if not os.path.exists(random_cache_key_path):
+                            passage_len = random_text_tensor.shape[0]
+                            # Random text doesn't need system prefix, use it directly
+                            input_tensor = random_text_tensor.unsqueeze(0)
+
+                            # Save as "text_{idx}" format
+                            prefill_and_save_kv_cache(
+                                model, tokenizer, past_key_values, input_tensor.to(input_device),
+                                save_path=random_text_cache_dir, example_id=f'text', chunk_id=text_idx,
+                                system_len=0, passage_len=passage_len,
+                                reprocess_method=reprocess_method, device=input_device, device_map=device_map
+                            )
+
+                    if random_text_tensors:
+                        print(f"  Generated KV cache for {len(random_text_tensors)} random texts")
+
+        # Step 2: FusionRAG preprocess (if enabled, but skip for NO_PREPROCESS_WITH_BIAS and ONLINE_LAZY)
+        if preprocess and rate != 1 and recall_method_enum not in [RecallMethod.NO_PREPROCESS_WITH_BIAS, RecallMethod.ONLINE_LAZY]:
             # Copy system cache (chunk_id=0)
             system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
             if not os.path.exists(system_preprocess_key):

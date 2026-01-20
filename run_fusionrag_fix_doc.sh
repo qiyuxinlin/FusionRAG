@@ -6,10 +6,10 @@
 #####################################################################
 
 # 基础配置
-GPUS="4"
+GPUS="3"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/no_preprocess"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/fixed_doc_rope_true"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -33,7 +33,7 @@ RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效
 FIXED_DOC_IDX="2"             # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 
 KV_STATS_PATH=""              # KV分布统计文件路径 (当 RECALL_METHOD=no_preprocess_with_bias 时必需)
-REVERT_ROPE="true"
+REVERT_ROPE="false"
 PREPROCESS_SCOPE="global"
 USE_MULTI_GPU="false"
 

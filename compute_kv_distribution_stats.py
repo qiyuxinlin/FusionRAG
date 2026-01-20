@@ -386,6 +386,8 @@ class KVDistributionAnalyzer:
                 'use_manifold_projection': use_manifold_projection,
                 'pca_variance_threshold': pca_variance_threshold if use_manifold_projection else None,
                 'per_head_stats': per_head_stats,
+                'model_name': self.model_name,  # Store model name for verification
+                'dataset': self.dataset,  # Store dataset for verification
             }
         }
 
@@ -639,6 +641,8 @@ def main():
         'use_manifold_projection': stats['metadata']['use_manifold_projection'],
         'pca_variance_threshold': stats['metadata']['pca_variance_threshold'],
         'per_head_stats': stats['metadata']['per_head_stats'],
+        'model_name': stats['metadata']['model_name'],
+        'dataset': stats['metadata']['dataset'],
         'layers_processed': list(stats['key_steering'].keys()),
         'method': 'manifold_steering',
     }

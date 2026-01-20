@@ -41,6 +41,163 @@ from ktransformers.util.utils import (
 )
 from ktransformers.models.custom_cache import StaticCache
 import torch.nn.functional as F
+import hashlib
+
+
+def get_doc_hash(doc_text_or_tensor: Any) -> str:
+    """
+    Generate a unique hash for a document based on its content
+
+    Args:
+        doc_text_or_tensor: Either text string or token tensor
+
+    Returns:
+        MD5 hash string (32 characters)
+    """
+    if isinstance(doc_text_or_tensor, str):
+        content = doc_text_or_tensor
+    elif isinstance(doc_text_or_tensor, torch.Tensor):
+        # Convert tensor to string representation
+        content = str(doc_text_or_tensor.tolist())
+    else:
+        content = str(doc_text_or_tensor)
+
+    return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+
+def load_or_generate_kv_lazy(
+    doc_tensor: torch.Tensor,
+    system_tensor: torch.Tensor,
+    cache_dir: str,
+    model,
+    tokenizer,
+    past_key_values,
+    system_len: int,
+    reprocess_method: str = None,
+    input_device: str = "cuda:0",
+    device_map: dict = None,
+    is_random_text: bool = False,
+    verbose: bool = True
+) -> Tuple[str, bool]:
+    """
+    Load existing KV cache or generate if not exists (Lazy Initialization)
+
+    This function implements the "Simple Online" approach:
+    - First time seeing a document → Generate KV and save to disk
+    - Subsequent times → Load KV from disk
+
+    Args:
+        doc_tensor: Document token tensor
+        system_tensor: System prompt token tensor
+        cache_dir: Directory to store KV cache
+        model: Language model
+        tokenizer: Tokenizer
+        past_key_values: StaticCache object for generation
+        system_len: System prompt length
+        reprocess_method: Reprocess method name
+        input_device: Device for computation
+        device_map: Multi-GPU device map
+        is_random_text: Whether this is random text (no system prefix)
+        verbose: Print generation status
+
+    Returns:
+        (doc_hash, was_cached): Document hash and whether it was loaded from cache
+    """
+    # 1. Generate document hash (based on content)
+    doc_hash = get_doc_hash(doc_tensor)
+
+    # Create cache subdirectory based on hash
+    hash_cache_dir = os.path.join(cache_dir, 'by_hash')
+    os.makedirs(hash_cache_dir, exist_ok=True)
+
+    key_path = os.path.join(hash_cache_dir, f"{doc_hash}_key.pt")
+    value_path = os.path.join(hash_cache_dir, f"{doc_hash}_value.pt")
+
+    # 2. Check if cache exists
+    if os.path.exists(key_path) and os.path.exists(value_path):
+        # Cache Hit - Skip generation
+        if verbose:
+            print(f"    ✓ Cache HIT: {doc_hash[:8]}... (loading from disk)")
+        return doc_hash, True
+
+    # 3. Cache Miss - Generate KV
+    if verbose:
+        print(f"    ✗ Cache MISS: {doc_hash[:8]}... (generating...)", end=" ", flush=True)
+
+    import time
+    gen_start = time.time()
+
+    # Prepare input
+    if is_random_text:
+        # Random text: no system prefix
+        input_tensor = doc_tensor.unsqueeze(0)
+        passage_len = doc_tensor.shape[0]
+        actual_system_len = 0
+    else:
+        # Normal document: system + doc
+        input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
+        passage_len = doc_tensor.shape[0]
+        actual_system_len = system_len
+
+    # Generate KV cache
+    prefill_and_save_kv_cache(
+        model, tokenizer, past_key_values, input_tensor.to(input_device),
+        save_path=hash_cache_dir, example_id=doc_hash, chunk_id=0,
+        system_len=actual_system_len, passage_len=passage_len,
+        reprocess_method=reprocess_method, device=input_device, device_map=device_map
+    )
+
+    # Rename generated files to hash-based naming
+    # prefill_and_save_kv_cache generates {doc_hash}_0_key.pt and {doc_hash}_0_value.pt
+    temp_key_path = os.path.join(hash_cache_dir, f"{doc_hash}_0_key.pt")
+    temp_value_path = os.path.join(hash_cache_dir, f"{doc_hash}_0_value.pt")
+
+    if os.path.exists(temp_key_path):
+        os.rename(temp_key_path, key_path)
+        os.rename(temp_value_path, value_path)
+
+    gen_time = time.time() - gen_start
+
+    if verbose:
+        print(f"Done ({gen_time:.2f}s)")
+
+    return doc_hash, False
+
+
+def link_kv_cache_by_hash(
+    doc_hash: str,
+    hash_cache_dir: str,
+    target_dir: str,
+    example_id: int,
+    chunk_id: int
+):
+    """
+    Create symbolic links or copy KV cache from hash-based storage to example-based naming
+
+    Args:
+        doc_hash: Document hash
+        hash_cache_dir: Directory containing hash-based KV cache
+        target_dir: Target directory for example-based naming
+        example_id: Example ID
+        chunk_id: Chunk ID
+    """
+    hash_key_path = os.path.join(hash_cache_dir, f"{doc_hash}_key.pt")
+    hash_value_path = os.path.join(hash_cache_dir, f"{doc_hash}_value.pt")
+
+    target_key_path = os.path.join(target_dir, f"{example_id}_{chunk_id}_key.pt")
+    target_value_path = os.path.join(target_dir, f"{example_id}_{chunk_id}_value.pt")
+
+    # Use symbolic links if possible (saves disk space), otherwise copy
+    try:
+        if not os.path.exists(target_key_path):
+            os.symlink(hash_key_path, target_key_path)
+        if not os.path.exists(target_value_path):
+            os.symlink(hash_value_path, target_value_path)
+    except (OSError, NotImplementedError):
+        # Symlink not supported, use copy instead
+        if not os.path.exists(target_key_path):
+            shutil.copy(hash_key_path, target_key_path)
+            shutil.copy(hash_value_path, target_value_path)
 
 
 class PreprocessScope(Enum):
@@ -1840,64 +1997,46 @@ def main(
         doc_tensors = q_data['doc_tensors']
 
 
-        # Step 1: Generate KV cache for THIS main question's documents
+        # Step 1: Generate system KV cache (only system prompt, no documents yet)
+        # Documents KV will be generated on-demand during answer generation
         if rate != 1:  # Skip if full recompute
-            # Generate system KV cache (chunk_id=0)
+            print(f"  Step 1: Preparing system KV cache")
+
+            # Generate system KV cache (chunk_id=0) if not exists
             system_cache_path = f'{save_path}/{example_id}_0_key.pt'
             if not os.path.exists(system_cache_path):
-                print(f"Generating system KV cache...")
-                input_tensor = system_tensor.unsqueeze(0)
-                prefill_and_save_kv_cache(
-                    model, tokenizer, past_key_values, input_tensor.to(input_device),
-                    save_path=save_path, example_id=example_id, chunk_id=0,
-                    system_len=system_len, passage_len=system_len,
-                    reprocess_method=reprocess_method, device=input_device, device_map=device_map
+                print(f"  Generating system KV cache...")
+                hash_cache_dir = os.path.join(save_path, 'by_hash')
+                os.makedirs(hash_cache_dir, exist_ok=True)
+
+                system_hash, was_cached = load_or_generate_kv_lazy(
+                    doc_tensor=system_tensor,
+                    system_tensor=system_tensor,  # For system cache, doc=system
+                    cache_dir=save_path,
+                    model=model,
+                    tokenizer=tokenizer,
+                    past_key_values=past_key_values,
+                    system_len=system_len,
+                    reprocess_method=reprocess_method,
+                    input_device=input_device,
+                    device_map=device_map,
+                    is_random_text=False,
+                    verbose=False
                 )
 
-            # Generate KV cache for each document in THIS main question
-            for doc_idx, doc_tensor in enumerate(doc_tensors):
-                chunk_id = doc_idx + 1
-                cache_key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
+                # Create link for system cache (chunk_id=0)
+                link_kv_cache_by_hash(
+                    doc_hash=system_hash,
+                    hash_cache_dir=hash_cache_dir,
+                    target_dir=save_path,
+                    example_id=example_id,
+                    chunk_id=0
+                )
+                print(f"  ✓ System KV cache ready")
 
-                if not os.path.exists(cache_key_path):
-                    passage_len = doc_tensor.shape[0]
-                    input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
-
-                    prefill_and_save_kv_cache(
-                        model, tokenizer, past_key_values, input_tensor.to(input_device),
-                        save_path=save_path, example_id=example_id, chunk_id=chunk_id,
-                        system_len=system_len, passage_len=passage_len,
-                        reprocess_method=reprocess_method, device=input_device, device_map=device_map
-                    )
-                    print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
-
-            # Generate random text KV cache (for RANDOM_TEXT and RANDOM_DOCS modes)
-            if recall_method_enum in [RecallMethod.RANDOM_TEXT, RecallMethod.RANDOM_DOCS]:
-                random_text_cache_dir = os.path.join(save_path, 'random_texts')
-                os.makedirs(random_text_cache_dir, exist_ok=True)
-
-                random_text_tensors = q_data.get('random_text_tensors', [])
-                for text_idx, random_text_tensor in enumerate(random_text_tensors):
-                    random_cache_key_path = f'{random_text_cache_dir}/text_{text_idx}_key.pt'
-
-                    if not os.path.exists(random_cache_key_path):
-                        passage_len = random_text_tensor.shape[0]
-                        # Random text doesn't need system prefix, use it directly
-                        input_tensor = random_text_tensor.unsqueeze(0)
-
-                        # Save as "text_{idx}" format
-                        prefill_and_save_kv_cache(
-                            model, tokenizer, past_key_values, input_tensor.to(input_device),
-                            save_path=random_text_cache_dir, example_id=f'text', chunk_id=text_idx,
-                            system_len=0, passage_len=passage_len,
-                            reprocess_method=reprocess_method, device=input_device, device_map=device_map
-                        )
-
-                if random_text_tensors:
-                    print(f"  Generated KV cache for {len(random_text_tensors)} random texts")
-
-        # Step 2: FusionRAG preprocess (if enabled, but skip for NO_PREPROCESS_WITH_BIAS)
-        if preprocess and rate != 1 and recall_method_enum != RecallMethod.NO_PREPROCESS_WITH_BIAS:
+        # Step 2: SKIPPED - No preprocessing in online mode
+        # Documents KV will be generated on-demand during answer generation (Step 3)
+        if False:  # Disabled preprocess step
             # Copy system cache (chunk_id=0)
             system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
             if not os.path.exists(system_preprocess_key):
@@ -1966,18 +2105,18 @@ def main(
                             print(f"    Retrieved similar docs: {', '.join(similar_docs_info)}")
 
 
-                # STEP 1: Check and generate all required similar documents' cache FIRST
-                # (to avoid past_key_values corruption during on-demand generation)
+                # ========== LAZY LOADING FOR SIMILAR DOCUMENTS ==========
+                # For recalled similar documents from other examples, use lazy loading
                 if len(context_rank) > 0:
                     global_doc_idx = sum(corpus_lens[:example_id]) + doc_idx
 
                     if global_doc_idx < len(context_rank):
                         for similar_global_idx in context_rank[global_doc_idx][:topk]:
-                            # Skip invalid indices (from padding in PER_EXAMPLE mode)
+                            # Skip invalid indices
                             if similar_global_idx == -1:
                                 continue
 
-                            # Skip random text indices (already generated above)
+                            # Skip random text indices (already handled)
                             if similar_global_idx < -1:
                                 continue
 
@@ -1988,32 +2127,37 @@ def main(
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
                             similar_chunk_id = c_id + 1
 
-                            # Check and generate if needed
+                            # Check if cache exists (should exist from Step 1 lazy loading)
                             similar_cache_key_path = f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt"
                             if not os.path.exists(similar_cache_key_path):
-                                print(f"      → On-demand: Generating cache for Q{corpus_i+1}-Doc{similar_chunk_id}...")
+                                # Use lazy loading for on-demand generation
+                                print(f"      → Lazy loading: Q{corpus_i+1}-Doc{similar_chunk_id}...")
 
-                                # Generate system cache for that question if needed
-                                other_system_cache_path = f'{save_path}/{corpus_i}_0_key.pt'
-                                if not os.path.exists(other_system_cache_path):
-                                    other_input = system_tensor.unsqueeze(0)
-                                    prefill_and_save_kv_cache(
-                                        model, tokenizer, past_key_values, other_input.to(input_device),
-                                        save_path=save_path, example_id=corpus_i, chunk_id=0,
-                                        system_len=system_len, passage_len=system_len,
-                                        reprocess_method=reprocess_method, device=input_device, device_map=device_map
-                                    )
-
-                                # Generate the document cache
                                 similar_doc_tensor = questions_data[corpus_i]['doc_tensors'][c_id]
-                                other_passage_len = similar_doc_tensor.shape[0]
-                                other_input = torch.cat((system_tensor, similar_doc_tensor)).unsqueeze(0)
 
-                                prefill_and_save_kv_cache(
-                                    model, tokenizer, past_key_values, other_input.to(input_device),
-                                    save_path=save_path, example_id=corpus_i, chunk_id=similar_chunk_id,
-                                    system_len=system_len, passage_len=other_passage_len,
-                                    reprocess_method=reprocess_method, device=input_device, device_map=device_map
+                                # Use lazy loading
+                                doc_hash, was_cached = load_or_generate_kv_lazy(
+                                    doc_tensor=similar_doc_tensor,
+                                    system_tensor=system_tensor,
+                                    cache_dir=save_path,
+                                    model=model,
+                                    tokenizer=tokenizer,
+                                    past_key_values=past_key_values,
+                                    system_len=system_len,
+                                    reprocess_method=reprocess_method,
+                                    input_device=input_device,
+                                    device_map=device_map,
+                                    is_random_text=False,
+                                    verbose=False  # Suppress detailed logging in inner loop
+                                )
+
+                                # Create link
+                                link_kv_cache_by_hash(
+                                    doc_hash=doc_hash,
+                                    hash_cache_dir=hash_cache_dir,
+                                    target_dir=save_path,
+                                    example_id=corpus_i,
+                                    chunk_id=similar_chunk_id
                                 )
 
                 # STEP 2: Now load all required cache into past_key_values
@@ -2378,7 +2522,51 @@ def main(
                     model, tokenizer, inputs, max_new_tokens=current_max_new_tokens, device=input_device, device_map=device_map
                 )
             else:
-                # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, Oracle, vAttention, OracleDynamic, etc.)
+                # ========== LAZY KV GENERATION ==========
+                # Check which documents need KV cache generation
+                hash_cache_dir = os.path.join(save_path, 'by_hash')
+                new_chunks = []  # Track chunks without KV cache
+
+                print(f"  Checking KV cache for {len(doc_chunk_ids)} documents...")
+                for idx, chunk_id in enumerate(doc_chunk_ids):
+                    kv_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
+                    if not os.path.exists(kv_path):
+                        new_chunks.append((chunk_id, idx))  # (chunk_id, index in sub_q_doc_tensors)
+                        print(f"    ✗ Doc {chunk_id}: No cache (will generate)")
+                    else:
+                        print(f"    ✓ Doc {chunk_id}: Cache exists")
+
+                # Generate KV for missing documents
+                if new_chunks:
+                    print(f"  Generating KV for {len(new_chunks)} new documents...")
+                    for chunk_id, idx in new_chunks:
+                        doc_tensor = sub_q_doc_tensors[idx]
+                        doc_hash, was_cached = load_or_generate_kv_lazy(
+                            doc_tensor=doc_tensor,
+                            system_tensor=system_tensor,
+                            cache_dir=save_path,
+                            model=model,
+                            tokenizer=tokenizer,
+                            past_key_values=past_key_values,
+                            system_len=system_len,
+                            reprocess_method=reprocess_method,
+                            input_device=input_device,
+                            device_map=device_map,
+                            is_random_text=False,
+                            verbose=False
+                        )
+
+                        # Create link
+                        link_kv_cache_by_hash(
+                            doc_hash=doc_hash,
+                            hash_cache_dir=hash_cache_dir,
+                            target_dir=save_path,
+                            example_id=example_id,
+                            chunk_id=chunk_id
+                        )
+                        print(f"    ✓ Doc {chunk_id} KV generated and saved")
+
+                # Now all required KV caches exist, proceed with generation
                 load_path = preprocess_save_path if preprocess else save_path
                 generated_tokens, _, extra_info = load_kv_and_generate(
                     model, tokenizer, past_key_values, iter_tokens, load_path, example_id,
