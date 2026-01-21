@@ -2543,7 +2543,15 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         print(f"  [DEBUG] cache_position range: [{cache_position.min().item()}, {cache_position.max().item()}]")
 
     with torch.no_grad():
-        without_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
+        # ONLINE LAZY: Only extract loaded docs, not missing chunks
+        # past_len is the actual loaded length (may be < sum(passages_len[:-1]))
+        if missing_chunks:
+            # Extract only loaded part
+            without_attn_value = past_key_values.value_cache[-1].narrow(2, 0, past_len).clone()
+        else:
+            # All docs loaded
+            without_attn_value = past_key_values.value_cache[-1].narrow(2, 0, sum(passages_len[:-1])).clone()
+
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
 
         # Don't force move to input_device - keep on the device where model output is
@@ -2623,7 +2631,15 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     raise
 
         logits = model_output[:,-1,:].unsqueeze(0).clone()
-        with_attn_value = past_key_values.value_cache[-1].narrow(2,0, sum(passages_len[:-1])).clone()
+
+        # ONLINE LAZY: Extract same length as without_attn_value
+        if missing_chunks:
+            # Extract only loaded part (same as without_attn_value)
+            with_attn_value = past_key_values.value_cache[-1].narrow(2, 0, past_len).clone()
+        else:
+            # All docs loaded
+            with_attn_value = past_key_values.value_cache[-1].narrow(2, 0, sum(passages_len[:-1])).clone()
+
         v_sub_all = without_attn_value - with_attn_value
         v_sub_all = v_sub_all.squeeze(0)
         v_sub_all = v_sub_all.transpose(0, 1)
