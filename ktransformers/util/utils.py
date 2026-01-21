@@ -93,7 +93,7 @@ def find_outliers_zscore(data, threshold=2):
 
     return outliers
 
-def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False, eigenvalue=None, tokenizer=None, input_tokens=None):
+def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False, eigenvalue=None, tokenizer=None, input_tokens=None, similarity=0.0):
     """
     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
 
@@ -118,7 +118,8 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     threshold = mean_attn + 0.25 * std_attn ## 1/4 std
 
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
-
+    if eigenvalue is not None:
+        eigenvalue["attention_scores"] = [float(t.item()) for t in attention_scores]
 
     # 1. max_gap=5, min_len=3
     # 2. max_gap=20, min_len=20
@@ -127,17 +128,18 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     # 4. max_gap=min_len=5, 0.25 * std_attn, min_chosen_weight = 0.0002
     # 5. max_gap=min_len=5, 0.25 * std_attn, min_chosen_weight = 0.01
     # Step 2: 连通分量分析
+    connect_positions = []
     if smarter:
         max_gap = 5
         min_len = max_gap
-        min_chosen_weight = 0.05 # easy
+        min_chosen_weight = 0.2
         if eigenvalue is not None:
             eigenvalue["max_gap"] = max_gap
             eigenvalue["min_len"] = min_len
             eigenvalue["min_chosen_weight"] = min_chosen_weight
         components, connect_positions = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
-        max_gap = 2
+        max_gap = 5 ## mengyao_debug I changed this.
         components, _ = find_connected_components(high_attn_positions, max_gap=max_gap, within=False)
 
 
@@ -840,7 +842,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="",
-                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None):
+                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
@@ -1293,7 +1295,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     device=draft_model_device,
                     smarter=True,
                     tokenizer=tokenizer,
-                    eigenvalue=eigenvalue
+                    eigenvalue=eigenvalue,
+                    similarity=similarity
                 )
                 # selected_indices, reserved_selected_indices = smart_query_selection(
                 #     attention_scores=multi_layer_attn[first_doc_len:],
@@ -1379,16 +1382,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                 # do it now because later will add query prefix
                 eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
-
+                print(f"DraftModel 选择了 {len(selected_indices)} 个 tokens ({len(selected_indices) / doc_len * 100:.1f}%)")
                 ## add query prefix
                 selected_indices.extend(range(sum(passages_len[:-2]), sum(passages_len[:-1])))
 
-                embedding_index_chosen = list(embedding_index_chosen)
-                if len(embedding_index_chosen) <=1:
-                    sim = 0
-                else:
-                    sim = calculate_vector_set_similarity(embeddings[embedding_index_chosen])
-                eigenvalue["similarity"] = sim
 
             if reprocess_method != "DraftModel_smarter":
                 eigenvalue["recompute_rate"] = len(selected_indices) / doc_len
@@ -1400,7 +1397,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 top_indices, top_scores = get_top_tokens(scores=scores, top_n=int(rate * doc_len))
                 k_need_index = top_indices
 
-            print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens ({len(k_need_index)/doc_len*100:.1f}%)")
             print(f'select_time: {time.time() - select_time:.3f}s')
 
         else:

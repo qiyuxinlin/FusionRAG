@@ -7,6 +7,7 @@ import shutil
 import time
 import torch
 import numpy as np
+from datetime import datetime
 from typing import List, Dict, Any, Tuple
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
@@ -102,6 +103,7 @@ class FusionRAGModel:
         self.preprocess_empty_prefix_save_path = os.path.join(self.model_cache_root, 'empty_prefix_preprocess_kv_cache')
         self.preprocess_method=preprocess_method
         self.encoder = OnlineEncoder(llm_api_key=apikey)
+        self.file_input = file_input
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(self.preprocess_save_path, exist_ok=True)
         os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
@@ -188,7 +190,6 @@ class FusionRAGModel:
         import re
         for idx, text in enumerate(texts):
             if re.sub(r'\s+', '', text) == re.sub(r'\s+', '', target):
-                print(f"find_closest_by_edit_distance found {idx}")
                 return idx
         if not texts:
             raise ValueError("字符串列表不能为空")
@@ -196,8 +197,9 @@ class FusionRAGModel:
         # for old 2wiki docs, sometimes the title doesn't exist in it.
         for idx, text in enumerate(texts):
             if re.sub(r'\s+', '', target) in re.sub(r'\s+', '', text):
-                print(f"find_closest_by_edit_distance within found {idx}")
                 return idx
+
+        print(f"find_closest_by_edit_distance start the old method.")
 
         min_distance = float('inf')
         min_indices = []
@@ -297,9 +299,7 @@ class FusionRAGModel:
         try:
             current_doc_index = self.all_texts.index(current_doc)
         except ValueError:
-            print(f"字符串不存在, try to find replacement")
             current_doc_index = self.find_closest_by_edit_distance(texts=self.all_texts, target=current_doc, return_all_min=False)
-            print(f"字符串不存在, found replacement.")
 
         current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
@@ -592,6 +592,59 @@ class FusionRAGModel:
 
         return model, device_map
 
+
+    def sort_docs(self, retrieved_docs: list[str]):
+        """
+        对对话文本进行排序，格式: "Conversation Time: 2:32 pm on 29 January, 2023. ..."
+        提取时间部分进行排序，如果有不符合格式的文档直接返回原列表
+        """
+        if not retrieved_docs:
+            return retrieved_docs
+
+        # 检查所有文档是否都符合对话时间格式
+        def is_conversation_format(doc: str) -> bool:
+            if not doc.startswith("Conversation Time: "):
+                return False
+
+            # 检查是否有时间部分和句点
+            time_part_end = doc.find('.', len("Conversation Time: "))
+            if time_part_end == -1:
+                return False
+
+            # 提取时间字符串
+            time_str = doc[len("Conversation Time: "):time_part_end].strip()
+
+            # 尝试解析时间
+            try:
+                time_part, date_part = time_str.split(" on ")
+                datetime.strptime(time_part, "%I:%M %p")
+                datetime.strptime(date_part, "%d %B, %Y")
+                return True
+            except (ValueError, AttributeError, IndexError):
+                return False
+
+        # 如果有任何一个文档不符合格式，直接返回
+        if not all(is_conversation_format(doc) for doc in retrieved_docs):
+            print(f"fail to sort doc!")
+            return retrieved_docs
+
+        # 从文档中提取时间并解析为datetime对象
+        def parse_conversation_time(doc: str) -> datetime:
+            # 找到第一个句点的位置
+            dot_index = doc.find('.', len("Conversation Time: "))
+            # 提取时间字符串
+            time_str = doc[len("Conversation Time: "):dot_index].strip()
+
+            # 解析时间
+            time_part, date_part = time_str.split(" on ")
+            time_obj = datetime.strptime(time_part, "%I:%M %p")
+            date_obj = datetime.strptime(date_part, "%d %B, %Y")
+
+            return datetime.combine(date_obj.date(), time_obj.time())
+
+        # 排序并返回
+        return sorted(retrieved_docs, key=parse_conversation_time)
+
     def run_one_question(
             self,
             query: str,
@@ -609,9 +662,14 @@ class FusionRAGModel:
 
         ## fixme: mengyao_debug locomo quick fix
         if "locomo" in self.dataset_name:
+            retrieved_docs = self.sort_docs(retrieved_docs)
             retrieved_docs = [f" {text}" for text in retrieved_docs if not text.startswith(" ")]
+        print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
         embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
-        eigenvalue = {}
+        sim = calculate_vector_set_similarity(embeddings)
+        eigenvalue = {
+            "similarity": float(sim)
+        }
         print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
@@ -715,6 +773,7 @@ class FusionRAGModel:
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
         question_prefix_tokens = self.tokenizer.encode(question_prefix, add_special_tokens=False)
         question_with_prefix_tokens = self.tokenizer.encode(question_prefix + question_text, add_special_tokens=False)
+        question_with_prefix_tensor = torch.tensor(question_with_prefix_tokens, dtype=torch.long)
         question_tensor = torch.tensor(question_tokens, dtype=torch.long)
         question_prefix_tensor = torch.tensor(question_prefix_tokens, dtype=torch.long)
         query_len = len(question_tensor)
@@ -722,7 +781,7 @@ class FusionRAGModel:
         if reprocess_method == "DraftModel_smarter":
             iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
         else:
-            iter_tokens = [system_tensor] + doc_tensors + [question_prefix_tensor, question_tensor]
+            iter_tokens = [system_tensor] + doc_tensors + [question_with_prefix_tensor]
         iter_token_len = len(torch.cat(iter_tokens))
         if rate == 1:
             print(f"full recompute")
@@ -781,6 +840,7 @@ class FusionRAGModel:
                 query=query,
                 embeddings=embeddings,
                 question_prefix_tensor=question_prefix_tensor,
+                similarity=sim,
             )
             eigenvalue.update(eigenvalue_)
 
