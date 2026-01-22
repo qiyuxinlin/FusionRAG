@@ -9,6 +9,8 @@
 # - 按需生成文档KV（第一次使用时）
 # - 自动保存和复用KV cache
 # - 新文档强制重算（rate=1.0）
+# - 全局文档池架构：使用 doc_{global_id}_key.pt 命名
+# - 跨问题复用：同一文档只保存一次，所有问题共享
 #####################################################################
 
 # 基础配置
@@ -25,7 +27,8 @@ MODEL_PATH="/mnt/data/models/Qwen2.5-7B-Instruct"
 MODEL_NAME="Qwen2.5-7B-Instruct"
 
 # 数据配置
-DATA_PATH="./data/result_reflect.json" # result_reflect.json | 2wikimqa_reflect.json
+# IMPORTANT: 使用新的优化数据集（使用doc IDs而非完整文本）
+DATA_PATH="./data/result_reflect_optimized.json"  # 新格式：doc IDs
 DATASET_NAME="musique" # 2wikimqa | musique
 
 # Online Lazy Loading 核心配置

@@ -57,7 +57,14 @@ class DocumentPoolLoader:
         print(f"Loading document pool from {self.pool_path}...")
         with open(self.pool_path, 'r', encoding='utf-8') as f:
             docs = json.load(f)
-        for doc in docs:
+        for idx, doc in enumerate(docs):
+            # 验证文档格式
+            if 'id' not in doc:
+                print(f"  Warning: Document at index {idx} missing 'id' field: {doc}")
+                continue
+            if 'text' not in doc:
+                print(f"  Warning: Document {doc.get('id', 'unknown')} missing 'text' field")
+                continue
             self.pool[doc['id']] = doc['text']
         print(f"  Loaded {len(self.pool)} documents")
 
@@ -428,7 +435,30 @@ def prepare_reflect_data(
         print(f"Limited to first {max_main_questions} main questions")
 
     # Initialize document pool
-    pool_path = data_path.replace('result_reflect_optimized.json', 'musique_input.json')
+    # Support both result_reflect_optimized.json and result_reflect.json paths
+    import os
+    data_dir = os.path.dirname(data_path)
+    pool_path = os.path.join(data_dir, 'musique_input.json')
+
+    # Verify dataset format (new format uses doc IDs, not text)
+    if dataset and len(dataset) > 0:
+        first_item = dataset[0]
+        if 'intermediate_context' in first_item and len(first_item['intermediate_context']) > 0:
+            first_retrieve = first_item['intermediate_context'][0].get('retrieve docs', [])
+            if first_retrieve and isinstance(first_retrieve[0], str):
+                raise ValueError(
+                    f"\n{'='*80}\n"
+                    f"ERROR: This code requires the NEW optimized dataset format!\n"
+                    f"  Current: {data_path}\n"
+                    f"  Expected: result_reflect_optimized.json (with doc IDs, not text)\n"
+                    f"\n"
+                    f"  The 'retrieve docs' field should contain integers (doc IDs),\n"
+                    f"  not document text strings.\n"
+                    f"\n"
+                    f"  Please use: --data_path data/result_reflect_optimized.json\n"
+                    f"{'='*80}"
+                )
+
     doc_pool = DocumentPoolLoader(pool_path)
 
     # Map model_type to model_family for system prompt
