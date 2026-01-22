@@ -15,7 +15,7 @@
 GPUS="4"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/online_lazy_sweep"   # 结果保存目录
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/online_lazy_sweep_v2"   # 结果保存目录
 CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy"                         # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 

@@ -743,13 +743,20 @@ def compute_draft_model_attention(draft_model, input_ids, query_start, device="c
 
 
 def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
-                          save_path='', example_id = 0, chunk_id = 0, system_len = 0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None
+                          save_path='', doc_id=None, system_len = 0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None
                           ):
 
     import os
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     torch._dynamo.config.suppress_errors = True
     batch_size, seq_length = inputs.shape
+
+    # Check doc_id parameter
+    if doc_id is None:
+        raise ValueError("doc_id parameter is required")
+
+    # Define global system prompt ID
+    SYSTEM_PROMPT_ID = -1
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
@@ -770,14 +777,14 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
 
 
         inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
-        if reprocess_method == "Cache-Craft" and chunk_id != 0:
+        if reprocess_method == "Cache-Craft" and doc_id != SYSTEM_PROMPT_ID:
             passages_len = [system_len, passage_len]
             logits = model(
                 inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True, reprocess_method=reprocess_method, passages_len=passages_len
             )[0][:,-1,:].unsqueeze(0).clone().to(input_device)
             cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
             cachecraft_score = torch.sum(cachecraft_score, dim=0)
-            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
+            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_doc_{doc_id}.pt')
         else:
             logits = model(
                 inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
@@ -785,31 +792,33 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
         past_len = past_key_values.past_tokens[0]
         key_cache = []
         value_cache = []
-        if chunk_id == 0:
+        if doc_id == SYSTEM_PROMPT_ID:
+            # System prompt: save entire cache
             # Move to CPU to handle multi-GPU scenarios where different layers are on different devices
             key_cache = [past_key_values.key_cache[i][:,:,:past_len,:].cpu() for i in range(len(past_key_values.key_cache))]
             key_cache = torch.stack(key_cache)
             value_cache = [past_key_values.value_cache[i][:,:,:past_len,:].cpu() for i in range(len(past_key_values.value_cache))]
             value_cache = torch.stack(value_cache)
         else:
+            # Document: save only document part (skip system tokens)
             # Move to CPU to handle multi-GPU scenarios where different layers are on different devices
             key_cache = [past_key_values.key_cache[i][:,:,system_len:system_len + passage_len,:].cpu() for i in range(len(past_key_values.key_cache))]
             key_cache = torch.stack(key_cache)
             value_cache = [past_key_values.value_cache[i][:,:,system_len:system_len + passage_len,:].cpu() for i in range(len(past_key_values.value_cache))]
             value_cache = torch.stack(value_cache)
         # Use file lock to prevent concurrent writes from multiple processes
-        key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
-        value_path = f'{save_path}/{example_id}_{chunk_id}_value.pt'
-        lock_path = f'{save_path}/{example_id}_{chunk_id}.lock'
+        key_path = f'{save_path}/doc_{doc_id}_key.pt'
+        value_path = f'{save_path}/doc_{doc_id}_value.pt'
+        lock_path = f'{save_path}/doc_{doc_id}.lock'
 
         with FileLock(lock_path, timeout=60):
             # Double-check if file exists (another process might have created it)
             if not os.path.exists(key_path):
                 torch.save(key_cache.clone(), key_path)
                 torch.save(value_cache.clone(), value_path)
-                print(f'example_id: {example_id}, chunk_id: {chunk_id} (saved by current process)')
+                print(f'doc_id: {doc_id} (saved by current process)')
             else:
-                print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
+                print(f'doc_id: {doc_id} (already exists, skipped)')
 
         return key_cache, value_cache
 
@@ -835,7 +844,11 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, passages,
-                          save_path='', example_id = 0, chunk_id=0, system_len=0, revert_rope=False, reprocess_method=None, device="cuda", device_map=None):
+                          save_path='', doc_id=None, system_len=0, revert_rope=False, reprocess_method=None, device="cuda", device_map=None):
+
+    # Check doc_id parameter
+    if doc_id is None:
+        raise ValueError("doc_id parameter is required")
 
     # load KV
     past_len = past_key_values.past_tokens[0]
@@ -866,7 +879,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
             )[0][:,-1,:].unsqueeze(0).clone().to(input_device)
             cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
             cachecraft_score = torch.sum(cachecraft_score, dim=0)
-            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
+            torch.save(cachecraft_score, f'{save_path}/cachecraftattn_doc_{doc_id}.pt')
         else:
             logits = model(
                 inputs_embeds = inputs_embeds, cache_position=cache_position,
@@ -885,7 +898,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     cos = cos.unsqueeze(1).cpu()
     sin = sin.unsqueeze(1).cpu()
     key_cache = (key_cache * cos) + (rotate_half(key_cache) * sin)
-    torch.save(key_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_key.pt')
+    torch.save(key_cache.clone(), f'{save_path}/doc_{doc_id}_key.pt')
     key_cache = None
     if "cuda" in input_device:
         torch.cuda.empty_cache()
@@ -893,7 +906,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
         torch.npu.empty_cache()
     # Move to CPU to handle multi-GPU scenarios where different layers are on different devices
     value_cache = torch.stack([cache.cpu() for cache in past_key_values.value_cache])[:,:,:,past_len:past_len + passage_len,:]
-    torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
+    torch.save(value_cache.clone(), f'{save_path}/doc_{doc_id}_value.pt')
 
 
 def compute_query_doc_similarity(draft_model, input_ids, doc_start, doc_end, query_start, device="cuda:0"):
@@ -948,7 +961,7 @@ def compute_query_doc_similarity(draft_model, input_ids, doc_start, doc_end, que
 
 
 def load_kv_and_generate(model, tokenizer, past_key_values, passages,
-                          load_path='', example_id = 0, max_new_tokens=1, revert_rope=False,
+                          load_path='', doc_ids=None, max_new_tokens=1, revert_rope=False,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           draft_layer_selection='entropy',  # 'entropy', 'last', 'fixed', or 'middle'
@@ -956,7 +969,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           draft_threshold_factor=0.5,  # smart_query_selection 阈值因子 (default 0.5)
                           use_similarity_rerank=False,  # 使用 query-doc 相似度重排序改进选择
                           rerank_multiplier=2.0,  # 重排序时先选择多少倍候选
-                          group=False, device="cuda", chunk_ids=None, device_map=None,
+                          group=False, device="cuda", device_map=None,
                           vattention_topk_ratio=0.5,  # vAttention: top-k 占总 budget 的比例
                           # OracleDynamic 参数
                           epsilon=0.1,  # 误差容忍度 (如 0.1 = 10% 相对误差)
@@ -968,7 +981,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
                           layerwise_final_rate=0.05,  # 最后一层的 rate
                           # 文本块1用原始KV cache (prefix cache)
-                          original_kv_path=None):  # 原始KV cache路径，用于文本块1 (chunk_id=0)
+                          original_kv_path=None):  # 原始KV cache路径，用于文本块1 (doc_id=first document)
     import os
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
@@ -997,30 +1010,34 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     past_len = 0
     system_len = passages[0].shape[0]
 
+    # Define global system prompt ID
+    SYSTEM_PROMPT_ID = -1
+
+    # Check doc_ids parameter
+    if doc_ids is None:
+        raise ValueError("doc_ids parameter is required")
+
     key_cache = []
     value_cache = []
     all_position_ids = [torch.arange(0,system_len).unsqueeze(0).to(input_device)]
 
-    # If chunk_ids is provided, use it; otherwise use sequential indices (backward compatible)
-    if chunk_ids is None:
-        chunk_ids = list(range(len(passages) - 1))
-
     # ========== ONLINE LAZY LOADING: Check which documents have no KV cache ==========
-    missing_chunks = []  # Track chunks without KV cache: [(idx, chunk_id, passage)]
+    missing_chunks = []  # Track documents without KV cache: [(idx, doc_id, passage)]
 
     for idx, passage in enumerate(passages[:-1]):
-        chunk_id = chunk_ids[idx]
+        doc_id = doc_ids[idx]
         passage_len = passage.shape[0]
 
-        # 对于 chunk_id=0 (system + 文本块1)，如果提供了 original_kv_path，则从原始路径加载
-        # 这样文本块1可以使用没有 preprocess 的 KV cache (prefix cache hit)
-        if chunk_id <= 1 and original_kv_path is not None:
+        # 对于第一个文档（索引1），如果提供了 original_kv_path，则从原始路径加载
+        # 这样第一个文档可以使用没有 preprocess 的 KV cache (prefix cache hit)
+        if idx == 1 and original_kv_path is not None:
             kv_path = original_kv_path
         else:
             kv_path = load_path
 
-        key_path = f'{kv_path}/{example_id}_{chunk_id}_key.pt'
-        value_path = f'{kv_path}/{example_id}_{chunk_id}_value.pt'
+        # New path format using global doc_id
+        key_path = f'{kv_path}/doc_{doc_id}_key.pt'
+        value_path = f'{kv_path}/doc_{doc_id}_value.pt'
 
         if os.path.exists(key_path) and os.path.exists(value_path):
             # KV cache exists - try to load it
@@ -1042,7 +1059,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 value_cache.append(chunk_value_cache)
             except Exception as e:
                 # Corrupted cache file - delete and treat as missing
-                print(f"  ⚠ Chunk {chunk_id}: KV cache corrupted ({e}), deleting and will regenerate")
+                print(f"  ⚠ Doc {doc_id}: KV cache corrupted ({e}), deleting and will regenerate")
                 try:
                     if os.path.exists(key_path):
                         os.remove(key_path)
@@ -1052,17 +1069,17 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     pass
                 key_cache.append(None)
                 value_cache.append(None)
-                missing_chunks.append((idx, chunk_id, passage))
+                missing_chunks.append((idx, doc_id, passage))
         else:
             # KV cache missing - will generate during forward pass
-            print(f"  ⚠ Chunk {chunk_id}: KV cache not found, will generate during answer generation")
+            print(f"  ⚠ Doc {doc_id}: KV cache not found, will generate during answer generation")
             key_cache.append(None)  # Placeholder
             value_cache.append(None)
-            missing_chunks.append((idx, chunk_id, passage))
+            missing_chunks.append((idx, doc_id, passage))
 
     start_time = time.time()
     for idx, passage in enumerate(passages[:-1]):
-        chunk_id = chunk_ids[idx]
+        doc_id = doc_ids[idx]
         passage_len = passage.shape[0]
 
         # Skip missing chunks - they will be generated during forward pass
@@ -1079,7 +1096,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             assert passage_len == chunk_key_cache[0].shape[2], f"passage_len={passage_len}, but KV shape={chunk_key_cache[0].shape}"
 
             # Apply RoPE adjustment if needed
-            if revert_rope and chunk_id > 0:
+            if revert_rope and doc_id != SYSTEM_PROMPT_ID:
                 for layer_idx in range(len(chunk_key_cache)):
                     # Get the device of the rotary embedding layer
                     rotary_emb = model.model.layers[layer_idx].self_attn.rotary_emb
@@ -2505,12 +2522,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             k_need_index = list(k_need_index)
 
         passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
-        for idx, chunk_id, passage in missing_chunks:
+        for idx, doc_id, passage in missing_chunks:
             chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
             chunk_end = passages_len_cumsum[idx]
             k_need_index.extend(range(chunk_start, chunk_end))
         k_need_index = sorted(k_need_index)  # Keep sorted
-        print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing chunk tokens to reprocess")
+        print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing document tokens to reprocess")
 
     # ONLINE LAZY: Don't reset past_len - it should remain as the actual loaded length
     # past_len = sum(passages_len)  # This line is for offline mode only
@@ -2567,13 +2584,13 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             print(f"    ⚡ Extracting and saving KV for {len(missing_chunks)} new document(s)...")
             passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
 
-            for idx, chunk_id, passage in missing_chunks:
-                # Calculate chunk position range
+            for idx, doc_id, passage in missing_chunks:
+                # Calculate document position range
                 chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
                 chunk_end = passages_len_cumsum[idx]
                 chunk_len = chunk_end - chunk_start
 
-                # Extract key and value for this chunk (ALL LAYERS)
+                # Extract key and value for this document (ALL LAYERS)
                 num_layers = len(past_key_values.key_cache)
                 chunk_key_all_layers = []
                 chunk_value_all_layers = []
@@ -2583,7 +2600,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     layer_chunk_value = past_key_values.value_cache[layer_idx][:, :, chunk_start:chunk_end, :].clone()
 
                     # Apply RoPE adjustment: revert to relative position 0 (only for keys)
-                    if revert_rope and chunk_id > 0:
+                    if revert_rope and doc_id != SYSTEM_PROMPT_ID:
                         # Get rotary_emb from this layer
                         rotary_emb = model.model.layers[layer_idx].self_attn.rotary_emb
 
@@ -2606,8 +2623,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     chunk_value_all_layers.append(layer_chunk_value)
 
                 # Save to disk (all layers as a list) using atomic write
-                key_save_path = f'{load_path}/{example_id}_{chunk_id}_key.pt'
-                value_save_path = f'{load_path}/{example_id}_{chunk_id}_value.pt'
+                key_save_path = f'{load_path}/doc_{doc_id}_key.pt'
+                value_save_path = f'{load_path}/doc_{doc_id}_value.pt'
                 key_temp_path = f'{key_save_path}.tmp'
                 value_temp_path = f'{value_save_path}.tmp'
 
@@ -2620,14 +2637,14 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     os.rename(key_temp_path, key_save_path)
                     os.rename(value_temp_path, value_save_path)
 
-                    print(f"      ✓ Chunk {chunk_id} KV generated and saved ({chunk_len} tokens)")
+                    print(f"      ✓ Doc {doc_id} KV generated and saved ({chunk_len} tokens)")
                 except Exception as e:
                     # Clean up temporary files on error
                     if os.path.exists(key_temp_path):
                         os.remove(key_temp_path)
                     if os.path.exists(value_temp_path):
                         os.remove(value_temp_path)
-                    print(f"      ✗ Failed to save Chunk {chunk_id} KV: {e}")
+                    print(f"      ✗ Failed to save Doc {doc_id} KV: {e}")
                     raise
 
         logits = model_output[:,-1,:].unsqueeze(0).clone()
