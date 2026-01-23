@@ -14,10 +14,10 @@
 #####################################################################
 
 # 基础配置
-GPUS="5"
+GPUS="6"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/online_lazy_sweep_v5"   # 结果保存目录
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/online_lazy_sweep_DraftModel"   # 结果保存目录
 CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy"                         # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -29,10 +29,10 @@ MODEL_NAME="Qwen2.5-7B-Instruct"
 # 数据配置
 # IMPORTANT: 使用新的优化数据集（使用doc IDs而非完整文本）
 DATA_PATH="./data/result_reflect_optimized.json"  # 新格式：doc IDs
-DATASET_NAME="musique" # 2wikimqa | musique
+DATASET_NAME="2wikimqa" # 2wikimqa | musique
 
 # Online Lazy Loading 核心配置
-REPROCESS_METHOD="FusionRAG"
+REPROCESS_METHOD="DraftModel"
 PREPROCESS="false"             # 关键：不做预处理
 RECALL_METHOD="online_lazy"    # 关键：使用online_lazy模式
 REVERT_ROPE="true"             # RoPE调整
@@ -47,6 +47,10 @@ RATE_LIST=(0.1 0.15 0.0 0.3 0.5 0.8 0.9)
 
 # 可选参数
 MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
+
+USE_ENTROPY_SELECTION="true"
+ENTROPY_TOP_K="4"
+DRAFT_LAYER_SELECTION="entropy"
 
 # 是否清除之前的缓存（可选）
 CLEAR_CACHE_BEFORE_START="true"

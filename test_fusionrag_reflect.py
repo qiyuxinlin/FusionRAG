@@ -3212,7 +3212,7 @@ if __name__ == '__main__':
                         help='Path to the main model')
     parser.add_argument('--model_name', type=str, default='Qwen2.5-7B-Instruct',
                         help='Model name for logging')
-    parser.add_argument('--draft_model_path', type=str, default=None,
+    parser.add_argument('--draft_model_path', type=str, default='/mnt/data/models/Qwen2.5-3B-Instruct',
                         help='Path to draft model (for DraftModel method)')
     parser.add_argument('--bge_model_path', type=str, default='/mnt/data/models/bge-m3-FP16',
                         help='Path to BGE embedding model')

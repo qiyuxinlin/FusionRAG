@@ -1306,7 +1306,7 @@ def parse_long_decode_output(output: str) -> Tuple[str, str]:
 def main(
     model_type='qwen',
     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-    draft_model_path=None,  # Draft model path for DraftModel method
+    draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',  # Draft model path for DraftModel method
     data_path='/mnt/data/ktransformers-dev/result_reflect.json',
     cache_path='/mnt/data3/reflect/',
     result_path=None,  # Path to save results (CSV, TXT). If None, uses cache_path
@@ -2770,7 +2770,7 @@ if __name__ == '__main__':
     main(
         model_type=args.model_type,
         model_path=args.model_path,
-        draft_model_path=args.draft_model_path,
+        draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
         data_path=args.data_path,
         cache_path=args.cache_path,
         result_path=args.result_path,
