@@ -1416,7 +1416,7 @@ def parse_long_decode_output(output: str) -> Tuple[str, str]:
 def main(
     model_type='qwen',
     model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
-    draft_model_path=None,  # Draft model path for DraftModel method
+    draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',  # Draft model path for DraftModel method
     data_path='/mnt/data/ktransformers-dev/result_reflect.json',
     cache_path='/mnt/data3/reflect/',
     result_path=None,  # Path to save results (CSV, TXT). If None, uses cache_path
@@ -3196,7 +3196,7 @@ if __name__ == '__main__':
                         help='Path to the main model')
     parser.add_argument('--model_name', type=str, default='Qwen2.5-7B-Instruct',
                         help='Model name for logging')
-    parser.add_argument('--draft_model_path', type=str, default=None,
+    parser.add_argument('--draft_model_path', type=str, default='/mnt/data/models/Qwen2.5-3B-Instruct',
                         help='Path to draft model (for DraftModel method)')
     parser.add_argument('--bge_model_path', type=str, default='/mnt/data/models/bge-m3-FP16',
                         help='Path to BGE embedding model')
