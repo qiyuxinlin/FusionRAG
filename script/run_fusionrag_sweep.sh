@@ -6,7 +6,7 @@
 #####################################################################
 
 # 基础配置
-GPUS="5"
+GPUS="4"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
 RESULT_DIR="/home/shm/document/exp/FusionRAG/result/bge"       # 结果保存目录（CSV等）
@@ -20,8 +20,8 @@ MODEL_NAME="Qwen2.5-7B-Instruct"
 BGE_MODEL_PATH="/mnt/data/models/bge-m3-FP16"
 
 # 数据配置
-DATA_PATH="./data/2wikimqa_reflect.json" # result_reflect.json | 2wikimqa_reflect.json 
-DATASET_NAME="2wikimqa" # 2wikimqa| musique
+DATA_PATH="./data/result_reflect.json" # result_reflect.json | 2wikimqa_reflect.json 
+DATASET_NAME="musique" # 2wikimqa| musique
 
 # FusionRAG 方法配置
 REPROCESS_METHOD="DraftModel"  # 可修改: FusionRAG, Oracle, OracleAdaptive, etc.

@@ -29,10 +29,10 @@ from FlagEmbedding import BGEM3FlagModel
 # Add project directory to path
 project_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, project_dir)
-
+from ktransformers.util.utils_v2 import load_kv_and_generate
 from ktransformers.util.utils import (
     prefill_and_save_kv_cache,
-    load_kv_and_generate,
+    # load_kv_and_generate,
     prefill_with_cache_and_save_preprocess,
     rotate_half,
     find_group_and_index,

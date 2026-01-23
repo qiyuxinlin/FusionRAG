@@ -404,7 +404,8 @@ def prepare_reflect_data(
     recall_method: RecallMethod = RecallMethod.BGE,  # 召回方法：BGE/RANDOM/REPEAT_SELF/FIXED_DOC
     random_seed: int = 42,  # 随机种子（当 recall_method=RANDOM 时生效）
     fixed_doc_idx: int = 0,  # 固定文档索引（当 recall_method=FIXED_DOC 时生效）
-    preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL
+    preprocess_scope: PreprocessScope = PreprocessScope.GLOBAL,
+    dataset_name: str = 'musique'  # 数据集名称，用于选择正确的文档池
 ) -> Tuple[List, torch.Tensor, List, List]:
     """
     Prepare data from result_reflect.json with configurable document corpus scope
@@ -436,9 +437,22 @@ def prepare_reflect_data(
 
     # Initialize document pool
     # Support both result_reflect_optimized.json and result_reflect.json paths
+    # Auto-select corpus file based on dataset_name
     import os
     data_dir = os.path.dirname(data_path)
-    pool_path = os.path.join(data_dir, 'musique_input.json')
+    
+    # 根据数据集名称选择文档池文件
+    if '2wikimqa' in dataset_name.lower() or '2wiki' in dataset_name.lower():
+        corpus_filename = '2wiki_input.json'
+    elif 'musique' in dataset_name.lower():
+        corpus_filename = 'musique_input.json'
+    else:
+        # 默认使用 musique
+        corpus_filename = 'musique_input.json'
+        print(f"  Warning: Unknown dataset '{dataset_name}', using default corpus: {corpus_filename}")
+    
+    pool_path = os.path.join(data_dir, corpus_filename)
+    print(f"  Using corpus: {pool_path}")
 
     # Verify dataset format (new format uses doc IDs, not text)
     if dataset and len(dataset) > 0:
@@ -507,6 +521,23 @@ def prepare_reflect_data(
 
             # Collect unique doc IDs for this question
             for doc_id in retrieve_doc_ids:
+                # Skip error dictionaries (docs not found in pool)
+                if isinstance(doc_id, dict):
+                    if 'error' in doc_id:
+                        print(f"  ⚠ Skipping document with error: {doc_id.get('error', 'unknown')}")
+                    continue
+                # Only process integer doc IDs
+                if not isinstance(doc_id, (int, str)):
+                    print(f"  ⚠ Skipping invalid doc_id type: {type(doc_id)}")
+                    continue
+                # Convert string to int if needed
+                if isinstance(doc_id, str):
+                    try:
+                        doc_id = int(doc_id)
+                    except ValueError:
+                        print(f"  ⚠ Skipping non-integer doc_id: {doc_id}")
+                        continue
+                    
                 if doc_id not in doc_id_set:
                     doc_ids_for_question.append(doc_id)
                     doc_id_set.add(doc_id)
@@ -1524,7 +1555,7 @@ def main(
     print("Preparing data organized by main questions...")
     questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
         data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess,
-        recall_method_enum, random_seed, fixed_doc_idx, preprocess_scope
+        recall_method_enum, random_seed, fixed_doc_idx, preprocess_scope, dataset_name
     )
     # Initialize OpenAI client
     if openai_api_key is None:
@@ -2337,7 +2368,7 @@ def collect_optimal_rate(
     # 准备数据
     print("\n准备数据...")
     questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
-        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
+        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope, dataset_name
     )
     system_len = system_tensor.shape[0]
 

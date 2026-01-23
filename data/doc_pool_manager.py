@@ -73,8 +73,8 @@ def load_optimized_data(data_path: str, doc_pool_manager: DocumentPoolManager) -
 
 if __name__ == "__main__":
     # Example usage
-    doc_pool_path = "/home/shm/document/exp/FusionRAG/data/musique_input.json"
-    data_path = "/home/shm/document/exp/FusionRAG/data/result_reflect_optimized.json"
+    doc_pool_path = "/home/shm/document/exp/FusionRAG/data/2wiki_input.json"
+    data_path = "/home/shm/document/exp/FusionRAG/data/2wikimqa_reflect_optimized.json"
 
     # Initialize document pool
     doc_pool = DocumentPoolManager(doc_pool_path)
