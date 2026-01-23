@@ -1161,27 +1161,27 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 if missing_chunks:
                     # When there are missing chunks, use a temporary cache for importance calculation
                     # Create a temporary past_key_values that only contains loaded docs
+                    # Extract device parameter (could be single device or device_map dict)
+                    if device_map is not None:
+                        cache_device = device_map
+                    else:
+                        cache_device = past_key_values.key_cache[0].device
+
+                    # Extract passage_len from original past_key_values if it has importance_cache
+                    if hasattr(past_key_values, 'importance_cache') and len(past_key_values.importance_cache) > 0:
+                        passage_len_for_cache = past_key_values.importance_cache[0].shape[1]
+                    else:
+                        passage_len_for_cache = past_key_values.key_cache[0].shape[2]
+
                     temp_past_key_values = StaticCache(
                         config=model.config,
                         max_batch_size=1,
                         max_cache_len=past_key_values.key_cache[0].shape[2],
-                        device=past_key_values.key_cache[0].device,
-                        dtype=past_key_values.key_cache[0].dtype
+                        device=cache_device,
+                        dtype=past_key_values.key_cache[0].dtype,
+                        passage_len=passage_len_for_cache  # Pass passage_len to auto-create importance_cache
                     )
-
-                    # Initialize importance_cache if it exists in original
-                    if hasattr(past_key_values, 'importance_cache'):
-                        temp_past_key_values.importance_cache = []
-                        # Create empty importance cache for each layer
-                        num_attention_heads = model.config.num_attention_heads
-                        max_cache_len = past_key_values.key_cache[0].shape[2]
-                        for layer_idx in range(len(past_key_values.key_cache)):
-                            importance_tensor = torch.zeros(
-                                (num_attention_heads, max_cache_len),
-                                dtype=past_key_values.key_cache[0].dtype,
-                                device=past_key_values.key_cache[layer_idx].device
-                            )
-                            temp_past_key_values.importance_cache.append(importance_tensor)
+                    # StaticCache will auto-create importance_cache for each layer when passage_len is provided
 
                     # Copy loaded KV to temp cache
                     for layer_idx in range(len(past_key_values.key_cache)):
