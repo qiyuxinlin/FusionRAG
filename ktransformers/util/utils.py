@@ -1159,17 +1159,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             v_need_index = torch.topk(v_sum,int(rate*(past_len - system_len))).indices.to('cpu')
             v_need_index = v_need_index + system_len
 
-            # k_sub_all = without_attn_key - with_attn_key
-            # k_sub_all = torch.abs(k_sub_all)
-            # k_sub_all = k_sub_all.squeeze(0)
-            # k_sub_all = k_sub_all.transpose(0, 1)
-            # k_sub_all = k_sub_all.reshape(past_len,-1)
-            # k_sum = torch.sum(k_sub_all,dim=1)
-            # k_sum = k_sum.tolist()
-            # k_sum = k_sum[system_len:]
-            # k_sum = torch.tensor(k_sum,device=k_sub_all.device)
-            # k_need_index = torch.topk(k_sum,int(rate*(past_len - system_len))).indices.to('cpu')
-            # k_need_index = k_need_index + system_len
             k_need_index = v_need_index
         elif reprocess_method == 'FusionRAG':
             select_time = time.time()
@@ -1227,97 +1216,35 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     # Calculate k_sum for LOADED documents only
                     k_sum = torch.sum(past_key_values.importance_cache[-1], dim=0)[:past_len]
 
-                end_time = time.perf_counter() - ss_time
 
-            if group:
-                k_sum_relevant = k_sum[system_len:]  # 只看中间文本块的分数
-                k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
+            k_sum = k_sum.tolist()
+            k_sum = k_sum[system_len:]
+            k_sum = torch.tensor(k_sum,device=input_device)
 
-                # 计算需要选择的 token 数量
-                total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
-                k_lens = int(rate * total_relevant_tokens)
+            # FIX: 基于实际加载的文档长度，而不是所有文档（包括 missing_chunks）
+            loaded_relevant_tokens = past_len - system_len  # 实际已加载的文档 tokens
+            k_lens = int(rate * loaded_relevant_tokens)
 
-                # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
-                if missing_chunks:
-                    missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
-                    if k_lens < missing_docs_len:
-                        print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
-                        k_lens = missing_docs_len
-
-                # === 新增：按组选择逻辑 ===
-                group_size = 16
-                num_groups = (total_relevant_tokens + group_size - 1) // group_size  # 向上取整
-
-                # 将分数按组重塑（最后一组可能不足 8 个）
-                # 先 pad 到能被 group_size 整除
-                padded_length = num_groups * group_size
-                if total_relevant_tokens < padded_length:
-                    # 用很小的负数填充，确保不会被选中
-                    padding = torch.full((padded_length - total_relevant_tokens,),
-                                        -float('inf'), device=input_device)
-                    k_sum_padded = torch.cat([k_sum_relevant, padding])
-                else:
-                    k_sum_padded = k_sum_relevant
-
-                # 重塑为 [num_groups, group_size]
-                k_sum_grouped = k_sum_padded.view(num_groups, group_size)
-
-                # 计算每组的最大分数
-                group_max_scores, _ = torch.max(k_sum_grouped, dim=1)  # [num_groups]
-
-                # 根据组的最大分数选择 top-k 组
-                num_groups_to_select = (k_lens + group_size - 1) // group_size  # 向上取整
-                num_groups_to_select = min(num_groups_to_select, num_groups)  # 不超过总组数
-
-                top_group_indices = torch.topk(group_max_scores, num_groups_to_select).indices
-
-                # 将选中的组展开为 token 索引
-                selected_token_indices = []
-                for group_idx in top_group_indices.tolist():
-                    start_idx = group_idx * group_size
-                    end_idx = min(start_idx + group_size, total_relevant_tokens)
-                    selected_token_indices.extend(range(start_idx, end_idx))
-
-                # 转换为 tensor 并加上 system_len 偏移
-                k_need_index = torch.tensor(selected_token_indices, device='cpu') + system_len
-
-                print(f"选择了 {len(selected_token_indices)} 个 tokens，"
-                      f"来自 {len(top_group_indices)} 个组 (目标: {k_lens} tokens)")
+            if missing_chunks:
+                # 日志：说明在有 missing_chunks 时的策略
+                all_relevant_tokens = torch.cat(passages[:-1]).shape[0] - system_len
+                missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                print(f"    → ONLINE_LAZY mode: {loaded_relevant_tokens} tokens loaded, {missing_docs_len} tokens missing")
+                print(f"    → Importance-based selection: {k_lens} tokens from loaded docs (rate={rate:.1f})")
+                print(f"    → Missing docs will be added separately (100% coverage)")
             else:
-                k_sum = k_sum.tolist()
-                k_sum = k_sum[system_len:]
-                k_sum = torch.tensor(k_sum,device=input_device)
-                k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+                # 没有 missing_chunks，loaded 就是全部
+                pass
 
-                # 确保budget足够覆盖所有新文档（ONLINE_LAZY模式）
-                if missing_chunks:
-                    missing_docs_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
-                    if k_lens < missing_docs_len:
-                        print(f"    → Adjusting budget from {k_lens} to {missing_docs_len} to cover all new documents")
-                        k_lens = missing_docs_len
-
-                k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
-                k_need_index = k_need_index + system_len
-                print(f'select_time: {time.time() - select_time}')
+            k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
+            k_need_index = k_need_index + system_len
+            print(f'select_time: {time.time() - select_time}')
         elif reprocess_method == 'frontRow':
             k_need_index = []
             for i in range(len(passages_start[:-1])):
                 k_need_index.extend(range(passages_start[i], passages_start[i] + int(passages_len[i+1]*rate)))
             k_need_index = torch.tensor(k_need_index)
-        elif reprocess_method == "Cache-Craft":
-            import os
-            save_prefix_path_list = [f"{load_path}/cachecraftattn_{example_id}_{i}.pt" for i in range(1,len(passages)-1)]
-            chunk_score_list = []
-            for file in save_prefix_path_list:
-                if not os.path.exists(file):
-                    raise FileNotFoundError(f"未找到 cache-craft 文件: {file}")
-                tensor = torch.load(file, weights_only=True, map_location="cpu")
-                chunk_score_list.append(tensor)
-            chunk_score = torch.cat(chunk_score_list, dim=0)
-            assert chunk_score.shape[0] == sum(passages_len[1:-1])
-            k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
-            k_need_index = torch.topk(chunk_score, k_lens).indices.to('cpu')
-            k_need_index = k_need_index + system_len
+
         
         elif reprocess_method == "speculative_prefill":
             inputs = torch.cat(passages).to(input_device).unsqueeze(0)
@@ -1345,8 +1272,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     k_sum_relevant = torch.tensor(k_sum_relevant, device=input_device)
 
                     # 计算需要选择的 token 数量
-                    total_relevant_tokens = torch.cat(passages[1:-1]).shape[0]  # 中间文本块的总 token 数
-                    k_lens = int(rate * total_relevant_tokens)
+                    # FIX: 基于实际加载的文档长度（speculative_prefill 模式下全部加载，但保持一致性）
+                    loaded_relevant_tokens = past_len - system_len
+                    k_lens = int(rate * loaded_relevant_tokens)
 
                     # === 新增：按组选择逻辑 ===
                     group_size = 16
@@ -1391,7 +1319,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     k_sum = k_sum.tolist()
                     k_sum = k_sum[system_len:]
                     k_sum = torch.tensor(k_sum,device=input_device)
-                    k_lens = int(rate*(torch.cat(passages[:-1]).shape[0] - system_len))
+                    # FIX: 基于实际加载的文档长度（speculative_prefill 模式下全部加载，但保持一致性）
+                    loaded_relevant_tokens = past_len - system_len
+                    k_lens = int(rate * loaded_relevant_tokens)
                     k_need_index = torch.topk(k_sum, k_lens).indices.to('cpu')
                     k_need_index = k_need_index + system_len
         elif reprocess_method == 'QueryAttention':
@@ -2552,12 +2482,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     cache_position = torch.tensor(k_need_index, device=input_device)
 
     # Debug: Print cache position info for Online Lazy
-    if missing_chunks:
-        print(f"  [DEBUG] past_len from load stage: {past_len}")
-        print(f"  [DEBUG] sum(passages_len): {sum(passages_len)}")
-        print(f"  [DEBUG] k_need_index length: {len(k_need_index)}")
-        print(f"  [DEBUG] k_need_index range: [{min(k_need_index)}, {max(k_need_index)}]")
-        print(f"  [DEBUG] cache_position range: [{cache_position.min().item()}, {cache_position.max().item()}]")
+    # if missing_chunks:
+    #     print(f"  [DEBUG] past_len from load stage: {past_len}")
+    #     print(f"  [DEBUG] sum(passages_len): {sum(passages_len)}")
+    #     print(f"  [DEBUG] k_need_index length: {len(k_need_index)}")
+    #     print(f"  [DEBUG] k_need_index range: [{min(k_need_index)}, {max(k_need_index)}]")
+    #     print(f"  [DEBUG] cache_position range: [{cache_position.min().item()}, {cache_position.max().item()}]")
 
     with torch.no_grad():
         # ONLINE LAZY: Only extract loaded docs, not missing chunks
@@ -2680,8 +2610,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         position_ids = cache_position.unsqueeze(0)
         seq_length += 1
         
- 
-    
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs)
