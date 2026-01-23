@@ -1879,10 +1879,70 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # BUG FIX: Map passages positions to past_key_values positions
     cache_position = torch.tensor([passages_to_kv_position[pos] for pos in k_need_index], device=input_device)
 
-    # Debug: Print cache position info for Online Lazy
+    # ========== DETAILED DEBUG: Compare rate=0.0 vs rate>0 ==========
     if missing_chunks or rate > 0:
-        print(f"\n=== RECOMPUTE TOKEN DEBUG (rate={rate}) ===")
-        print(f"  past_len (loaded KV): {past_len}")
+        print(f"\n{'='*80}")
+        print(f"RECOMPUTE TOKEN DETAILED DEBUG (rate={rate})")
+        print(f"{'='*80}")
+        print(f"\n[1] KV Cache State:")
+        print(f"  past_len (loaded in past_key_values): {past_len}")
+        print(f"  sum(passages_len): {sum(passages_len)}")
+        print(f"  final_len (expected after recompute): {final_len}")
+
+        print(f"\n[2] Passages Structure:")
+        for i, p in enumerate(passages):
+            start = passages_len_cumsum[i-1] if i > 0 else 0
+            end = passages_len_cumsum[i] if i < len(passages_len_cumsum) else passages_len_cumsum[-1] + p.shape[0]
+            doc_type = "Question" if i == len(passages)-1 else f"Doc{i}"
+            is_missing = i in {idx for idx, _, _ in missing_chunks} if missing_chunks else False
+            status = "MISSING" if is_missing else "Loaded" if i < len(passages)-1 else "To append"
+            print(f"  {doc_type}: passages[{start}:{end}] ({p.shape[0]} tokens) - {status}")
+
+        if missing_chunks:
+            print(f"\n[3] Missing Chunks Info:")
+            for idx, doc_id, passage in missing_chunks:
+                chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
+                chunk_end = passages_len_cumsum[idx]
+                print(f"  Doc{idx} (doc_id={doc_id}): passages[{chunk_start}:{chunk_end}] ({chunk_end-chunk_start} tokens)")
+
+        print(f"\n[4] Position Mapping (sample):")
+        # Show first 5 and last 5 mappings for each document
+        prev_doc = -1
+        for passages_pos in sorted(passages_to_kv_position.keys())[:20]:
+            kv_pos = passages_to_kv_position[passages_pos]
+            # Find which doc this position belongs to
+            doc_idx = 0
+            for i in range(len(passages_len_cumsum)):
+                if passages_pos < passages_len_cumsum[i]:
+                    doc_idx = i
+                    break
+            if doc_idx != prev_doc:
+                print(f"  --- Doc{doc_idx} ---")
+                prev_doc = doc_idx
+            print(f"  passages[{passages_pos}] -> kv[{kv_pos}]")
+
+        print(f"\n[5] k_need_index Analysis (tokens to recompute):")
+        print(f"  Total tokens to recompute: {len(k_need_index)}")
+        print(f"  k_need_index (passages positions): {k_need_index[:10]}...{k_need_index[-10:] if len(k_need_index) > 10 else []}")
+
+        print(f"\n[6] cache_position Analysis (where to write in past_key_values):")
+        print(f"  cache_position (kv positions): {cache_position[:10].tolist()}...{cache_position[-10:].tolist() if len(cache_position) > 10 else []}")
+        print(f"  cache_position range: [{cache_position.min().item()}, {cache_position.max().item()}]")
+        print(f"  cache_position is monotonic: {torch.all(cache_position[1:] >= cache_position[:-1]).item()}")
+
+        print(f"\n[7] Token Distribution:")
+        # Analyze which documents' tokens are being recomputed
+        k_need_set = set(k_need_index)
+        for i in range(len(passages)):
+            start = passages_len_cumsum[i-1] if i > 0 else 0
+            end = passages_len_cumsum[i] if i < len(passages_len_cumsum) else passages_len_cumsum[-1] + passages[i].shape[0]
+            tokens_in_recompute = len(k_need_set & set(range(start, end)))
+            total_tokens = passages[i].shape[0]
+            pct = tokens_in_recompute / total_tokens * 100 if total_tokens > 0 else 0
+            doc_type = "Question" if i == len(passages)-1 else f"Doc{i}"
+            print(f"  {doc_type}: {tokens_in_recompute}/{total_tokens} tokens ({pct:.1f}%)")
+
+        print(f"{'='*80}\n")
         print(f"  sum(passages_len) (total): {sum(passages_len)}")
         print(f"  k_need_index length: {len(k_need_index)}")
         print(f"  k_need_index range: [{min(k_need_index)}, {max(k_need_index)}]")
