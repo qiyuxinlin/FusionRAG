@@ -2373,7 +2373,7 @@ def main(
             if rate == 1:
                 # Full recompute
                 inputs = torch.cat(iter_tokens).to(input_device).unsqueeze(0)
-                from ktransformers.util.utils import prefill_and_generate
+                from ktransformers.util.utils_v2 import prefill_and_generate
                 generated_tokens, _, _ = prefill_and_generate(
                     model, tokenizer, inputs, max_new_tokens=current_max_new_tokens, device=input_device, device_map=device_map
                 )
@@ -2862,11 +2862,11 @@ def collect_optimal_rate(
     使用早停策略：从低到高尝试 rates，一旦答对就停止搜索
     """
     import pickle
-    from ktransformers.util.utils import (
-        compute_draft_model_attention,
-        entropy_layer_selection,
-        prefill_and_generate,
-    )
+    # from ktransformers.util.utils import (
+    #     compute_draft_model_attention,
+    #     entropy_layer_selection,
+    #     prefill_and_generate,
+    # )
 
     # 打印配置
     print("="*80)

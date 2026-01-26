@@ -1,0 +1,401 @@
+/home/shm/anaconda3/envs/fusionrag/lib/python3.10/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Cache directories created under: /mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/2wikimqa
+  - KV cache: /mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/2wikimqa/kv_cache
+  - Preprocess cache:
+      Scope: global
+      TopK: 10
+      Recall: Unknown
+      Path: preprocess_kv_cache_global_topk10_online_lazy
+  - Results directory: nopreprocess
+      Full path: ./result/debug_rate_99/Qwen2.5-7B-Instruct/2wikimqa/nopreprocess
+Loading tokenizer and config from /mnt/data/models/Qwen2.5-7B-Instruct...
+Loading qwen model...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 183.16it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+
+Loading draft model from /mnt/data/models/Qwen2.5-3B-Instruct...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 75.10it/s]
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Qwen2ForCausalLM has generative capabilities, as `prepare_inputs_for_generation` is explicitly defined. However, it doesn't directly inherit from `GenerationMixin`. From 👉v4.50👈 onwards, `PreTrainedModel` will NOT inherit from `GenerationMixin`, and this model will lose the ability to call `generate` and other related functions.
+  - If you're using `trust_remote_code=True`, you can get rid of this warning by loading the model with an auto class. See https://huggingface.co/docs/transformers/en/model_doc/auto#auto-classes
+  - If you are the owner of the model architecture code, please modify your model class such that it inherits from `GenerationMixin` (after `PreTrainedModel`, otherwise you'll get an exception).
+  - If you are not the owner of the model architecture class, please contact the model code owner to update it.
+Draft model loaded: 36 layers
+Preparing data organized by main questions...
+Loading dataset from ./data/2wikimqa_reflect_optimized.json...
+Limited to first 1 main questions
+  Using corpus: ./data/2wiki_input.json
+Loading document pool from ./data/2wiki_input.json...
+  Loaded 3659 documents
+
+================================================================================
+Building document corpus with scope: global
+================================================================================
+  Main question 1: 14 unique documents, 2 sub-questions
+[WARNING] Rate=1 results file not found: ./result/debug_rate_99/Qwen2.5-7B-Instruct/2wikimqa/nopreprocess/rate_1_revert_rope.csv
+[WARNING] No rate=1 files found in ./result/debug_rate_99/Qwen2.5-7B-Instruct/2wikimqa/nopreprocess
+[WARNING] Continuing without rate=1 baseline comparison...
+
+================================================================================
+Answering sub-questions with on-demand KV cache generation
+================================================================================
+Global system prompt KV cache already exists (doc_-1_key.pt)
+
+================================================================================
+Main Question 1/1: What nationality is the director of film Borunbabur Bondhu?
+================================================================================
+  ONLINE_LAZY mode: Skipping document KV pre-generation (will generate on-demand)
+
+Sub-question 1/2
+Question: Who is the director of the film Borunbabur Bondhu?
+Ground Truth: Anik Dutta
+storage_time: 0.13989758491516113
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2502, Query len: 29 (from pos 2473)
+  Memory: ~4.4 MB per layer (vs 382.1 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  DraftModel 熵选层: 选择了 [25, 27, 24, 32]
+DraftModel 选择了 1664 个 tokens (从文本块2-n中选99.0%), 文本块1(64tokens)用prefix cache, threshold=0.5
+select_time: 0.330s
+
+================================================================================
+DEBUG: Token Selection Details (rate=0.99)
+================================================================================
+
+[1] Parameters:
+  system_len = 792
+  text_block1_len = 64
+  doc_len = 1681
+  selection_start = 792
+  rate = 0.99
+  target_tokens = 1664
+
+[2] k_need_index:
+  Length: 1664
+  Range: [792, 2472]
+  First 10: [792, 793, 794, 795, 796, 797, 798, 799, 800, 801]
+  Last 10: [2463, 2464, 2465, 2466, 2467, 2468, 2469, 2470, 2471, 2472]
+
+[3] Passages structure:
+  passages[0] (system    ): [    0,   792) =  792 tokens
+  passages[1] (doc1      ): [  792,   856) =   64 tokens
+  passages[2] (doc2      ): [  856,  1129) =  273 tokens
+  passages[3] (doc3      ): [ 1129,  1210) =   81 tokens
+  passages[4] (doc4      ): [ 1210,  1473) =  263 tokens
+  passages[5] (doc5      ): [ 1473,  1931) =  458 tokens
+  passages[6] (doc6      ): [ 1931,  2057) =  126 tokens
+  passages[7] (doc7      ): [ 2057,  2328) =  271 tokens
+  passages[8] (doc8      ): [ 2328,  2412) =   84 tokens
+  passages[9] (doc9      ): [ 2412,  2473) =   61 tokens
+  passages[10] (question  ): [ 2473,  2502) =   29 tokens
+
+[4] Per-document selection:
+  passages[0] (system    ):    0/ 792 (  0.0%)
+  passages[1] (doc1      ):   64/  64 (100.0%) ⚠️ 全选 (可能正常)
+  passages[2] (doc2      ):  273/ 273 (100.0%)
+  passages[3] (doc3      ):   81/  81 (100.0%)
+  passages[4] (doc4      ):  260/ 263 ( 98.9%)
+  passages[5] (doc5      ):  446/ 458 ( 97.4%)
+  passages[6] (doc6      ):  126/ 126 (100.0%)
+  passages[7] (doc7      ):  269/ 271 ( 99.3%)
+  passages[8] (doc8      ):   84/  84 (100.0%)
+  passages[9] (doc9      ):   61/  61 (100.0%)
+
+[5] Selection range check:
+  selection_start = 792
+  selection_start + doc_len = 2473
+  ❌ BUG: selection_start=792 包含文本块1 [792, 856)
+
+[6] Length comparison:
+  Total input tokens: 2502
+  k_need_index tokens: 1664
+  Not recomputed: 838 tokens (33.5%)
+
+================================================================================
+
+
+================================================================================
+RECOMPUTE TOKEN DETAILED DEBUG (rate=0.99)
+================================================================================
+
+[1] KV Cache State:
+  past_len (loaded in past_key_values): 2473
+  sum(passages_len): 2502
+  final_len (expected after recompute): 2502
+
+[2] Passages Structure:
+  Doc0: passages[0:792] (792 tokens) - Loaded
+  Doc1: passages[792:856] (64 tokens) - Loaded
+  Doc2: passages[856:1129] (273 tokens) - Loaded
+  Doc3: passages[1129:1210] (81 tokens) - Loaded
+  Doc4: passages[1210:1473] (263 tokens) - Loaded
+  Doc5: passages[1473:1931] (458 tokens) - Loaded
+  Doc6: passages[1931:2057] (126 tokens) - Loaded
+  Doc7: passages[2057:2328] (271 tokens) - Loaded
+  Doc8: passages[2328:2412] (84 tokens) - Loaded
+  Doc9: passages[2412:2473] (61 tokens) - Loaded
+  Question: passages[2473:2502] (29 tokens) - To append
+
+[4] Position Mapping (sample):
+  --- Doc0 ---
+  passages[0] -> kv[0]
+  passages[1] -> kv[1]
+  passages[2] -> kv[2]
+  passages[3] -> kv[3]
+  passages[4] -> kv[4]
+  passages[5] -> kv[5]
+  passages[6] -> kv[6]
+  passages[7] -> kv[7]
+  passages[8] -> kv[8]
+  passages[9] -> kv[9]
+  passages[10] -> kv[10]
+  passages[11] -> kv[11]
+  passages[12] -> kv[12]
+  passages[13] -> kv[13]
+  passages[14] -> kv[14]
+  passages[15] -> kv[15]
+  passages[16] -> kv[16]
+  passages[17] -> kv[17]
+  passages[18] -> kv[18]
+  passages[19] -> kv[19]
+
+[5] k_need_index Analysis (tokens to recompute):
+  Total tokens to recompute: 1693
+  k_need_index (passages positions): [792, 793, 794, 795, 796, 797, 798, 799, 800, 801]...[2492, 2493, 2494, 2495, 2496, 2497, 2498, 2499, 2500, 2501]
+
+[6] cache_position Analysis (where to write in past_key_values):
+  cache_position (kv positions): [792, 793, 794, 795, 796, 797, 798, 799, 800, 801]...[2492, 2493, 2494, 2495, 2496, 2497, 2498, 2499, 2500, 2501]
+  cache_position range: [792, 2501]
+  cache_position is monotonic: True
+
+[7] Token Distribution:
+  Doc0: 0/792 tokens (0.0%)
+  Doc1: 64/64 tokens (100.0%)
+  Doc2: 273/273 tokens (100.0%)
+  Doc3: 81/81 tokens (100.0%)
+  Doc4: 260/263 tokens (98.9%)
+  Doc5: 446/458 tokens (97.4%)
+  Doc6: 126/126 tokens (100.0%)
+  Doc7: 269/271 tokens (99.3%)
+  Doc8: 84/84 tokens (100.0%)
+  Doc9: 61/61 tokens (100.0%)
+  Question: 29/29 tokens (100.0%)
+================================================================================
+
+  sum(passages_len) (total): 2502
+  k_need_index length: 1693
+  k_need_index range: [792, 2501]
+  cache_position range: [792, 2501]
+  Question tokens: [2473, 2502) = 29 tokens
+  Question tokens in k_need_index: 29
+  Tokens from cached docs (importance-based): 1664
+  Total recompute tokens: 1693
+============================================================
+
+Predicted: Anik Dutta
+F1: 1.0000, EM: 1.0000
+
+Sub-question 2/2
+Question: What nationality is Anik Dutta?
+Ground Truth: Anik Dutta is Indian.
+storage_time: 0.07657337188720703
+
+============================================================
+Computing Draft Model Attention (Memory Optimized)
+============================================================
+  Layers: 36, Heads: 16
+  Seq len: 2256, Query len: 23 (from pos 2233)
+  Memory: ~3.2 MB per layer (vs 310.6 MB full)
+  Layer 0 done
+  Layer 8 done
+  Layer 16 done
+  Layer 24 done
+  Layer 32 done
+  Layer 35 done
+Draft model attention computed
+  DraftModel 熵选层: 选择了 [24, 23, 21, 19]
+DraftModel 选择了 1426 个 tokens (从文本块2-n中选99.0%), 文本块1(463tokens)用prefix cache, threshold=0.5
+select_time: 0.170s
+
+================================================================================
+DEBUG: Token Selection Details (rate=0.99)
+================================================================================
+
+[1] Parameters:
+  system_len = 792
+  text_block1_len = 463
+  doc_len = 1441
+  selection_start = 792
+  rate = 0.99
+  target_tokens = 1426
+
+[2] k_need_index:
+  Length: 1426
+  Range: [792, 2232]
+  First 10: [792, 793, 794, 795, 796, 797, 798, 799, 800, 801]
+  Last 10: [2223, 2224, 2225, 2226, 2227, 2228, 2229, 2230, 2231, 2232]
+
+[3] Passages structure:
+  passages[0] (system    ): [    0,   792) =  792 tokens
+  passages[1] (doc1      ): [  792,  1255) =  463 tokens
+  passages[2] (doc2      ): [ 1255,  1339) =   84 tokens
+  passages[3] (doc3      ): [ 1339,  1403) =   64 tokens
+  passages[4] (doc4      ): [ 1403,  1680) =  277 tokens
+  passages[5] (doc5      ): [ 1680,  1738) =   58 tokens
+  passages[6] (doc6      ): [ 1738,  1931) =  193 tokens
+  passages[7] (doc7      ): [ 1931,  2085) =  154 tokens
+  passages[8] (doc8      ): [ 2085,  2149) =   64 tokens
+  passages[9] (doc9      ): [ 2149,  2233) =   84 tokens
+  passages[10] (question  ): [ 2233,  2256) =   23 tokens
+
+[4] Per-document selection:
+  passages[0] (system    ):    0/ 792 (  0.0%)
+  passages[1] (doc1      ):  460/ 463 ( 99.4%) ❌ BUG! 部分选择 (应该用 prefix cache)
+  passages[2] (doc2      ):   84/  84 (100.0%)
+  passages[3] (doc3      ):   64/  64 (100.0%)
+  passages[4] (doc4      ):  275/ 277 ( 99.3%)
+  passages[5] (doc5      ):   58/  58 (100.0%)
+  passages[6] (doc6      ):  183/ 193 ( 94.8%)
+  passages[7] (doc7      ):  154/ 154 (100.0%)
+  passages[8] (doc8      ):   64/  64 (100.0%)
+  passages[9] (doc9      ):   84/  84 (100.0%)
+
+[5] Selection range check:
+  selection_start = 792
+  selection_start + doc_len = 2233
+  ❌ BUG: selection_start=792 包含文本块1 [792, 1255)
+
+[6] Length comparison:
+  Total input tokens: 2256
+  k_need_index tokens: 1426
+  Not recomputed: 830 tokens (36.8%)
+
+================================================================================
+
+
+================================================================================
+RECOMPUTE TOKEN DETAILED DEBUG (rate=0.99)
+================================================================================
+
+[1] KV Cache State:
+  past_len (loaded in past_key_values): 2233
+  sum(passages_len): 2256
+  final_len (expected after recompute): 2256
+
+[2] Passages Structure:
+  Doc0: passages[0:792] (792 tokens) - Loaded
+  Doc1: passages[792:1255] (463 tokens) - Loaded
+  Doc2: passages[1255:1339] (84 tokens) - Loaded
+  Doc3: passages[1339:1403] (64 tokens) - Loaded
+  Doc4: passages[1403:1680] (277 tokens) - Loaded
+  Doc5: passages[1680:1738] (58 tokens) - Loaded
+  Doc6: passages[1738:1931] (193 tokens) - Loaded
+  Doc7: passages[1931:2085] (154 tokens) - Loaded
+  Doc8: passages[2085:2149] (64 tokens) - Loaded
+  Doc9: passages[2149:2233] (84 tokens) - Loaded
+  Question: passages[2233:2256] (23 tokens) - To append
+
+[4] Position Mapping (sample):
+  --- Doc0 ---
+  passages[0] -> kv[0]
+  passages[1] -> kv[1]
+  passages[2] -> kv[2]
+  passages[3] -> kv[3]
+  passages[4] -> kv[4]
+  passages[5] -> kv[5]
+  passages[6] -> kv[6]
+  passages[7] -> kv[7]
+  passages[8] -> kv[8]
+  passages[9] -> kv[9]
+  passages[10] -> kv[10]
+  passages[11] -> kv[11]
+  passages[12] -> kv[12]
+  passages[13] -> kv[13]
+  passages[14] -> kv[14]
+  passages[15] -> kv[15]
+  passages[16] -> kv[16]
+  passages[17] -> kv[17]
+  passages[18] -> kv[18]
+  passages[19] -> kv[19]
+
+[5] k_need_index Analysis (tokens to recompute):
+  Total tokens to recompute: 1449
+  k_need_index (passages positions): [792, 793, 794, 795, 796, 797, 798, 799, 800, 801]...[2246, 2247, 2248, 2249, 2250, 2251, 2252, 2253, 2254, 2255]
+
+[6] cache_position Analysis (where to write in past_key_values):
+  cache_position (kv positions): [792, 793, 794, 795, 796, 797, 798, 799, 800, 801]...[2246, 2247, 2248, 2249, 2250, 2251, 2252, 2253, 2254, 2255]
+  cache_position range: [792, 2255]
+  cache_position is monotonic: True
+
+[7] Token Distribution:
+  Doc0: 0/792 tokens (0.0%)
+  Doc1: 460/463 tokens (99.4%)
+  Doc2: 84/84 tokens (100.0%)
+  Doc3: 64/64 tokens (100.0%)
+  Doc4: 275/277 tokens (99.3%)
+  Doc5: 58/58 tokens (100.0%)
+  Doc6: 183/193 tokens (94.8%)
+  Doc7: 154/154 tokens (100.0%)
+  Doc8: 64/64 tokens (100.0%)
+  Doc9: 84/84 tokens (100.0%)
+  Question: 23/23 tokens (100.0%)
+================================================================================
+
+  sum(passages_len) (total): 2256
+  k_need_index length: 1449
+  k_need_index range: [792, 2255]
+  cache_position range: [792, 2255]
+  Question tokens: [2233, 2256) = 23 tokens
+  Question tokens in k_need_index: 23
+  Tokens from cached docs (importance-based): 1426
+  Total recompute tokens: 1449
+============================================================
+
+Predicted: Bengali
+F1: 0.0000, EM: 0.0000
+
+⏳ Waiting for 2 judgment(s) to complete...
+Sub-Q 1: ✓ CORRECT - Who is the director of the film Borunbabur Bondhu?...
+Sub-Q 2: ✓ CORRECT - What nationality is Anik Dutta?...
+
+✓ Main question 1: ALL 2 sub-questions CORRECT
+
+================================================================================
+FINAL RESULTS
+================================================================================
+Main Questions: 1/1 (100.00%)
+Sub Questions: 2/2 (100.00%)
+Average F1: 0.5000
+Average EM: 0.5000
+================================================================================
+
+Results saved to ./result/debug_rate_99/Qwen2.5-7B-Instruct/2wikimqa/nopreprocess
