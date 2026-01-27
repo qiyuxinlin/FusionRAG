@@ -1452,21 +1452,26 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 # 并且直接在 past_key_values 空间选择，避免后续的位置映射
                 if missing_chunks:
                     # 有缺失文档：只拼接 system + 已加载文档
-                    # 注意：不添加 question，因为问题不参与文档选择
                     missing_idx_set = {idx for idx, _, _ in missing_chunks}
                     loaded_passages = [passages[0]]  # system
                     for idx in range(1, len(passages) - 1):  # 遍历所有文档
                         if idx not in missing_idx_set:
                             loaded_passages.append(passages[idx])  # 只添加已加载的
-                    # 此时 loaded_passages 的结构与 past_key_values 匹配：
-                    # - past_key_values: [system, loaded_doc1, loaded_doc2, ...]
-                    # - loaded_passages:   [system, loaded_doc1, loaded_doc2, ...]
-                    full_input = torch.cat(loaded_passages).unsqueeze(0).to(input_device)
                     print(f"  DraftModel 输入: 只包含已加载文档 (跳过 {len(missing_chunks)} 个缺失文档)")
-                    print(f"  输入结构与 past_key_values 对齐，选择结果直接是 cache_position")
                 else:
-                    # 无缺失文档：使用完整输入（不包含 question）
-                    full_input = torch.cat(passages[:-1]).unsqueeze(0).to(input_device)
+                    # 无缺失文档：所有文档都已加载
+                    loaded_passages = list(passages[:-1])  # system + 所有文档（不包括 question）
+                    print(f"  DraftModel 输入: 所有文档都已加载")
+
+                # 添加 question 用于计算 attention
+                # 此时 loaded_passages 的结构与 past_key_values 匹配：
+                # - past_key_values[0:past_len]: [system, loaded_doc1, loaded_doc2, ...]
+                # - loaded_passages:             [system, loaded_doc1, loaded_doc2, ...]
+                loaded_passages_with_q = list(loaded_passages) + [passages[-1]]  # 添加 question
+                full_input = torch.cat(loaded_passages_with_q).unsqueeze(0).to(input_device)
+
+                # 计算 query_start（问题在 full_input 中的位置）
+                query_start_in_full = full_input.shape[1] - passages[-1].shape[0]
 
                 # 如果使用固定层且层号在前 50%，需要额外计算该层的 attention
                 extra_layers = None
@@ -1476,27 +1481,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                         extra_layers = [draft_fixed_layer]
                         print(f"  固定层 {draft_fixed_layer} 在前半部分，额外计算其 attention")
 
-                # query_start 需要调整为在 full_input 中的位置
-                # full_input 只有 system + loaded_docs，没有 question
-                # 所以问题应该在 full_input 末尾（但这里不传入问题，只需要知道相对位置）
-                # 实际上，draft model 需要 question 来计算 attention，但 question 不参与文档选择
-                # 这里我们传入完整的 passages（包括 question），但只在文档区间选择
-                # 修正：我们需要传入 question 才能计算 attention，所以还是需要包含 question
-                # 但是为了让选择结果直接是 cache_position，我们需要调整 selection_start
-
-                # 让我重新思考：为了简化，我们还是传入 question，但：
-                # 1. full_input = [system, loaded_docs, question]
-                # 2. selection_start = system_len（从第一个文档开始选择）
-                # 3. 选择结果映射：compressed_pos -> cache_pos
-
-                # 还是保持之前的方案吧，但是不需要 compressed_to_full，直接映射到 cache_position
-
-                # 重新构建输入：包含 question（用于计算 attention）
-                loaded_passages_with_q = list(loaded_passages) + [passages[-1]]  # 添加 question
-                full_input = torch.cat(loaded_passages_with_q).unsqueeze(0).to(input_device)
-
-                # 计算 query_start（问题在 full_input 中的位置）
-                query_start_in_full = full_input.shape[1] - passages[-1].shape[0]
+                print(f"  输入结构与 past_key_values 对齐，选择结果直接是 cache_position")
 
                 draft_attention = compute_draft_model_attention(draft_model, full_input, query_start_in_full, input_device, extra_layers=extra_layers)
                 torch.cuda.empty_cache()
@@ -1925,7 +1910,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     print(f"  {'-'*20}")
     print(f"  {'Total':20s}: {total_recompute:5d} / {total_tokens:5d} tokens ({overall_coverage:6.2f}%)")
     print(f"{'='*80}\n")
-    pdb.set_trace()
+    # pdb.set_trace()
     
     # ========== DETAILED DEBUG: Compare rate=0.0 vs rate>0 ==========
     debug = False
