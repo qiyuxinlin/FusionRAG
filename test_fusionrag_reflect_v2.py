@@ -1386,6 +1386,9 @@ def main(
     # Long decode 模式参数
     long_decode=False,  # 是否启用长 decode 模式（要求输出答案和支撑材料）
     long_decode_max_tokens=1000,  # long_decode 模式下的最大生成 token 数
+    # K-Repeat 模式参数：对 missing_chunks 重复 k 次，只保存最后一次的 KV
+    enable_k_repeat=False,  # 是否启用 k-repeat 模式
+    k_repeat_count=1,  # 重复次数 (默认 1 表示不重复)
 ):
     """
     Main function for FusionRAG testing on result_reflect.json
@@ -1857,7 +1860,10 @@ def main(
                     layerwise_decay=layerwise_decay,
                     layerwise_final_rate=layerwise_final_rate,
                     # 文本块1用原始KV cache (prefix cache hit)
-                    original_kv_path=save_path if preprocess else None
+                    original_kv_path=save_path if preprocess else None,
+                    # K-Repeat 模式参数
+                    enable_k_repeat=enable_k_repeat,
+                    k_repeat_count=k_repeat_count,
                 )
 
                 # 收集 OracleDynamic/OracleAdaptive/DynamicDraftModel/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
@@ -2484,7 +2490,10 @@ def collect_optimal_rate(
                             draft_layer_selection='entropy',
                             preprocess=preprocess,
                             device=input_device, device_map=device_map,
-                            original_kv_path=save_path
+                            original_kv_path=save_path,
+                            # K-Repeat 模式参数
+                            enable_k_repeat=enable_k_repeat,
+                            k_repeat_count=k_repeat_count,
                         )
 
                     answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True).strip()
@@ -2769,6 +2778,12 @@ if __name__ == '__main__':
     parser.add_argument('--long_decode_max_tokens', type=int, default=1000,
                         help='Max tokens for long decode mode')
 
+    # K-Repeat 模式参数：对 missing_chunks 重复 k 次，只保存最后一次的 KV
+    parser.add_argument('--enable_k_repeat', type=lambda x: x.lower() == 'true', default=False,
+                        help='Enable k-repeat mode for missing chunks (True/False)')
+    parser.add_argument('--k_repeat_count', type=int, default=1,
+                        help='Number of times to repeat missing chunks (default: 1, no repeat)')
+
     # GPU 配置
     parser.add_argument('--device', type=str, default='cuda:0',
                         help='Device to use for single GPU')
@@ -2846,6 +2861,8 @@ if __name__ == '__main__':
         rerank_multiplier=args.rerank_multiplier,
         long_decode=args.long_decode,
         long_decode_max_tokens=args.long_decode_max_tokens,
+        enable_k_repeat=args.enable_k_repeat,
+        k_repeat_count=args.k_repeat_count,
     )
     # for rate in [0.2]:
     #     main(

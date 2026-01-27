@@ -1,0 +1,17 @@
+# Example text file for KV Cache PCA visualization
+# Format: One text per line, or use "Label: Text" format
+
+# AI-related paragraph
+AI_Tech: Artificial intelligence has revolutionized numerous fields including healthcare, finance, and transportation. Machine learning algorithms can now perform tasks that once required human intelligence, such as image recognition, natural language understanding, and complex decision-making. With the rapid growth of computational power and the availability of large-scale data, AI systems continue to improve in accuracy and efficiency. As a result, artificial intelligence is increasingly integrated into everyday applications, raising both new opportunities and important ethical considerations.
+
+# Weather paragraph (unrelated to AI)
+Weather: The weather today is sunny with a temperature of 25 degrees Celsius, providing comfortable conditions for outdoor activities. There is a light breeze coming from the north, which helps maintain a pleasant atmosphere throughout the day. According to the forecast, clear skies are expected to continue for the rest of the week, with stable temperatures and no significant rainfall anticipated.
+
+# Medicine paragraph
+Medicine: Modern medicine has made significant advances in treating diseases through the use of targeted therapies and personalized medicine approaches that consider individual genetic variations. These innovations allow doctors to design treatment plans that are more effective and have fewer side effects compared to traditional methods. Advances in medical imaging, biotechnology, and data analysis have further accelerated progress, improving early diagnosis and long-term patient outcomes.
+
+# Sports paragraph (unrelated to medicine)
+Sports: Football is one of the most popular sports in the world, with millions of fans watching matches every week across different leagues and competitions. Its simple rules and competitive nature make it accessible to people of all ages and cultures. The World Cup, held every four years, is the most-watched sporting event globally and serves as a major cultural and social phenomenon that unites audiences worldwide.
+
+# Programming paragraph
+Programming: Python is a versatile programming language widely used in data science, web development, and automation. Its simple and readable syntax makes it accessible for beginners while remaining powerful enough for experts to build complex systems. Supported by a rich ecosystem of libraries and frameworks, Python enables rapid development and prototyping, making it one of the most popular programming languages in both academia and industry.

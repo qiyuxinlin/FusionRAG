@@ -1011,7 +1011,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
                           layerwise_final_rate=0.05,  # 最后一层的 rate
                           # 文本块1用原始KV cache (prefix cache)
-                          original_kv_path=None):  # 原始KV cache路径，用于文本块1 (doc_id=first document)
+                          original_kv_path=None,  # 原始KV cache路径，用于文本块1 (doc_id=first document)
+                          # K-Repeat 模式参数：对 missing_chunks 重复 k 次，只保存最后一次的 KV
+                          enable_k_repeat=False,  # 是否启用 k-repeat 模式
+                          k_repeat_count=1):  # 重复次数 (默认 1 表示不重复)
     import os
     import pdb
 
@@ -1779,7 +1782,63 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # 排序以保持顺序一致性
         k_need_index = sorted(k_need_index)
-        
+
+    # ========== 6.5 K-Repeat 模式：扩展 passages（对 missing_chunks 重复 k 次）==========
+    # 记录原始 passages 信息用于后续恢复
+    original_passages = list(passages)  # 保存原始 passages 引用
+    original_passages_len = list(passages_len)  # 保存原始长度
+    original_passages_len_cumsum = passages_len_cumsum  # 保存原始累计位置
+
+    # repetition_info: List[Tuple], 记录每个重复块的信息
+    # 结构: [(repetition_index, original_idx, doc_id), ...]
+    repetition_info = []
+
+    if enable_k_repeat and k_repeat_count > 1 and missing_chunks:
+        print(f"    🔄 K-Repeat mode enabled: repeating missing chunks {k_repeat_count} times")
+
+        # 创建扩展后的 passages 列表
+        expanded_passages = list(passages[:-1])  # system + 所有文档（不包括 question）
+
+        # 记录每个文档在 expanded_passages 中的索引与原始 passages 的对应关系
+        # original_to_expanded_map: Dict[int, List[int]], 原始索引 -> 扩展后的索引列表
+        original_to_expanded_map = {i: [i] for i in range(len(passages) - 1)}
+
+        # 对每个 missing chunk，添加 k_repeat_count-1 个副本
+        for repeat_idx in range(1, k_repeat_count):
+            print(f"      Adding repetition {repeat_idx}/{k_repeat_count-1}...")
+            for orig_idx, doc_id, passage in missing_chunks:
+                # 在原始 passages 中找到这个文档的位置
+                # 这个文档在 expanded_passages 中已经有了第一个副本（在 orig_idx 位置）
+                # 现在添加额外的副本
+                expanded_idx = len(expanded_passages)
+                expanded_passages.append(passage)  # 添加副本
+
+                # 记录重复信息：(repetition_index, original_idx, doc_id)
+                repetition_info.append((repeat_idx, orig_idx, doc_id))
+
+                # 更新映射关系
+                if orig_idx not in original_to_expanded_map:
+                    original_to_expanded_map[orig_idx] = []
+                original_to_expanded_map[orig_idx].append(expanded_idx)
+
+                print(f"        Doc {doc_id}: repetition {repeat_idx} -> expanded index {expanded_idx}")
+
+        # 添加 question
+        expanded_passages.append(passages[-1])
+
+        # 更新 passages 为扩展后的版本
+        passages = expanded_passages
+
+        # 更新 passages_len 和 passages_len_cumsum
+        passages_len = [p.shape[0] for p in passages]
+        passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages))]
+
+        # 更新 final_len
+        final_len = sum(passages_len)
+
+        print(f"      Expanded passages: {len(original_passages)} -> {len(passages)}")
+        print(f"      Total tokens: {sum(original_passages_len)} -> {final_len}")
+
     # ========== 7. 准备重计算输入 ==========
     # 注意: past_len 保持为实际加载的长度, 不要重置!
     # 错误做法: past_len = sum(passages_len)  # 这是离线模式的做法
@@ -1812,6 +1871,105 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         use_sparse_attention = False
     else:
         use_sparse_attention = False
+
+    # ========== 6.6 K-Repeat 模式：更新 k_need_index 以包含所有重复位置 ==========
+    if enable_k_repeat and k_repeat_count > 1 and missing_chunks:
+        print(f"    🔄 Updating k_need_index to include all {k_repeat_count} repetitions...")
+
+        # 保存原始的 k_need_index
+        original_k_need_index = list(k_need_index)
+        new_k_need_index = []
+
+        # 创建一个辅助函数：检查位置是否属于原始 missing_chunks
+        def is_in_original_missing_chunk(pos_in_passages):
+            """检查位置是否属于原始 missing_chunks，返回 (is_missing, doc_idx, local_pos)"""
+            for idx, doc_id, passage in missing_chunks:
+                chunk_start = original_passages_len_cumsum[idx-1] if idx > 0 else 0
+                chunk_end = original_passages_len_cumsum[idx]
+                if chunk_start <= pos_in_passages < chunk_end:
+                    return True, idx, pos_in_passages - chunk_start
+            return False, None, None
+
+        # 对原始 k_need_index 中的每个位置：
+        # - 如果属于 missing chunk，添加 k_repeat_count 次（对应 k 次重复）
+        # - 否则，只添加 1 次
+        for pos in original_k_need_index:
+            is_missing, doc_idx, local_pos = is_in_original_missing_chunk(pos)
+
+            if is_missing:
+                # 这是一个 missing chunk 中的位置
+                # 需要找到它在 expanded passages 中的所有对应位置并添加
+                # original_passages: [system, doc1, doc2(missing), doc3, question]
+                # expanded_passages: [system, doc1, doc2_0, doc2_1, doc2_2, doc3, question]
+                # doc2 在 original 中的索引是 doc_idx
+                # 在 expanded 中的索引是 doc_idx + repeat_index（对于 repeat_index=0,1,2）
+
+                for repeat_idx in range(k_repeat_count):
+                    # 计算在 expanded passages 中的对应位置
+                    # 对于 repeat_idx=0: 位置就是 doc_idx（与 original 相同）
+                    # 对于 repeat_idx>0: 需要加上之前所有重复块的偏移
+
+                    # 找到这个 missing chunk 在 original passages 中的起始位置
+                    chunk_start_original = original_passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+
+                    # 在 expanded passages 中，对于 repeat_idx，这个 chunk 的起始位置是：
+                    # - 前 doc_idx 个非重复文档的长度
+                    # - 加上前面所有重复块的总长度
+                    # 这比较复杂，简化方法：
+                    # 遍历 expanded_passages，找到所有对应的 chunk
+
+                    # 简化方法：直接计算
+                    # 前 doc_idx 个文档（不含重复）的长度
+                    prefix_len = sum([original_passages[i].shape[0] for i in range(doc_idx)])
+
+                    # 对于 repeat_idx，还需要加上 (repeat_idx * 所有 missing chunks 的总长度)
+                    all_missing_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                    repeat_offset = repeat_idx * all_missing_len
+
+                    # 最终位置
+                    expanded_pos = prefix_len + repeat_offset + local_pos
+                    new_k_need_index.append(expanded_pos)
+            else:
+                # 不是 missing chunk，保持原位置
+                # 但需要检查位置是否因前面的重复而偏移
+                # 如果这个位置在 missing chunks 之后，会有偏移
+
+                # 计算这个位置之前的所有 missing chunks 长度
+                # 只有当 pos > 第一个 missing chunk 的起始位置时才有偏移
+                first_missing_start = min([
+                    original_passages_len_cumsum[idx-1] if idx > 0 else 0
+                    for idx, _, _ in missing_chunks
+                ])
+
+                if pos > first_missing_start:
+                    # 这个位置在某个 missing chunk 之后
+                    # 需要加上 (k_repeat_count - 1) * 所有 missing chunks 的总长度
+                    all_missing_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+                    offset = (k_repeat_count - 1) * all_missing_len
+                    new_k_need_index.append(pos + offset)
+                else:
+                    # 这个位置在所有 missing chunks 之前，无偏移
+                    new_k_need_index.append(pos)
+
+        # 问题部分的位置也需要偏移
+        question_start_original = original_passages_len_cumsum[-2]  # question 在 original 中的起始位置
+        question_len = original_passages[-1].shape[0]
+
+        # 添加问题位置（所有 k_repeat_count 次的问题都是一样的，只添加一次）
+        # 但问题位置需要因前面的重复而偏移
+        all_missing_len = sum([chunk[2].shape[0] for chunk in missing_chunks])
+        question_offset = (k_repeat_count - 1) * all_missing_len
+
+        for q_pos in range(question_start_original, question_start_original + question_len):
+            new_k_need_index.append(q_pos + question_offset)
+
+        # 去重并排序（某些位置可能被多次添加）
+        k_need_index = sorted(list(set(new_k_need_index)))
+
+        print(f"      Updated k_need_index: {len(original_k_need_index)} -> {len(k_need_index)} positions")
+
+        # 更新 seq_length
+        seq_length = len(k_need_index)
 
     # ========== 7.1 构建重计算输入 ==========
     # reprocess_inputs: Tensor[1, seq_length], 需要重计算的 tokens
@@ -2072,6 +2230,23 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 chunk_start_in_kv = passages_to_kv_position[chunk_start_in_passages]
                 # chunk_end_in_kv: int, 文档在 past_key_values 中的结束位置 (+1 因为切片是左闭右开)
                 chunk_end_in_kv = passages_to_kv_position[chunk_end_in_passages - 1] + 1  # +1 because end is exclusive
+
+                # ========== K-Repeat 模式：只保存最后一次重复的 KV ==========
+                if enable_k_repeat and k_repeat_count > 1:
+                    # 在 k-repeat 模式下，passages 已扩展，同一文档有 k_repeat_count 个副本
+                    # passages_to_kv_position 返回的是第一个副本的位置
+                    # 我们需要计算并保存最后一个副本的 KV
+                    #
+                    # 示例：k_repeat_count=3, chunk_len=1024
+                    #   第一次重复: [past_len, past_len+1024)
+                    #   第二次重复: [past_len+1024, past_len+2048)
+                    #   第三次重复: [past_len+2048, past_len+3072)  <- 只保存这个
+                    #
+                    # 偏移量计算: (k_repeat_count - 1) * chunk_len
+                    last_repetition_offset = (k_repeat_count - 1) * chunk_len
+                    chunk_start_in_kv += last_repetition_offset
+                    chunk_end_in_kv += last_repetition_offset
+                    print(f"      🔄 K-Repeat mode: saving last repetition (offset={last_repetition_offset}, cache_pos=[{chunk_start_in_kv}, {chunk_end_in_kv}))")
 
                 # ========== 9.2 提取所有层的 KV cache ==========
                 num_layers = len(past_key_values.key_cache)

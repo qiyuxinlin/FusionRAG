@@ -14,11 +14,11 @@
 #####################################################################
 
 # 基础配置
-GPUS="6"
+GPUS="3"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/online_lazy_sweep_DraftModel_v2"   # 结果保存目录
-CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy"                         # KV cache 保存路径
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/online_lazy_sweep_DraftModel_repeat_10"   # 结果保存目录
+CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy_repeat410"                         # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
@@ -52,6 +52,10 @@ MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"�
 USE_ENTROPY_SELECTION="true"
 ENTROPY_TOP_K="4"
 DRAFT_LAYER_SELECTION="entropy"
+
+# K-Repeat 模式参数：对 missing_chunks 重复 k 次，只保存最后一次的 KV
+ENABLE_K_REPEAT="true"   # 是否启用 k-repeat 模式
+K_REPEAT_COUNT="10"        # 重复次数 (默认 1 表示不重复)
 
 # 是否清除之前的缓存（可选）
 CLEAR_CACHE_BEFORE_START="true"
@@ -137,6 +141,12 @@ for RATE in "${RATE_LIST[@]}"; do
     # 添加可选参数
     if [ ! -z "${MAX_SAMPLES}" ]; then
         PYTHON_ARGS+=("--max_samples" "${MAX_SAMPLES}")
+    fi
+
+    # K-Repeat 模式参数
+    if [ "${ENABLE_K_REPEAT}" == "true" ]; then
+        PYTHON_ARGS+=("--enable_k_repeat" "true")
+        PYTHON_ARGS+=("--k_repeat_count" "${K_REPEAT_COUNT}")
     fi
 
     # 运行测试
