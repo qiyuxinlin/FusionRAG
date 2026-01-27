@@ -1,0 +1,61 @@
+快速参考：为每个文本单独设置Token范围
+
+==========================================
+重要：逗号分隔的值必须用引号括起来！
+==========================================
+
+✓ 正确写法：
+bash run_text_kv_pca.sh --text_file example_texts.txt \
+    --start_token "0,90" \
+    --end_token "-1,130"
+
+或使用单引号：
+bash run_text_kv_pca.sh --text_file example_texts.txt \
+    --start_token '0,90' \
+    --end_token '-1,130'
+
+==========================================
+实际示例
+==========================================
+
+示例1：第一个文本全部，第二个文本只看90-130
+bash run_text_kv_pca.sh --text_file example_texts.txt \
+    --start_token "0,90" \
+    --end_token "-1,130" \
+    --layers 0
+
+预期输出：
+  Token ranges:
+    AI_Tech: [0, end)
+    AI_Tech2: [90, 130)
+  - AI_Tech (90t)
+  - AI_Tech2 (40t)
+
+示例2：所有文本使用相同范围（不需要引号）
+bash run_text_kv_pca.sh --text_file example_texts.txt \
+    --start_token 90 \
+    --end_token -1 \
+    --layers 0
+
+示例3：3个文本，每个显示不同部分
+bash run_text_kv_pca.sh --text_file example_texts.txt \
+    --start_token "0,50,100" \
+    --end_token "100,200,-1" \
+    --layers 0
+
+==========================================
+规则总结
+==========================================
+
+1. 单个值应用到所有文本 → 不需要引号
+   --start_token 90
+
+2. 逗号分隔多个值 → 必须用引号
+   --start_token "0,90,100"
+
+3. 值的数量必须等于文本数量
+   2个文本 → "0,90"  ✓
+   2个文本 → "0,90,100"  ✗
+
+4. 特殊值：-1 表示到结尾
+   --end_token "-1,130"  # 第1个到结尾，第2个到130

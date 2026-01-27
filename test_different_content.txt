@@ -1,0 +1,4 @@
+# Test file: Different content texts
+AI_Topic: Artificial intelligence has revolutionized numerous fields including healthcare, finance, and transportation. Machine learning algorithms can now perform tasks that once required human intelligence, such as image recognition, natural language understanding, and complex decision-making.
+
+Weather_Topic: The weather today is sunny with a temperature of 25 degrees Celsius. There is a light breeze coming from the north, and the forecast predicts clear skies for the rest of the week with stable temperatures and no significant rainfall anticipated.

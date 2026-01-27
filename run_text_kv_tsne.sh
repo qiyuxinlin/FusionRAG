@@ -83,6 +83,16 @@ while [[ $# -gt 0 ]]; do
             PASSED_ARGS+=("$1" "$2")
             shift 2
             ;;
+        --start_token)
+            # Use = syntax to avoid argparse treating negative values as options
+            PASSED_ARGS+=("${1}=${2}")
+            shift 2
+            ;;
+        --end_token)
+            # Use = syntax to avoid argparse treating negative values as options
+            PASSED_ARGS+=("${1}=${2}")
+            shift 2
+            ;;
         --output_dir)
             OUTPUT_DIR=$2
             PASSED_ARGS+=("$1" "$2")
@@ -116,6 +126,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --layers L1 L2 L3 ...           指定要分析的层（默认：均匀分布的6层）"
             echo "  --all_layers                    分析所有层（覆盖 --layers）"
             echo "  --max_tokens NUM                每层最大token数（默认：50000）"
+            echo "  --start_token \"VALS\"            从第N个token开始（逗号分隔需引号，如 \"0,90\"，默认：0）"
+            echo "  --end_token \"VALS\"              到第N个token结束（逗号分隔需引号，如 \"-1,130\"，默认：-1）"
             echo "  --perplexity NUM                t-SNE perplexity（默认：30，推荐范围：5-50）"
             echo "  --output_dir DIR                输出目录（默认：./text_kv_tsne_analysis）"
             echo "  --device DEVICE                 设备（默认：cuda）"
@@ -127,11 +139,16 @@ while [[ $# -gt 0 ]]; do
             echo "  # 对比两个段落"
             echo '  bash run_text_kv_tsne.sh --texts "段落一内容" "段落二内容"'
             echo ""
+            echo "  # 从第90个token开始（所有文本）"
+            echo '  bash run_text_kv_tsne.sh --text_file texts.txt --start_token 90'
+            echo ""
+            echo "  # 为每个文本单独设置范围（逗号分隔，需引号）"
+            echo '  bash run_text_kv_tsne.sh --text_file texts.txt --start_token "0,90" --end_token "-1,130"'
+            echo "    # 文本1: [0, end) 全部"
+            echo "    # 文本2: [90, 130) 只看40个token"
+            echo ""
             echo "  # 从文件读取，分析所有层"
             echo '  bash run_text_kv_tsne.sh --text_file texts.txt --all_layers'
-            echo ""
-            echo "  # 指定层和perplexity"
-            echo '  bash run_text_kv_tsne.sh --text_file texts.txt --layers 0 5 10 15 20 27 --perplexity 30'
             echo ""
             echo "  # 指定标签"
             echo '  bash run_text_kv_tsne.sh --texts "Text 1" "Text 2" --labels "Baseline" "Method A"'
@@ -155,17 +172,21 @@ if [[ -z "$TEXTS_SPECIFIED" ]] && [[ -z "$TEXT_FILE_SPECIFIED" ]]; then
     exit 1
 fi
 
-# 构建命令
-CMD="${PYTHON_PATH} ${SCRIPT_PATH} \
-    --model_path \"${MODEL_PATH}\" \
-    --model_name \"${MODEL_NAME}\" \
-    --model_type \"${MODEL_TYPE}\" \
-    --device \"${DEVICE}\" \
-    --torch_dtype \"${TORCH_DTYPE}\" \
-    --max_tokens ${MAX_TOKENS} \
-    --perplexity ${PERPLEXITY} \
-    --output_dir \"${OUTPUT_DIR}\" \
-    ${PASSED_ARGS[*]}"
+# 构建命令（使用数组避免引号问题）
+CMD_ARRAY=("${PYTHON_PATH}" "${SCRIPT_PATH}")
+CMD_ARRAY+=("--model_path" "${MODEL_PATH}")
+CMD_ARRAY+=("--model_name" "${MODEL_NAME}")
+CMD_ARRAY+=("--model_type" "${MODEL_TYPE}")
+CMD_ARRAY+=("--device" "${DEVICE}")
+CMD_ARRAY+=("--torch_dtype" "${TORCH_DTYPE}")
+CMD_ARRAY+=("--max_tokens" "${MAX_TOKENS}")
+CMD_ARRAY+=("--perplexity" "${PERPLEXITY}")
+CMD_ARRAY+=("--output_dir" "${OUTPUT_DIR}")
+
+# 添加PASSED_ARGS中的所有参数
+for arg in "${PASSED_ARGS[@]}"; do
+    CMD_ARRAY+=("${arg}")
+done
 
 # 显示配置
 echo "=========================================="
@@ -183,8 +204,8 @@ echo ""
 echo "⚠️  提示: t-SNE比PCA慢，每个样本每层需要1-2秒"
 echo ""
 
-# 运行分析
-eval ${CMD}
+# 运行分析（使用数组，避免引号问题）
+"${CMD_ARRAY[@]}"
 
 EXIT_CODE=$?
 

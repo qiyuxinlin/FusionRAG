@@ -34,7 +34,7 @@ from sklearn.decomposition import PCA
 import argparse
 import os
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union, Union
 import json
 from tqdm import tqdm
 
@@ -149,7 +149,8 @@ class TextKVCacheAnalyzer:
         return key_cache, value_cache
 
     def extract_layer_features(self, kv_cache: torch.Tensor, layer_idx: int,
-                               max_tokens: int = None) -> np.ndarray:
+                               max_tokens: int = None, start_token: int = 0,
+                               end_token: int = -1) -> Tuple[np.ndarray, int]:
         """
         Extract features from a specific layer for PCA
 
@@ -157,11 +158,20 @@ class TextKVCacheAnalyzer:
             kv_cache: [num_layers, num_kv_heads, seq_len, head_dim]
             layer_idx: Layer index
             max_tokens: Maximum tokens to sample (None = all tokens)
+            start_token: Start from this token index (default: 0)
+            end_token: End at this token index (-1 for end of text)
 
         Returns:
             features: [seq_len, num_kv_heads * head_dim] or [max_tokens, num_kv_heads * head_dim]
+            actual_count: Actual number of tokens used
         """
         layer_cache = kv_cache[layer_idx]  # [num_kv_heads, seq_len, head_dim]
+
+        # Slice from start_token to end_token
+        if end_token == -1:
+            layer_cache = layer_cache[:, start_token:, :]  # [num_kv_heads, seq_len-start_token, head_dim]
+        else:
+            layer_cache = layer_cache[:, start_token:end_token, :]  # [num_kv_heads, end-start, head_dim]
 
         # Transpose to [seq_len, num_kv_heads, head_dim]
         layer_cache = layer_cache.permute(1, 0, 2)  # [seq_len, num_kv_heads, head_dim]
@@ -174,13 +184,16 @@ class TextKVCacheAnalyzer:
         if max_tokens is not None and seq_len > max_tokens:
             indices = torch.linspace(0, seq_len-1, max_tokens, device=layer_cache.device).long()
             layer_cache = layer_cache[indices]
+            actual_count = max_tokens
+        else:
+            actual_count = seq_len
 
         # Move to CPU and convert to numpy
         layer_cache = layer_cache.cpu()
         if layer_cache.dtype == torch.bfloat16:
             layer_cache = layer_cache.float()
 
-        return layer_cache.numpy()
+        return layer_cache.numpy(), actual_count
 
     def compute_pca(self, features: np.ndarray, n_components: int = 2) -> Tuple[np.ndarray, PCA]:
         """Compute PCA on features"""
@@ -189,7 +202,9 @@ class TextKVCacheAnalyzer:
         return transformed, pca
 
     def analyze_texts(self, texts: List[str], text_labels: List[str] = None,
-                     selected_layers: List[int] = None, max_tokens: int = 500) -> Dict:
+                     selected_layers: List[int] = None, max_tokens: int = 500,
+                     start_token: Union[int, List[int]] = 0,
+                     end_token: Union[int, List[int]] = -1) -> Dict:
         """
         Analyze KV cache for multiple text passages
 
@@ -198,6 +213,8 @@ class TextKVCacheAnalyzer:
             text_labels: Optional labels for each text passage
             selected_layers: Layers to analyze (None = evenly spaced layers)
             max_tokens: Maximum tokens per layer
+            start_token: Start token index (int for all, or list of ints for each text)
+            end_token: End token index (int for all, or list of ints for each text)
 
         Returns:
             results dictionary with PCA analysis for all texts
@@ -208,6 +225,17 @@ class TextKVCacheAnalyzer:
         if len(text_labels) != len(texts):
             raise ValueError("Number of labels must match number of texts")
 
+        # Normalize start_token and end_token to lists
+        if isinstance(start_token, int):
+            start_token = [start_token] * len(texts)
+        if isinstance(end_token, int):
+            end_token = [end_token] * len(texts)
+
+        if len(start_token) != len(texts):
+            raise ValueError(f"start_token length ({len(start_token)}) must match number of texts ({len(texts)})")
+        if len(end_token) != len(texts):
+            raise ValueError(f"end_token length ({len(end_token)}) must match number of texts ({len(texts)})")
+
         # Select layers
         if selected_layers is None:
             selected_layers = [0, self.num_layers // 5, 2 * self.num_layers // 5,
@@ -216,6 +244,10 @@ class TextKVCacheAnalyzer:
         print(f"\n{'='*80}")
         print(f"Analyzing {len(texts)} text passages")
         print(f"Layers: {selected_layers}")
+        print("Token ranges:")
+        for i, label in enumerate(text_labels):
+            end_str = str(end_token[i]) if end_token[i] > 0 else 'end'
+            print(f"  {label}: [{start_token[i]}, {end_str})")
         print(f"{'='*80}\n")
 
         # Generate KV cache for all texts
@@ -237,6 +269,7 @@ class TextKVCacheAnalyzer:
             'texts': text_labels,
             'layers': {},
             'num_texts': len(texts),
+            'token_counts': {},  # Will store actual token counts per text
         }
 
         # Analyze each layer
@@ -246,12 +279,22 @@ class TextKVCacheAnalyzer:
             # Extract features for all texts at this layer
             layer_key_features = []
             layer_val_features = []
+            token_counts = []
 
             for i in range(len(texts)):
-                key_feat = self.extract_layer_features(all_key_caches[i], layer_idx, max_tokens)
-                val_feat = self.extract_layer_features(all_value_caches[i], layer_idx, max_tokens)
+                key_feat, key_count = self.extract_layer_features(
+                    all_key_caches[i], layer_idx, max_tokens, start_token[i], end_token[i]
+                )
+                val_feat, val_count = self.extract_layer_features(
+                    all_value_caches[i], layer_idx, max_tokens, start_token[i], end_token[i]
+                )
                 layer_key_features.append(key_feat)
                 layer_val_features.append(val_feat)
+                token_counts.append(key_count)
+                print(f"  {text_labels[i]}: {key_count} tokens")
+
+            # Save token counts for this layer
+            results['token_counts'][layer_idx] = token_counts
 
             # Combine all features for joint PCA
             all_key_features = np.vstack(layer_key_features)
@@ -262,13 +305,14 @@ class TextKVCacheAnalyzer:
             val_pca, val_pca_model = self.compute_pca(all_val_features, n_components=2)
 
             # Split back to individual texts
-            n_samples = layer_key_features[0].shape[0]
             key_pca_split = []
             val_pca_split = []
 
             start_idx = 0
             for i in range(len(texts)):
-                end_idx = start_idx + n_samples
+                # Use actual length of each text's features
+                n_samples_this_text = layer_key_features[i].shape[0]
+                end_idx = start_idx + n_samples_this_text
                 key_pca_split.append(key_pca[start_idx:end_idx])
                 val_pca_split.append(val_pca[start_idx:end_idx])
                 start_idx = end_idx
@@ -335,13 +379,15 @@ class TextKVCacheAnalyzer:
             col = idx % n_cols
 
             layer_data = results['layers'][layer_idx]
+            token_counts = results['token_counts'][layer_idx]
 
             # Plot Keys
             ax_key = axes_key[row, col]
             for i, label in enumerate(text_labels):
                 pca_data = layer_data['key_pca'][i]
+                label_with_count = f"{label} ({token_counts[i]}t)"
                 ax_key.scatter(pca_data[:, 0], pca_data[:, 1],
-                              alpha=0.5, s=20, c=colors[i], label=label)
+                              alpha=0.5, s=20, c=colors[i], label=label_with_count)
 
             var_exp = layer_data['key_variance_explained']
             ax_key.set_xlabel(f'PC1 ({var_exp[0]:.2%})')
@@ -354,8 +400,9 @@ class TextKVCacheAnalyzer:
             ax_val = axes_val[row, col]
             for i, label in enumerate(text_labels):
                 pca_data = layer_data['val_pca'][i]
+                label_with_count = f"{label} ({token_counts[i]}t)"
                 ax_val.scatter(pca_data[:, 0], pca_data[:, 1],
-                              alpha=0.5, s=20, c=colors[i], label=label)
+                              alpha=0.5, s=20, c=colors[i], label=label_with_count)
 
             var_exp = layer_data['val_variance_explained']
             ax_val.set_xlabel(f'PC1 ({var_exp[0]:.2%})')
@@ -470,6 +517,10 @@ def main():
                        help='Analyze all layers (overrides --layers)')
     parser.add_argument('--max_tokens', type=int, default=500,
                        help='Maximum tokens to sample per layer')
+    parser.add_argument('--start_token', type=str, default='0',
+                       help='Start token index (int for all texts, or comma-separated list for each text, e.g., "0,90")')
+    parser.add_argument('--end_token', type=str, default='-1',
+                       help='End token index (int for all texts, or comma-separated list for each text, e.g., "-1,130")')
     parser.add_argument('--output_dir', type=str, default='./text_kv_pca_analysis',
                        help='Output directory for plots')
     parser.add_argument('--device', type=str, default='cuda',
@@ -496,6 +547,21 @@ def main():
 
     if len(labels) != len(texts):
         raise ValueError("Number of labels must match number of texts")
+
+    # Parse start_token and end_token
+    # Can be single int (applied to all) or comma-separated list (one per text)
+    def parse_multi_token_value(arg_str, num_texts, default_value):
+        if ',' in arg_str:
+            values = [int(x.strip()) for x in arg_str.split(',')]
+            if len(values) != num_texts:
+                raise ValueError(f"Token range list has {len(values)} values but there are {num_texts} texts")
+            return values
+        else:
+            single_value = int(arg_str)
+            return [single_value] * num_texts
+
+    start_tokens = parse_multi_token_value(args.start_token, len(texts), 0)
+    end_tokens = parse_multi_token_value(args.end_token, len(texts), -1)
 
     if len(texts) < 2:
         print("Warning: Only 1 text provided. PCA visualization requires at least 2 texts for comparison.")
@@ -542,7 +608,9 @@ def main():
         texts=texts,
         text_labels=labels,
         selected_layers=selected_layers,
-        max_tokens=args.max_tokens
+        max_tokens=args.max_tokens,
+        start_token=start_tokens,
+        end_token=end_tokens
     )
 
     # Plot and save results

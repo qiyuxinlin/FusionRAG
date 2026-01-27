@@ -1,0 +1,11 @@
+{
+  "texts": [
+    "AI_Tech",
+    "AI_Tech2"
+  ],
+  "num_texts": 2,
+  "perplexity": 30,
+  "layers": {
+    "0": {}
+  }
+}

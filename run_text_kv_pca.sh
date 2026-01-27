@@ -11,7 +11,8 @@
 #   bash run_text_kv_pca.sh --texts "这是第一个段落。" "这是第二个段落。"
 #
 #   # 从文件读取文本
-#   bash run_text_kv_pca.sh --text_file /home/shm/document/exp/FusionRAG/example_texts.txt --all_layers
+#   bash run_text_kv_pca.sh --text_file /home/shm/document/exp/FusionRAG/example_texts.txt --start_token "0,90" --end_token "-1,130" --all_layers 
+#   bash run_text_kv_pca.sh --text_file example_texts.txt --all_layers  --start_token "0,0" --end_token "-1,90" 
 #
 #   # 指定GPU和输出目录
 #   bash run_text_kv_pca.sh --texts "Text 1" "Text 2" --device cuda:0 --output_dir ./results
@@ -75,6 +76,21 @@ while [[ $# -gt 0 ]]; do
             PASSED_ARGS+=("$1" "$2")
             shift 2
             ;;
+        --start_token)
+            # Use = syntax to avoid argparse treating negative values as options
+            PASSED_ARGS+=("${1}=${2}")
+            shift 2
+            ;;
+        --end_token)
+            # Use = syntax to avoid argparse treating negative values as options
+            if [[ -z "$2" ]]; then
+                echo "❌ 错误: --end_token 需要一个参数值"
+                echo "   正确用法: --end_token \"-1,130\""
+                exit 1
+            fi
+            PASSED_ARGS+=("${1}=${2}")
+            shift 2
+            ;;
         --output_dir)
             OUTPUT_DIR=$2
             PASSED_ARGS+=("$1" "$2")
@@ -108,6 +124,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --layers L1 L2 L3 ...           指定要分析的层（默认：均匀分布的6层）"
             echo "  --all_layers                    分析所有层（覆盖 --layers）"
             echo "  --max_tokens NUM                每层最大token数（默认：500）"
+            echo "  --start_token \"VALS\"            从第N个token开始（逗号分隔需引号，如 \"0,90\"，默认：0）"
+            echo "  --end_token \"VALS\"              到第N个token结束（逗号分隔需引号，如 \"-1,130\"，默认：-1）"
             echo "  --output_dir DIR                输出目录（默认：./text_kv_pca_analysis）"
             echo "  --device DEVICE                 设备（默认：cuda）"
             echo "  --torch_dtype TYPE              数据类型（默认：float16）"
@@ -118,7 +136,18 @@ while [[ $# -gt 0 ]]; do
             echo "  # 对比两个段落"
             echo '  bash run_text_kv_pca.sh --texts "段落一内容" "段落二内容"'
             echo ""
-            echo "  # 从文件读取，分析所有层"
+            echo "  # 从第90个token开始（所有文本）"
+            echo '  bash run_text_kv_pca.sh --text_file texts.txt --start_token 90'
+            echo ""
+            echo "  # 为每个文本单独设置范围（逗号分隔，需引号）"
+            echo '  bash run_text_kv_pca.sh --text_file texts.txt --start_token "0,90" --end_token "-1,130"'
+            echo "    # 文本1: [0, end) 全部"
+            echo "    # 文本2: [90, 130) 只看40个token"
+            echo ""
+            echo "  # 只看特定段落（所有文本）"
+            echo '  bash run_text_kv_pca.sh --text_file texts.txt --start_token 90 --end_token 130'
+            echo ""
+            echo "  # 分析所有层"
             echo '  bash run_text_kv_pca.sh --text_file texts.txt --all_layers'
             echo ""
             echo "  # 指定层"
@@ -142,16 +171,20 @@ if [[ -z "$TEXTS_SPECIFIED" ]] && [[ -z "$TEXT_FILE_SPECIFIED" ]]; then
     exit 1
 fi
 
-# 构建命令
-CMD="${PYTHON_PATH} ${SCRIPT_PATH} \
-    --model_path \"${MODEL_PATH}\" \
-    --model_name \"${MODEL_NAME}\" \
-    --model_type \"${MODEL_TYPE}\" \
-    --device \"${DEVICE}\" \
-    --torch_dtype \"${TORCH_DTYPE}\" \
-    --max_tokens ${MAX_TOKENS} \
-    --output_dir \"${OUTPUT_DIR}\" \
-    ${PASSED_ARGS[*]}"
+# 构建命令（使用数组避免引号问题）
+CMD_ARRAY=("${PYTHON_PATH}" "${SCRIPT_PATH}")
+CMD_ARRAY+=("--model_path" "${MODEL_PATH}")
+CMD_ARRAY+=("--model_name" "${MODEL_NAME}")
+CMD_ARRAY+=("--model_type" "${MODEL_TYPE}")
+CMD_ARRAY+=("--device" "${DEVICE}")
+CMD_ARRAY+=("--torch_dtype" "${TORCH_DTYPE}")
+CMD_ARRAY+=("--max_tokens" "${MAX_TOKENS}")
+CMD_ARRAY+=("--output_dir" "${OUTPUT_DIR}")
+
+# 添加PASSED_ARGS中的所有参数
+for arg in "${PASSED_ARGS[@]}"; do
+    CMD_ARRAY+=("${arg}")
+done
 
 # 显示配置
 echo "=========================================="
@@ -166,8 +199,8 @@ echo "输出目录: ${OUTPUT_DIR}"
 echo "=========================================="
 echo ""
 
-# 运行分析
-eval ${CMD}
+# 运行分析（使用数组，避免引号问题）
+"${CMD_ARRAY[@]}"
 
 EXIT_CODE=$?
 
