@@ -1024,7 +1024,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # inputs: Tensor[1, question_len] tokenizer.decode(passages[0].squeeze().tolist())
     inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device) # 截取真正的用户问题,但是这里好像没考虑到后面部分的过滤？  '<|im_end|>\n<|im_start|>user\n
     # 'Question: Who is the director of the film Borunbabur Bondhu?<|im_end|>\n<|im_start|>assistant\nAnswer: '
-
+    passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages))]
     # seq_length: int, 问题的实际长度 (不包括前缀)
     seq_length = passages[-1][query_prefix_len:].shape[0]
 
@@ -1083,7 +1083,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # missing_chunks: List[Tuple(idx, doc_id, passage)], 记录缺失 KV cache 的文档
     # 结构: [(文档在passages中的索引, 文档全局ID, 文档token序列), ...] 这些文档将在后续 forward pass 时实时生成 KV cache 并保存到磁盘
     missing_chunks = []  # Track documents without KV cache: [(idx, doc_id, passage)]
-    #pdb.set_trace()
+
     for idx, passage in enumerate(passages[:-1]):
         doc_id = doc_ids[idx]
         passage_len = passage.shape[0]
@@ -1132,7 +1132,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             value_cache.append(None)
             missing_chunks.append((idx, doc_id, passage))
 
-    #pdb.set_trace()
     # ========== 4. 将加载的 KV Cache 拷贝到 GPU 显存 ==========
     start_time = time.time()
     # 遍历所有文档 (不包括最后的 question)
@@ -1152,11 +1151,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         # 验证加载的 KV cache 格式是否正确
         if isinstance(chunk_key_cache, list):
             assert passage_len == chunk_key_cache[0].shape[2], f"passage_len={passage_len}, but KV shape={chunk_key_cache[0].shape}"
-
             # ========== 4.1 RoPE 位置调整  ==========
-            # RoPE 调整目的: 将绝对位置编码转换为当前序列中的相对位置
-            # 例如: 缓存时文档在位置 [0, doc_len), 现在要放到位置 [past_len, past_len+doc_len)
-            if revert_rope and doc_id != SYSTEM_PROMPT_ID:
+            # RoPE将绝对位置编码转换为当前序列中的相对位置
+            # 缓存时文档在位置 [0, doc_len), 现在要放到位置 [past_len, past_len+doc_len)
+            if revert_rope and doc_id != SYSTEM_PROMPT_ID: # system prompt 不需要调整
                 for layer_idx in range(len(chunk_key_cache)):
                     # 获取当前层的 rotary embedding (RoPE) 模块
                     rotary_emb = model.model.layers[layer_idx].self_attn.rotary_emb
@@ -1173,28 +1171,21 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                     # ========== RoPE 平移调整 ==========
                     # 原理: RoPE 旋转矩阵满足复合性质 R_m * R_n = R_{m+n}
-                    #
                     # 保存的 KV cache 使用相对位置: k_i 带有编码 R_i (i=0,1,2,...)
                     # 要移动到绝对位置 past_len + i，根据复合性质:
                     #   R_{past_len} * R_i = R_{past_len+i}
                     # 因此只需对所有 key 应用统一的旋转 R_{past_len - system_len}
                     # 这是一个整体平移操作，不需要先移除再重新编码
-
                     # position_ids: 所有位置都是 past_len - system_len (相对于 system prompt 后的偏移)
                     # 这会生成旋转矩阵 R_{past_len - system_len}
-                    position_ids = torch.full(
-                        (1, layer_chunk_key.shape[2]),
-                        past_len - system_len,
-                        device=rotary_device
-                    )
+                    position_ids = torch.full( (1, layer_chunk_key.shape[2]), past_len - system_len,device=rotary_device)
 
                     # 计算旋转矩阵的 cos/sin
                     cos, sin = rotary_emb(layer_chunk_value, position_ids)
                     cos = cos.unsqueeze(1)
                     sin = sin.unsqueeze(1)
 
-                    # 应用平移旋转: 左乘 R_{past_len - system_len}
-                    # 这会将 [R_0*k_0, R_1*k_1, ...] 转换为 [R_{past_len}*k_0, R_{past_len+1}*k_1, ...]
+                    #  左乘 R_{past_len - system_len}, 会将 [R_0*k_0, R_1*k_1, ...] 转换为 [R_{past_len}*k_0, R_{past_len+1}*k_1, ...]
                     layer_chunk_key = (layer_chunk_key * cos) + (rotate_half(layer_chunk_key) * sin)
 
                     # 将更新后的 KV 移回输入设备并更新列表
@@ -1208,10 +1199,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # ========== 4.2 拷贝到 GPU 预先分配的内存 ==========
             # 使用 narrow + copy_ 实现原地复制，避免内存重新分配
             for layer_idx in range(len(past_key_values.key_cache)):
-                # narrow(2, past_len, passage_len): 在第2维(序列维)切片
-                # [past_len : past_len+passage_len] 区间
+                # narrow(2, past_len, passage_len): 在第2维(seq长度所在维度)切片 [past_len : past_len+passage_len] 区间
                 # copy_: 原地复制数据到预分配的 past_key_values 中
-                past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
+                past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx]) # 现在这里及时有miss chunk，也会预先扩展对应的past_key_value的位置。扩展部分（miss chunk) 会全部填0。
                 past_key_values.value_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_value_cache[layer_idx])
                 # 更新每层的已用长度计数
                 past_key_values.past_tokens[layer_idx] += passage_len
@@ -1226,13 +1216,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
                 past_key_values.value_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_value_cache[layer_idx])
                 past_key_values.past_tokens[layer_idx] += passage_len
+        past_len += passage_len # 记录当前已加载到 past_key_values 实际的总长度
 
-        # 累加 past_len: 记录当前已加载到 past_key_values 的总长度
-        past_len += passage_len
 
     # storage_time: float, KV cache 从磁盘加载到 GPU 的总耗时
     storage_time = time.time() - start_time
-    #pdb.set_trace()
+
     print(f'storage_time: {storage_time}')
 
     # ========== 5. 重要性计算与 Token 选择 ==========
@@ -1413,64 +1402,50 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         elif reprocess_method == 'DraftModel':
             select_time = time.time()
 
-            # query_start: int, 问题在完整序列中的起始位置
-            # Example: system(128) + doc1(512) + doc2(1024) + question -> query_start=1664
-            query_start = sum(passages_len[:-1])
+            # doc_len: int, 已加载文档的总 token 数 (不包括question, 和缺失文档)
+            # BUG FIX: 原来是 sum(passages_len[1:-1])，包括了所有文档（已加载+缺失）。正确做法: 只从已加载的文档中选择，因为缺失文档会 100% 添加
+            selection_start = system_len  # 选择区域的起始位置 (跳过 system_prompt)
+            if draft_attention is None:
+                if draft_model is None:
+                    raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
 
-            # doc_len: int, **已加载文档**的总 token 数 (不包括 system, question, 和缺失文档)
-            # BUG FIX: 原来是 sum(passages_len[1:-1])，包括了所有文档（已加载+缺失）
-            #         这导致从所有文档中选择，然后又添加所有缺失文档，导致已加载文档的实际选择率过高
-            # 正确做法: 只从已加载的文档中选择，因为缺失文档会 100% 添加
-            if missing_chunks:
-                # 只计算已加载文档的长度（排除缺失的）
+                # 初始化：始终包含 system
+                loaded_passages = [passages[0]]
                 loaded_doc_len = 0
-                missing_idx_set = {idx for idx, _, _ in missing_chunks}
-                for idx in range(1, len(passages) - 1):  # 遍历所有文档（不包括 system 和 question）
-                    if idx not in missing_idx_set:  # 只计算已加载的
-                        loaded_doc_len += passages[idx].shape[0]
+            
+                if missing_chunks:
+                    # 有缺失文档：只处理已加载的
+                    missing_idx_set = {idx for idx, _, _ in missing_chunks}  # 加载的是文档局部索引（在这个passages里的索引）
+                    for idx in range(1, len(passages) - 1):  # 遍历所有文档（不包括 system 和 question）
+                        if idx not in missing_idx_set:  # 只处理已加载的
+                            loaded_passages.append(passages[idx])
+                            loaded_doc_len += passages[idx].shape[0]
+                    print(f"  DraftModel 输入: 只包含已加载文档 (跳过 {len(missing_chunks)} 个缺失文档)")
+                else:
+                    # 无缺失文档：所有文档都已加载
+                    loaded_passages.extend(passages[1:-1])  # 添加所有文档
+                    loaded_doc_len = sum(passages_len[1:-1])
+                    print(f"  DraftModel 输入: 所有文档都已加载")
+
                 doc_len = loaded_doc_len
-                print(f"  DraftModel: 仅从已加载文档中选择，已加载文档总长度={loaded_doc_len} tokens")
+                print(f"  DraftModel: 已加载文档总长度={loaded_doc_len} tokens")
 
                 # 特殊情况：如果所有文档都缺失了，直接跳过 DraftModel 选择
                 if doc_len == 0:
                     print(f"  DraftModel: 所有文档都缺失，跳过重要性选择，所有文档将 100% 重计算")
                     # 设置 k_need_index 为空（后续会添加所有缺失文档）
                     k_need_index = []
-            else:
-                # 没有缺失文档，doc_len 就是所有文档
-                doc_len = sum(passages_len[1:-1])
-
-            # selection_start: int, 选择区域的起始位置 (跳过 system_prompt), 从第一个文档开始选择
-            selection_start = system_len
-
-            # 如果没有传入 draft_attention，需要用 draft_model 计算
-            if draft_attention is None:
-                if draft_model is None:
-                    raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
-
-                # *** 关键优化: 只向 draft model 传递已加载的文档 ***
-                # 并且直接在 past_key_values 空间选择，避免后续的位置映射
-                if missing_chunks:
-                    # 有缺失文档：只拼接 system + 已加载文档
-                    missing_idx_set = {idx for idx, _, _ in missing_chunks}
-                    loaded_passages = [passages[0]]  # system
-                    for idx in range(1, len(passages) - 1):  # 遍历所有文档
-                        if idx not in missing_idx_set:
-                            loaded_passages.append(passages[idx])  # 只添加已加载的
-                    print(f"  DraftModel 输入: 只包含已加载文档 (跳过 {len(missing_chunks)} 个缺失文档)")
-                else:
-                    # 无缺失文档：所有文档都已加载
-                    loaded_passages = list(passages[:-1])  # system + 所有文档（不包括 question）
-                    print(f"  DraftModel 输入: 所有文档都已加载")
 
                 # 添加 question 用于计算 attention
                 # 此时 loaded_passages 的结构与 past_key_values 匹配：
                 # - past_key_values[0:past_len]: [system, loaded_doc1, loaded_doc2, ...]
                 # - loaded_passages:             [system, loaded_doc1, loaded_doc2, ...]
                 loaded_passages_with_q = list(loaded_passages) + [passages[-1]]  # 添加 question
-                full_input = torch.cat(loaded_passages_with_q).unsqueeze(0).to(input_device)
 
-                # 计算 query_start（问题在 full_input 中的位置）
+                full_input = torch.cat(loaded_passages_with_q).unsqueeze(0).to(input_device) # 这里构成为[system_prompt,loaded_doc1,loaded_doc2,...,question]
+                # 此时past_len构成为[system_prompt,loaded_doc1,loaded_doc2] 少了一个question
+
+                # 计算问题在 full_input 中的开始位置
                 query_start_in_full = full_input.shape[1] - passages[-1].shape[0]
 
                 # 如果使用固定层且层号在前 50%，需要额外计算该层的 attention
@@ -1483,12 +1458,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                 print(f"  输入结构与 past_key_values 对齐，选择结果直接是 cache_position")
 
-                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start_in_full, input_device, extra_layers=extra_layers)
+                # Dict[int, numpy.ndarray], 存储各层的 attention 分数
+                # 结构: {layer_idx: attention [num_heads, query_len, seq_len]}
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start_in_full, input_device, extra_layers=extra_layers) # (16, 27, 2085)
                 torch.cuda.empty_cache()
-
-            # draft_attention 是 {layer_idx: attention [num_heads, query_len, seq_len]} 格式
-            # *** 关键: full_input 只包含已加载文档，所以 attention 也只包含已加载文档 ***
-            # 不需要 mask，因为缺失文档根本没有被传入 draft model
 
             # 收集各层的 query→doc attention（只针对已加载文档）
             layer_attention_dict = {}
@@ -1496,11 +1469,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # full_input = [system, loaded_doc1, loaded_doc2, ..., question]
             # 提取文档部分的 attention（跳过 system 和 question）
             loaded_docs_start = system_len
-            loaded_docs_end = full_input.shape[1] - passages[-1].shape[0]
+            loaded_docs_end = query_start_in_full
 
             for layer_idx, layer_attn in draft_attention.items():
                 # layer_attn: [num_heads, query_len, seq_len]
-                # 提取 query→已加载文档的 attention（跳过 system 和 question）
                 query_to_loaded_docs = layer_attn[:, :, loaded_docs_start:loaded_docs_end]
                 # 对 heads 和 query positions 平均
                 doc_attention_avg = query_to_loaded_docs.mean(axis=(0, 1))  # [loaded_doc_len]
@@ -1564,7 +1536,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # - past_kv[0:past_len]: [system, loaded_doc1, loaded_doc2, ...]
             # 对于已加载文档，在 full_input 中的位置 = 在 past_key_values 中的位置
             # smart_query_selection 返回的位置直接就是 cache_position！
-            print(f"  选择结果直接是 cache_position，不需要 passages_to_kv_position 映射")
 
             # DEBUG: 打印 DraftModel 选择前的统计
             print(f"\n[DEBUG] DraftModel token selection:")
@@ -1634,19 +1605,22 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                         device=input_device,
                         threshold_factor=draft_threshold_factor
                     )
+                k_need_index = torch.tensor(selected_cache_pos, device='cpu') # 返回的selected_cache_pos，为需要重算的token，已经是相对于past_key_values的绝对位置（包含system_len偏移）
 
-                # *** 关键：selected_cache_pos 直接就是 cache_position，不需要任何映射 ***
-                k_need_index = torch.tensor(selected_cache_pos, device='cpu')
+                # DEBUG: 检查返回的位置范围和映射
+                print(f"\n[DEBUG] DraftModel position analysis:")
+                print(f"  k_need_index range: [{k_need_index.min().item()}, {k_need_index.max().item()}]")
+                print(f"  First 5 positions: {k_need_index[:5].tolist()}")
+                print(f"  system_len: {system_len}")
+                print(f"  passages[0] length: {passages[0].shape[0]}")
+                print(f"  passages structure:")
+                for i in range(min(4, len(passages))):
+                    start = passages_len_cumsum[i-1] if i > 0 else 0
+                    end = passages_len_cumsum[i]
+                    print(f"    passages[{i}]: [{start}, {end}) (len={passages[i].shape[0]})")
 
-                # DEBUG: 打印选择结果
-                # print(f"\n[DEBUG] DraftModel selection result:")
-                # print(f"  selected_indices length: {len(selected_indices)}")
-                # print(f"  Expected (target_count): {int(doc_len * rate)}")
-                # print(f"  Actual ratio: {len(selected_indices)/doc_len*100:.2f}%")
-                # print(f"  Target ratio was: {rate*100:.2f}%")
-
-                # print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens (从已加载文档中选{len(k_need_index)/doc_len*100:.1f}%), threshold={draft_threshold_factor}")
-                # print(f'select_time: {time.time() - select_time:.3f}s')
+                print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens (从已加载文档中选{len(k_need_index)/doc_len*100:.1f}%), threshold={draft_threshold_factor}")
+                print(f'select_time: {time.time() - select_time:.3f}s')
 
         else:
             raise NotImplementedError
@@ -1664,25 +1638,26 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             print(f"  (Note: Using union for forward pass; per-layer rates documented in extra_info)")
         else:
             # 对选中的索引排序 (保证顺序, 便于后续处理)
-            k_need_index = torch.sort(torch.tensor(k_need_index))[0].tolist()
+            # pdb.set_trace()
+            k_need_index = list(k_need_index) # k_need_index = torch.sort(torch.tensor(k_need_index))[0].tolist()
 
         # 添加问题部分的所有 tokens (问题总是 100% 保留)
         # range(sum(passages_len[:-1]), sum(passages_len)): 问题的索引范围
-        k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
+        k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len))) # 这里这么早就把question加下去是对的吗？？？
     else:
-        # rate == 0: 不进行压缩, 保留所有 tokens (除了 system_prompt 之外)
-        # k_need_index 只包含问题部分
+        # rate == 0: 不进行压缩, 保留所有 tokens (除了 system_prompt 之外) k_need_index 只包含问题部分
         k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
 
     # ========== 6. 构建位置映射 (passages -> past_key_values) ==========
-    # *** 关键优化：DraftModel 模式下，k_need_index 已经是 cache_position，不需要映射 ***
-    # 但是，我们仍然需要 passages_to_kv_position 用于：
-    # 1. 添加缺失文档时（这些文档的 passages 位置需要映射）
-    # 2. Debug 可视化（需要知道每个 cache_position 属于哪个文档）
 
-    # passages_len_cumsum: List[int], passages 的累计长度
-    # 示例: [128, 640, 1664, 2688, 2720] 代表每个 passage 结束的位置
-    passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages))]
+    # passages_len_cumsum: List[int], 代表每个 passage 在passages结束的位置
+    
+
+    print(f"\n[DEBUG] Building passages_to_kv_position mapping:")
+    print(f"  system_len: {system_len}")
+    print(f"  past_len: {past_len}")
+    print(f"  missing_chunks: {len(missing_chunks) if missing_chunks else 0}")
+    print(f"  rate: {rate}")
 
     # passages_to_kv_position: Dict[int, int], 位置映射字典
     # key: passages 中的 token 位置 (全局位置)
@@ -1696,34 +1671,43 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
     # ========== 6.1 情况 1: 有缺失文档 - 需要构建复杂映射 ==========
     if missing_chunks:
-        # missing_chunk_set: Set[int], 缺失文档在 passages 中的索引集合
-        missing_chunk_set = {idx for idx, _, _ in missing_chunks}
+        missing_chunk_set = missing_idx_set # 缺失文档在 passages 中的索引集合
 
-        # loaded_kv_pos: int, 已加载文档在 past_key_values 中的当前位置
-        # 从 0 开始, 紧凑排列已加载的文档
-        loaded_kv_pos = 0  # Track position of loaded docs in past_key_values (0 to past_len)
+        # ========== 重要：past_key_values 的实际布局 ==========
+        # [0, system_len):           system prompt (已加载，从 passages[0] 开始)
+        # [system_len, past_len):     已加载文档 (紧凑排列，从 passages[1:] 开始)
+        # [past_len, ...):           缺失文档 + question (后续附加)
 
-        # missing_kv_pos: int, 缺失文档在 past_key_values 中的起始位置
-        # 从 past_len 开始, 缺失文档会被附加到已加载文档之后
-        missing_kv_pos = past_len  # Track position for missing docs (starts from past_len)
+        # 先映射 system prompt (passages[0]) → cache[0:system_len]
+        # system prompt 总是已加载的，特殊处理
+        for i in range(system_len):
+            passages_to_kv_position[i] = i  # passages[i] → cache[i] for i in [0, system_len)
+            kv_to_passages_position[i] = i
 
-        # 遍历所有文档 (不包括 question), 构建每个 token 的位置映射
-        for doc_idx in range(len(passages) - 1):  # Exclude question
+        # 已加载文档在 past_key_values 中的起始位置
+        # system prompt 已经占据了 0 到 system_len-1，所以文档从 system_len 开始
+        loaded_kv_pos = system_len  # Track position of loaded docs (system_len to past_len)
+        # 缺失文档在 past_key_values 中的起始位置
+        missing_kv_pos = past_len  # Track position for missing docs + question (starts from past_len)
+
+        # 遍历所有文档 (不包括 system prompt 和 question)，构建每个 token 的位置映射
+        # range(1, len(passages) - 1) 跳过 passages[0] (system) 和 passages[-1] (question)
+        for doc_idx in range(1, len(passages) - 1):
             # doc_start_in_passages: int, 当前文档在 passages 中的起始位置
-            doc_start_in_passages = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+            doc_start_in_passages = passages_len_cumsum[doc_idx-1]
             doc_len = passages[doc_idx].shape[0]
 
             if doc_idx in missing_chunk_set:
                 # 当前文档是缺失的: 映射到 past_len 之后的位置
-                # 示例: doc2 缺失, 长度 1024
-                #   passages 位置 640-1664 -> past_key_values 位置 past_len - past_len+1024
+                # 示例: doc2 缺失, 长度 1024, system_len=792
+                #   passages 位置 [792+512, 792+512+1024) -> cache 位置 [past_len, past_len+1024)
                 for i in range(doc_len):
                     passages_to_kv_position[doc_start_in_passages + i] = missing_kv_pos
                     missing_kv_pos += 1
             else:
-                # 当前文档已加载: 映射到紧凑排列的位置
-                # 示例: doc1 已加载, 长度 512
-                #   passages 位置 128-640 -> past_key_values 位置 0-512
+                # 当前文档已加载: 映射到 system_len 之后的位置
+                # 示例: system_len=792, doc1 已加载, 长度 512
+                #   passages 位置 [792, 792+512) -> cache 位置 [792, 792+512)
                 for i in range(doc_len):
                     passages_to_kv_position[doc_start_in_passages + i] = loaded_kv_pos
                     # 同时构建反向映射（用于 debug）
@@ -1731,8 +1715,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     loaded_kv_pos += 1
 
         # 映射问题的位置 (问题总是附加在最后)
-        # question_start_in_passages: int, 问题在 passages 中的起始位置
-        question_start_in_passages = passages_len_cumsum[-2]
+        question_start_in_passages = passages_len_cumsum[-2] # 问题在 passages 中的起始位置
         question_len = passages[-1].shape[0]
         for i in range(question_len):
             passages_to_kv_position[question_start_in_passages + i] = missing_kv_pos
@@ -1752,52 +1735,20 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         if not isinstance(k_need_index, list):
             k_need_index = list(k_need_index)
 
-        # 重新计算 passages_len_cumsum (只到倒数第二个, 不包括 question)
-        passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
+        for idx, doc_id, passage in missing_chunks:
+            # chunk_start/chunk_end: int, 缺失文档在 passages 中的起始位置
+            chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
+            chunk_end = passages_len_cumsum[idx]
+            # 添加该文档的所有位置 [chunk_start, chunk_end)
+            k_need_index.extend(range(chunk_start, chunk_end))
+        print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing document tokens (passages_position) to reprocess")
+        k_need_index = sorted(k_need_index) # 因为我们之前提前加入qustion，这里必须再sort一次
 
-        # *** 关键：根据 reprocess_method 决定添加什么位置 ***
-        if reprocess_method == 'DraftModel':
-            # DraftModel: k_need_index 是 cache_position，需要添加缺失文档的 cache_position
-            # 缺失文档在 past_key_values 中的位置从 past_len 开始
-            missing_cache_pos = past_len
-            for idx, doc_id, passage in missing_chunks:
-                # 添加该文档的所有 cache_position
-                doc_len = passage.shape[0]
-                k_need_index.extend(range(missing_cache_pos, missing_cache_pos + doc_len))
-                missing_cache_pos += doc_len
-            print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing document tokens (cache_position) to reprocess")
-        else:
-            # 其他方法: k_need_index 是 passages 位置，直接添加 passages 位置
-            for idx, doc_id, passage in missing_chunks:
-                # chunk_start: int, 缺失文档在 passages 中的起始位置
-                chunk_start = passages_len_cumsum[idx-1] if idx > 0 else 0
-                # chunk_end: int, 缺失文档在 passages 中的结束位置
-                chunk_end = passages_len_cumsum[idx]
-                # 添加该文档的所有位置 [chunk_start, chunk_end)
-                k_need_index.extend(range(chunk_start, chunk_end))
-            print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing document tokens (passages_position) to reprocess")
-
-        # 排序以保持顺序一致性
-        k_need_index = sorted(k_need_index)
-        
     # ========== 7. 准备重计算输入 ==========
-    # 注意: past_len 保持为实际加载的长度, 不要重置!
-    # 错误做法: past_len = sum(passages_len)  # 这是离线模式的做法
-    # 原因:
-    #   - 离线模式: 所有文档都已加载, past_len == sum(passages_len)
-    #   - 在线懒加载: 只有部分文档加载, past_len < sum(passages_len)
-
     # final_len: int, 重计算后的最终序列长度 (包括所有 passages)
-    # 示例: system(128) + doc1(512) + doc2(1024) + question(32) = 1696
     final_len = sum(passages_len)  # Total length after reprocess
-
-    # batch_size: int, 批次大小 (固定为 1)
-    # seq_length: int, 需要重计算的 token 数量
-    # 示例: rate=0.3 时, seq_length 可能是 460 (文档) + 32 (问题) = 492
     batch_size, seq_length = 1, len(k_need_index)
-
     # generated_ids: Tensor[1, final_len + max_new_tokens + 1], 存储生成的完整序列
-    # 用途: 记录输入 prompt 和生成的 tokens
     generated_ids = torch.zeros(
         batch_size, final_len + max_new_tokens + 1, dtype=torch.int, device=input_device
     )
@@ -1816,27 +1767,25 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # ========== 7.1 构建重计算输入 ==========
     # reprocess_inputs: Tensor[1, seq_length], 需要重计算的 tokens
     # 从完整序列中提取 k_need_index 指定的位置
-    # 示例: 如果 k_need_index=[128, 145, 200, ...], 则提取这些位置的 token
-
-    # *** 关键：根据 reprocess_method 决定如何提取 ***
-    if reprocess_method == 'DraftModel':
-        # DraftModel: k_need_index 已经是 cache_position
-        # 但是 reprocess_inputs 需要 passages 中的 token，所以需要转换
-        # 使用 kv_to_passages_position 将 cache_position 转换为 passages 位置
-        k_need_passages_positions = [kv_to_passages_position.get(pos, pos) for pos in k_need_index]
-        reprocess_inputs = torch.cat(passages)[k_need_passages_positions].unsqueeze(0).to(input_device)
-        # k_need_index 已经是 cache_position，直接使用
-        cache_position = torch.tensor(k_need_index, device=input_device)
+    passages_len_cumsum
+    # DEBUG: 检查 k_need_index 中哪些位置不在 passages_to_kv_position 中
+    if isinstance(k_need_index, list):
+        k_need_index_tensor = torch.tensor(k_need_index)
     else:
-        # 其他方法（FusionRAG）: k_need_index 是 passages 位置
-        reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
-        # 需要将 passages 位置转换为 cache_position
-        cache_position = torch.tensor([passages_to_kv_position[pos] for pos in k_need_index], device=input_device)
+        k_need_index_tensor = k_need_index
 
-    # ========== DEBUG: 打印每个文档的重计算 token 统计 ==========
-    print(f"\n{'='*80}")
-    print(f"重计算 Token 统计 (rate={rate})")
-    print(f"{'='*80}")
+    missing_positions = []
+    for pos in k_need_index_tensor:
+        if pos.item() not in passages_to_kv_position:
+            missing_positions.append(pos.item())
+
+    # 需要将 passages 位置转换为 cache_position
+    # 注意：k_need_index 可能是 tensor，迭代时元素是 tensor 类型，需要用 .item() 转为 int
+    reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
+    # if isinstance(k_need_index, torch.Tensor):
+    cache_position = torch.tensor([passages_to_kv_position[int(pos)] for pos in k_need_index], device=input_device)
+    # else:
+    #     cache_position = torch.tensor([passages_to_kv_position[pos] for pos in k_need_index], device=input_device)
 
     # 将 k_need_index 转为集合便于查询
     if isinstance(k_need_index, list):
@@ -1844,7 +1793,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     else:
         k_need_set = set(k_need_index)
 
-    # *** 关键：k_need_index 现在可能是 cache_position（DraftModel）或 passages 位置（其他方法） ***
     # 使用 kv_to_passages_position 将 cache_position 转换为 passages 位置用于统计
     if reprocess_method == 'DraftModel':
         # DraftModel: k_need_index 是 cache_position
@@ -1865,8 +1813,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         k_need_passages_positions = list(k_need_set)
         missing_cache_positions = []  # 没有单独的缺失文档 cache_position
 
-    # passages_len_cumsum: 每个 passage 结束位置的累计
-    passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages))]
 
     # 统计每个文档的重计算情况
     for doc_idx in range(len(passages)):
@@ -1910,11 +1856,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     print(f"  {'-'*20}")
     print(f"  {'Total':20s}: {total_recompute:5d} / {total_tokens:5d} tokens ({overall_coverage:6.2f}%)")
     print(f"{'='*80}\n")
-    # pdb.set_trace()
+
     
     # ========== DETAILED DEBUG: Compare rate=0.0 vs rate>0 ==========
     debug = False
-    if debug and missing_chunks or rate > 0:
+    if debug and missing_chunks and rate > 0:
         print(f"\n{'='*80}")
         print(f"RECOMPUTE TOKEN DETAILED DEBUG (rate={rate})")
         print(f"{'='*80}")
@@ -1983,7 +1929,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         print(f"  cache_position range: [{cache_position.min().item()}, {cache_position.max().item()}]")
 
         # 详细分析 k_need_index 的组成
-        passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages))]
         question_start = passages_len_cumsum[-2]
         question_end = passages_len_cumsum[-1]
 
@@ -2017,23 +1962,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
     # ========== 8. 执行重计算 Forward Pass ==========
     with torch.no_grad():
-        # ========== 8.1 保存重计算前的 value cache (用于分析) ==========
-        # without_attn_value: 重计算前的最后一层 value cache
-        # 只提取已加载的部分 (不包括即将生成的 missing chunks)
-        if missing_chunks:
-            # 只提取已加载的文档部分 [:past_len]
-            without_attn_value = past_key_values.value_cache[-1].narrow(2, 0, past_len).clone()
-        else:
-            # 提取所有文档部分 (不包括 question)
-            without_attn_value = past_key_values.value_cache[-1].narrow(2, 0, sum(passages_len[:-1])).clone()
 
         # ========== 8.2 将输入 token 转换为 embedding ==========
         # inputs_embeds: Tensor[1, seq_length, hidden_size], 输入 tokens 的嵌入向量
         inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
-
-        # 注意: 不强制移动到 input_device
-        # 原因: 在模型并行 (Pipeline Parallelism) 模式下, 避免跨 GPU 传输死锁
-        # 让模型输出保持在其自然的设备上
 
         # ========== 8.3 执行 forward pass: 重计算选中的 tokens ==========
         # 输入:
@@ -2054,7 +1986,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         # 现在需要提取并保存到磁盘, 供后续查询复用
         if missing_chunks:
             print(f"    ⚡ Extracting and saving KV for {len(missing_chunks)} new document(s)...")
-            passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
+            # passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages)-1)]
 
             # 遍历每个缺失的文档, 提取其 KV cache 并保存到磁盘
             for idx, doc_id, passage in missing_chunks:
@@ -2142,21 +2074,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         # logits: Tensor[1, 1, vocab_size], 最后一个位置的 logits (用于生成第一个 token)
         logits = model_output[:,-1,:].unsqueeze(0).clone()
 
-        # ========== 10.1 提取重计算后的 value cache (用于分析差异) ==========
-        # with_attn_value: 重计算后的最后一层 value cache
-        # if missing_chunks:
-        #     # 提取已加载的文档部分 (与 without_attn_value 长度相同)
-        #     with_attn_value = past_key_values.value_cache[-1].narrow(2, 0, past_len).clone()
-        # else:
-        #     # 提取所有文档部分
-        #     with_attn_value = past_key_values.value_cache[-1].narrow(2, 0, sum(passages_len[:-1])).clone()
-
-        # # v_sub_all: 重计算前后 value cache 的差异
-        # # 用于分析重计算对 cache 的影响 (调试用)
-        # v_sub_all = without_attn_value - with_attn_value
-        # v_sub_all = v_sub_all.squeeze(0)                 # [num_heads, seq_len, head_dim]
-        # v_sub_all = v_sub_all.transpose(0, 1)            # [seq_len, num_heads, head_dim]
-        # v_sum = torch.sum(v_sub_all**2, dim=[1,2])       # [seq_len], L2 范数
 
         # ========== 10.2 生成第一个 token ==========
         # first_token_time: float, prefill 阶段总耗时 (包括加载 KV + 重计算 + 第一个 token)
