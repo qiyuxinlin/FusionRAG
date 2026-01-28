@@ -1607,17 +1607,29 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     )
                 k_need_index = torch.tensor(selected_cache_pos, device='cpu') # 返回的selected_cache_pos，为需要重算的token，已经是相对于past_key_values的绝对位置（包含system_len偏移）
 
-                # DEBUG: 检查返回的位置范围和映射
-                print(f"\n[DEBUG] DraftModel position analysis:")
+                # DEBUG: 检查返回的位置范围
+                print(f"\n[DEBUG] DraftModel returned k_need_index:")
+                print(f"  k_need_index type: {type(k_need_index)}")
+                print(f"  k_need_index length: {len(k_need_index)}")
                 print(f"  k_need_index range: [{k_need_index.min().item()}, {k_need_index.max().item()}]")
-                print(f"  First 5 positions: {k_need_index[:5].tolist()}")
-                print(f"  system_len: {system_len}")
-                print(f"  passages[0] length: {passages[0].shape[0]}")
-                print(f"  passages structure:")
-                for i in range(min(4, len(passages))):
-                    start = passages_len_cumsum[i-1] if i > 0 else 0
-                    end = passages_len_cumsum[i]
-                    print(f"    passages[{i}]: [{start}, {end}) (len={passages[i].shape[0]})")
+                print(f"  First 20 positions: {k_need_index[:20].tolist()}")
+                print(f"  Last 20 positions: {k_need_index[-20:].tolist()}")
+
+                # 检查哪些位置对应哪些文档
+                print(f"\n[DEBUG] Mapping k_need_index to documents:")
+                print(f"  Using kv_to_passages_position mapping...")
+                for pos in k_need_index[:20].tolist():
+                    # 将 cache position 转换为 passages position
+                    cache_pos_int = pos if isinstance(pos, int) else pos.item()
+                    passages_pos = kv_to_passages_position.get(cache_pos_int, cache_pos_int)
+                    # 找到这个 passages_pos 属于哪个文档
+                    for i, p in enumerate(passages):
+                        start = passages_len_cumsum[i-1] if i > 0 else 0
+                        end = passages_len_cumsum[i]
+                        if start <= passages_pos < end:
+                            doc_type = "System" if i == 0 else "Doc" + str(i) if i < len(passages)-1 else "Question"
+                            print(f"    Cache Position {pos} -> Passages Position {passages_pos}: {doc_type} (passages[{i}], range [{start}, {end}))")
+                            break
 
                 print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens (从已加载文档中选{len(k_need_index)/doc_len*100:.1f}%), threshold={draft_threshold_factor}")
                 print(f'select_time: {time.time() - select_time:.3f}s')
@@ -1651,7 +1663,22 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # ========== 6. 构建位置映射 (passages -> past_key_values) ==========
 
     # passages_len_cumsum: List[int], 代表每个 passage 在passages结束的位置
-    
+    passages_len_cumsum = [sum([p.shape[0] for p in passages[:i+1]]) for i in range(len(passages))]
+
+    print(f"\n[DEBUG] Passages structure:")
+    for i, p in enumerate(passages):
+        start = passages_len_cumsum[i-1] if i > 0 else 0
+        end = passages_len_cumsum[i]
+        print(f"  passages[{i}]: [{start}, {end}) (len={p.shape[0]})")
+
+    print(f"\n[DEBUG] Building passages_to_kv_position mapping:")
+    print(f"  system_len: {system_len}")
+    print(f"  past_len: {past_len}")
+    print(f"  missing_chunks: {len(missing_chunks) if missing_chunks else 0}")
+    print(f"  rate: {rate}")
+    if missing_chunks:
+        print(f"  missing_chunks doc_ids: {[idx for idx, _, _ in missing_chunks]}")
+ 
 
     print(f"\n[DEBUG] Building passages_to_kv_position mapping:")
     print(f"  system_len: {system_len}")
@@ -1720,6 +1747,16 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         for i in range(question_len):
             passages_to_kv_position[question_start_in_passages + i] = missing_kv_pos
             missing_kv_pos += 1
+
+        print(f"\n[DEBUG] Built passages_to_kv_position for missing_chunks case:")
+        print(f"  Total mappings: {len(passages_to_kv_position)}")
+        print(f"  Mapping range: [{min(passages_to_kv_position.keys())}, {max(passages_to_kv_position.keys())}]")
+        print(f"  system_len: {system_len}")
+        print(f"  past_len: {past_len}")
+        print(f"  missing_kv_pos (final): {missing_kv_pos}")
+        print(f"  Includes position 792: {792 in passages_to_kv_position}")
+        if 792 in passages_to_kv_position:
+            print(f"  passages_to_kv_position[792] = {passages_to_kv_position[792]}")
     else:
         # ========== 6.2 情况 2: 无缺失文档 - 恒等映射 ==========
         # passages 位置 = past_key_values 位置
