@@ -1036,14 +1036,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     #   - normalized_entropy: float, 归一化的 attention 熵 (越大越分散)
     #   - total_budget: int, 总的 token budget
     #   - doc_len: int, 所有文档的总 token 数
-    extra_info = {
-        'dynamic_rate': None,
-        'topk_coverage': None,
-        'topk_count_for_coverage': None,
-        'normalized_entropy': None,
-        'total_budget': None,
-        'doc_len': None
-    }
+    extra_info = { 'dynamic_rate': None,'topk_coverage': None,'topk_count_for_coverage': None,'normalized_entropy': None,'total_budget': None,'doc_len': None}
 
     # past_key_values(StaticCache封装) 含有key_cache和value_cache两类属性,
     # 1)
@@ -1224,6 +1217,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
     print(f'storage_time: {storage_time}')
 
+    missing_idx_set = {idx for idx, _, _ in missing_chunks}  # 加载的是文档局部索引（在这个passages里的索引）
+
     # ========== 5. 重要性计算与 Token 选择 ==========
     if rate != 0:
         # ========== 5.1 方法 A: FusionRAG - 使用大模型自身 attention ==========
@@ -1398,7 +1393,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # ========== 5.2 方法 B: DraftModel - 使用小模型 attention 指导 ==========
         # 核心思想: 用小模型 (如 0.5B) 计算 attention, 指导大模型 (如 7B) 的 token 选择
-        # 优势: 小模型计算快, 可以提前计算并复用 attention
         elif reprocess_method == 'DraftModel':
             select_time = time.time()
 
@@ -1414,8 +1408,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 loaded_doc_len = 0
             
                 if missing_chunks:
-                    # 有缺失文档：只处理已加载的
-                    missing_idx_set = {idx for idx, _, _ in missing_chunks}  # 加载的是文档局部索引（在这个passages里的索引）
                     for idx in range(1, len(passages) - 1):  # 遍历所有文档（不包括 system 和 question）
                         if idx not in missing_idx_set:  # 只处理已加载的
                             loaded_passages.append(passages[idx])
@@ -1537,13 +1529,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # 对于已加载文档，在 full_input 中的位置 = 在 past_key_values 中的位置
             # smart_query_selection 返回的位置直接就是 cache_position！
 
-            # DEBUG: 打印 DraftModel 选择前的统计
-            print(f"\n[DEBUG] DraftModel token selection:")
-            print(f"  doc_len (loaded docs only): {doc_len}")
-            print(f"  target_ratio (rate): {rate}")
-            print(f"  target_count: {int(doc_len * rate)}")
-            print(f"  selection_start: {selection_start}")
-            print(f"  system_len: {system_len}")
 
             # 特殊情况：如果所有文档都缺失（doc_len=0），跳过 DraftModel 选择
             if doc_len == 0:
@@ -1607,30 +1592,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     )
                 k_need_index = torch.tensor(selected_cache_pos, device='cpu') # 返回的selected_cache_pos，为需要重算的token，已经是相对于past_key_values的绝对位置（包含system_len偏移）
 
-                # DEBUG: 检查返回的位置范围
-                print(f"\n[DEBUG] DraftModel returned k_need_index:")
-                print(f"  k_need_index type: {type(k_need_index)}")
-                print(f"  k_need_index length: {len(k_need_index)}")
-                print(f"  k_need_index range: [{k_need_index.min().item()}, {k_need_index.max().item()}]")
-                print(f"  First 20 positions: {k_need_index[:20].tolist()}")
-                print(f"  Last 20 positions: {k_need_index[-20:].tolist()}")
-
-                # 检查哪些位置对应哪些文档
-                print(f"\n[DEBUG] Mapping k_need_index to documents:")
-                print(f"  Using kv_to_passages_position mapping...")
-                for pos in k_need_index[:20].tolist():
-                    # 将 cache position 转换为 passages position
-                    cache_pos_int = pos if isinstance(pos, int) else pos.item()
-                    passages_pos = kv_to_passages_position.get(cache_pos_int, cache_pos_int)
-                    # 找到这个 passages_pos 属于哪个文档
-                    for i, p in enumerate(passages):
-                        start = passages_len_cumsum[i-1] if i > 0 else 0
-                        end = passages_len_cumsum[i]
-                        if start <= passages_pos < end:
-                            doc_type = "System" if i == 0 else "Doc" + str(i) if i < len(passages)-1 else "Question"
-                            print(f"    Cache Position {pos} -> Passages Position {passages_pos}: {doc_type} (passages[{i}], range [{start}, {end}))")
-                            break
-
                 print(f"DraftModel 选择了 {len(k_need_index)} 个 tokens (从已加载文档中选{len(k_need_index)/doc_len*100:.1f}%), threshold={draft_threshold_factor}")
                 print(f'select_time: {time.time() - select_time:.3f}s')
 
@@ -1671,20 +1632,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         end = passages_len_cumsum[i]
         print(f"  passages[{i}]: [{start}, {end}) (len={p.shape[0]})")
 
-    print(f"\n[DEBUG] Building passages_to_kv_position mapping:")
-    print(f"  system_len: {system_len}")
-    print(f"  past_len: {past_len}")
-    print(f"  missing_chunks: {len(missing_chunks) if missing_chunks else 0}")
-    print(f"  rate: {rate}")
     if missing_chunks:
         print(f"  missing_chunks doc_ids: {[idx for idx, _, _ in missing_chunks]}")
  
-
-    print(f"\n[DEBUG] Building passages_to_kv_position mapping:")
-    print(f"  system_len: {system_len}")
-    print(f"  past_len: {past_len}")
-    print(f"  missing_chunks: {len(missing_chunks) if missing_chunks else 0}")
-    print(f"  rate: {rate}")
 
     # passages_to_kv_position: Dict[int, int], 位置映射字典
     # key: passages 中的 token 位置 (全局位置)
@@ -1781,6 +1731,27 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         print(f"    → Added {sum([chunk[2].shape[0] for chunk in missing_chunks])} missing document tokens (passages_position) to reprocess")
         k_need_index = sorted(k_need_index) # 因为我们之前提前加入qustion，这里必须再sort一次
 
+    # ========== 6.4 可视化 DraftModel 选择的 tokens ==========
+    # 此时 kv_to_passages_position 已经构建完成，可以正确映射
+    if rate > 0 and reprocess_method.startswith('DraftModel') and doc_len > 0:
+        print(f"\n[DEBUG] Visualizing DraftModel selection (using position mapping):")
+        # DraftModel 选择的 tokens 在 cache 空间的范围是 [system_len, system_len + doc_len)
+        draft_selected = [pos for pos in k_need_index if system_len <= pos < system_len + doc_len]
+        print(f"  DraftModel selected {len(draft_selected)} positions from loaded docs")
+        print(f"  Cache position range: [{system_len}, {system_len + doc_len})")
+
+        # 显示前 20 个选择的位置
+        for i, cache_pos in enumerate(draft_selected[:20]):
+            passages_pos = kv_to_passages_position.get(cache_pos, cache_pos)
+            # 找到这个 passages_pos 属于哪个文档
+            for doc_idx, p in enumerate(passages):
+                start = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+                end = passages_len_cumsum[doc_idx]
+                if start <= passages_pos < end:
+                    doc_type = "System" if doc_idx == 0 else f"Doc{doc_idx}" if doc_idx < len(passages)-1 else "Question"
+                    print(f"    [{i}] Cache Pos {cache_pos} -> Passages Pos {passages_pos}: {doc_type} (passages[{doc_idx}], range [{start}, {end}))")
+                    break
+
     # ========== 7. 准备重计算输入 ==========
     # final_len: int, 重计算后的最终序列长度 (包括所有 passages)
     final_len = sum(passages_len)  # Total length after reprocess
@@ -1811,10 +1782,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     else:
         k_need_index_tensor = k_need_index
 
-    missing_positions = []
-    for pos in k_need_index_tensor:
-        if pos.item() not in passages_to_kv_position:
-            missing_positions.append(pos.item())
+    # missing_positions = []
+    # for pos in k_need_index_tensor:
+    #     if pos.item() not in passages_to_kv_position:
+    #         missing_positions.append(pos.item())
 
     # 需要将 passages 位置转换为 cache_position
     # 注意：k_need_index 可能是 tensor，迭代时元素是 tensor 类型，需要用 .item() 转为 int
