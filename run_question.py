@@ -120,7 +120,7 @@ class FusionRAGModel:
                 self.all_texts = [input["text"] for input in all_input]
                 ## fixme: mengyao_debug locomo quick fix
                 if "locomo" in dataset_name :
-                    self.all_texts = [f" {text}" for text in self.all_texts if not text.startswith(" ")]
+                    self.all_texts = [f" {text}\n" for text in self.all_texts if not text.startswith(" ")]
             if os.path.exists(self.similar_index_file_path):
                 self.similar_idx = np.load(self.similar_index_file_path)
                 print(f"index load from {self.similar_index_file_path}")
@@ -330,7 +330,7 @@ class FusionRAGModel:
             cache_key_path = f'{self.save_path}/{hash_key}_key.pt'
             cache_value_path = f'{self.save_path}/{hash_key}_value.pt'
 
-            if not os.path.exists(cache_key_path):
+            if not os.path.exists(cache_key_path) or not os.path.exists(cache_value_path):
                 passage_len = doc_tensor.shape[0]
                 ## system_prompt + document_text
                 input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
@@ -355,7 +355,7 @@ class FusionRAGModel:
             hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
             cache_key_path = f'{self.save_path}/{hash_key}_key.pt'
             cache_value_path = f'{self.save_path}/{hash_key}_value.pt'
-            # print(f"cache_key_path = {cache_key_path}")
+            print(f"cache_key_path = {cache_key_path}")
             chunk_key_cache = torch.load(cache_key_path, weights_only=True)
             chunk_value_cache = torch.load(cache_value_path, weights_only=True)
             past_len = sum(all_doc_len[:doc_idx])
@@ -592,6 +592,14 @@ class FusionRAGModel:
 
         return model, device_map
 
+    def find_all_must_recompute(self, retrieved_docs: list[str], tokenizer):
+        must_choose = []
+        for retrieved_doc in retrieved_docs:
+            retrieved_doc_prefix = retrieved_doc[:retrieved_doc.index(".")+1]
+            keyword_tokens = tokenizer.encode(retrieved_doc_prefix, add_special_tokens=False)
+            must_choose.append(len(keyword_tokens))
+        return must_choose
+
 
     def sort_docs(self, retrieved_docs: list[str]):
         """
@@ -657,16 +665,22 @@ class FusionRAGModel:
             max_new_tokens=150,
             use_entropy_selection=False,
             entropy_top_k=4,
-            question_prefix=""
+            question_prefix="",
+            keyword=""
     ) -> (int, int, int, int, str, list[int]):
-
+        must_choose = None
         ## fixme: mengyao_debug locomo quick fix
         if "locomo" in self.dataset_name:
-            retrieved_docs = self.sort_docs(retrieved_docs)
-            retrieved_docs = [f" {text}" for text in retrieved_docs if not text.startswith(" ")]
+            if "sort" in keyword:
+                retrieved_docs = self.sort_docs(retrieved_docs)
+            retrieved_docs = [f" {text}\n" for text in retrieved_docs if not text.startswith(" ")]
+            if "highlight_time" in keyword:
+                must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.tokenizer)
         print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
-        embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
-        sim = calculate_vector_set_similarity(embeddings)
+        sim = 0
+        if len(retrieved_docs) > 0:
+            embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
+            sim = calculate_vector_set_similarity(embeddings)
         eigenvalue = {
             "similarity": float(sim)
         }
@@ -841,6 +855,7 @@ class FusionRAGModel:
                 embeddings=embeddings,
                 question_prefix_tensor=question_prefix_tensor,
                 similarity=sim,
+                must_choose=must_choose
             )
             eigenvalue.update(eigenvalue_)
 

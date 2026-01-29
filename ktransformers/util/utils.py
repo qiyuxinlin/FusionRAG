@@ -371,7 +371,7 @@ def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
     return selected_layers
 
 
-def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
+def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug=False, query_start=0, total_len=0, system_len=0, doc_len=0):
     """
     用 draft model 完整 prefill 获取 attention 分布
 
@@ -415,6 +415,7 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
             cos, sin = None, None
 
         for layer_idx in range(num_layers):
+            time_start=time.time()
             layer = draft_model.model.layers[layer_idx]
 
             residual = hidden_states
@@ -445,18 +446,30 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
             key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
             value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
 
+            time_attn = time.time()
             # Compute attention
-            attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (head_dim ** 0.5)
-            causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
-            attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
-            attn_weights = F.softmax(attn_weights, dim=-1)
+            if not debug:
+                attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (head_dim ** 0.5)
+                causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
+                attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
+                attn_weights = F.softmax(attn_weights, dim=-1)
 
-            # 保存后半部分层的 attention
-            if layer_idx >= num_layers // 2:
-                layer_attention_scores[layer_idx] = attn_weights[0].cpu().float().numpy()
+                # 保存后半部分层的 attention
+                if layer_idx >= num_layers // 2:
+                    ## make everything faster
+                    layer_attention_scores[layer_idx] = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len].mean(dim=0) ## attn_weights: 1,16,seq_len, seq_len
 
-            # Continue forward
-            attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+                time_forward = time.time()
+                # Continue forward
+                attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+            else:
+                attn_output = F.scaled_dot_product_attention(
+                    query_states, key_states_expanded, value_states_expanded,
+                    # need_attn_weights=True,  # 关键参数
+                    is_causal=True  # 如果是因果注意力
+                )
+                time_forward = time.time()
+
             attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
             attn_output = layer.self_attn.o_proj(attn_output)
 
@@ -466,9 +479,13 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0"):
             hidden_states = layer.post_attention_layernorm(hidden_states)
             hidden_states = layer.mlp(hidden_states)
             hidden_states = residual + hidden_states
+            time_output = time.time()
 
-            if layer_idx % 8 == 0 or layer_idx == num_layers - 1:
+            if layer_idx % 4 == 0 or layer_idx == num_layers - 1:
                 print(f"  Layer {layer_idx} done")
+                print(f"stage_1={time_attn-time_start}")
+                print(f"stage_2={time_forward-time_attn}")
+                print(f"stage_3={time_output-time_forward}")
 
     print(f"Draft model attention computed")
     return layer_attention_scores
@@ -730,41 +747,24 @@ def concentration_coefficient_v1(tensor: torch.Tensor, eps: float = 1e-8) -> flo
 
 def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k, draft_attention, query_start, system_len, doc_len, total_len, smarter=False):
     # 如果没有传入 draft_attention，需要用 draft_model 计算
+    time_start=time.time()
     if draft_attention is None:
         if draft_model is None:
             raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
         # 构建完整输入
         full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)
-        draft_attention = compute_draft_model_attention(draft_model, full_input, draft_model_device)
-    layer_attention_dict = {}
+        layer_attention_dict = compute_draft_model_attention(draft_model, full_input, draft_model_device, False, query_start, total_len, system_len, doc_len)
     doc_to_doc_attns = []
-    for layer_idx, layer_attn in draft_attention.items():
-        # layer_attn: [num_heads, seq_len, seq_len]
-        query_to_doc = layer_attn[:, query_start:total_len, system_len:system_len + doc_len]
-        doc_to_doc_attn = layer_attn[:, system_len:system_len + doc_len, system_len:system_len + doc_len]
-        doc_to_doc_attn_avg = doc_to_doc_attn.mean(axis=(0))
-        doc_to_doc_attns.append(doc_to_doc_attn_avg)
-        # 对 heads 和 query positions 平均
-        doc_attention_avg = query_to_doc.mean(axis=(0, 1))  # [doc_len]
-        layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=draft_model_device)
+    time_finish_draft_attention = time.time()
 
-    if not smarter:
-        # 基于熵动态选层（DraftModel 默认使用熵选层）
-        active_layers, layer_entropy = entropy_layer_selection(
-            layer_attention_dict, top_k=entropy_top_k, return_entropy=True
-        )
-        print(f"  DraftModel 熵选层: 选择了 {active_layers}")
-    else:
-        # I'm dumb.
-        print(f"  DraftModel dumb version")
-        active_layers = [k for k, v in layer_attention_dict.items()]
+    ## fixme@mengyao_debug: too slow using the entropy
+    active_layers = [k for k, v in layer_attention_dict.items()]
 
     # 聚合选中层的 attention
     layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
-    doc_to_doc_attns = [doc_to_doc_attns[idx - draft_model.config.num_hidden_layers // 2] for idx in active_layers]
-    doc_to_doc_attns = np.mean(np.stack(doc_to_doc_attns, axis=0), axis=0)
-    doc_to_doc_attns = torch.tensor(doc_to_doc_attns)
     multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+    time_finish_choose = time.time()
+    print(f"draft_attention={time_finish_draft_attention - time_start}s, choose={time_finish_choose-time_finish_draft_attention}s")
 
     return multi_layer_attn, doc_to_doc_attns
 
@@ -842,12 +842,14 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="",
-                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0):
+                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0, must_choose=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
     passages_len = [passage.shape[0] for passage in passages]
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
+    if must_choose is not None:
+        must_choose = [range(passages_start[i], passages_start[i]+length) for i, length in enumerate(must_choose)]
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
     inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
     seq_length = passages[-1][query_prefix_len:].shape[0]
@@ -1284,6 +1286,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     system_len=system_len,
                     device=draft_model_device
                 )
+                if must_choose is not None:
+                    for must_choose_indices in must_choose:
+                        selected_indices.extend(must_choose_indices)
+                    selected_indices = sorted(list(set(selected_indices)))
+                    print(f"selected_indices sorted")
 
             elif reprocess_method == "DraftModel_smarter":
                 selected_indices, reserved_selected_indices = smart_query_selection(
@@ -1446,6 +1453,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         logits = model_output[:,-1,:].unsqueeze(0).clone()
 
         first_token_time = time.time() - start_time
+        print(f"first_token_time={first_token_time}s")
         stream = TextStreamer(tokenizer)
         logits_warper = tf_logits_warper(temperature=0.01, top_k=1)
         next_token_scores = logits_warper(reprocess_inputs, logits[:, -1, :])
