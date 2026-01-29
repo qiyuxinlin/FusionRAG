@@ -1724,6 +1724,9 @@ def main(
     total_f1 = 0.0
     total_em = 0.0
 
+    # ========== 统计总重算 token 数 ==========
+    total_recompute_tokens = 0
+
     # long_decode 模式的 evidence 统计
     total_evidence = 0
     matched_evidence = 0
@@ -1826,6 +1829,9 @@ def main(
             if rate == 1:
                 # Full recompute
                 inputs = torch.cat(iter_tokens).to(input_device).unsqueeze(0)
+                recompute_token_count = inputs.shape[1]  # rate=1 时重算所有输入 tokens
+                total_recompute_tokens += recompute_token_count
+                print(f"本次调用重算 tokens: {recompute_token_count} (rate=1, full recompute)")
                 from ktransformers.util.utils import prefill_and_generate
                 generated_tokens, _, _ = prefill_and_generate(
                     model, tokenizer, inputs, max_new_tokens=current_max_new_tokens, device=input_device, device_map=device_map
@@ -1874,6 +1880,10 @@ def main(
                         'doc_len': extra_info.get('doc_len', 0),
                         'total_budget': extra_info.get('total_budget', 0)
                     })
+
+                # ========== 累加重算 token 统计 ==========
+                if extra_info.get('recompute_token_count') is not None:
+                    total_recompute_tokens += extra_info['recompute_token_count']
 
             # Decode answer
             raw_output = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
@@ -2281,6 +2291,13 @@ def main(
                 f.write(f"Current Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.4f})\n")
                 f.write(f"Rate=1 Evidence Matched: {rate1_evidence_matched}/{rate1_evidence_total} ({rate1_evidence_acc:.4f})\n")
                 f.write(f"Evidence Delta: {evidence_acc - rate1_evidence_acc:+.4f}\n")
+
+        # ========== 添加重算 token 统计 ==========
+        f.write(f"\n--- Recompute Tokens Statistics ---\n")
+        f.write(f"Total Recomputed Tokens: {total_recompute_tokens:,}\n")
+        f.write(f"Total Sub Questions: {total_sub_questions}\n")
+        if total_sub_questions > 0:
+            f.write(f"Average Recomputed Tokens per Question: {total_recompute_tokens / total_sub_questions:.2f}\n")
 
     # 关闭线程池
     judge_executor.shutdown(wait=True)

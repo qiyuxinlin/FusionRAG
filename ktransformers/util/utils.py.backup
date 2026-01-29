@@ -1271,7 +1271,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     print(f'storage_time: {storage_time}')
 
     # ========== 5. 重要性计算与 Token 选择 ==========
-    print(f"[DEBUG] rate = {rate}, type = {type(rate)}, rate != 0 = {rate != 0}")
     if rate != 0:
         # ========== 5.1 方法 A: FusionRAG - 使用大模型自身 attention ==========
         if reprocess_method == 'FusionRAG':
@@ -1619,11 +1618,18 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # 对选中的索引排序 (保证顺序, 便于后续处理)
             k_need_index = list(k_need_index) # k_need_index = torch.sort(torch.tensor(k_need_index))[0].tolist()
 
+        # 添加问题部分的所有 tokens (问题总是 100% 保留)
+        # range(sum(passages_len[:-1]), sum(passages_len)): 问题的索引范围
+        # ========== 优化：使用预先计算的 sum_passages_len_without_question ==========
+        k_need_index.extend(range(sum_passages_len_without_question, total_passages_len)) # 这里这么早就把question加下去是对的吗？？？
     else:
         # rate == 0: 只重算缺失的文档和问题，不重算已加载的文档
         # 使用空的 list，稍后会添加 missing chunks 和 question
         k_need_index = []
 
+        # 添加问题部分的所有 tokens (问题总是 100% 保留)
+        # ========== 优化：使用预先计算的 sum_passages_len_without_question ==========
+        k_need_index.extend(range(sum_passages_len_without_question, total_passages_len))
 
     # ========== 6.1 补充缺失文档的位置映射 ==========
     if missing_chunks:
@@ -1670,18 +1676,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # 添加该文档的所有位置 [chunk_start, chunk_end)
             k_need_index.extend(range(chunk_start, chunk_end))
         print(f"    → Added {sum([chunk['length'] for chunk in missing_chunks])} missing document tokens (passages_position) to reprocess")
-        k_need_index = sorted(k_need_index) # 对 k_need_index 排序（稍后会添加 question，需要再次排序）
+        k_need_index = sorted(k_need_index) # 因为我们之前提前加入qustion，这里必须再sort一次
 
-    # ========== 6.4 添加 question 的位置 ==========
-    # Question 必须在位置映射构建后添加，因为需要使用 cache 位置（对于 DraftModel）
-    # if reprocess_method == 'DraftModel':
-    #     # DraftModel: k_need_index 是 cache 位置，需要添加 question 的 cache 位置
-    #     question_cache_positions = [passages_to_kv_position[pos] for pos in range(sum_passages_len_wijthout_question, total_passages_len)]
-    #     k_need_index.extend(question_cache_positions)
-    # else:
-    #     # 其他方法: k_need_index 是 passages 位置，直接添加
-    k_need_index.extend(range(sum_passages_len_without_question, total_passages_len))
-    k_need_index = sorted(k_need_index)
 
     # ========== 7. 准备重计算输入 ==========
     # final_len: int, 重计算后的最终序列长度 (包括所有 passages)
