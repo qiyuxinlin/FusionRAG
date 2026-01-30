@@ -1336,8 +1336,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 query_to_loaded_docs = layer_attn[:, :, loaded_docs_start:loaded_docs_end]
                 # 对 heads 和 query positions 平均
                 doc_attention_avg = query_to_loaded_docs.mean(axis=(0, 1))  # [loaded_doc_len]
+
                 layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=input_device)
 
+            # 选择用于聚合的层
             if draft_layer_selection == 'entropy':
                 # 基于熵动态选层
                 active_layers, layer_entropy = entropy_layer_selection(
@@ -1355,16 +1357,28 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                 print(f"  ⚠️ 所有文档都缺失，跳过 DraftModel 重要性选择")
                 k_need_index = []
             else:
+                # 正常情况：执行 DraftModel 选择
+                # multi_layer_attn 是已加载文档的 attention（不需要 mask）
+
                 # 使用 smart_query_selection 进行选择
-                # 注意: selection_start 是选择区域的起始位置（跳过了 system）返回的 selected_positions 直接就是 cache_position
+                # 注意: selection_start 是选择区域的起始位置（跳过了 system）
+                # 返回的 selected_positions 直接就是 cache_position（因为 full_input 与 past_kv 对齐）
+
                 if use_similarity_rerank and draft_model is not None:
-                    # 使用相似度重排序改进选择 用 smart_query_selection 选候选，保留连通分量和边界扩展
+                    # 使用相似度重排序改进选择
+                    # 关键改进: 先用 smart_query_selection 选候选，保留连通分量和边界扩展
                     print(f"  使用相似度重排序 (multiplier={rerank_multiplier})...")
 
                     # 计算 query-doc 相似度
-                    similarity_scores = compute_query_doc_similarity( draft_model, full_input, selection_start, selection_start + doc_len,query_start_in_full, input_device)
+                    similarity_scores = compute_query_doc_similarity(
+                        draft_model, full_input, selection_start, selection_start + doc_len,
+                        query_start_in_full, input_device
+                    )
+
                     target_count = int(doc_len * rate)
+
                     # 先用 smart_query_selection 选择 rerank_multiplier 倍候选
+                    # 这样保留了连通分量分析和边界扩展的优势
                     candidate_ratio = min(rate * rerank_multiplier, 1.0)
                     candidates_cache_pos = smart_query_selection(
                         attention_scores=multi_layer_attn,
@@ -1374,6 +1388,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                         device=input_device,
                         threshold_factor=draft_threshold_factor
                     )
+
                     # 转换为相对于 doc 的位置
                     candidates_local = [pos - selection_start for pos in candidates_cache_pos]
 
@@ -1419,6 +1434,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         else:
             # 对选中的索引排序 (保证顺序, 便于后续处理)
             k_need_index = list(k_need_index) # k_need_index = torch.sort(torch.tensor(k_need_index))[0].tolist()
+
     else:
         # rate == 0: 只重算缺失的文档和问题，不重算已加载的文档
         # 使用空的 list，稍后会添加 missing chunks 和 question

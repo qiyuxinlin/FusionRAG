@@ -78,25 +78,6 @@ echo ""
 mkdir -p "${RESULT_DIR}"
 mkdir -p "${CACHE_DIR}"
 
-# 可选：清除之前的缓存
-if [ "${CLEAR_CACHE_BEFORE_START}" == "true" ]; then
-    echo "⚠ 清除旧的 KV cache..."
-    rm -rf "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache"/*
-    echo "✓ KV cache 已清除"
-    echo ""
-fi
-
-# 显示当前缓存状态
-if [ -d "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" ]; then
-    CACHE_COUNT=$(find "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" -name "*_key.pt" 2>/dev/null | wc -l)
-    if [ ${CACHE_COUNT} -gt 0 ]; then
-        echo "当前已缓存文档数: ${CACHE_COUNT}"
-        CACHE_SIZE=$(du -sh "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" 2>/dev/null | cut -f1)
-        echo "当前缓存大小: ${CACHE_SIZE}"
-        echo ""
-    fi
-fi
-
 # 设置 GPU
 export CUDA_VISIBLE_DEVICES=${GPUS}
 
@@ -110,6 +91,19 @@ for RATE in "${RATE_LIST[@]}"; do
     echo "开始测试 Rate = ${RATE}"
     echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "=========================================="
+
+    # ========== 每个rate开始前清空缓存 ==========
+    if [ "${CLEAR_CACHE_BEFORE_START}" == "true" ]; then
+        echo "⚠ 清除 KV cache (为 rate ${RATE} 准备干净环境)..."
+        rm -rf "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache"/*
+        if [ -d "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" ]; then
+            CACHE_COUNT=$(find "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" -name "*_key.pt" 2>/dev/null | wc -l)
+            echo "✓ KV cache 已清除 (剩余 ${CACHE_COUNT} 个文件)"
+        else
+            echo "✓ KV cache 目录已清空"
+        fi
+        echo ""
+    fi
 
     # 记录单次测试开始时间
     TEST_START_TIME=$(date +%s)
