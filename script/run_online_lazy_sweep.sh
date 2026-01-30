@@ -14,11 +14,11 @@
 #####################################################################
 
 # 基础配置
-GPUS="5"
+GPUS="6"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/debug_v7"   # 结果保存目录
-CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy_test"                         # KV cache 保存路径
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/debug_v7_3"   # 结果保存目录
+CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy_test2"                         # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
@@ -27,9 +27,10 @@ MODEL_PATH="/mnt/data/models/Qwen2.5-7B-Instruct"
 MODEL_NAME="Qwen2.5-7B-Instruct"
 
 # 数据配置
-DATA_PATH="/home/shm/document/exp/FusionRAG/data/result_reflect_optimized.json" # "./data/result_reflect_optimized.json" 2wikimqa_reflect_optimized.json
-DATASET_NAME="musique" # 2wikimqa | musique
-
+# DATA_PATH="/home/shm/document/exp/FusionRAG/data/result_reflect_optimized.json" # "./data/result_reflect_optimized.json" 2wikimqa_reflect_optimized.json
+# DATASET_NAME="musique" # 2wikimqa | musique
+DATA_PATH="./data//2wikimqa_reflect_optimized.json" # "./data/result_reflect_optimized.json" 2wikimqa_reflect_optimized.json
+DATASET_NAME="2wikimqa" # 2wikimqa | musique
 
 # Online Lazy Loading 核心配置
 REPROCESS_METHOD="DraftModel"
@@ -43,7 +44,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表 - 测试不同的重算比例
-RATE_LIST=(0.3) 
+RATE_LIST=(0.99 0.1 0.15 0.3 0.5 0.8 0.9) 
 
 # 可选参数
 MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
@@ -125,6 +126,9 @@ for RATE in "${RATE_LIST[@]}"; do
         "--openai_base_url" "${OPENAI_BASE_URL}"
         "--openai_api_key" "${OPENAI_API_KEY}"
         "--openai_model" "${OPENAI_MODEL}"
+        "--use_entropy_selection" "${USE_ENTROPY_SELECTION}"
+        "--entropy_top_k" "${ENTROPY_TOP_K}"
+        "--draft_layer_selection" "${DRAFT_LAYER_SELECTION}"
     )
 
     # 添加可选参数

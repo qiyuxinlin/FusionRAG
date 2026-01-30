@@ -1011,7 +1011,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           layerwise_decay='linear',  # 'linear', 'exponential', 'cosine', 'step'
                           layerwise_final_rate=0.05,  # 最后一层的 rate
                           # 文本块1用原始KV cache (prefix cache)
-                          original_kv_path=None):  # 原始KV cache路径，用于文本块1 (doc_id=first document)
+                          original_kv_path=None,  # 原始KV cache路径，用于文本块1 (doc_id=first document)
+                          # System prompt 重算控制
+                          recompute_system_prompt=False):  # 是否让 system prompt 参与 DraftModel 选择和重算
     import os
     import pdb
 
@@ -1266,29 +1268,58 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             select_time = time.time()
 
             # doc_len: int, 已加载文档的总 token 数 (不包括question, 和缺失文档)
+            # 如果 recompute_system_prompt=True，则包括 system prompt
             # BUG FIX: 原来是 sum(passages_len[1:-1])，包括了所有文档（已加载+缺失）。正确做法: 只从已加载的文档中选择，因为缺失文档会 100% 添加
-            selection_start = system_len  # 选择区域的起始位置 (跳过 system_prompt)
+
+            # 确定 selection_start 和 doc_len
+            if recompute_system_prompt:
+                # 包含 system prompt 在选择范围内
+                selection_start = 0  # 从开头开始
+                # doc_len 将在后面计算为 system_len + loaded_doc_len
+                print(f"  DraftModel: System prompt 将参与选择和重算")
+            else:
+                # 跳过 system prompt（默认行为）
+                selection_start = system_len
+                # doc_len 将只是 loaded_doc_len
+
             if draft_attention is None:
                 if draft_model is None:
                     raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
-                # 初始化：始终包含 system
-                loaded_passages = [passages[0]]
-                loaded_doc_len = 0
-            
+
+                # 初始化 loaded_passages 和 loaded_doc_len
+                if recompute_system_prompt:
+                    # 不预先添加 system，因为后面会从 passages[0] 开始处理
+                    loaded_passages = []
+                    loaded_doc_len = 0
+                else:
+                    # 始终包含 system（但不参与选择）
+                    loaded_passages = [passages[0]]
+                    loaded_doc_len = 0
+
                 if missing_chunks:
-                    for idx in range(1, len(passages) - 1):  # 遍历所有文档（不包括 system 和 question）
-                        if idx not in missing_idx_set:  # 只处理已加载的
+                    # 遍历所有文档
+                    start_idx = 0 if recompute_system_prompt else 1
+                    for idx in range(start_idx, len(passages) - 1):  # 遍历文档（根据是否包含system决定起始索引）
+                        if idx == 0 and recompute_system_prompt:
+                            # System prompt
                             loaded_passages.append(passages[idx])
                             loaded_doc_len += passages[idx].shape[0]
-                    print(f"  DraftModel 输入: 只包含已加载文档 (跳过 {len(missing_chunks)} 个缺失文档)")
+                        elif idx not in missing_idx_set:  # 只处理已加载的
+                            loaded_passages.append(passages[idx])
+                            loaded_doc_len += passages[idx].shape[0]
+                    print(f"  DraftModel 输入: 已加载文档 (跳过 {len(missing_chunks)} 个缺失文档)" +
+                          (", 包含 system prompt" if recompute_system_prompt else ", 不包含 system prompt"))
                 else:
                     # 无缺失文档：所有文档都已加载
-                    loaded_passages.extend(passages[1:-1])  # 添加所有文档
-                    loaded_doc_len = sum(passages_len[1:-1])
-                    print(f"  DraftModel 输入: 所有文档都已加载")
+                    start_idx = 0 if recompute_system_prompt else 1
+                    loaded_passages.extend(passages[start_idx:-1])  # 添加文档（可能包含system）
+                    loaded_doc_len = sum(passages_len[start_idx:-1])
+                    print(f"  DraftModel 输入: 所有文档都已加载" +
+                          (", 包含 system prompt" if recompute_system_prompt else ", 不包含 system prompt"))
 
                 doc_len = loaded_doc_len
-                print(f"  DraftModel: 已加载文档总长度={loaded_doc_len} tokens")
+                print(f"  DraftModel: 可选择文档总长度={loaded_doc_len} tokens")
+
 
                 # 特殊情况：如果所有文档都缺失了，直接跳过 DraftModel 选择
                 if doc_len == 0:
@@ -1326,10 +1357,17 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # 收集各层的 query→doc attention（只针对已加载文档）
             layer_attention_dict = {}
 
-            # full_input = [system, loaded_doc1, loaded_doc2, ..., question]
-            # 提取文档部分的 attention（跳过 system 和 question）
-            loaded_docs_start = system_len
-            loaded_docs_end = query_start_in_full
+            # full_input = [system, loaded_doc1, loaded_doc2, ..., question] （如果 recompute_system_prompt=True）
+            # 或者 full_input = [system, loaded_doc1, loaded_doc2, ..., question] （如果 recompute_system_prompt=False）
+            # 提取文档部分的 attention
+            if recompute_system_prompt:
+                # 包含 system prompt
+                loaded_docs_start = 0  # 从开头开始
+                loaded_docs_end = query_start_in_full
+            else:
+                # 跳过 system prompt
+                loaded_docs_start = system_len
+                loaded_docs_end = query_start_in_full
 
             for layer_idx, layer_attn in draft_attention.items():
                 # layer_attn: [num_heads, query_len, seq_len]
@@ -1575,51 +1613,123 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
     print('='*20,f" Overall Recompute Statistics:",rate,'='*20)
 
-    # DEBUG: 打印所有文档的位置范围
-    print(f"\n[DEBUG] 所有文档的位置范围 (passages空间):")
+    # DEBUG: 打印所有文档的位置范围（同时显示 cache 和 passages 空间）
+    print(f"\n[DEBUG] 所有文档的位置范围:")
+    print(f"  {'Index':<6} {'Type':<20} {'Passages空间':<25} {'Cache空间':<25} {'Len':<6}")
+    print(f"  {'-'*6} {'-'*20} {'-'*25} {'-'*25} {'-'*6}")
+
     for doc_idx in range(len(passages)):
-        doc_start = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
-        doc_end = passages_len_cumsum[doc_idx]
+        # Passages 空间
+        doc_start_passages = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+        doc_end_passages = passages_len_cumsum[doc_idx]
+        doc_len = passages[doc_idx].shape[0]
+
+        # Cache 空间（使用映射字典）
         is_missing = doc_idx in missing_idx_set if missing_chunks else False
         doc_type = "System" if doc_idx == 0 else ("Question" if doc_idx == len(passages)-1 else f"Doc{doc_idx}{'(missing)' if is_missing else ''}")
-        print(f"  passages[{doc_idx}] ({doc_type}): [{doc_start}, {doc_end}), len={passages[doc_idx].shape[0]}")
 
-    print(f"\n[DEBUG] k_need_passages_positions 前20个: {k_need_passages_positions[:20]}")
+        # 使用 passages_to_kv_position 获取 cache 空间范围
+        if doc_start_passages in passages_to_kv_position:
+            cache_start = passages_to_kv_position[doc_start_passages]
+            cache_end = passages_to_kv_position[doc_end_passages - 1] + 1
+            cache_range = f"[{cache_start}, {cache_end})"
+        else:
+            cache_range = "Error: not in mapping"
+
+        print(f"  [{doc_idx:<4}] {doc_type:<20} [{doc_start_passages:4d}, {doc_end_passages:4d}){' ':15} {cache_range:<25} {doc_len:<6d}")
+
+    # 统计已加载文档的重算tokens，验证是否等于DraftModel选择数量
+    loaded_doc_recompute_total = 0
+    print(f"\n[DEBUG] 已加载文档的重算tokens统计（验证DraftModel选择）:")
+
+    # 如果 recompute_system_prompt=True，统计 system prompt
+    if recompute_system_prompt:
+        system_start = 0
+        system_end = passages[0].shape[0]
+        system_recompute = len([pos for pos in k_need_passages_positions if system_start <= pos < system_end])
+        loaded_doc_recompute_total += system_recompute
+        print(f"  System Prompt: {system_recompute} tokens")
+
+    # 统计其他已加载文档
+    start_idx = 1 if not recompute_system_prompt else 0  # 如果不包含 system，从1开始；否则从0开始
+    for doc_idx in range(start_idx, len(passages) - 1):  # 跳过 Question
+        is_missing = doc_idx in missing_idx_set if missing_chunks else False
+        if not is_missing:
+            doc_start = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+            doc_end = passages_len_cumsum[doc_idx]
+            doc_total_len = passages[doc_idx].shape[0]
+            doc_tokens_recompute = len([pos for pos in k_need_passages_positions if doc_start <= pos < doc_end])
+            loaded_doc_recompute_total += doc_tokens_recompute
+            doc_label = "System Prompt" if doc_idx == 0 else f"Doc{doc_idx}"
+            print(f"  {doc_label}: {doc_tokens_recompute} tokens")
+
+    print(f"  已加载文档重算总计: {loaded_doc_recompute_total} tokens")
+    if reprocess_method == 'DraftModel' and rate > 0:
+        # 计算 DraftModel 选择的数量
+        draft_selected_count = sum(1 for pos in k_need_set if pos < past_len)
+        print(f"  DraftModel 选择数量: {draft_selected_count} tokens")
+        match = "✓ 匹配" if loaded_doc_recompute_total == draft_selected_count else f"✗ 不匹配（差{abs(loaded_doc_recompute_total - draft_selected_count)}个）"
+        print(f"  验证结果: {match}")
 
     # 统计每个文档的重计算情况
     for doc_idx in range(len(passages)):
-        # 计算当前文档的起始和结束位置
-        doc_start = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
-        doc_end = passages_len_cumsum[doc_idx]
+        # 计算当前文档在 passages 空间的起始和结束位置
+        doc_start_passages = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+        doc_end_passages = passages_len_cumsum[doc_idx]
         doc_total_len = passages[doc_idx].shape[0]
 
         # 确定文档类型标签
         if doc_idx == 0:
             doc_label = "System Prompt"
-            # System 不参与重计算，应该总是 0
-            doc_tokens_recompute = 0
-            doc_coverage_pct = 0.0
+            # 使用 passages_to_kv_position 获取 cache 空间范围
+            cache_range = f"[0, {system_len})"
+
+            # 根据 recompute_system_prompt 决定是否统计 system prompt 的重算
+            if recompute_system_prompt:
+                # System prompt 参与 DraftModel 选择和重算
+                doc_tokens_recompute = len([pos for pos in k_need_passages_positions if doc_start_passages <= pos < doc_end_passages])
+                doc_coverage_pct = (doc_tokens_recompute / doc_total_len * 100) if doc_total_len > 0 else 0
+            else:
+                # System prompt 不参与重计算，应该总是 0
+                doc_tokens_recompute = 0
+                doc_coverage_pct = 0.0
         elif doc_idx == len(passages) - 1:
             doc_label = "Question"
             # Question 总是 100% 保留
             doc_tokens_recompute = doc_total_len
             doc_coverage_pct = 100.0
+            # 使用 passages_to_kv_position 获取 cache 空间范围
+            if doc_start_passages in passages_to_kv_position:
+                cache_start = passages_to_kv_position[doc_start_passages]
+                cache_end = passages_to_kv_position[doc_end_passages - 1] + 1
+                cache_range = f"[{cache_start}, {cache_end})"
+            else:
+                cache_range = "Error: not in mapping"
         else:
             # 检查是否是缺失文档
             is_missing = doc_idx in missing_idx_set if missing_chunks else False
             doc_label = f"Doc{doc_idx} (missing)" if is_missing else f"Doc{doc_idx}"
 
+            # 使用 passages_to_kv_position 获取 cache 空间范围
+            if doc_start_passages in passages_to_kv_position:
+                cache_start = passages_to_kv_position[doc_start_passages]
+                cache_end = passages_to_kv_position[doc_end_passages - 1] + 1
+                cache_range = f"[{cache_start}, {cache_end})"
+            else:
+                cache_range = "Error: not in mapping"
+
+            # 计算重算tokens
             if is_missing:
                 # 缺失文档总是 100% 重计算
                 doc_tokens_recompute = doc_total_len
                 doc_coverage_pct = 100.0
             else:
                 # 已加载文档：统计有多少 token 被选中（使用 passages 位置）
-                doc_tokens_recompute = len([pos for pos in k_need_passages_positions if doc_start <= pos < doc_end])
+                doc_tokens_recompute = len([pos for pos in k_need_passages_positions if doc_start_passages <= pos < doc_end_passages])
                 doc_coverage_pct = (doc_tokens_recompute / doc_total_len * 100) if doc_total_len > 0 else 0
 
-        # 打印该文档的统计信息
-        print(f"  {doc_label:20s}: {doc_tokens_recompute:5d} / {doc_total_len:5d} tokens ({doc_coverage_pct:6.2f}%)")
+        # 打印该文档的统计信息（包含 passages 和 cache 空间信息）
+        print(f"  {doc_label:20s}: {doc_tokens_recompute:5d} / {doc_total_len:5d} tokens ({doc_coverage_pct:6.2f}%) | Passages: [{doc_start_passages:4d}, {doc_end_passages:4d}) | Cache: {cache_range}")
 
     # 打印总体统计
     total_tokens = sum([p.shape[0] for p in passages])

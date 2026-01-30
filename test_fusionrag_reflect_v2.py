@@ -443,7 +443,7 @@ def prepare_reflect_data(
     
     # 根据数据集名称选择文档池文件
     if '2wikimqa' in dataset_name.lower() or '2wiki' in dataset_name.lower():
-        corpus_filename = '2wiki_input.json'
+        corpus_filename = '2wiki_input_rebuilt.json'
     elif 'musique' in dataset_name.lower():
         corpus_filename = 'musique_input.json'
     else:
