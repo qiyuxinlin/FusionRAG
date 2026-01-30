@@ -6,10 +6,10 @@
 #####################################################################
 
 # 基础配置
-GPUS="4"
+GPUS="5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/bge"       # 结果保存目录（CSV等）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/no_preprocess"       # 结果保存目录（CSV等）
 CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
@@ -26,7 +26,7 @@ DATASET_NAME="musique_v2" # 2wikimqa| musique | musique_v2
 # FusionRAG 方法配置
 REPROCESS_METHOD="DraftModel"  # 可修改: FusionRAG, Oracle, OracleAdaptive, etc.
 TOPK="10"
-PREPROCESS="true"
+PREPROCESS="false"
 USE_RANDOM_RECALL="false"     # [已废弃] 请使用 RECALL_METHOD
 RECALL_METHOD="bge"       # 召回方法: bge, random, repeat_self, fixed_doc, no_preprocess_with_bias
 RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效)

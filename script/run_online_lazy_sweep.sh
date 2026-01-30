@@ -44,7 +44,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表 - 测试不同的重算比例
-RATE_LIST=(0.99 0.1 0.15 0.3 0.5 0.8 0.9) 
+RATE_LIST=(0.001 0.5 0.8 0.9) 
 
 # 可选参数
 MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
