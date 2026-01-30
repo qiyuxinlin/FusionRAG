@@ -1522,6 +1522,22 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         reprocess_inputs = cat_passages[k_need_index_passages_pos].unsqueeze(0).to(input_device)
         # cache_position 就是 k_need_index（已经是 cache 位置）
         cache_position = torch.tensor(k_need_index, device=input_device)
+
+        # DEBUG: 验证转换正确性
+        print(f"\n[DEBUG] Forward pass - Position conversion verification:")
+        print(f"  k_need_index length: {len(k_need_index)}")
+        print(f"  First 10 k_need_index (cache pos): {k_need_index[:10]}")
+        print(f"  First 10 k_need_index_passages_pos: {k_need_index_passages_pos[:10]}")
+        print(f"  reprocess_inputs shape: {reprocess_inputs.shape}")
+        print(f"  cache_position shape: {cache_position.shape}")
+        # 验证前3个位置的对应关系
+        for i in range(min(3, len(k_need_index))):
+            cache_pos = k_need_index[i]
+            passages_pos = k_need_index_passages_pos[i]
+            token_id = reprocess_inputs[0, i].item()
+            original_token = cat_passages[passages_pos].item()
+            match = "✓" if token_id == original_token else "✗ MISMATCH!"
+            print(f"    [{i}] cache_pos={cache_pos} -> passages_pos={passages_pos}, token={token_id}, original={original_token} {match}")
     else:
         pdb.set_trace()
         # 其他方法: k_need_index 已经是 passages 位置
@@ -1530,10 +1546,11 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         cache_position = torch.tensor([passages_to_kv_position[int(pos)] for pos in k_need_index], device=input_device)
 
     # 将 k_need_index 转为集合便于查询
+    # 重要：确保所有元素转换为 int（避免 tensor 作为字典 key）
     if isinstance(k_need_index, list):
-        k_need_set = set(k_need_index)
+        k_need_set = set(int(pos) if not isinstance(pos, int) else pos for pos in k_need_index)
     else:
-        k_need_set = set(k_need_index)
+        k_need_set = set(int(pos.item()) if isinstance(pos, torch.Tensor) else int(pos) for pos in k_need_index)
 
     # 使用 kv_to_passages_position 将 cache_position 转换为 passages 位置用于统计
     if reprocess_method == 'DraftModel':
@@ -1557,6 +1574,18 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
 
     print('='*20,f" Overall Recompute Statistics:",rate,'='*20)
+
+    # DEBUG: 打印所有文档的位置范围
+    print(f"\n[DEBUG] 所有文档的位置范围 (passages空间):")
+    for doc_idx in range(len(passages)):
+        doc_start = passages_len_cumsum[doc_idx-1] if doc_idx > 0 else 0
+        doc_end = passages_len_cumsum[doc_idx]
+        is_missing = doc_idx in missing_idx_set if missing_chunks else False
+        doc_type = "System" if doc_idx == 0 else ("Question" if doc_idx == len(passages)-1 else f"Doc{doc_idx}{'(missing)' if is_missing else ''}")
+        print(f"  passages[{doc_idx}] ({doc_type}): [{doc_start}, {doc_end}), len={passages[doc_idx].shape[0]}")
+
+    print(f"\n[DEBUG] k_need_passages_positions 前20个: {k_need_passages_positions[:20]}")
+
     # 统计每个文档的重计算情况
     for doc_idx in range(len(passages)):
         # 计算当前文档的起始和结束位置

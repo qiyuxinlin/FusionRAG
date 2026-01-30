@@ -11,7 +11,7 @@ import sys
 import json
 
 
-def load_question_mapping(dataset_path: str) -> tuple[Dict[str, int], Dict[str, list], Dict[tuple, list], Dict[str, list]]:
+def load_question_mapping(dataset_path: str):
     """加载数据集，建立 main_question -> (example_id, chunk_ids) 的映射
 
     Returns:
@@ -371,8 +371,8 @@ def main():
 
     # 加载文件
     print(f"\n加载结果文件...")
-    df1 = load_result_file("/home/shm/document/exp/FusionRAG/result/Qwen2.5-7B-Instruct/musique/results/FusionRAG_global_topk_10_rate_0.0_revert_rope.csv")
-    df2 = load_result_file("/home/shm/document/exp/FusionRAG/result/no_preprocess/Qwen2.5-7B-Instruct/musique/nopreprocess/rate_0.0_revert_rope.csv")
+    df1 = load_result_file("/home/shm/document/exp/FusionRAG/result/debug_v6/Qwen2.5-7B-Instruct/2wikimqa/nopreprocess/rate_0.5_draft_Qwen2.5-3B-Instruct_revert_rope.csv")
+    df2 = load_result_file("/home/shm/document/exp/FusionRAG/result/debug_v6/Qwen2.5-7B-Instruct/2wikimqa/nopreprocess/rate_0.7_draft_Qwen2.5-3B-Instruct_revert_rope.csv")
 
     # 比较结果
     print(f"\n开始比较...")
