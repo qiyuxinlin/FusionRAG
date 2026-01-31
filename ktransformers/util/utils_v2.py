@@ -724,6 +724,9 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
     torch._dynamo.config.suppress_errors = True
     batch_size, seq_length = inputs.shape
 
+    # Token 统计：记录实际计算的 token 数量
+    total_tokens_processed = seq_length  # 实际通过所有层的 token 数量
+
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
     inputs = inputs.to(input_device)
@@ -784,7 +787,7 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
             else:
                 print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
 
-        return key_cache, value_cache
+        return key_cache, value_cache, total_tokens_processed
 
 def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs):
     inputs_embeds = model.model.embed_tokens(cur_token)
@@ -958,7 +961,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         'topk_count_for_coverage': None,
         'normalized_entropy': None,
         'total_budget': None,
-        'doc_len': None
+        'doc_len': None,
+        'recompute_token_count': None,  # 新增：重算的 token 数量
+        'decode_token_count': None      # 新增：解码生成的 token 数量
     }
 
     # load KV
@@ -2426,6 +2431,10 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # print(f"eval count:           {tokens_generated} token(s)")
     # print(f"eval duration:        {total_time}s")
     # print(f"eval rate:            {tokens_per_second} tokens/s")
+
+    # 记录 token 统计信息
+    extra_info['recompute_token_count'] = prefill_count
+    extra_info['decode_token_count'] = len(tokens)
 
     return tokens, prefill_time, extra_info
 

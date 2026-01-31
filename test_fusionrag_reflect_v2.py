@@ -445,10 +445,10 @@ def prepare_reflect_data(
     if '2wikimqa' in dataset_name.lower() or '2wiki' in dataset_name.lower():
         corpus_filename = '2wiki_input_rebuilt.json'
     elif 'musique' in dataset_name.lower():
-        corpus_filename = 'musique_input.json'
+        corpus_filename = 'musique_input_rebuilt.json'
     else:
         # 默认使用 musique
-        corpus_filename = 'musique_input.json'
+        corpus_filename = 'musique_input_rebuilt.json'
         print(f"  Warning: Unknown dataset '{dataset_name}', using default corpus: {corpus_filename}")
     
     pool_path = os.path.join(data_dir, corpus_filename)
@@ -1386,6 +1386,8 @@ def main(
     # Long decode 模式参数
     long_decode=False,  # 是否启用长 decode 模式（要求输出答案和支撑材料）
     long_decode_max_tokens=1000,  # long_decode 模式下的最大生成 token 数
+    # 消融实验：文档重复参数
+    repeat_k_times=1,  # 文档重复次数（默认1表示不重复，>1时开启消融模式）
 ):
     """
     Main function for FusionRAG testing on result_reflect.json
@@ -1863,7 +1865,9 @@ def main(
                     layerwise_decay=layerwise_decay,
                     layerwise_final_rate=layerwise_final_rate,
                     # 文本块1用原始KV cache (prefix cache hit)
-                    original_kv_path=save_path if preprocess else None
+                    original_kv_path=save_path if preprocess else None,
+                    # 消融实验：文档重复
+                    repeat_k_times=repeat_k_times
                 )
 
                 # 收集 OracleDynamic/OracleAdaptive/DynamicDraftModel/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
@@ -2501,7 +2505,8 @@ def collect_optimal_rate(
                             draft_layer_selection='entropy',
                             preprocess=preprocess,
                             device=input_device, device_map=device_map,
-                            original_kv_path=save_path
+                            original_kv_path=save_path,
+                            repeat_k_times=repeat_k_times  # 消融实验
                         )
 
                     answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True).strip()
@@ -2786,6 +2791,10 @@ if __name__ == '__main__':
     parser.add_argument('--long_decode_max_tokens', type=int, default=1000,
                         help='Max tokens for long decode mode')
 
+    # 消融实验：文档重复参数
+    parser.add_argument('--repeat_k_times', type=int, default=1,
+                        help='Repeat passages K times for ablation study (default=1, no repeat)')
+
     # GPU 配置
     parser.add_argument('--device', type=str, default='cuda:0',
                         help='Device to use for single GPU')
@@ -2863,6 +2872,7 @@ if __name__ == '__main__':
         rerank_multiplier=args.rerank_multiplier,
         long_decode=args.long_decode,
         long_decode_max_tokens=args.long_decode_max_tokens,
+        repeat_k_times=args.repeat_k_times,
     )
     # for rate in [0.2]:
     #     main(

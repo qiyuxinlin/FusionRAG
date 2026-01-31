@@ -1013,12 +1013,79 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           # 文本块1用原始KV cache (prefix cache)
                           original_kv_path=None,  # 原始KV cache路径，用于文本块1 (doc_id=first document)
                           # System prompt 重算控制
-                          recompute_system_prompt=False):  # 是否让 system prompt 参与 DraftModel 选择和重算
+                          recompute_system_prompt=False,  # 是否让 system prompt 参与 DraftModel 选择和重算
+                          # 消融实验：文档重复
+                          repeat_k_times=3):  # 文档重复次数（默认1表示不重复，>1时开启消融模式）
     import os
     import pdb
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
+
+    # ========== 消融实验：第一步 - 检查哪些文档缺少 KV cache ==========
+    # 在扩充 passages 之前先检查，只对 miss chunks 扩充
+    if repeat_k_times > 1:
+        missing_idx_set = set()  # 记录缺少 KV cache 的文档索引
+        print(f"\n[消融实验] 检查 KV cache 状态...")
+
+        # system prompt 的特殊 doc_id
+        SYSTEM_PROMPT_ID = -1
+
+        # 检查每个文档（不包括问题）
+        for idx, passage in enumerate(passages[:-1]):
+            if idx == 0:
+                # system prompt，跳过
+                continue
+
+            doc_id = doc_ids[idx]
+            kv_path = load_path
+            key_path = f'{kv_path}/doc_{doc_id}_key.pt'
+            value_path = f'{kv_path}/doc_{doc_id}_value.pt'
+
+            if not (os.path.exists(key_path) and os.path.exists(value_path)):
+                missing_idx_set.add(idx)
+                print(f"  ⚠ Doc {doc_id}: KV cache not found (will repeat)")
+
+        print(f"[消融实验] 发现 {len(missing_idx_set)} 个 miss chunks")
+
+        # ========== 第二步：只对 miss chunks 扩充 ==========
+        if len(missing_idx_set) > 0:
+            print(f"[消融实验] 扩充 {len(missing_idx_set)} 个 miss chunks (repeat_k_times={repeat_k_times})")
+
+            new_passages = []
+            repeat_mapping = []
+
+            for idx, passage in enumerate(passages):
+                # passages[0] 是 system prompt，passages[-1] 是问题，不重复
+                if idx == 0 or idx == len(passages) - 1:
+                    new_passages.append(passage)
+                    repeat_mapping.append({'original_idx': idx, 'repeat_factor': 1, 'original_len': passage.shape[0], 'repeated_len': passage.shape[0]})
+                elif idx in missing_idx_set:
+                    # miss chunk：需要重复
+                    repeated_passage = torch.cat([passage] * repeat_k_times)
+                    new_passages.append(repeated_passage)
+                    repeat_mapping.append({
+                        'original_idx': idx,
+                        'repeat_factor': repeat_k_times,
+                        'original_len': passage.shape[0],
+                        'repeated_len': repeated_passage.shape[0]
+                    })
+                else:
+                    # 已缓存的文档：不重复
+                    new_passages.append(passage)
+                    repeat_mapping.append({'original_idx': idx, 'repeat_factor': 1, 'original_len': passage.shape[0], 'repeated_len': passage.shape[0]})
+
+            # 更新 passages
+            passages = new_passages
+            print(f"[消融实验] 扩充完成")
+        else:
+            # 所有文档都已缓存，不扩充
+            repeat_mapping = None
+            print(f"[消融实验] 所有文档已缓存，无需扩充")
+    else:
+        # 正常模式
+        missing_idx_set = None
+        repeat_mapping = None
 
     passages_len = [passage.shape[0] for passage in passages] # 列表，记录了每个召回文本块passage的 Token 数量，passage -1代表问题，问题部分也会有其他东西包装
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))] # 列表，记录了每个文本块在整体输入中的起始位置
@@ -1076,7 +1143,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # 结构: [{'idx': 索引, 'doc_id': 文档ID, 'passage': token序列, 'passage_start': 起始位置, 'passage_end': 结束位置, 'length': 长度}, ...]
     # 这些文档将在后续 forward pass 时实时生成 KV cache 并保存到磁盘
     missing_chunks = []  # List[Dict], 缺失文档的完整元信息
-    missing_idx_set = set()  # Set[int], 缺失文档的索引集合
+    # missing_idx_set 可能在前面已经定义（消融实验模式），如果没有则初始化
+    if 'missing_idx_set' not in locals() or missing_idx_set is None:
+        missing_idx_set = set()  # Set[int], 缺失文档的索引集合
 
     # ========== 初始化位置映射字典，稍后在加载 KV cache 时构建 ==========
     passages_to_kv_position = {}  # Map: passages_pos -> past_key_values_pos
@@ -1826,6 +1895,38 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                     chunk_key_all_layers.append(layer_chunk_key)
                     chunk_value_all_layers.append(layer_chunk_value)
+
+                # ========== 9.3.5 消融实验：重复模式下只保存最后一段（不扩展）==========
+                if repeat_k_times > 1 and repeat_mapping is not None and idx < len(repeat_mapping):
+                    # idx 是当前文档在 passages 中的索引
+                    mapping_info = repeat_mapping[idx]
+
+                    if mapping_info['repeat_factor'] > 1:
+                        # 这是一个重复过的文档，只保存最后一段（原始长度）
+                        original_len = mapping_info['original_len']
+                        repeated_len = mapping_info['repeated_len']
+
+                        # 计算最后一段在 KV 中的位置
+                        # chunk_end_in_kv - chunk_start_in_kv 是重复后的总长度
+                        # 我们只需要最后 original_len 个 token
+                        last_segment_start = chunk_end_in_kv - original_len
+
+                        # 重新切片，只保留最后一段
+                        # 切片的起始位置相对于 chunk_start_in_kv
+                        slice_start = last_segment_start - chunk_start_in_kv
+
+                        chunk_key_all_layers = [
+                            k[:, :, slice_start:, :].clone()
+                            for k in chunk_key_all_layers
+                        ]
+                        chunk_value_all_layers = [
+                            v[:, :, slice_start:, :].clone()
+                            for v in chunk_value_all_layers
+                        ]
+
+                        # 更新 chunk_len 为切片后的长度（原始长度）
+                        chunk_len = original_len
+                        print(f"[消融实验] Doc {doc_id}: 保存最后一段 ({original_len} tokens)")
 
                 # ========== 9.4 原子保存到磁盘 ==========
                 # 使用临时文件 + 重命名的方式保证原子性 (避免写入过程中崩溃导致文件损坏)

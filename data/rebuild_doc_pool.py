@@ -161,10 +161,12 @@ def replace_docs_with_ids(bge_data: List[Dict], text_to_id: Dict[str, int]) -> L
 
 def main():
     # 文件路径
-    bge_path = '/home/shm/document/exp/FusionRAG/data/2wikimqa_reflect.json'
-    new_pool_path = '/home/shm/document/exp/FusionRAG/data/2wiki_input_rebuilt.json'
-    optimized_path = '/home/shm/document/exp/FusionRAG/data/2wikimqa_reflect_optimized.json'
-
+    bge_path = '/home/shm/document/exp/FusionRAG/data/result_reflect_merged.json'
+    new_pool_path = '/home/shm/document/exp/FusionRAG/data/musique_input_rebuilt.json'
+    optimized_path = '/home/shm/document/exp/FusionRAG/data/musique_merge_reflect_optimized.json'
+    # doc_pool_path = '/home/shm/document/exp/FusionRAG/data/musique_input.json'
+    # input_path = '/home/shm/document/exp/FusionRAG/data/result_reflect_merged.json'
+    # output_path = '/home/shm/document/exp/FusionRAG/data/result_musique_merge_reflect_optimized.json'
     print("=" * 80)
     print("步骤 1: 加载BGE数据集")
     print("=" * 80)

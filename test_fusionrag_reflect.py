@@ -1825,6 +1825,11 @@ def main(
     # 收集 OracleDynamic 的动态 rate 信息
     dynamic_rate_stats = []  # List of (main_q_idx, sub_q_idx, dynamic_rate, cv, doc_len)
 
+    # Token 统计跟踪变量
+    stage1_main_doc_tokens = []      # 阶段1：主问题文档 prefill tokens
+    stage2_bge_doc_tokens = []       # 阶段2：BGE 召回文档 prefill tokens
+    stage3_recompute_tokens = []     # 阶段3：重算 + 解码 tokens
+
     # Process each main question (on-demand cache generation)
     for example_id, q_data in enumerate(questions_data):
         print(f"\n{'='*80}")
@@ -1847,12 +1852,17 @@ def main(
             if not os.path.exists(system_cache_path):
                 print(f"Generating system KV cache...")
                 input_tensor = system_tensor.unsqueeze(0)
-                prefill_and_save_kv_cache(
+                key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                     model, tokenizer, past_key_values, input_tensor.to(input_device),
                     save_path=save_path, example_id=example_id, chunk_id=0,
                     system_len=system_len, passage_len=system_len,
                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                 )
+                stage1_main_doc_tokens.append({
+                    'example_id': example_id,
+                    'chunk_id': 0,
+                    'token_count': tokens_processed
+                })
 
             # Generate KV cache for each document in THIS main question
             for doc_idx, doc_tensor in enumerate(doc_tensors):
@@ -1863,12 +1873,17 @@ def main(
                     passage_len = doc_tensor.shape[0]
                     input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
 
-                    prefill_and_save_kv_cache(
+                    key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                         model, tokenizer, past_key_values, input_tensor.to(input_device),
                         save_path=save_path, example_id=example_id, chunk_id=chunk_id,
                         system_len=system_len, passage_len=passage_len,
                         reprocess_method=reprocess_method, device=input_device, device_map=device_map
                     )
+                    stage1_main_doc_tokens.append({
+                        'example_id': example_id,
+                        'chunk_id': chunk_id,
+                        'token_count': tokens_processed
+                    })
                     print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
 
             # Generate random text KV cache (for RANDOM_TEXT and RANDOM_DOCS modes)
@@ -1886,12 +1901,17 @@ def main(
                         input_tensor = random_text_tensor.unsqueeze(0)
 
                         # Save as "text_{idx}" format
-                        prefill_and_save_kv_cache(
+                        key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                             model, tokenizer, past_key_values, input_tensor.to(input_device),
                             save_path=random_text_cache_dir, example_id=f'text', chunk_id=text_idx,
                             system_len=0, passage_len=passage_len,
                             reprocess_method=reprocess_method, device=input_device, device_map=device_map
                         )
+                        stage1_main_doc_tokens.append({
+                            'example_id': example_id,
+                            'chunk_id': f'random_{text_idx}',
+                            'token_count': tokens_processed
+                        })
 
                 if random_text_tensors:
                     print(f"  Generated KV cache for {len(random_text_tensors)} random texts")
@@ -1997,24 +2017,36 @@ def main(
                                 other_system_cache_path = f'{save_path}/{corpus_i}_0_key.pt'
                                 if not os.path.exists(other_system_cache_path):
                                     other_input = system_tensor.unsqueeze(0)
-                                    prefill_and_save_kv_cache(
+                                    key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                                         model, tokenizer, past_key_values, other_input.to(input_device),
                                         save_path=save_path, example_id=corpus_i, chunk_id=0,
                                         system_len=system_len, passage_len=system_len,
                                         reprocess_method=reprocess_method, device=input_device, device_map=device_map
                                     )
+                                    stage2_bge_doc_tokens.append({
+                                        'example_id': example_id,
+                                        'corpus_id': corpus_i,
+                                        'chunk_id': 0,
+                                        'token_count': tokens_processed
+                                    })
 
                                 # Generate the document cache
                                 similar_doc_tensor = questions_data[corpus_i]['doc_tensors'][c_id]
                                 other_passage_len = similar_doc_tensor.shape[0]
                                 other_input = torch.cat((system_tensor, similar_doc_tensor)).unsqueeze(0)
 
-                                prefill_and_save_kv_cache(
+                                key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                                     model, tokenizer, past_key_values, other_input.to(input_device),
                                     save_path=save_path, example_id=corpus_i, chunk_id=similar_chunk_id,
                                     system_len=system_len, passage_len=other_passage_len,
                                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                                 )
+                                stage2_bge_doc_tokens.append({
+                                    'example_id': example_id,
+                                    'corpus_id': corpus_i,
+                                    'chunk_id': similar_chunk_id,
+                                    'token_count': tokens_processed
+                                })
 
                 # STEP 2: Now load all required cache into past_key_values
                 # Reset cache
@@ -2405,6 +2437,18 @@ def main(
                     # 文本块1用原始KV cache (prefix cache hit)
                     original_kv_path=save_path if preprocess else None
                 )
+
+                # 收集阶段3的 token 统计（重算 + 解码）
+                recompute_count = extra_info.get('recompute_token_count', 0)
+                decode_count = extra_info.get('decode_token_count', len(generated_tokens))
+
+                stage3_recompute_tokens.append({
+                    'example_id': example_id,
+                    'sub_q_idx': sub_q_idx,
+                    'recompute_count': recompute_count,
+                    'decode_count': decode_count,
+                    'prefill_time': _
+                })
 
                 # 收集 OracleDynamic/OracleAdaptive/DynamicDraftModel/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
                 if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise') and extra_info.get('dynamic_rate') is not None:
@@ -2827,6 +2871,59 @@ def main(
                 f.write(f"Current Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.4f})\n")
                 f.write(f"Rate=1 Evidence Matched: {rate1_evidence_matched}/{rate1_evidence_total} ({rate1_evidence_acc:.4f})\n")
                 f.write(f"Evidence Delta: {evidence_acc - rate1_evidence_acc:+.4f}\n")
+
+        # Token 计算统计
+        f.write("\n")
+        f.write("=" * 80 + "\n")
+        f.write("TOKEN COMPUTATION STATISTICS\n")
+        f.write("=" * 80 + "\n")
+
+        # 获取总问题数量
+        total_questions = total_sub_questions
+
+        # 阶段 1：主问题文档 prefill
+        stage1_total = sum(t['token_count'] for t in stage1_main_doc_tokens)
+        f.write(f"\n--- Stage 1: Main Question Document Prefill ---\n")
+        f.write(f"Total Tokens: {stage1_total:,}\n")
+        f.write(f"Total Questions: {total_questions}\n")
+        if total_questions > 0:
+            f.write(f"Average Tokens per Question: {stage1_total/total_questions:,.2f}\n")
+
+        # 阶段 2：BGE 召回文档 prefill
+        stage2_total = sum(t['token_count'] for t in stage2_bge_doc_tokens)
+        f.write(f"\n--- Stage 2: BGE Recalled Document Prefill ---\n")
+        f.write(f"Total Tokens: {stage2_total:,}\n")
+        f.write(f"Total Questions: {total_questions}\n")
+        if total_questions > 0:
+            f.write(f"Average Tokens per Question: {stage2_total/total_questions:,.2f}\n")
+
+        # 阶段 3：答案生成（重算 + 解码）
+        stage3_recompute_total = sum(t['recompute_count'] for t in stage3_recompute_tokens)
+        stage3_decode_total = sum(t['decode_count'] for t in stage3_recompute_tokens)
+        stage3_count = len(stage3_recompute_tokens)
+        stage3_total = stage3_recompute_total + stage3_decode_total
+
+        f.write(f"\n--- Stage 3: Answer Generation (Recompute + Decode) ---\n")
+        f.write(f"Total Recomputed Tokens: {stage3_recompute_total:,}\n")
+        f.write(f"Total Decode Tokens: {stage3_decode_total:,}\n")
+        f.write(f"Total Questions: {stage3_count}\n")
+        if stage3_count > 0:
+            f.write(f"Average Recomputed Tokens per Question: {stage3_recompute_total/stage3_count:,.2f}\n")
+            f.write(f"Average Decode Tokens per Question: {stage3_decode_total/stage3_count:,.2f}\n")
+
+        # 总体统计
+        overall_total = stage1_total + stage2_total + stage3_total
+        f.write(f"\n--- Overall Token Statistics ---\n")
+        f.write(f"Grand Total Tokens Computed: {overall_total:,}\n")
+        f.write(f"Total Questions: {total_questions}\n")
+        if total_questions > 0:
+            f.write(f"Average Tokens per Question: {overall_total/total_questions:,.2f}\n")
+            f.write(f"\nBreakdown by Stage:\n")
+            if overall_total > 0:
+                f.write(f"  Stage 1 (Main docs): {stage1_total:,} ({stage1_total/overall_total*100:.2f}%)\n")
+                f.write(f"  Stage 2 (BGE docs): {stage2_total:,} ({stage2_total/overall_total*100:.2f}%)\n")
+                f.write(f"  Stage 3 (Recompute): {stage3_recompute_total:,} ({stage3_recompute_total/overall_total*100:.2f}%)\n")
+                f.write(f"  Stage 3 (Decode): {stage3_decode_total:,} ({stage3_decode_total/overall_total*100:.2f}%)\n")
 
     # 关闭线程池
     judge_executor.shutdown(wait=True)

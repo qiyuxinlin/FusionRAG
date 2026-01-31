@@ -91,9 +91,9 @@ def optimize_sample(sample: Dict, text_to_id: Dict[str, int], doc_pool: List[Dic
 
 def main():
     # File paths"/home/shm/document/exp/FusionRAG/data/2wiki_input.json"
-    doc_pool_path = '/home/shm/document/exp/FusionRAG/data/2wiki_input.json'
-    input_path = '/home/shm/document/exp/FusionRAG/data/2wikimqa_reflect.json'
-    output_path = '/home/shm/document/exp/FusionRAG/data/2wikimqa_reflect_optimized.json'
+    doc_pool_path = '/home/shm/document/exp/FusionRAG/data/musique_input_rebuilt.json'
+    input_path = '/home/shm/document/exp/FusionRAG/data/result_reflect.json'
+    output_path = '/home/shm/document/exp/FusionRAG/data/result_musique_reflect_optimized.json'
 
     print("Loading document pool...")
     doc_pool = load_json(doc_pool_path)

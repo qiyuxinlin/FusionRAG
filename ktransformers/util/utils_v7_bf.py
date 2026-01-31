@@ -1013,49 +1013,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           # 文本块1用原始KV cache (prefix cache)
                           original_kv_path=None,  # 原始KV cache路径，用于文本块1 (doc_id=first document)
                           # System prompt 重算控制
-                          recompute_system_prompt=False,  # 是否让 system prompt 参与 DraftModel 选择和重算
-                          # 消融实验：文档重复
-                          repeat_k_times=1):  # 文档重复次数（默认1表示不重复，>1时开启消融模式）
+                          recompute_system_prompt=False):  # 是否让 system prompt 参与 DraftModel 选择和重算
     import os
     import pdb
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
-
-    # ========== 消融实验：Passage 扩充逻辑 ==========
-    # 对文档进行重复拼接，保存时只保留最后一段的 KV
-    if repeat_k_times > 1:
-        print(f"\n[消融实验] 文档重复模式: repeat_k_times={repeat_k_times}")
-
-        # 对所有 passages 进行扩充（包括已缓存和未缓存）
-        # 策略：全部扩充，中间统一处理，只在保存时区分
-        new_passages = []
-        repeat_mapping = []  # 记录每个扩充 passage 对应的原始索引
-
-        for idx, passage in enumerate(passages):
-            # passages[0] 是 system prompt，passages[-1] 是问题，不重复
-            # passages[1:-1] 是文档，需要重复
-            if idx == 0 or idx == len(passages) - 1:
-                # system prompt 和问题不重复
-                new_passages.append(passage)
-                repeat_mapping.append({'original_idx': idx, 'repeat_factor': 1})
-            else:
-                # 文档部分：重复 K 次
-                repeated_passage = torch.cat([passage] * repeat_k_times)
-                new_passages.append(repeated_passage)
-                repeat_mapping.append({
-                    'original_idx': idx,
-                    'repeat_factor': repeat_k_times,
-                    'original_len': passage.shape[0],
-                    'repeated_len': repeated_passage.shape[0]
-                })
-
-        # 更新 passages 为扩充后的版本
-        passages = new_passages
-        print(f"[消融实验] 扩充完成，文档将从 {len(passages)} 个 passage 处理")
-    else:
-        # 正常模式：不需要映射信息
-        repeat_mapping = None
 
     passages_len = [passage.shape[0] for passage in passages] # 列表，记录了每个召回文本块passage的 Token 数量，passage -1代表问题，问题部分也会有其他东西包装
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))] # 列表，记录了每个文本块在整体输入中的起始位置
@@ -1863,35 +1826,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
                     chunk_key_all_layers.append(layer_chunk_key)
                     chunk_value_all_layers.append(layer_chunk_value)
-
-                # ========== 9.3.5 消融实验：重复模式下只保存最后一段 ==========
-                if repeat_k_times > 1 and repeat_mapping is not None and idx < len(repeat_mapping):
-                    # idx 是当前文档在 passages 中的索引
-                    mapping_info = repeat_mapping[idx]
-
-                    if mapping_info['repeat_factor'] > 1:
-                        # 这是一个重复过的文档，只保存最后一段
-                        original_len = mapping_info['original_len']
-                        repeated_len = mapping_info['repeated_len']
-
-                        # 计算最后一段在 KV 中的位置
-                        # chunk_end_in_kv - chunk_start_in_kv 是重复后的总长度
-                        # 我们只需要最后 original_len 个 token
-                        last_segment_start = chunk_end_in_kv - original_len
-
-                        # 重新切片，只保留最后一段
-                        # 切片的起始位置相对于 chunk_start_in_kv
-                        slice_start = last_segment_start - chunk_start_in_kv
-                        chunk_key_all_layers = [
-                            k[:, :, slice_start:, :].clone()
-                            for k in chunk_key_all_layers
-                        ]
-                        chunk_value_all_layers = [
-                            v[:, :, slice_start:, :].clone()
-                            for v in chunk_value_all_layers
-                        ]
-
-                        print(f"[消融实验] Doc {doc_id}: 保存最后一段 ({original_len}/{repeated_len} tokens)")
 
                 # ========== 9.4 原子保存到磁盘 ==========
                 # 使用临时文件 + 重命名的方式保证原子性 (避免写入过程中崩溃导致文件损坏)
