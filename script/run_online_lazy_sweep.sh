@@ -5,7 +5,7 @@
 GPUS="4"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/debug_v7_3"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/debug_v8"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
 CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
 cd /home/shm/document/exp/FusionRAG
 
@@ -16,16 +16,16 @@ MODEL_NAME="Qwen2.5-7B-Instruct"
 
 # 数据集
 # musique路径
-# DATA_PATH="./data/result_musique_reflect_optimized.json" 
-# DATASET_NAME="musique" 
+DATA_PATH="./data/result_musique_reflect_optimized.json" 
+DATASET_NAME="musique" 
 
 # 2wikimqa路径
 # DATA_PATH="./data/2wikimqa_reflect_optimized.json" 
 # DATASET_NAME="2wikimqa" 
 
 # musique扩充路径
-DATA_PATH="/home/shm/document/exp/FusionRAG/data/musique_merge_reflect_optimized.json" 
-DATASET_NAME="musique_310" 
+# DATA_PATH="/home/shm/document/exp/FusionRAG/data/musique_merge_reflect_optimized.json" 
+# DATASET_NAME="musique_310" 
 
 
 # Online Lazy Loading 核心配置
@@ -40,7 +40,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表 - 测试不同的重算比例
-RATE_LIST=(0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)  # (0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)
+RATE_LIST=(0.001)  # (0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)
 
 # 可选参数
 MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
