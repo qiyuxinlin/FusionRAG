@@ -43,6 +43,38 @@ from ktransformers.models.custom_cache import StaticCache
 import torch.nn.functional as F
 
 
+class DocumentPoolLoader:
+    """按需加载全局文档池"""
+    def __init__(self, pool_path: str):
+        self.pool_path = pool_path
+        self.pool = {}  # {doc_id: document_text}
+        if not os.path.exists(pool_path):
+            raise FileNotFoundError(f"Document pool not found: {pool_path}")
+        self._load_pool()
+
+    def _load_pool(self):
+        """加载整个文档池到内存（文件很小，约3.5MB）"""
+        print(f"Loading document pool from {self.pool_path}...")
+        with open(self.pool_path, 'r', encoding='utf-8') as f:
+            docs = json.load(f)
+        for idx, doc in enumerate(docs):
+            # 验证文档格式
+            if 'id' not in doc:
+                print(f"  Warning: Document at index {idx} missing 'id' field: {doc}")
+                continue
+            if 'text' not in doc:
+                print(f"  Warning: Document {doc.get('id', 'unknown')} missing 'text' field")
+                continue
+            self.pool[doc['id']] = doc['text']
+        print(f"  Loaded {len(self.pool)} documents")
+
+    def get_document(self, doc_id: int) -> str:
+        """通过全局 ID 获取文档文本"""
+        if doc_id not in self.pool:
+            raise ValueError(f"Document ID {doc_id} not found in pool")
+        return self.pool[doc_id]
+
+
 class PreprocessScope(Enum):
     """
     Enum to control the scope of document retrieval during preprocessing
@@ -410,8 +442,8 @@ def prepare_reflect_data_ramdom(
         main_answer = data_item["answer"]
         intermediate_context = data_item.get("intermediate_context", [])
 
-        question_docs = []  # Documents for THIS question only
-        doc_to_idx = {}  # Local doc -> chunk_id mapping for this question
+        doc_ids_for_question = []  # 全局 doc IDs for THIS question
+        doc_id_set = set()  # Track unique doc IDs for this question
         sub_questions_info = []
 
         # Check if this main question should be tested
@@ -421,19 +453,30 @@ def prepare_reflect_data_ramdom(
         #     should_test_main_question = False
 
         for sub_q_idx, sub_q in enumerate(intermediate_context):
-            docs = sub_q.get("retrieve docs", [])
-            doc_chunk_ids = []  # chunk_ids for this sub-question (local to this question)
+            retrieve_doc_ids = sub_q.get("retrieve docs", [])  # 现在是全局 doc IDs (integers)
 
-            for doc in docs:
-                if doc not in doc_to_idx:
-                    # New document for this question
-                    question_docs.append(doc)
-                    chunk_id = len(question_docs)  # chunk_id starts from 1
-                    doc_to_idx[doc] = chunk_id
-                    doc_chunk_ids.append(chunk_id)
-                else:
-                    # Document already seen in this question
-                    doc_chunk_ids.append(doc_to_idx[doc])
+            # Collect unique doc IDs for this question
+            for doc_id in retrieve_doc_ids:
+                # Skip error dictionaries (docs not found in pool)
+                if isinstance(doc_id, dict):
+                    if 'error' in doc_id:
+                        print(f"  ⚠ Skipping document with error: {doc_id.get('error', 'unknown')}")
+                    continue
+                # Only process integer doc IDs
+                if not isinstance(doc_id, (int, str)):
+                    print(f"  ⚠ Skipping invalid doc_id type: {type(doc_id)}")
+                    continue
+                # Convert string to int if needed
+                if isinstance(doc_id, str):
+                    try:
+                        doc_id = int(doc_id)
+                    except ValueError:
+                        print(f"  ⚠ Skipping non-integer doc_id: {doc_id}")
+                        continue
+
+                if doc_id not in doc_id_set:
+                    doc_ids_for_question.append(doc_id)
+                    doc_id_set.add(doc_id)
 
             # Remove "Intermediate queryXXX:" prefix from query
             query = sub_q['query']
@@ -459,31 +502,46 @@ def prepare_reflect_data_ramdom(
             sub_questions_info.append({
                 'query': query,
                 'answer': answer,
-                'chunk_ids': doc_chunk_ids,  # chunk_ids for docs used by this sub-question
+                'doc_ids': retrieve_doc_ids,  # 全局 doc IDs for this sub-question
             })
 
-        print(f"  Main question {main_q_idx + 1}: {len(question_docs)} unique documents, {len(sub_questions_info)} sub-questions")
+        print(f"  Main question {main_q_idx + 1}: {len(doc_ids_for_question)} unique documents, {len(sub_questions_info)} sub-questions")
+
+        # Get document texts for tokenization and global corpus (for BGE encoding)
+        question_doc_texts = []
+        for doc_id in doc_ids_for_question:
+            try:
+                doc_text = doc_pool.get_document(doc_id)
+                question_doc_texts.append(doc_text)
+            except ValueError as e:
+                print(f"  Error: {e}, skipping from corpus")
+                # 严格模式：如果文档不存在，抛出错误停止
+                raise ValueError(f"Document ID {doc_id} not found in document pool: {e}")
 
         # Tokenize documents for this main question
         doc_tensors = []
-        for doc in question_docs:
-            doc_text = f"Document: {doc}\n"
-            doc_tokens = tokenizer.encode(doc_text, add_special_tokens=False)
+        doc_id_to_tensor_idx = {}  # Mapping: global_doc_id -> index in doc_tensors
+
+        for idx, doc_id in enumerate(doc_ids_for_question):
+            doc_text = question_doc_texts[idx]  # Already loaded above
+            doc_text_formatted = f"Document: {doc_text}\n"
+            doc_tokens = tokenizer.encode(doc_text_formatted, add_special_tokens=False)
             doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
             doc_tensors.append(doc_tensor)
+            doc_id_to_tensor_idx[doc_id] = idx
 
         # Add this question's docs to global corpus based on scope
         # For SKIP_UNTESTED, only add docs if should_test is True
         if preprocess_scope == PreprocessScope.SKIP_UNTESTED:
             if should_test_main_question:
-                global_corpus.extend(question_docs)
-                corpus_lens.append(len(question_docs))
+                global_corpus.extend(question_doc_texts)
+                corpus_lens.append(len(question_doc_texts))
             else:
                 corpus_lens.append(0)  # No docs added for this question
         else:
             # GLOBAL and PER_EXAMPLE: add all docs
-            global_corpus.extend(question_docs)
-            corpus_lens.append(len(question_docs))
+            global_corpus.extend(question_doc_texts)
+            corpus_lens.append(len(question_doc_texts))
 
         # 获取 gold_docs（用于 long_decode 模式的支撑材料评估）
         gold_docs = data_item.get('gold_docs', [])
@@ -492,7 +550,8 @@ def prepare_reflect_data_ramdom(
             'main_question': main_question,
             'main_answer': main_answer,
             'sub_questions': sub_questions_info,
-            'docs': question_docs,
+            'doc_ids': doc_ids_for_question,  # 全局 doc IDs
+            'doc_id_to_tensor_idx': doc_id_to_tensor_idx,  # Mapping: global_doc_id -> tensor index
             'doc_tensors': doc_tensors,
             'should_test': should_test_main_question,  # Whether to test this main question
             'gold_docs': gold_docs,  # 用于 long_decode 模式的支撑材料评估
@@ -507,7 +566,7 @@ def prepare_reflect_data_ramdom(
     testable_sub_q = sum(len(q['sub_questions']) for q in questions_data if q['should_test'])
     skipped_sub_q = total_sub_q - testable_sub_q
 
-    total_docs = sum(len(q['docs']) for q in questions_data)
+    total_docs = sum(len(q['doc_ids']) for q in questions_data)
 
 
     # STEP 2: Build FAISS index and compute context_rank based on scope
@@ -524,7 +583,7 @@ def prepare_reflect_data_ramdom(
         all_global_indices = list(range(total_docs_count))
 
         for q_idx, q_data in enumerate(questions_data):
-            n_docs = len(q_data['docs'])
+            n_docs = len(q_data['doc_ids'])
             if n_docs == 0: continue
 
             global_offset = sum(corpus_lens[:q_idx])
@@ -557,7 +616,7 @@ def prepare_reflect_data_ramdom(
             context_rank = np.vstack(context_rank)
             print(f"Random context_rank shape: {context_rank.shape}")
 
-    return questions_data, system_tensor, context_rank, corpus_lens
+    return questions_data, system_tensor, context_rank, corpus_lens, doc_pool
 
 def prepare_reflect_data(
     data_path: str,
@@ -600,6 +659,44 @@ def prepare_reflect_data(
         dataset = dataset[:max_main_questions]
         print(f"Limited to first {max_main_questions} main questions")
 
+    # ========== 数据集格式验证（全局 doc ID 格式） ==========
+    if dataset and len(dataset) > 0:
+        first_item = dataset[0]
+        if 'intermediate_context' in first_item and len(first_item['intermediate_context']) > 0:
+            first_retrieve = first_item['intermediate_context'][0].get('retrieve docs', [])
+            if first_retrieve and isinstance(first_retrieve[0], str):
+                raise ValueError(
+                    f"\n{'='*80}\n"
+                    f"ERROR: This code requires the NEW optimized dataset format!\n"
+                    f"  Current: {data_path}\n"
+                    f"  Expected: result_musique_reflect_optimized.json (with doc IDs, not text)\n"
+                    f"\n"
+                    f"  The 'retrieve docs' field should contain integers (doc IDs),\n"
+                    f"  not document text strings.\n"
+                    f"\n"
+                    f"  Please use: --data_path data/result_musique_reflect_optimized.json\n"
+                    f"{'='*80}"
+                )
+    # ========== 数据集格式验证结束 ==========
+
+    # ========== 初始化文档池 ==========
+    # 根据数据集名称选择文档池文件
+    data_dir = os.path.dirname(data_path)
+    if '2wikimqa' in data_path.lower() or '2wiki' in data_path.lower():
+        corpus_filename = '2wiki_input_rebuilt.json'
+    elif 'musique' in data_path.lower():
+        corpus_filename = 'musique_input_rebuilt.json'
+    else:
+        # 默认使用 musique
+        corpus_filename = 'musique_input_rebuilt.json'
+        print(f"  Warning: Unknown dataset '{data_path}', using default corpus: {corpus_filename}")
+
+    pool_path = os.path.join(data_dir, corpus_filename)
+    print(f"  Using corpus: {pool_path}")
+
+    doc_pool = DocumentPoolLoader(pool_path)
+    # ========== 文档池初始化完成 ==========
+
     # Map model_type to model_family for system prompt
     model_family_map = {
         'qwen': 'Qwen2.5',
@@ -631,8 +728,8 @@ def prepare_reflect_data(
         main_answer = data_item["answer"]
         intermediate_context = data_item.get("intermediate_context", [])
 
-        question_docs = []  # Documents for THIS question only
-        doc_to_idx = {}  # Local doc -> chunk_id mapping for this question
+        doc_ids_for_question = []  # 全局 doc IDs for THIS question
+        doc_id_set = set()  # Track unique doc IDs for this question
         sub_questions_info = []
 
         # Check if this main question should be tested
@@ -642,19 +739,30 @@ def prepare_reflect_data(
         #     should_test_main_question = False
 
         for sub_q_idx, sub_q in enumerate(intermediate_context):
-            docs = sub_q.get("retrieve docs", [])
-            doc_chunk_ids = []  # chunk_ids for this sub-question (local to this question)
+            retrieve_doc_ids = sub_q.get("retrieve docs", [])  # 现在是全局 doc IDs (integers)
 
-            for doc in docs:
-                if doc not in doc_to_idx:
-                    # New document for this question
-                    question_docs.append(doc)
-                    chunk_id = len(question_docs)  # chunk_id starts from 1
-                    doc_to_idx[doc] = chunk_id
-                    doc_chunk_ids.append(chunk_id)
-                else:
-                    # Document already seen in this question
-                    doc_chunk_ids.append(doc_to_idx[doc])
+            # Collect unique doc IDs for this question
+            for doc_id in retrieve_doc_ids:
+                # Skip error dictionaries (docs not found in pool)
+                if isinstance(doc_id, dict):
+                    if 'error' in doc_id:
+                        print(f"  ⚠ Skipping document with error: {doc_id.get('error', 'unknown')}")
+                    continue
+                # Only process integer doc IDs
+                if not isinstance(doc_id, (int, str)):
+                    print(f"  ⚠ Skipping invalid doc_id type: {type(doc_id)}")
+                    continue
+                # Convert string to int if needed
+                if isinstance(doc_id, str):
+                    try:
+                        doc_id = int(doc_id)
+                    except ValueError:
+                        print(f"  ⚠ Skipping non-integer doc_id: {doc_id}")
+                        continue
+
+                if doc_id not in doc_id_set:
+                    doc_ids_for_question.append(doc_id)
+                    doc_id_set.add(doc_id)
 
             # Remove "Intermediate queryXXX:" prefix from query
             query = sub_q['query']
@@ -680,31 +788,46 @@ def prepare_reflect_data(
             sub_questions_info.append({
                 'query': query,
                 'answer': answer,
-                'chunk_ids': doc_chunk_ids,  # chunk_ids for docs used by this sub-question
+                'doc_ids': retrieve_doc_ids,  # 全局 doc IDs for this sub-question
             })
 
-        print(f"  Main question {main_q_idx + 1}: {len(question_docs)} unique documents, {len(sub_questions_info)} sub-questions")
+        print(f"  Main question {main_q_idx + 1}: {len(doc_ids_for_question)} unique documents, {len(sub_questions_info)} sub-questions")
+
+        # Get document texts for tokenization and global corpus (for BGE encoding)
+        question_doc_texts = []
+        for doc_id in doc_ids_for_question:
+            try:
+                doc_text = doc_pool.get_document(doc_id)
+                question_doc_texts.append(doc_text)
+            except ValueError as e:
+                print(f"  Error: {e}, skipping from corpus")
+                # 严格模式：如果文档不存在，抛出错误停止
+                raise ValueError(f"Document ID {doc_id} not found in document pool: {e}")
 
         # Tokenize documents for this main question
         doc_tensors = []
-        for doc in question_docs:
-            doc_text = f"Document: {doc}\n"
-            doc_tokens = tokenizer.encode(doc_text, add_special_tokens=False)
+        doc_id_to_tensor_idx = {}  # Mapping: global_doc_id -> index in doc_tensors
+
+        for idx, doc_id in enumerate(doc_ids_for_question):
+            doc_text = question_doc_texts[idx]  # Already loaded above
+            doc_text_formatted = f"Document: {doc_text}\n"
+            doc_tokens = tokenizer.encode(doc_text_formatted, add_special_tokens=False)
             doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
             doc_tensors.append(doc_tensor)
+            doc_id_to_tensor_idx[doc_id] = idx
 
         # Add this question's docs to global corpus based on scope
         # For SKIP_UNTESTED, only add docs if should_test is True
         if preprocess_scope == PreprocessScope.SKIP_UNTESTED:
             if should_test_main_question:
-                global_corpus.extend(question_docs)
-                corpus_lens.append(len(question_docs))
+                global_corpus.extend(question_doc_texts)
+                corpus_lens.append(len(question_doc_texts))
             else:
                 corpus_lens.append(0)  # No docs added for this question
         else:
             # GLOBAL and PER_EXAMPLE: add all docs
-            global_corpus.extend(question_docs)
-            corpus_lens.append(len(question_docs))
+            global_corpus.extend(question_doc_texts)
+            corpus_lens.append(len(question_doc_texts))
 
         # 获取 gold_docs（用于 long_decode 模式的支撑材料评估）
         gold_docs = data_item.get('gold_docs', [])
@@ -713,7 +836,8 @@ def prepare_reflect_data(
             'main_question': main_question,
             'main_answer': main_answer,
             'sub_questions': sub_questions_info,
-            'docs': question_docs,
+            'doc_ids': doc_ids_for_question,  # 全局 doc IDs
+            'doc_id_to_tensor_idx': doc_id_to_tensor_idx,  # Mapping: global_doc_id -> tensor index
             'doc_tensors': doc_tensors,
             'should_test': should_test_main_question,  # Whether to test this main question
             'gold_docs': gold_docs,  # 用于 long_decode 模式的支撑材料评估
@@ -728,7 +852,7 @@ def prepare_reflect_data(
     testable_sub_q = sum(len(q['sub_questions']) for q in questions_data if q['should_test'])
     skipped_sub_q = total_sub_q - testable_sub_q
 
-    total_docs = sum(len(q['docs']) for q in questions_data)
+    total_docs = sum(len(q['doc_ids']) for q in questions_data)
 
 
 
@@ -748,7 +872,7 @@ def prepare_reflect_data(
             all_global_indices = list(range(total_docs_count))
 
             for q_idx, q_data in enumerate(questions_data):
-                n_docs = len(q_data['docs'])
+                n_docs = len(q_data['doc_ids'])
                 if n_docs == 0:
                     continue
 
@@ -789,7 +913,7 @@ def prepare_reflect_data(
             print("="*80)
 
             for q_idx, q_data in enumerate(questions_data):
-                n_docs = len(q_data['docs'])
+                n_docs = len(q_data['doc_ids'])
                 if n_docs == 0:
                     continue
 
@@ -826,7 +950,7 @@ def prepare_reflect_data(
             print(f"Fixed document global index: {fixed_doc_idx}")
 
             for q_idx, q_data in enumerate(questions_data):
-                n_docs = len(q_data['docs'])
+                n_docs = len(q_data['doc_ids'])
                 if n_docs == 0:
                     continue
 
@@ -865,10 +989,13 @@ def prepare_reflect_data(
                 context_rank = []
 
                 for q_idx, q_data in enumerate(questions_data):
-                    example_docs = q_data['docs']
-
-                    if len(example_docs) == 0:
+                    # Extract this example's documents from global corpus
+                    global_offset = sum(corpus_lens[:q_idx])
+                    n_docs = len(q_data['doc_ids'])
+                    if n_docs == 0:
                         continue
+
+                    example_docs = global_corpus[global_offset:global_offset + n_docs]
 
                     print(f"  Example {q_idx + 1}: {len(example_docs)} documents")
 
@@ -1108,7 +1235,7 @@ def prepare_reflect_data(
                 q_data['random_text_lengths'] = random_text_lengths
                 q_data['use_original_length'] = True  # Flag to indicate no length adjustment
 
-    return questions_data, system_tensor, context_rank, corpus_lens
+    return questions_data, system_tensor, context_rank, corpus_lens, doc_pool
 
 
 # 全局缓存：存储评判结果
@@ -1647,7 +1774,7 @@ def main(
 
     # Prepare data organized by main questions
     print("Preparing data organized by main questions...")
-    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+    questions_data, system_tensor, context_rank, corpus_lens, doc_pool = prepare_reflect_data(
         data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess,
         recall_method_enum, random_seed, fixed_doc_idx, preprocess_scope
     )
@@ -1847,44 +1974,65 @@ def main(
 
         # Step 1: Generate KV cache for THIS main question's documents
         if rate != 1:  # Skip if full recompute
-            # Generate system KV cache (chunk_id=0)
-            system_cache_path = f'{save_path}/{example_id}_0_key.pt'
+            # Generate system KV cache (shared across all questions, use SYSTEM_PROMPT_ID = -1)
+            SYSTEM_PROMPT_ID = -1
+            # First generate with old naming format, then rename
+            temp_system_cache_path = f'{save_path}/{SYSTEM_PROMPT_ID}_0_key.pt'
+            system_cache_path = f'{save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt'
+
             if not os.path.exists(system_cache_path):
-                print(f"Generating system KV cache...")
+                print(f"Generating system KV cache (shared globally)...")
                 input_tensor = system_tensor.unsqueeze(0)
                 key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                     model, tokenizer, past_key_values, input_tensor.to(input_device),
-                    save_path=save_path, example_id=example_id, chunk_id=0,
+                    save_path=save_path, example_id=SYSTEM_PROMPT_ID, chunk_id=0,
                     system_len=system_len, passage_len=system_len,
                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                 )
+                # Rename to new format
+                if os.path.exists(temp_system_cache_path):
+                    shutil.move(temp_system_cache_path, system_cache_path)
+                    shutil.move(temp_system_cache_path.replace('_key.pt', '_value.pt'),
+                               system_cache_path.replace('_key.pt', '_value.pt'))
+
                 stage1_main_doc_tokens.append({
                     'example_id': example_id,
-                    'chunk_id': 0,
+                    'doc_id': SYSTEM_PROMPT_ID,
                     'token_count': tokens_processed
                 })
 
-            # Generate KV cache for each document in THIS main question
-            for doc_idx, doc_tensor in enumerate(doc_tensors):
-                chunk_id = doc_idx + 1
-                cache_key_path = f'{save_path}/{example_id}_{chunk_id}_key.pt'
+            # Generate KV cache for each document in THIS main question (using global doc IDs)
+            for idx, doc_id in enumerate(q_data['doc_ids']):
+                cache_key_path = f'{save_path}/doc_{doc_id}_key.pt'
 
-                if not os.path.exists(cache_key_path):
-                    passage_len = doc_tensor.shape[0]
-                    input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
+                # Skip if already cached (may be generated by another question)
+                if os.path.exists(cache_key_path):
+                    continue
 
-                    key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
-                        model, tokenizer, past_key_values, input_tensor.to(input_device),
-                        save_path=save_path, example_id=example_id, chunk_id=chunk_id,
-                        system_len=system_len, passage_len=passage_len,
-                        reprocess_method=reprocess_method, device=input_device, device_map=device_map
-                    )
-                    stage1_main_doc_tokens.append({
-                        'example_id': example_id,
-                        'chunk_id': chunk_id,
-                        'token_count': tokens_processed
-                    })
-                    print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensors)}")
+                doc_tensor = doc_tensors[idx]
+                passage_len = doc_tensor.shape[0]
+                input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
+
+                key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
+                    model, tokenizer, past_key_values, input_tensor.to(input_device),
+                    save_path=save_path, example_id=doc_id, chunk_id=1,  # Use chunk_id=1 for documents (triggers saving only doc part)
+                    system_len=system_len, passage_len=passage_len,
+                    reprocess_method=reprocess_method, device=input_device, device_map=device_map
+                )
+
+                # Rename from {doc_id}_1_key.pt to doc_{doc_id}_key.pt
+                temp_path = f'{save_path}/{doc_id}_1_key.pt'
+                if os.path.exists(temp_path):
+                    shutil.move(temp_path, cache_key_path)
+                    shutil.move(temp_path.replace('_key.pt', '_value.pt'),
+                               cache_key_path.replace('_key.pt', '_value.pt'))
+
+                stage1_main_doc_tokens.append({
+                    'example_id': example_id,
+                    'doc_id': doc_id,
+                    'token_count': tokens_processed
+                })
+                print(f"  Generated KV cache for document {idx+1}/{len(doc_tensors)} (doc_id={doc_id})")
 
             # Generate random text KV cache (for RANDOM_TEXT and RANDOM_DOCS modes)
             if recall_method_enum in [RecallMethod.RANDOM_TEXT, RecallMethod.RANDOM_DOCS]:
@@ -1918,21 +2066,21 @@ def main(
 
         # Step 2: FusionRAG preprocess (if enabled, but skip for NO_PREPROCESS_WITH_BIAS)
         if preprocess and rate != 1 and recall_method_enum != RecallMethod.NO_PREPROCESS_WITH_BIAS:
-            # Copy system cache (chunk_id=0)
-            system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
+            # Copy system cache (shared across all questions, SYSTEM_PROMPT_ID = -1)
+            SYSTEM_PROMPT_ID = -1
+            system_preprocess_key = f"{preprocess_save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt"
             if not os.path.exists(system_preprocess_key):
-                shutil.copy(f'{save_path}/{example_id}_0_key.pt', system_preprocess_key)
-                shutil.copy(f'{save_path}/{example_id}_0_value.pt', f"{preprocess_save_path}/{example_id}_0_value.pt")
+                shutil.copy(f'{save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt', system_preprocess_key)
+                shutil.copy(f'{save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt', f"{preprocess_save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt")
 
-            # Preprocess each document
-            for doc_idx in range(len(doc_tensors)):
-                chunk_id = doc_idx + 1
-                preprocess_key_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt"
+            # Preprocess each document (using global doc IDs)
+            for doc_idx, doc_id in enumerate(q_data['doc_ids']):
+                preprocess_key_path = f"{preprocess_save_path}/doc_{doc_id}_key.pt"
 
                 if os.path.exists(preprocess_key_path):
                     continue
 
-                print(f"  Preprocessing document {chunk_id}/{len(doc_tensors)} with FusionRAG...")
+                print(f"  Preprocessing document {doc_idx+1}/{len(doc_tensors)} (doc_id={doc_id}) with FusionRAG...")
 
                 # Show retrieved similar documents
                 if len(context_rank) > 0:
@@ -1975,12 +2123,13 @@ def main(
                             if similar_global_idx == global_doc_idx and recall_method_enum != RecallMethod.REPEAT_SELF:
                                 continue
 
+                            # Convert corpus index to global doc ID
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
-                            similar_chunk_id = c_id + 1
-                            similar_cache_key_path = f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt"
+                            similar_doc_id = questions_data[corpus_i]['doc_ids'][c_id]
+                            similar_cache_key_path = f"{save_path}/doc_{similar_doc_id}_key.pt"
                             cache_exists = os.path.exists(similar_cache_key_path)
                             status = "✓ cached" if cache_exists else "✗ need generate"
-                            similar_docs_info.append(f"Q{corpus_i+1}-Doc{similar_chunk_id} ({status})")
+                            similar_docs_info.append(f"doc_{similar_doc_id} ({status})")
 
                         if similar_docs_info:
                             print(f"    Retrieved similar docs: {', '.join(similar_docs_info)}")
@@ -2005,30 +2154,16 @@ def main(
                             if similar_global_idx == global_doc_idx and recall_method_enum != RecallMethod.REPEAT_SELF:
                                 continue
 
+                            # Convert corpus index to global doc ID
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
-                            similar_chunk_id = c_id + 1
+                            similar_doc_id = questions_data[corpus_i]['doc_ids'][c_id]
 
                             # Check and generate if needed
-                            similar_cache_key_path = f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt"
+                            similar_cache_key_path = f"{save_path}/doc_{similar_doc_id}_key.pt"
                             if not os.path.exists(similar_cache_key_path):
-                                print(f"      → On-demand: Generating cache for Q{corpus_i+1}-Doc{similar_chunk_id}...")
+                                print(f"      → On-demand: Generating cache for doc_{similar_doc_id}...")
 
-                                # Generate system cache for that question if needed
-                                other_system_cache_path = f'{save_path}/{corpus_i}_0_key.pt'
-                                if not os.path.exists(other_system_cache_path):
-                                    other_input = system_tensor.unsqueeze(0)
-                                    key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
-                                        model, tokenizer, past_key_values, other_input.to(input_device),
-                                        save_path=save_path, example_id=corpus_i, chunk_id=0,
-                                        system_len=system_len, passage_len=system_len,
-                                        reprocess_method=reprocess_method, device=input_device, device_map=device_map
-                                    )
-                                    stage2_bge_doc_tokens.append({
-                                        'example_id': example_id,
-                                        'corpus_id': corpus_i,
-                                        'chunk_id': 0,
-                                        'token_count': tokens_processed
-                                    })
+                                # System cache is shared (doc_{-1}_key.pt), no need to regenerate per question
 
                                 # Generate the document cache
                                 similar_doc_tensor = questions_data[corpus_i]['doc_tensors'][c_id]
@@ -2037,14 +2172,20 @@ def main(
 
                                 key_cache, value_cache, tokens_processed = prefill_and_save_kv_cache(
                                     model, tokenizer, past_key_values, other_input.to(input_device),
-                                    save_path=save_path, example_id=corpus_i, chunk_id=similar_chunk_id,
+                                    save_path=save_path, example_id=similar_doc_id, chunk_id=1,  # Use chunk_id=1 for documents
                                     system_len=system_len, passage_len=other_passage_len,
                                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                                 )
+
+                                # Rename from {doc_id}_1_key.pt to doc_{doc_id}_key.pt
+                                temp_path = f'{save_path}/{similar_doc_id}_1_key.pt'
+                                if os.path.exists(temp_path):
+                                    shutil.move(temp_path, f'{save_path}/doc_{similar_doc_id}_key.pt')
+                                    shutil.move(temp_path.replace('_key.pt', '_value.pt'),
+                                               f'{save_path}/doc_{similar_doc_id}_value.pt')
                                 stage2_bge_doc_tokens.append({
                                     'example_id': example_id,
-                                    'corpus_id': corpus_i,
-                                    'chunk_id': similar_chunk_id,
+                                    'doc_id': similar_doc_id,
                                     'token_count': tokens_processed
                                 })
 
@@ -2054,10 +2195,11 @@ def main(
                 for layer_idx in range(len(past_key_values.key_cache)):
                     past_key_values.past_tokens[layer_idx] = 0
 
-                # Load system KV cache
+                # Load system KV cache (shared across all questions, SYSTEM_PROMPT_ID = -1)
                 corpus_passages = [system_tensor]
-                system_key_cache = torch.load(f"{save_path}/{example_id}_0_key.pt", weights_only=True)
-                system_value_cache = torch.load(f"{save_path}/{example_id}_0_value.pt", weights_only=True)
+                SYSTEM_PROMPT_ID = -1
+                system_key_cache = torch.load(f"{save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt", weights_only=True)
+                system_value_cache = torch.load(f"{save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt", weights_only=True)
 
                 for layer_idx in range(len(past_key_values.key_cache)):
                     past_key_values.key_cache[layer_idx].narrow(2, 0, system_len).copy_(system_key_cache[layer_idx])
@@ -2165,16 +2307,17 @@ def main(
                             if similar_global_idx == global_doc_idx and recall_method_enum != RecallMethod.REPEAT_SELF:
                                 continue
 
+                            # Convert corpus index to global doc ID
                             corpus_i, c_id = find_group_and_index(corpus_lens, similar_global_idx)
-                            similar_chunk_id = c_id + 1
+                            similar_doc_id = questions_data[corpus_i]['doc_ids'][c_id]
 
                             # Load the similar document's cache (now guaranteed to exist)
                             similar_doc_tensor = questions_data[corpus_i]['doc_tensors'][c_id]
                             corpus_len = similar_doc_tensor.shape[0]
                             corpus_passages.append(similar_doc_tensor)
 
-                            chunk_key_cache = torch.load(f"{save_path}/{corpus_i}_{similar_chunk_id}_key.pt", weights_only=True)
-                            chunk_value_cache = torch.load(f"{save_path}/{corpus_i}_{similar_chunk_id}_value.pt", weights_only=True)
+                            chunk_key_cache = torch.load(f"{save_path}/doc_{similar_doc_id}_key.pt", weights_only=True)
+                            chunk_value_cache = torch.load(f"{save_path}/doc_{similar_doc_id}_value.pt", weights_only=True)
 
                             # Shuffle KV positions if BGE_SHUFFLED mode (for recalled documents only, not current doc)
                             if recall_method_enum == RecallMethod.BGE_SHUFFLED:
@@ -2202,10 +2345,18 @@ def main(
                 # Preprocess with fused KV cache (normal methods only, not NO_PREPROCESS_WITH_BIAS)
                 prefill_with_cache_and_save_preprocess(
                     model, tokenizer, past_key_values, corpus_passages,
-                    preprocess_save_path, example_id, chunk_id,
+                    preprocess_save_path, doc_id, 1,  # Use doc_id and chunk_id=1 for documents
                     system_len=system_len, revert_rope=revert_rope,
                     reprocess_method=reprocess_method, device=input_device, device_map=device_map
                 )
+
+                # Rename from {doc_id}_1_key.pt to doc_{doc_id}_key.pt
+                temp_path = f"{preprocess_save_path}/{doc_id}_1_key.pt"
+                target_path = f"{preprocess_save_path}/doc_{doc_id}_key.pt"
+                if os.path.exists(temp_path):
+                    shutil.move(temp_path, target_path)
+                    shutil.move(temp_path.replace('_key.pt', '_value.pt'),
+                               target_path.replace('_key.pt', '_value.pt'))
 
         # Step 2.5: Apply steering vector for NO_PREPROCESS_WITH_BIAS method
         # Following the paper's manifold steering approach: h' = h + α * r_M
@@ -2223,12 +2374,13 @@ def main(
             print(f"  Key steering layers: {steering_key_layers} -> {sorted(key_layers_to_apply)}")
             print(f"  Value steering layers: {steering_value_layers} -> {sorted(value_layers_to_apply)}")
 
-            # Copy system cache (chunk_id=0) to preprocess_save_path
+            # Copy system cache (shared, SYSTEM_PROMPT_ID = -1) to preprocess_save_path
             os.makedirs(preprocess_save_path, exist_ok=True)
-            system_preprocess_key = f"{preprocess_save_path}/{example_id}_0_key.pt"
+            SYSTEM_PROMPT_ID = -1
+            system_preprocess_key = f"{preprocess_save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt"
             if not os.path.exists(system_preprocess_key):
-                shutil.copy(f'{save_path}/{example_id}_0_key.pt', system_preprocess_key)
-                shutil.copy(f'{save_path}/{example_id}_0_value.pt', f"{preprocess_save_path}/{example_id}_0_value.pt")
+                shutil.copy(f'{save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt', system_preprocess_key)
+                shutil.copy(f'{save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt', f"{preprocess_save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt")
 
             # Determine data format (old BatchNorm or new steering vector)
             use_steering = 'key_steering' in kv_distribution_stats
@@ -2250,16 +2402,14 @@ def main(
             else:
                 print(f"  Using old BatchNorm format (scale/bias)")
 
-            # Apply steering/bias to all document chunks for this example
-            for doc_idx in range(len(doc_tensors)):
-                chunk_id = doc_idx + 1  # chunk_id starts from 1
-
+            # Apply steering/bias to all document chunks for this example (using global doc IDs)
+            for doc_idx, doc_id in enumerate(q_data['doc_ids']):
                 # Load no_preprocess KV cache
-                no_prep_key_path = f"{save_path}/{example_id}_{chunk_id}_key.pt"
-                no_prep_value_path = f"{save_path}/{example_id}_{chunk_id}_value.pt"
+                no_prep_key_path = f"{save_path}/doc_{doc_id}_key.pt"
+                no_prep_value_path = f"{save_path}/doc_{doc_id}_value.pt"
 
                 if os.path.exists(no_prep_key_path) and os.path.exists(no_prep_value_path):
-                    print(f"  Processing chunk {chunk_id}/{len(doc_tensors)}...")
+                    print(f"  Processing doc {doc_idx+1}/{len(doc_tensors)} (doc_id={doc_id})...")
 
                     no_prep_key = torch.load(no_prep_key_path, weights_only=True, map_location='cpu')
                     no_prep_value = torch.load(no_prep_value_path, weights_only=True, map_location='cpu')
@@ -2350,10 +2500,10 @@ def main(
 
                     # Save to preprocess_save_path (temporary for this example)
                     os.makedirs(preprocess_save_path, exist_ok=True)
-                    torch.save(steered_key, f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt")
-                    torch.save(steered_value, f"{preprocess_save_path}/{example_id}_{chunk_id}_value.pt")
+                    torch.save(steered_key, f"{preprocess_save_path}/doc_{doc_id}_key.pt")
+                    torch.save(steered_value, f"{preprocess_save_path}/doc_{doc_id}_value.pt")
                 else:
-                    print(f"  Warning: No_preprocess KV cache not found for chunk {chunk_id}")
+                    print(f"  Warning: No_preprocess KV cache not found for doc_{doc_id}")
 
             print(f"✓ Steering vectors applied to all chunks for example {example_id+1}")
 
@@ -2388,15 +2538,16 @@ def main(
             question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
             question_tensor = torch.tensor(question_tokens, dtype=torch.long)
 
-            # Get documents for this sub-question using chunk_ids
-            doc_chunk_ids = sub_q_info['chunk_ids']  # List of chunk_ids (1-indexed) for documents
-            sub_q_doc_tensors = [doc_tensors[chunk_id - 1] for chunk_id in doc_chunk_ids]  # Convert to 0-indexed
+            # Get documents for this sub-question using doc_ids
+            doc_ids = sub_q_info['doc_ids']  # List of global doc IDs for this sub-question
+            sub_q_doc_tensors = [doc_tensors[q_data['doc_id_to_tensor_idx'][doc_id]] for doc_id in doc_ids]
 
             iter_tokens = [system_tensor] + sub_q_doc_tensors + [question_tensor]
 
-            # Prepare chunk_ids for load_kv_and_generate: [0, chunk_id1, chunk_id2, ...]
-            # chunk_id 0 is system, then the actual document chunk_ids
-            kv_chunk_ids = [0] + doc_chunk_ids
+            # Prepare doc_ids for load_kv_and_generate: [SYSTEM_ID, doc_id1, doc_id2, ...]
+            # SYSTEM_ID is -1, then the actual global doc IDs
+            SYSTEM_PROMPT_ID = -1
+            kv_doc_ids = [SYSTEM_PROMPT_ID] + doc_ids
 
             # Generate answer using this main question's KV cache
             # long_decode 模式使用更多 tokens
@@ -2424,7 +2575,7 @@ def main(
                     draft_threshold_factor=draft_threshold_factor,  # smart_query_selection 阈值因子
                     use_similarity_rerank=use_similarity_rerank,  # DraftModel 相似度重排序
                     rerank_multiplier=rerank_multiplier,
-                    preprocess=preprocess, device=input_device, chunk_ids=kv_chunk_ids, device_map=device_map,
+                    preprocess=preprocess, device=input_device, chunk_ids=kv_doc_ids, device_map=device_map,
                     vattention_topk_ratio=vattention_topk_ratio,  # vAttention/OracleDynamic/OracleAdaptive: top-k 比例
                     # OracleDynamic/OracleAdaptive 参数
                     epsilon=epsilon,
@@ -2507,8 +2658,8 @@ def main(
             # long_decode 模式：提交支撑材料判断任务
             evidence_future = None
             if long_decode and evidence:
-                # 获取当前子问题使用的检索文档
-                retrieve_docs_for_subq = [q_data['docs'][chunk_id - 1] for chunk_id in doc_chunk_ids]
+                # 获取当前子问题使用的检索文档（使用全局 doc IDs）
+                retrieve_docs_for_subq = [doc_pool.get_document(doc_id) for doc_id in sub_q_info['doc_ids']]
                 evidence_future = judge_executor.submit(
                     judge_evidence_with_openai,
                     openai_client, openai_model,
@@ -2674,20 +2825,20 @@ def main(
             print(f"🧹 Cleaning up temporary biased KV cache for example {example_id+1}...")
             doc_tensors = q_data['doc_tensors']
 
-            # Delete system cache copy
-            system_key_path = f"{preprocess_save_path}/{example_id}_0_key.pt"
-            system_value_path = f"{preprocess_save_path}/{example_id}_0_value.pt"
+            # Delete system cache copy (shared, SYSTEM_PROMPT_ID = -1)
+            SYSTEM_PROMPT_ID = -1
+            system_key_path = f"{preprocess_save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt"
+            system_value_path = f"{preprocess_save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt"
             if os.path.exists(system_key_path):
                 os.remove(system_key_path)
             if os.path.exists(system_value_path):
                 os.remove(system_value_path)
 
-            # Delete biased document caches
+            # Delete biased document caches (using global doc IDs)
             deleted_count = 0
-            for doc_idx in range(len(doc_tensors)):
-                chunk_id = doc_idx + 1
-                key_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt"
-                value_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_value.pt"
+            for doc_id in q_data['doc_ids']:
+                key_path = f"{preprocess_save_path}/doc_{doc_id}_key.pt"
+                value_path = f"{preprocess_save_path}/doc_{doc_id}_value.pt"
 
                 if os.path.exists(key_path):
                     os.remove(key_path)
@@ -3010,7 +3161,7 @@ def collect_optimal_rate(
 
     # 准备数据
     print("\n准备数据...")
-    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+    questions_data, system_tensor, context_rank, corpus_lens, doc_pool = prepare_reflect_data(
         data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope
     )
     system_len = system_tensor.shape[0]
@@ -3041,7 +3192,7 @@ def collect_optimal_rate(
             processed += 1
             ground_truth = sub_q_info['answer']
             query = sub_q_info['query']
-            chunk_ids = sub_q_info['chunk_ids']
+            doc_ids = sub_q_info['doc_ids']  # 全局 doc IDs
 
             question_id = f"Q{example_id+1}_Sub{sub_q_idx+1}"
 
@@ -3052,27 +3203,28 @@ def collect_optimal_rate(
             print(f"{'='*60}")
 
             # 构建输入
-            sub_q_doc_tensors = [doc_tensors[cid - 1] for cid in chunk_ids]
+            sub_q_doc_tensors = [doc_tensors[q_data['doc_id_to_tensor_idx'][doc_id]] for doc_id in doc_ids]
             question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
             question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
             question_tensor = torch.tensor(question_tokens, dtype=torch.long)
 
             passages = [system_tensor] + sub_q_doc_tensors + [question_tensor]
             passages_len = [p.shape[0] for p in passages]
-            kv_chunk_ids = [0] + chunk_ids
+            SYSTEM_PROMPT_ID = -1
+            kv_doc_ids = [SYSTEM_PROMPT_ID] + doc_ids
 
-            # Step 0: 检查必要的缓存是否存在
+            # Step 0: 检查必要的缓存是否存在（使用全局 doc IDs）
             cache_missing = False
             # 检查预处理缓存
-            for chunk_id in kv_chunk_ids:
-                key_cache_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt"
+            for doc_id in kv_doc_ids:
+                key_cache_path = f"{preprocess_save_path}/doc_{doc_id}_key.pt"
                 if not os.path.exists(key_cache_path):
                     print(f"  跳过: 预处理缓存不存在 {key_cache_path}")
                     cache_missing = True
                     break
-            # 检查原始 KV cache (chunk_id=1 用原始缓存)
-            if not cache_missing and len(chunk_ids) > 0:
-                orig_key_path = f"{save_path}/{example_id}_{chunk_ids[0]}_key.pt"
+            # 检查原始 KV cache (使用全局 doc IDs)
+            if not cache_missing and len(doc_ids) > 0:
+                orig_key_path = f"{save_path}/doc_{doc_ids[0]}_key.pt"
                 if not os.path.exists(orig_key_path):
                     print(f"  跳过: 原始KV缓存不存在 {orig_key_path}")
                     cache_missing = True
@@ -3122,7 +3274,7 @@ def collect_optimal_rate(
                             draft_model=draft_model,
                             draft_layer_selection='entropy',
                             preprocess=preprocess,
-                            chunk_ids=kv_chunk_ids, device=input_device, device_map=device_map,
+                            chunk_ids=kv_doc_ids, device=input_device, device_map=device_map,
                             original_kv_path=save_path
                         )
 

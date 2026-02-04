@@ -1,0 +1,49 @@
+{
+  "config": {
+    "K": 0,
+    "num_experiments": 1,
+    "model_type": "qwen",
+    "model_path": "/mnt/data/models/Qwen2.5-7B-Instruct",
+    "repeat_prompt": "\nInstruction: Repeat the above text word-for-word. Output your response as JSON with key 'repeated_text'.",
+    "f1_threshold": 0.9,
+    "semantic_threshold": 0.85,
+    "revert_rope": true,
+    "bge_model_path": "/mnt/data/models/bge-m3-FP16"
+  },
+  "summary": {
+    "total_experiments": 1,
+    "success_count": 1,
+    "success_rate": 1.0,
+    "avg_f1": 1.0,
+    "std_f1": 0.0,
+    "min_f1": 1.0,
+    "max_f1": 1.0,
+    "avg_semantic_similarity": 1.0,
+    "std_semantic_similarity": 0.0,
+    "exact_match_count": 1,
+    "exact_match_rate": 1.0,
+    "match_counts": {
+      "literal_match": 1,
+      "semantic_match": 0,
+      "partial_match": 0,
+      "no_match": 0
+    }
+  },
+  "results": [
+    {
+      "experiment_idx": 0,
+      "target_doc_id": 1578,
+      "random_doc_ids": [],
+      "K": 0,
+      "system_len": 0,
+      "target_len": 396,
+      "f1_score": 1.0,
+      "exact_match": true,
+      "semantic_similarity": 1.0,
+      "match_category": "literal_match",
+      "original_text": "Polly of the Storm Country is a lost 1920 American drama film directed by Arthur Rosson and written by Frank Mitchell Dazey. The film stars Mildred Harris, Emory Johnson, Charlotte Burton, Harry Northrup, Ruby Lafayette, and Maurice Valentin. It is based on the 1920 novel\" Storm Country Polly\" by Grace Miller White. The film was released on April 4, 1920, by First National Exhibitors' Circuit.",
+      "reconstructed_text": "Polly of the Storm Country is a lost 1920 American drama film directed by Arthur Rosson and written by Frank Mitchell Dazey. The film stars Mildred Harris, Emory Johnson, Charlotte Burton, Harry Northrup, Ruby Lafayette, and Maurice Valentin. It is based on the 1920 novel\" Storm Country Polly\" by Grace Miller White. The film was released on April 4, 1920, by First National Exhibitors' Circuit.",
+      "cache_dir": "./cache/rebuilt_exp/exp_doc1578"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "config": {
+    "K": 5,
+    "num_experiments": 3,
+    "model_type": "qwen",
+    "model_path": "/mnt/data/models/Qwen2.5-7B-Instruct",
+    "repeat_prompt": "\n\nInstruction: Repeat the above text word-for-word. Output your response as JSON with key 'repeated_text'.",
+    "f1_threshold": 0.9,
+    "semantic_threshold": 0.85,
+    "revert_rope": true,
+    "bge_model_path": "/mnt/data/models/bge-m3-FP16"
+  },
+  "summary": {
+    "total_experiments": 3,
+    "success_count": 3,
+    "success_rate": 1.0,
+    "avg_f1": 1.0,
+    "std_f1": 0.0,
+    "min_f1": 1.0,
+    "max_f1": 1.0,
+    "avg_semantic_similarity": 1.0,
+    "std_semantic_similarity": 0.0,
+    "exact_match_count": 3,
+    "exact_match_rate": 1.0,
+    "match_counts": {
+      "literal_match": 3,
+      "semantic_match": 0,
+      "partial_match": 0,
+      "no_match": 0
+    }
+  },
+  "results": [
+    {
+      "experiment_idx": 0,
+      "target_doc_id": 1578,
+      "random_doc_ids": [
+        1579,
+        1724,
+        166,
+        1061,
+        2096
+      ],
+      "K": 5,
+      "system_len": 577,
+      "target_len": 396,
+      "f1_score": 1.0,
+      "exact_match": true,
+      "semantic_similarity": 1.0,
+      "match_category": "literal_match",
+      "original_text": "Polly of the Storm Country is a lost 1920 American drama film directed by Arthur Rosson and written by Frank Mitchell Dazey. The film stars Mildred Harris, Emory Johnson, Charlotte Burton, Harry Northrup, Ruby Lafayette, and Maurice Valentin. It is based on the 1920 novel\" Storm Country Polly\" by Grace Miller White. The film was released on April 4, 1920, by First National Exhibitors' Circuit.",
+      "reconstructed_text": "Polly of the Storm Country is a lost 1920 American drama film directed by Arthur Rosson and written by Frank Mitchell Dazey. The film stars Mildred Harris, Emory Johnson, Charlotte Burton, Harry Northrup, Ruby Lafayette, and Maurice Valentin. It is based on the 1920 novel\" Storm Country Polly\" by Grace Miller White. The film was released on April 4, 1920, by First National Exhibitors' Circuit.",
+      "cache_dir": "./cache/rebuilt_exp/exp_doc1578"
+    },
+    {
+      "experiment_idx": 1,
+      "target_doc_id": 551,
+      "random_doc_ids": [
+        552,
+        2333,
+        259,
+        1046,
+        483
+      ],
+      "K": 5,
+      "system_len": 618,
+      "target_len": 110,
+      "f1_score": 1.0,
+      "exact_match": true,
+      "semantic_similarity": 1.0,
+      "match_category": "literal_match",
+      "original_text": "Donald Macardle was an Irish film and stage actor and writer. He also directed the 1933 film\" The King's Cup\".",
+      "reconstructed_text": "Donald Macardle was an Irish film and stage actor and writer. He also directed the 1933 film\" The King's Cup\".",
+      "cache_dir": "./cache/rebuilt_exp/exp_doc551"
+    },
+    {
+      "experiment_idx": 2,
+      "target_doc_id": 232,
+      "random_doc_ids": [
+        233,
+        377,
+        349,
+        1480,
+        694
+      ],
+      "K": 5,
+      "system_len": 719,
+      "target_len": 221,
+      "f1_score": 1.0,
+      "exact_match": true,
+      "semantic_similarity": 1.0,
+      "match_category": "literal_match",
+      "original_text": "Bagher Babashah Ashtiani( 23 February 1923 – 22 December 2015) was an Iranian prosecutor and a judge on the country's highest court before the Iranian Revolution. He was chief prosecutor in the cities of Zanjan and Karaj.",
+      "reconstructed_text": "Bagher Babashah Ashtiani( 23 February 1923 – 22 December 2015) was an Iranian prosecutor and a judge on the country's highest court before the Iranian Revolution. He was chief prosecutor in the cities of Zanjan and Karaj.",
+      "cache_dir": "./cache/rebuilt_exp/exp_doc232"
+    }
+  ]
+}

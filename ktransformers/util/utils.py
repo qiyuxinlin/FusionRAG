@@ -1015,77 +1015,15 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           # System prompt 重算控制
                           recompute_system_prompt=False,  # 是否让 system prompt 参与 DraftModel 选择和重算
                           # 消融实验：文档重复
-                          repeat_k_times=3):  # 文档重复次数（默认1表示不重复，>1时开启消融模式）
+                          repeat_k_times=1):  # 文档重复次数（默认1表示不重复，>1时开启消融模式）
     import os
     import pdb
 
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = "cuda:0" if device_map is not None else device
 
-    # ========== 消融实验：第一步 - 检查哪些文档缺少 KV cache ==========
-    # 在扩充 passages 之前先检查，只对 miss chunks 扩充
-    if repeat_k_times > 1:
-        missing_idx_set = set()  # 记录缺少 KV cache 的文档索引
-        print(f"\n[消融实验] 检查 KV cache 状态...")
-
-        # system prompt 的特殊 doc_id
-        SYSTEM_PROMPT_ID = -1
-
-        # 检查每个文档（不包括问题）
-        for idx, passage in enumerate(passages[:-1]):
-            if idx == 0:
-                # system prompt，跳过
-                continue
-
-            doc_id = doc_ids[idx]
-            kv_path = load_path
-            key_path = f'{kv_path}/doc_{doc_id}_key.pt'
-            value_path = f'{kv_path}/doc_{doc_id}_value.pt'
-
-            if not (os.path.exists(key_path) and os.path.exists(value_path)):
-                missing_idx_set.add(idx)
-                print(f"  ⚠ Doc {doc_id}: KV cache not found (will repeat)")
-
-        print(f"[消融实验] 发现 {len(missing_idx_set)} 个 miss chunks")
-
-        # ========== 第二步：只对 miss chunks 扩充 ==========
-        if len(missing_idx_set) > 0:
-            print(f"[消融实验] 扩充 {len(missing_idx_set)} 个 miss chunks (repeat_k_times={repeat_k_times})")
-
-            new_passages = []
-            repeat_mapping = []
-
-            for idx, passage in enumerate(passages):
-                # passages[0] 是 system prompt，passages[-1] 是问题，不重复
-                if idx == 0 or idx == len(passages) - 1:
-                    new_passages.append(passage)
-                    repeat_mapping.append({'original_idx': idx, 'repeat_factor': 1, 'original_len': passage.shape[0], 'repeated_len': passage.shape[0]})
-                elif idx in missing_idx_set:
-                    # miss chunk：需要重复
-                    repeated_passage = torch.cat([passage] * repeat_k_times)
-                    new_passages.append(repeated_passage)
-                    repeat_mapping.append({
-                        'original_idx': idx,
-                        'repeat_factor': repeat_k_times,
-                        'original_len': passage.shape[0],
-                        'repeated_len': repeated_passage.shape[0]
-                    })
-                else:
-                    # 已缓存的文档：不重复
-                    new_passages.append(passage)
-                    repeat_mapping.append({'original_idx': idx, 'repeat_factor': 1, 'original_len': passage.shape[0], 'repeated_len': passage.shape[0]})
-
-            # 更新 passages
-            passages = new_passages
-            print(f"[消融实验] 扩充完成")
-        else:
-            # 所有文档都已缓存，不扩充
-            repeat_mapping = None
-            print(f"[消融实验] 所有文档已缓存，无需扩充")
-    else:
-        # 正常模式
-        missing_idx_set = None
-        repeat_mapping = None
+    missing_idx_set = None
+    repeat_mapping = None
 
     passages_len = [passage.shape[0] for passage in passages] # 列表，记录了每个召回文本块passage的 Token 数量，passage -1代表问题，问题部分也会有其他东西包装
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))] # 列表，记录了每个文本块在整体输入中的起始位置
@@ -1142,6 +1080,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # missing_chunks: List[Dict], 记录缺失 KV cache 的文档的完整元信息
     # 结构: [{'idx': 索引, 'doc_id': 文档ID, 'passage': token序列, 'passage_start': 起始位置, 'passage_end': 结束位置, 'length': 长度}, ...]
     # 这些文档将在后续 forward pass 时实时生成 KV cache 并保存到磁盘
+
     missing_chunks = []  # List[Dict], 缺失文档的完整元信息
     # missing_idx_set 可能在前面已经定义（消融实验模式），如果没有则初始化
     if 'missing_idx_set' not in locals() or missing_idx_set is None:
@@ -1232,7 +1171,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # 验证加载的 KV cache 格式是否正确
         if isinstance(chunk_key_cache, list) or isinstance(chunk_key_cache, torch.Tensor):
+            # import pdb; pdb.set_trace()
             assert passage_len == chunk_key_cache[0].shape[2], f"passage_len={passage_len}, but KV shape={chunk_key_cache[0].shape}"
+            
             # ========== 4.1 RoPE 位置调整  ==========w1
             # RoPE将绝对位置编码转换为当前序列中的相对位置
             # 缓存时文档在位置 [0, doc_len), 现在要放到位置 [past_len, past_len+doc_len)
@@ -1252,14 +1193,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     layer_chunk_value = chunk_value_cache[layer_idx].to(rotary_device)
 
                     # ========== RoPE 平移调整 ==========
-                    # 原理: RoPE 旋转矩阵满足复合性质 R_m * R_n = R_{m+n}
-                    # 保存的 KV cache 使用相对位置: k_i 带有编码 R_i (i=0,1,2,...)
-                    # 要移动到绝对位置 past_len + i，根据复合性质:
-                    #   R_{past_len} * R_i = R_{past_len+i}
-                    # 因此只需对所有 key 应用统一的旋转 R_{past_len - system_len}
-                    # 这是一个整体平移操作，不需要先移除再重新编码
-                    # position_ids: 所有位置都是 past_len - system_len (相对于 system prompt 后的偏移)
-                    # 这会生成旋转矩阵 R_{past_len - system_len}
                     position_ids = torch.full( (1, layer_chunk_key.shape[2]), past_len - system_len,device=rotary_device)
 
                     # 计算旋转矩阵的 cos/sin
@@ -1302,24 +1235,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             # 正常情况下不应执行到这里
             import pdb; pdb.set_trace()
             print("  ⚠ Doc {doc_id}: KV cache in old format, converting...")
-            # chunk_key_cache = chunk_key_cache.to(input_device)
-            # chunk_value_cache = chunk_value_cache.to(input_device)
-            # assert passage_len == chunk_key_cache.shape[3]
-
-            # for layer_idx in range(len(past_key_values.key_cache)):
-            #     past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
-            #     past_key_values.value_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_value_cache[layer_idx])
-            #     past_key_values.past_tokens[layer_idx] += passage_len
-
-            # # ========== 优化：同步构建位置映射（旧格式） ==========
-            # for i in range(passage_len):
-            #     passages_pos = passage_start + i
-            #     cache_pos = past_len + i
-            #     passages_to_kv_position[passages_pos] = cache_pos
-            #     kv_to_passages_position[cache_pos] = passages_pos
-
-            passages_accumulated_len += passage_len
-            past_len += passage_len
 
     # storage_time: float, KV cache 从磁盘加载到 GPU 的总耗时
     storage_time = time.time() - start_time
@@ -1333,10 +1248,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         if reprocess_method == 'DraftModel':
             select_time = time.time()
 
-            # doc_len: int, 已加载文档的总 token 数 (不包括question, 和缺失文档)
-            # 如果 recompute_system_prompt=True，则包括 system prompt
             # BUG FIX: 原来是 sum(passages_len[1:-1])，包括了所有文档（已加载+缺失）。正确做法: 只从已加载的文档中选择，因为缺失文档会 100% 添加
-
             # 确定 selection_start 和 doc_len
             if recompute_system_prompt:
                 # 包含 system prompt 在选择范围内
@@ -1465,7 +1377,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     # 使用相似度重排序改进选择 用 smart_query_selection 选候选，保留连通分量和边界扩展
                     print(f"  使用相似度重排序 (multiplier={rerank_multiplier})...")
 
-                    # 计算 query-doc 相似度
                     similarity_scores = compute_query_doc_similarity( draft_model, full_input, selection_start, selection_start + doc_len,query_start_in_full, input_device)
                     target_count = int(doc_len * rate)
                     # 先用 smart_query_selection 选择 rerank_multiplier 倍候选
@@ -1611,12 +1522,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
     # reprocess_inputs: Tensor[1, seq_length], 需要重计算的 tokens
     # 从完整序列中提取 k_need_index 指定的位置
 
-    # DEBUG: 检查 k_need_index 中哪些位置不在 passages_to_kv_position 中
-    if isinstance(k_need_index, list):
-        k_need_index_tensor = torch.tensor(k_need_index)
-    else:
-        k_need_index_tensor = k_need_index
-
     # ========== 关键：区分 DraftModel 和其他方法 ==========
     # DraftModel: k_need_index 是 cache 位置，需要转换为 passages 位置来提取 tokens
     # 其他方法: k_need_index 已经是 passages 位置
@@ -1626,22 +1531,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         reprocess_inputs = cat_passages[k_need_index_passages_pos].unsqueeze(0).to(input_device)
         # cache_position 就是 k_need_index（已经是 cache 位置）
         cache_position = torch.tensor(k_need_index, device=input_device)
-
-        # DEBUG: 验证转换正确性
-        print(f"\n[DEBUG] Forward pass - Position conversion verification:")
-        print(f"  k_need_index length: {len(k_need_index)}")
-        print(f"  First 10 k_need_index (cache pos): {k_need_index[:10]}")
-        print(f"  First 10 k_need_index_passages_pos: {k_need_index_passages_pos[:10]}")
-        print(f"  reprocess_inputs shape: {reprocess_inputs.shape}")
-        print(f"  cache_position shape: {cache_position.shape}")
-        # 验证前3个位置的对应关系
-        for i in range(min(3, len(k_need_index))):
-            cache_pos = k_need_index[i]
-            passages_pos = k_need_index_passages_pos[i]
-            token_id = reprocess_inputs[0, i].item()
-            original_token = cat_passages[passages_pos].item()
-            match = "✓" if token_id == original_token else "✗ MISMATCH!"
-            print(f"    [{i}] cache_pos={cache_pos} -> passages_pos={passages_pos}, token={token_id}, original={original_token} {match}")
     else:
         pdb.set_trace()
         # 其他方法: k_need_index 已经是 passages 位置
@@ -1649,8 +1538,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         # 需要将 passages 位置转换为 cache 位置
         cache_position = torch.tensor([passages_to_kv_position[int(pos)] for pos in k_need_index], device=input_device)
 
-    # 将 k_need_index 转为集合便于查询
-    # 重要：确保所有元素转换为 int（避免 tensor 作为字典 key）
+    # 将 k_need_index 转为集合便于查询 确保所有元素转换为 int（避免 tensor 作为字典 key）
     if isinstance(k_need_index, list):
         k_need_set = set(int(pos) if not isinstance(pos, int) else pos for pos in k_need_index)
     else:
@@ -1668,7 +1556,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # 缺失文档总是 100%，不需要转换，直接用 passages 位置范围计算
         # 我们知道缺失文档的 passages 位置范围，所以在统计时直接标记为 100%
-
         # 合并所有 passages 位置用于统计
         k_need_passages_positions = loaded_passages_positions  # 缺失文档在下面的循环中单独处理
     else:
@@ -1749,7 +1636,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             doc_label = "System Prompt"
             # 使用 passages_to_kv_position 获取 cache 空间范围
             cache_range = f"[0, {system_len})"
-
             # 根据 recompute_system_prompt 决定是否统计 system prompt 的重算
             if recompute_system_prompt:
                 # System prompt 参与 DraftModel 选择和重算
@@ -1838,13 +1724,9 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
             # 遍历每个缺失的文档, 提取其 KV cache 并保存到磁盘
             for chunk in missing_chunks:
-                # ========== 9.1 计算文档在 past_key_values 中的位置 ==========
-                # *** BUG 修复 ***: 使用映射后的 past_key_values 位置, 而非 passages 位置
-
                 idx = chunk['idx']
                 doc_id = chunk['doc_id']
                 passage = chunk['passage']
-
                 # ========== 重新计算 passages 位置 ==========
                 # chunk_start_in_passages: int, 文档在 passages 中的起始位置
                 chunk_start_in_passages = passages_len_cumsum[idx-1] if idx > 0 else 0
@@ -1896,37 +1778,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     chunk_key_all_layers.append(layer_chunk_key)
                     chunk_value_all_layers.append(layer_chunk_value)
 
-                # ========== 9.3.5 消融实验：重复模式下只保存最后一段（不扩展）==========
-                if repeat_k_times > 1 and repeat_mapping is not None and idx < len(repeat_mapping):
-                    # idx 是当前文档在 passages 中的索引
-                    mapping_info = repeat_mapping[idx]
-
-                    if mapping_info['repeat_factor'] > 1:
-                        # 这是一个重复过的文档，只保存最后一段（原始长度）
-                        original_len = mapping_info['original_len']
-                        repeated_len = mapping_info['repeated_len']
-
-                        # 计算最后一段在 KV 中的位置
-                        # chunk_end_in_kv - chunk_start_in_kv 是重复后的总长度
-                        # 我们只需要最后 original_len 个 token
-                        last_segment_start = chunk_end_in_kv - original_len
-
-                        # 重新切片，只保留最后一段
-                        # 切片的起始位置相对于 chunk_start_in_kv
-                        slice_start = last_segment_start - chunk_start_in_kv
-
-                        chunk_key_all_layers = [
-                            k[:, :, slice_start:, :].clone()
-                            for k in chunk_key_all_layers
-                        ]
-                        chunk_value_all_layers = [
-                            v[:, :, slice_start:, :].clone()
-                            for v in chunk_value_all_layers
-                        ]
-
-                        # 更新 chunk_len 为切片后的长度（原始长度）
-                        chunk_len = original_len
-                        print(f"[消融实验] Doc {doc_id}: 保存最后一段 ({original_len} tokens)")
 
                 # ========== 9.4 原子保存到磁盘 ==========
                 # 使用临时文件 + 重命名的方式保证原子性 (避免写入过程中崩溃导致文件损坏)
@@ -1958,7 +1809,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         # ========== 10. 生成第一个 token (Prefill 阶段) ==========
         # logits: Tensor[1, 1, vocab_size], 最后一个位置的 logits (用于生成第一个 token)
         logits = model_output[:,-1,:].unsqueeze(0).clone()
-
 
         # ========== 10.2 生成第一个 token ==========
         # first_token_time: float, prefill 阶段总耗时 (包括加载 KV + 重计算 + 第一个 token)
@@ -2015,12 +1865,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         # 循环生成剩余的 tokens (最多 max_new_tokens-1 个, 因为已生成第一个)
         for _ in range(1, max_new_tokens):
-            # decode_one_tokens: 生成下一个 token
-            # 输入: 当前 token, 位置 ID, cache 位置, past_key_values
-            # 输出: 下一个 token
             next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs)
-
-            # 将新生成的 token 拼接到 inputs
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
 
             # 将新 token 写入 generated_ids

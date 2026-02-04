@@ -111,7 +111,7 @@ class RecallMethod(Enum):
     RANDOM_DOCS = "random_docs"  # Pick topk random texts from library, use original KV without trimming
     NO_PREPROCESS_WITH_BIAS = "no_preprocess_with_bias"  # Use no_preprocess KV with distribution alignment
     ONLINE_LAZY = "online_lazy"  # Online lazy loading mode
-    SELF_SUPERVISED = "self-supervised"  # Online lazy loading mode
+
 
 
 def load_model(model_type, model_path, config, device="cuda:0", use_multi_gpu=False):
@@ -193,82 +193,6 @@ def load_system_prompt(model_family: str, dataset_type: str = "2wikimqa") -> str
 
     # Default to Qwen2.5 2wikimqa
     return config["system_prompt"]["Qwen3"]["2wikimqa"]
-
-
-def scan_kv_cache_and_load_documents(
-    kv_cache_dir: str,
-    dataset_name: str = 'musique',
-) -> List[Dict]:
-    """
-    扫描 KV cache 目录并从文档池提取对应文档原文
-
-    Args:
-        kv_cache_dir: KV cache 目录路径 (例如: /mnt/data3/tmp/.../Qwen2.5-7B-Instruct/musique/kv_cache)
-        dataset_name: 数据集名称 ('musique' 或 '2wikimqa')
-
-    Returns:
-        List[Dict]: 每个元素包含 {
-            'doc_id': int,
-            'doc_text': str,
-            'kv_cache_key': str,  # KV cache key 文件路径
-            'kv_cache_value': str  # KV cache value 文件路径
-        }
-    """
-    import re
-    import os
-
-    # 1. 扫描 KV cache 目录获取所有 doc_ids
-    print(f"扫描 KV cache 目录: {kv_cache_dir}")
-    doc_ids = []
-
-    if not os.path.exists(kv_cache_dir):
-        raise FileNotFoundError(f"KV cache 目录不存在: {kv_cache_dir}")
-
-    # 获取所有 _key.pt 文件
-    key_files = [f for f in os.listdir(kv_cache_dir) if f.endswith('_key.pt')]
-
-    for filename in key_files:
-        # 提取 doc_id (格式: doc_{doc_id}_key.pt)
-        match = re.match(r'doc_(-?\d+)_key\.pt', filename)
-        if match:
-            doc_id = int(match.group(1))
-            if doc_id != -1:  # 排除 system prompt (doc_id=-1)
-                doc_ids.append(doc_id)
-
-    doc_ids = sorted(set(doc_ids))
-    print(f"  找到 {len(doc_ids)} 个文档 KV cache (排除 system prompt)")
-
-    # 2. 加载文档池
-    project_root = os.path.dirname(os.path.abspath(__file__))
-
-    if '2wikimqa' in dataset_name.lower() or '2wiki' in dataset_name.lower():
-        corpus_filename = '2wiki_input_rebuilt.json'
-    else:
-        corpus_filename = 'musique_input_rebuilt.json'
-
-    pool_path = os.path.join(project_root, 'data', corpus_filename)
-    print(f"加载文档池: {pool_path}")
-
-    doc_pool = DocumentPoolLoader(pool_path)
-
-    # 3. 提取每个文档的原文
-    documents = []
-    for doc_id in doc_ids:
-        try:
-            doc_text = doc_pool.get_document(doc_id)
-
-            documents.append({
-                'doc_id': doc_id,
-                'doc_text': doc_text,
-                'kv_cache_key': os.path.join(kv_cache_dir, f"doc_{doc_id}_key.pt"),
-                'kv_cache_value': os.path.join(kv_cache_dir, f"doc_{doc_id}_value.pt"),
-            })
-        except ValueError as e:
-            print(f"  警告: 跳过 doc_id={doc_id}: {e}")
-            continue
-
-    print(f"  成功加载 {len(documents)} 个文档")
-    return documents
 
 
 def load_kv_distribution_stats(stats_path: str, model_name: str = None, dataset_name: str = None) -> Dict:
@@ -563,32 +487,7 @@ def prepare_reflect_data(
     model_family = model_family_map.get(model_type, 'Qwen2.5')
 
     # Tokenize system prompt (shared across all questions)
-    system_prompt = """"<|im_start|>system\n "You are a deterministic text repeater.
-
-Your task is to output EXACTLY and ONLY the text that appears between the tags <content> and </content>.
-
-Rules:
-- Repeat the text word-for-word, character-for-character.
-- Do NOT add, remove, reorder, or modify anything.
-- Do NOT add explanations, summaries, comments, or extra text.
-- Do NOT repeat the text more than once.
-- Stop immediately after the last character of the content.
-
-Below are examples.
-
-Example 1:
-Input:
-<content>
-Hello world.
-</content>
-END
-
-Output:
-Hello world.
-
-The real input begins below and follows this exact format:
-<content>"""
-    # load_system_prompt(model_family, "2wikimqa")
+    system_prompt = load_system_prompt(model_family, "2wikimqa")
     system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
     system_tensor = torch.tensor(system_tokens, dtype=torch.long)
 
@@ -1526,7 +1425,7 @@ def main(
     # Different preprocess_scope uses different preprocess cache directories
     # 按数据集区分缓存目录，避免不同数据集的缓存冲突
     model_cache_root = os.path.join(cache_path, model_name, dataset_name)
-    save_path =cache_path# "/mnt/data3/tmp/fusionrag_new/Qwen2.5-7B-Instruct/musique/preprocess_kv_cache_global_topk10_repeat_self" #os.path.join(model_cache_root, 'kv_cache')
+    save_path = os.path.join(model_cache_root, 'kv_cache')
 
     # Separate preprocess cache for different configurations
     # Cache naming includes all parameters that affect KV cache content:
@@ -1550,7 +1449,6 @@ def main(
         'random_docs': RecallMethod.RANDOM_DOCS,
         'no_preprocess_with_bias': RecallMethod.NO_PREPROCESS_WITH_BIAS,
         'online_lazy': RecallMethod.ONLINE_LAZY,
-        'self_supervised': RecallMethod.SELF_SUPERVISED,
     }
     recall_method_enum = recall_method_map.get(recall_method_str.lower(), RecallMethod.BGE)
 
@@ -1841,25 +1739,9 @@ def main(
     # Define global system prompt ID
     SYSTEM_PROMPT_ID = -1
 
-    # For self_supervised mode, always regenerate system prompt KV cache
-    # because our system prompt is different from the original QA format
-    # Also force reprocess_method to 'DraftModel' for self_supervised mode
-    if recall_method_enum == RecallMethod.SELF_SUPERVISED:
-        original_reprocess_method = reprocess_method
-        reprocess_method = 'DraftModel'  # Force to use DraftModel to avoid pdb.set_trace()
-        print(f"Self-supervised mode: forcing reprocess_method to 'DraftModel' (original: {original_reprocess_method})")
-
-    if recall_method_enum == RecallMethod.SELF_SUPERVISED or rate != 1:
+    # Generate global system prompt KV cache (only once, shared across all questions)
+    if rate != 1:  # Skip if full recompute
         system_cache_key = f"{save_path}/doc_{SYSTEM_PROMPT_ID}_key.pt"
-
-        # Delete old system prompt KV cache if exists (for self_supervised mode)
-        if recall_method_enum == RecallMethod.SELF_SUPERVISED and os.path.exists(system_cache_key):
-            print(f"Deleting old system prompt KV cache for self_supervised mode...")
-            os.remove(system_cache_key)
-            system_cache_value = f"{save_path}/doc_{SYSTEM_PROMPT_ID}_value.pt"
-            if os.path.exists(system_cache_value):
-                os.remove(system_cache_value)
-
         if not os.path.exists(system_cache_key):
             print(f"\n{'='*80}")
             print(f"Generating global system prompt KV cache...")
@@ -1877,174 +1759,922 @@ def main(
             print(f"  System prompt KV cached globally at doc_{SYSTEM_PROMPT_ID}_key.pt")
         else:
             print(f"Global system prompt KV cache already exists (doc_{SYSTEM_PROMPT_ID}_key.pt)")
-    else:
-        print(f"Rate=1: Skipping system prompt KV cache generation")
-
 
     # Process each main question (on-demand cache generation)
-    documents = scan_kv_cache_and_load_documents(save_path, dataset_name)
-
-    # Apply max_samples limit
-    if max_samples is not None and max_samples > 0:
-        documents = documents[:max_samples]
-        print(f"Limiting to first {max_samples} documents (out of {len(documents)} total)")
-
-    total_docs = len(documents)
-    total_f1 = 0.0
-    total_em = 0.0
-    results = []
-    # for example_id, q_data in enumerate(questions_data):
-    for example_id, doc_data in enumerate(documents):     
-
-        doc_id = doc_data['doc_id']
-        doc_text = doc_data['doc_text']
-
+    for example_id, q_data in enumerate(questions_data):
         print(f"\n{'='*80}")
-        print(f"Document {example_id+1}/{len(documents)}: doc_id={doc_id}, length={len(doc_text)}")
+        print(f"Main Question {example_id+1}/{len(questions_data)}: {q_data['main_question']}")
         print(f"{'='*80}")
 
-        # Step 1: Generate answer using document KV cache
+        # Skip main questions that should not be tested
+        if not q_data.get('should_test', True):
+            print("⊘ SKIPPED (llm_judge=False or contains problematic answers)")
+            print("  Note: Documents still included in global corpus for similarity computation")
+            continue
 
-        # Build tokens: system + docs + question
-        # System prompt ends with <content>, so question text needs to close it
-        # IMPORTANT: Must include 'Question: ' for load_kv_and_generate to work correctly
-        question_text = f"</content>\n\nEND<|im_end|>\n<|im_start|>user\nQuestion: Please repeat the content above exactly.<|im_end|>\n<|im_start|>assistant\nAnswer: "
-        question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
-        question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+        doc_tensors = q_data['doc_tensors']
 
-        # 构造文档 prompt: 使用和原来相同的格式
-        doc_prompt = f"Document: {doc_text}\n"
-        doc_tokens = tokenizer.encode(doc_prompt, add_special_tokens=False)
-        doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
 
-        # Debug: print token lengths
-        print(f"  System tokens: {system_tensor.shape[0]}")
-        print(f"  Document tokens: {doc_tensor.shape[0]}")
-        print(f"  Question tokens: {question_tensor.shape[0]}")
-        print(f"  Total passages tokens: {system_tensor.shape[0] + doc_tensor.shape[0] + question_tensor.shape[0]}")
+        # Step 1: Generate KV cache for THIS main question's documents
+        if rate != 1:  # Skip if full recompute
+            # Skip document KV generation for ONLINE_LAZY mode (will be generated on-demand in load_kv_and_generate)
+            if recall_method_enum == RecallMethod.ONLINE_LAZY:
+                print(f"  ONLINE_LAZY mode: Skipping document KV pre-generation (will generate on-demand)")
 
-        passages = [system_tensor, doc_tensor, question_tensor]
 
-        kv_doc_ids = [SYSTEM_PROMPT_ID, doc_id]
+        # 使用线程池异步判断，主线程继续生成下一个答案
+        judge_futures = []  # 存放判断任务的 Future 对象
+        sub_q_results = []  # 存放每个 sub-question 的结果（用于后续统计和 CSV 写入）
 
-        current_max_new_tokens = long_decode_max_tokens if long_decode else 500
+        for sub_q_idx, sub_q_info in enumerate(q_data['sub_questions']):
+            print(f"\nSub-question {sub_q_idx+1}/{len(q_data['sub_questions'])}")
+            print(f"Question: {sub_q_info['query']}")
+            print(f"Ground Truth: {sub_q_info['answer']}")
 
-        # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, Oracle, vAttention, OracleDynamic, etc.)
-        load_path = preprocess_save_path if preprocess else save_path
-        generated_tokens, _, extra_info = load_kv_and_generate(
-            model, tokenizer, past_key_values, passages, load_path,
-            doc_ids=kv_doc_ids,  # Use global doc IDs instead of chunk_ids
-            max_new_tokens=current_max_new_tokens, revert_rope=revert_rope,
-            reprocess_method=reprocess_method, rate=rate,
-            draft_model=draft_model,  # DraftModel/DraftModelLayerwise 方法会用到
-            use_entropy_selection=use_entropy_selection,
-            entropy_top_k=entropy_top_k,
-            draft_layer_selection=draft_layer_selection,  # DraftModel/Oracle/vAttention/OracleDynamic/OracleAdaptive/DraftModelLayerwise 选层方式
-            draft_fixed_layer=draft_fixed_layer,  # 固定层选择时使用的层号
-            draft_threshold_factor=draft_threshold_factor,  # smart_query_selection 阈值因子
-            use_similarity_rerank=use_similarity_rerank,  # DraftModel 相似度重排序
-            rerank_multiplier=rerank_multiplier,
-            preprocess=preprocess, device=input_device, device_map=device_map,
-            vattention_topk_ratio=vattention_topk_ratio,  # vAttention/OracleDynamic/OracleAdaptive: top-k 比例
-            # OracleDynamic/OracleAdaptive 参数
-            epsilon=epsilon,
-            delta=delta,
-            min_rate=min_rate,
-            max_rate=max_rate,
-            # DraftModelLayerwise 参数
-            layerwise_decay=layerwise_decay,
-            layerwise_final_rate=layerwise_final_rate,
-            # 文本块1用原始KV cache (prefix cache hit)
-            original_kv_path=save_path if preprocess else None,
-            # 消融实验：文档重复
-            repeat_k_times=repeat_k_times
-        )
+            # Build tokens: system + docs + question
+            # Add /no_think for Qwen3 models to disable chain-of-thought
+            if long_decode:
+                # long_decode 模式：要求输出答案和支撑材料
+                long_decode_format = """请按照以下格式回答问题：
+                答案: [你的答案]
+                支撑材料: [从文档中找到支持答案的关键句子或段落]
 
-        # ========== 累加重算 token 统计 ==========
-        if extra_info.get('recompute_token_count') is not None:
-            total_recompute_tokens += extra_info['recompute_token_count']
+                """
+                if model_type == 'qwen3':
+                    question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\n{long_decode_format}Question: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\n"
+                else:
+                    question_text = f"<|im_end|>\n<|im_start|>user\n{long_decode_format}Question: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\n"
+            else:
+                if model_type == 'qwen3':
+                    question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\nQuestion: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+                else:
+                    question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {sub_q_info['query']}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
+            question_tensor = torch.tensor(question_tokens, dtype=torch.long)
 
-        # Decode answer
-        raw_output = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
-        raw_output = raw_output.strip() if raw_output else ""
+            # Get documents for this sub-question using global doc_ids
+            doc_ids = sub_q_info['doc_ids']  # List of global doc IDs
+            doc_id_to_tensor_idx = q_data['doc_id_to_tensor_idx']
 
-        # long_decode 模式：解析输出，提取答案和支撑材料
+            # Get corresponding tensors using the mapping
+            sub_q_doc_tensors = [doc_tensors[doc_id_to_tensor_idx[doc_id]] for doc_id in doc_ids]
 
-        answer = raw_output
-        evidence = ""
-        if not answer:
-            answer = "[EMPTY]"
-            print(f"Predicted: {answer} (WARNING: empty answer)")
+            iter_tokens = [system_tensor] + sub_q_doc_tensors + [question_tensor]
+
+            # Prepare doc_ids for load_kv_and_generate: [SYSTEM_PROMPT_ID, doc_id1, doc_id2, ...]
+            kv_doc_ids = [SYSTEM_PROMPT_ID] + doc_ids
+
+            # Generate answer using this main question's KV cache
+            # long_decode 模式使用更多 tokens
+            current_max_new_tokens = long_decode_max_tokens if long_decode else 500
+
+            if rate == 1:
+                # Full recompute
+                inputs = torch.cat(iter_tokens).to(input_device).unsqueeze(0)
+                recompute_token_count = inputs.shape[1]  # rate=1 时重算所有输入 tokens
+                total_recompute_tokens += recompute_token_count
+                print(f"本次调用重算 tokens: {recompute_token_count} (rate=1, full recompute)")
+                from ktransformers.util.utils import prefill_and_generate
+                generated_tokens, _, _ = prefill_and_generate(
+                    model, tokenizer, inputs, max_new_tokens=current_max_new_tokens, device=input_device, device_map=device_map
+                )
+            else:
+                # Load preprocessed KV cache and generate (FusionRAG, QueryAttention, DraftModel, Oracle, vAttention, OracleDynamic, etc.)
+                load_path = preprocess_save_path if preprocess else save_path
+                generated_tokens, _, extra_info = load_kv_and_generate(
+                    model, tokenizer, past_key_values, iter_tokens, load_path,
+                    doc_ids=kv_doc_ids,  # Use global doc IDs instead of chunk_ids
+                    max_new_tokens=current_max_new_tokens, revert_rope=revert_rope,
+                    reprocess_method=reprocess_method, rate=rate,
+                    draft_model=draft_model,  # DraftModel/DraftModelLayerwise 方法会用到
+                    use_entropy_selection=use_entropy_selection,
+                    entropy_top_k=entropy_top_k,
+                    draft_layer_selection=draft_layer_selection,  # DraftModel/Oracle/vAttention/OracleDynamic/OracleAdaptive/DraftModelLayerwise 选层方式
+                    draft_fixed_layer=draft_fixed_layer,  # 固定层选择时使用的层号
+                    draft_threshold_factor=draft_threshold_factor,  # smart_query_selection 阈值因子
+                    use_similarity_rerank=use_similarity_rerank,  # DraftModel 相似度重排序
+                    rerank_multiplier=rerank_multiplier,
+                    preprocess=preprocess, device=input_device, device_map=device_map,
+                    vattention_topk_ratio=vattention_topk_ratio,  # vAttention/OracleDynamic/OracleAdaptive: top-k 比例
+                    # OracleDynamic/OracleAdaptive 参数
+                    epsilon=epsilon,
+                    delta=delta,
+                    min_rate=min_rate,
+                    max_rate=max_rate,
+                    # DraftModelLayerwise 参数
+                    layerwise_decay=layerwise_decay,
+                    layerwise_final_rate=layerwise_final_rate,
+                    # 文本块1用原始KV cache (prefix cache hit)
+                    original_kv_path=save_path if preprocess else None,
+                    # 消融实验：文档重复
+                    repeat_k_times=repeat_k_times
+                )
+
+                # 收集 OracleDynamic/OracleAdaptive/DynamicDraftModel/DraftModelDynamic/DraftModelLayerwise 的动态 rate 信息
+                if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise') and extra_info.get('dynamic_rate') is not None:
+                    dynamic_rate_stats.append({
+                        'main_q_idx': example_id + 1,
+                        'sub_q_idx': sub_q_idx + 1,
+                        'question': sub_q_info['query'][:50] + '...',
+                        'dynamic_rate': extra_info['dynamic_rate'],
+                        # 兼容不同方法的 coverage 字段名
+                        'topk_coverage': extra_info.get('topk_coverage') or extra_info.get('coverage_50_ratio', 0),
+                        'topk_count_for_coverage': extra_info.get('topk_count_for_coverage', 0),
+                        'normalized_entropy': extra_info.get('normalized_entropy', 0),
+                        'doc_len': extra_info.get('doc_len', 0),
+                        'total_budget': extra_info.get('total_budget', 0)
+                    })
+
+                # ========== 累加重算 token 统计 ==========
+                if extra_info.get('recompute_token_count') is not None:
+                    total_recompute_tokens += extra_info['recompute_token_count']
+
+            # Decode answer
+            raw_output = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True)
+            raw_output = raw_output.strip() if raw_output else ""
+
+            # long_decode 模式：解析输出，提取答案和支撑材料
+            if long_decode:
+                answer, evidence = parse_long_decode_output(raw_output)
+                if not answer:
+                    answer = "[EMPTY]"
+                    print(f"Predicted Answer: {answer} (WARNING: empty answer)")
+                else:
+                    print(f"Predicted Answer: {answer}")
+                print(f"Extracted Evidence: {evidence[:200]}..." if len(evidence) > 200 else f"Extracted Evidence: {evidence}")
+            else:
+                answer = raw_output
+                evidence = ""
+                if not answer:
+                    answer = "[EMPTY]"
+                    print(f"Predicted: {answer} (WARNING: empty answer)")
+                else:
+                    print(f"Predicted: {answer}")
+
+            # Compute F1 and EM (这个很快，同步计算)
+            try:
+                f1_score = compute_f1(answer, sub_q_info['answer'], tokenizer)
+                em_score = 1.0 if _exact_match_score(answer, sub_q_info['answer']) else 0.0
+            except Exception as e:
+                print(f"Warning: F1/EM computation failed: {e}")
+                f1_score = 0.0
+                em_score = 0.0
+            print(f"F1: {f1_score:.4f}, EM: {em_score:.4f}")
+
+            # 提交判断任务到线程池（异步执行，不阻塞主线程）
+            future = judge_executor.submit(
+                judge_answer_with_openai,
+                openai_client, openai_model,
+                sub_q_info['query'], answer, sub_q_info['answer']
+            )
+
+            # long_decode 模式：提交支撑材料判断任务
+            evidence_future = None
+            if long_decode and evidence:
+                # 获取当前子问题使用的检索文档
+                retrieve_docs_for_subq = [q_data['docs'][chunk_id - 1] for chunk_id in doc_chunk_ids]
+                evidence_future = judge_executor.submit(
+                    judge_evidence_with_openai,
+                    openai_client, openai_model,
+                    sub_q_info['query'], evidence, q_data['gold_docs'],
+                    retrieve_docs_for_subq  # 传入完整检索上下文
+                )
+            judge_futures.append(future)
+
+            # 保存结果信息，等待判断完成后更新
+            sub_q_results.append({
+                'sub_q_idx': sub_q_idx,
+                'sub_q_info': sub_q_info,
+                'answer': answer,
+                'f1_score': f1_score,
+                'em_score': em_score,
+                'future': future,
+                'dynamic_rate': extra_info.get('dynamic_rate') if rate != 1 else None,
+                'dispersion_score': extra_info.get('dispersion_score') if rate != 1 else None,
+                # long_decode 模式额外字段
+                'evidence': evidence if long_decode else None,
+                'evidence_future': evidence_future if long_decode else None,
+            })
+
+            torch.cuda.empty_cache()
+
+        # 等待该 main question 的所有判断任务完成
+        print(f"\n⏳ Waiting for {len(judge_futures)} judgment(s) to complete...")
+        all_sub_correct = True
+
+        for result in sub_q_results:
+            future = result['future']
+            is_correct, judge_reason = future.result()  # 阻塞等待结果
+
+            sub_q_info = result['sub_q_info']
+            answer = result['answer']
+            f1_score = result['f1_score']
+            em_score = result['em_score']
+            print(f"Sub-Q {result['sub_q_idx']+1}: {'✓ CORRECT' if is_correct else '✗ INCORRECT'} - {sub_q_info['query'][:50]}...")
+
+            total_sub_questions += 1
+            total_f1 += f1_score
+            total_em += em_score
+            if is_correct:
+                correct_sub_questions += 1
+            else:
+                all_sub_correct = False
+
+            # long_decode 模式：获取 evidence 判断结果
+            evidence_matched = False
+            evidence_reason = ""
+            if long_decode:
+                evidence = result.get('evidence', '')
+                evidence_future = result.get('evidence_future')
+                if evidence_future:
+                    evidence_matched, evidence_reason = evidence_future.result()
+                    print(f"  Evidence: {'✓ MATCHED' if evidence_matched else '✗ NOT MATCHED'}")
+                    total_evidence += 1
+                    if evidence_matched:
+                        matched_evidence += 1
+                else:
+                    evidence_reason = "No evidence extracted"
+
+            # Save to CSV
+            with open(csv_file, mode='a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                if long_decode:
+                    # long_decode 模式的 CSV 写入
+                    evidence = result.get('evidence', '')
+                    # 将 gold_docs 列表转换为字符串（用 ||| 分隔）
+                    gold_docs_str = ' ||| '.join(q_data.get('gold_docs', []))
+                    if rate != 1:
+                        key = (q_data['main_question'], sub_q_info['query'])
+                        rate1_data = rate1_results.get(key, {
+                            'predicted': 'N/A',
+                            'correct': 'N/A',
+                            'f1': 'N/A',
+                            'em': 'N/A',
+                            'reason': 'N/A',
+                            'evidence': 'N/A',
+                            'evidence_matched': 'N/A',
+                            'evidence_reason': 'N/A'
+                        })
+                        if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+                            dynamic_rate = result.get('dynamic_rate', 'N/A')
+                            dispersion_score = result.get('dispersion_score', 'N/A')
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], gold_docs_str,
+                                answer, is_correct, f1_score, em_score, judge_reason,
+                                evidence, evidence_matched, evidence_reason,
+                                dynamic_rate, dispersion_score,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason'],
+                                rate1_data.get('evidence', 'N/A'),
+                                rate1_data.get('evidence_matched', 'N/A'),
+                                rate1_data.get('evidence_reason', 'N/A')
+                            ])
+                        else:
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], gold_docs_str,
+                                answer, is_correct, f1_score, em_score, judge_reason,
+                                evidence, evidence_matched, evidence_reason,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason'],
+                                rate1_data.get('evidence', 'N/A'),
+                                rate1_data.get('evidence_matched', 'N/A'),
+                                rate1_data.get('evidence_reason', 'N/A')
+                            ])
+                    else:
+                        writer.writerow([
+                            q_data['main_question'], sub_q_info['query'],
+                            sub_q_info['answer'], gold_docs_str,
+                            answer, is_correct, f1_score, em_score, judge_reason,
+                            evidence, evidence_matched, evidence_reason
+                        ])
+                else:
+                    # 原有逻辑
+                    if rate != 1:
+                        # Get rate=1 results for comparison
+                        key = (q_data['main_question'], sub_q_info['query'])
+                        rate1_data = rate1_results.get(key, {
+                            'predicted': 'N/A',
+                            'correct': 'N/A',
+                            'f1': 'N/A',
+                            'em': 'N/A',
+                            'reason': 'N/A'
+                        })
+                        # 对于动态 rate 方法，额外保存 dynamic_rate 和 dispersion_score
+                        if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel', 'DraftModelDynamic', 'DraftModelLayerwise'):
+                            dynamic_rate = result.get('dynamic_rate', 'N/A')
+                            dispersion_score = result.get('dispersion_score', 'N/A')
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason,
+                                dynamic_rate, dispersion_score,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason']
+                            ])
+                        else:
+                            writer.writerow([
+                                q_data['main_question'], sub_q_info['query'],
+                                sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason,
+                                rate1_data['predicted'], rate1_data['correct'],
+                                rate1_data['f1'], rate1_data['em'], rate1_data['reason']
+                            ])
+                    else:
+                        writer.writerow([
+                            q_data['main_question'], sub_q_info['query'],
+                            sub_q_info['answer'], answer, is_correct, f1_score, em_score, judge_reason
+                        ])
+
+        # Main question result
+        total_main_questions += 1
+        if all_sub_correct:
+            correct_main_questions += 1
+            print(f"\n✓ Main question {example_id+1}: ALL {len(q_data['sub_questions'])} sub-questions CORRECT")
         else:
-            print(f"Predicted: {answer}")
+            print(f"\n✗ Main question {example_id+1}: Some sub-questions INCORRECT")
 
-        # Compute F1 and EM (比较原文和生成文本)
-        try:
-            # 清理生成文本
-            generated_clean = answer.strip()
-            if '</content>' in generated_clean:
-                generated_clean = generated_clean.split('</content>')[0].strip()
+        # Clean up temporary biased KV cache for NO_PREPROCESS_WITH_BIAS method
+        if preprocess and recall_method_enum == RecallMethod.NO_PREPROCESS_WITH_BIAS:
+            print(f"🧹 Cleaning up temporary biased KV cache for example {example_id+1}...")
+            doc_tensors = q_data['doc_tensors']
 
-            # 和原文比较
-            f1_score = compute_f1(doc_text, generated_clean, tokenizer)
-            em_score = 1.0 if _exact_match_score(doc_text, generated_clean) else 0.0
-        except Exception as e:
-            print(f"Warning: F1/EM computation failed: {e}")
-            f1_score = 0.0
-            em_score = 0.0
-        print(f"F1: {f1_score:.4f}, EM: {em_score:.4f}")
+            # Delete system cache copy
+            system_key_path = f"{preprocess_save_path}/{example_id}_0_key.pt"
+            system_value_path = f"{preprocess_save_path}/{example_id}_0_value.pt"
+            if os.path.exists(system_key_path):
+                os.remove(system_key_path)
+            if os.path.exists(system_value_path):
+                os.remove(system_value_path)
 
-        # 清理 GPU 缓存
-        torch.cuda.empty_cache()
+            # Delete biased document caches
+            deleted_count = 0
+            for doc_idx in range(len(doc_tensors)):
+                chunk_id = doc_idx + 1
+                key_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_key.pt"
+                value_path = f"{preprocess_save_path}/{example_id}_{chunk_id}_value.pt"
 
-        # 收集结果
-        total_f1 += f1_score
-        total_em += em_score
+                if os.path.exists(key_path):
+                    os.remove(key_path)
+                    deleted_count += 1
+                if os.path.exists(value_path):
+                    os.remove(value_path)
 
-        results.append({
-            'doc_id': doc_id,
-            'doc_length': len(doc_text),
-            'generated_length': len(answer),
-            'f1_score': f1_score,
-            'em_score': em_score,
-            'original_text': doc_text,
-            'generated_text': answer,
-        })
+            print(f"  ✓ Deleted {deleted_count} temporary KV cache files")
 
-    # 输出统计
-    avg_f1 = total_f1 / total_docs if total_docs > 0 else 0
-    avg_em = total_em / total_docs if total_docs > 0 else 0
+    # Final results
+    main_q_acc = correct_main_questions / total_main_questions if total_main_questions > 0 else 0
+    sub_q_acc = correct_sub_questions / total_sub_questions if total_sub_questions > 0 else 0
+    avg_f1 = total_f1 / total_sub_questions if total_sub_questions > 0 else 0
+    avg_em = total_em / total_sub_questions if total_sub_questions > 0 else 0
 
     print(f"\n{'='*80}")
-    print(f"SELF-SUPERVISED RESULTS (rate={rate})")
+    print("FINAL RESULTS")
     print(f"{'='*80}")
-    print(f"Total Documents: {total_docs}")
+    print(f"Main Questions: {correct_main_questions}/{total_main_questions} ({main_q_acc:.2%})")
+    print(f"Sub Questions: {correct_sub_questions}/{total_sub_questions} ({sub_q_acc:.2%})")
     print(f"Average F1: {avg_f1:.4f}")
     print(f"Average EM: {avg_em:.4f}")
+
+    # long_decode 模式：输出 evidence 统计
+    if long_decode and total_evidence > 0:
+        evidence_acc = matched_evidence / total_evidence
+        print(f"Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.2%})")
+
+    # Show comparison with rate=1 if applicable
+    if rate != 1 and len(rate1_results) > 0:
+        # Calculate rate=1 statistics
+        rate1_correct = sum(1 for v in rate1_results.values() if v['correct'].lower() == 'true')
+        rate1_total = len(rate1_results)
+        rate1_acc = rate1_correct / rate1_total if rate1_total > 0 else 0
+        rate1_avg_f1 = sum(float(v['f1']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+        rate1_avg_em = sum(float(v['em']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+
+        print(f"\n{'='*80}")
+        print("COMPARISON WITH RATE=1 BASELINE")
+        print(f"{'='*80}")
+        print(f"Current (rate={rate}):")
+        print(f"  Sub Questions Accuracy: {sub_q_acc:.2%}, F1: {avg_f1:.4f}, EM: {avg_em:.4f}")
+        print(f"Baseline (rate=1):")
+        print(f"  Sub Questions Accuracy: {rate1_acc:.2%}, F1: {rate1_avg_f1:.4f}, EM: {rate1_avg_em:.4f}")
+        print(f"Delta:")
+        print(f"  Accuracy: {sub_q_acc - rate1_acc:+.2%}, F1: {avg_f1 - rate1_avg_f1:+.4f}, EM: {avg_em - rate1_avg_em:+.4f}")
+
+        # long_decode 模式：输出 evidence 对比
+        if long_decode and total_evidence > 0:
+            # 计算 rate=1 的 evidence 准确率
+            rate1_evidence_matched = sum(1 for v in rate1_results.values() if str(v.get('evidence_matched', '')).lower() == 'true')
+            rate1_evidence_total = sum(1 for v in rate1_results.values() if v.get('evidence_matched', 'N/A') != 'N/A')
+            rate1_evidence_acc = rate1_evidence_matched / rate1_evidence_total if rate1_evidence_total > 0 else 0
+            evidence_acc = matched_evidence / total_evidence
+
+            print(f"\nEvidence Comparison:")
+            print(f"  Current (rate={rate}): {matched_evidence}/{total_evidence} ({evidence_acc:.2%})")
+            print(f"  Baseline (rate=1): {rate1_evidence_matched}/{rate1_evidence_total} ({rate1_evidence_acc:.2%})")
+            print(f"  Evidence Delta: {evidence_acc - rate1_evidence_acc:+.2%}")
+
+        print(f"{'='*80}")
+
     print(f"{'='*80}")
 
-    # 保存结果 - 文件名包含 rate
-    if result_path is None:
-        result_path = cache_path
-    os.makedirs(result_path, exist_ok=True)
+    # 打印 OracleDynamic/OracleAdaptive/DynamicDraftModel 动态 rate 统计
+    if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel') and len(dynamic_rate_stats) > 0:
+        print(f"\n{'='*80}")
+        print(f"{reprocess_method.upper()}: 动态重算比例统计")
+        print(f"{'='*80}")
 
-    # 将 rate 转换为文件名友好的格式 (0.5 -> "0-5", 1.0 -> "1-0")
-    rate_str = str(rate).replace('.', '_')
-    result_file = os.path.join(result_path, f'self_supervised_results_rate_{rate_str}.json')
+        rates = [s['dynamic_rate'] for s in dynamic_rate_stats]
+        entropies = [s['normalized_entropy'] for s in dynamic_rate_stats]
+        topk_coverages = [s['topk_coverage'] for s in dynamic_rate_stats]
 
-    with open(result_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            'rate': rate,
-            'reprocess_method': reprocess_method,
-            'total_docs': total_docs,
-            'avg_f1': avg_f1,
-            'avg_em': avg_em,
-            'results': results,
-        }, f, indent=2, ensure_ascii=False)
-    print(f"Results saved to: {result_file}")
+        print(f"\n总计 {len(dynamic_rate_stats)} 个子问题:")
+        print(f"  重算比例 - 平均: {np.mean(rates):.2%}, 最小: {np.min(rates):.2%}, 最大: {np.max(rates):.2%}, 标准差: {np.std(rates):.2%}")
+        print(f"  归一化熵 - 平均: {np.mean(entropies):.4f}, 最小: {np.min(entropies):.4f}, 最大: {np.max(entropies):.4f}")
+        print(f"  Top-k覆盖 - 平均: {np.mean(topk_coverages):.2%}, 最小: {np.min(topk_coverages):.2%}, 最大: {np.max(topk_coverages):.2%}")
 
-    return  # 结束，不继续执行后续代码
+        # 打印每个问题的详细信息
+        print(f"\n详细列表:")
+        print(f"{'Main Q':<8} {'Sub Q':<8} {'Rate':<10} {'Entropy':<10} {'TopK Cov':<10} {'Budget':<10} {'Doc Len':<10} Question")
+        print("-" * 120)
+        for stat in dynamic_rate_stats:
+            print(f"{stat['main_q_idx']:<8} {stat['sub_q_idx']:<8} {stat['dynamic_rate']:.2%}     {stat['normalized_entropy']:<10.4f} {stat['topk_coverage']:.2%}     {stat['total_budget']:<10} {stat['doc_len']:<10} {stat['question']}")
 
+        print(f"{'='*80}")
+
+    with open(result_file, 'w') as f:
+        # 保存所有配置参数
+        f.write("=" * 80 + "\n")
+        f.write("CONFIGURATION\n")
+        f.write("=" * 80 + "\n")
+        f.write(f"model_type: {model_type}\n")
+        f.write(f"model_path: {model_path}\n")
+        f.write(f"draft_model_path: {draft_model_path}\n")
+        f.write(f"data_path: {data_path}\n")
+        f.write(f"cache_path: {cache_path}\n")
+        f.write(f"model_name: {model_name}\n")
+        f.write(f"dataset_name: {dataset_name}\n")
+        f.write(f"max_cache_len: {max_cache_len}\n")
+        f.write(f"rate: {rate}\n")
+        f.write(f"topk: {topk}\n")
+        f.write(f"preprocess: {preprocess}\n")
+        f.write(f"preprocess_scope: {preprocess_scope}\n")
+        f.write(f"reprocess_method: {reprocess_method}\n")
+        f.write(f"use_entropy_selection: {use_entropy_selection}\n")
+        f.write(f"entropy_top_k: {entropy_top_k}\n")
+        f.write(f"draft_layer_selection: {draft_layer_selection}\n")
+        f.write(f"draft_fixed_layer: {draft_fixed_layer}\n")
+        f.write(f"draft_threshold_factor: {draft_threshold_factor}\n")
+        f.write(f"bge_model_path: {bge_model_path}\n")
+        f.write(f"revert_rope: {revert_rope}\n")
+        f.write(f"device: {device}\n")
+        f.write(f"use_multi_gpu: {use_multi_gpu}\n")
+        f.write(f"openai_base_url: {openai_base_url}\n")
+        f.write(f"openai_model: {openai_model}\n")
+        f.write(f"max_samples: {max_samples}\n")
+        f.write(f"vattention_topk_ratio: {vattention_topk_ratio}\n")
+        f.write(f"epsilon: {epsilon}\n")
+        f.write(f"delta: {delta}\n")
+        f.write(f"min_rate: {min_rate}\n")
+        f.write(f"max_rate: {max_rate}\n")
+        f.write(f"layerwise_decay: {layerwise_decay}\n")
+        f.write(f"layerwise_final_rate: {layerwise_final_rate}\n")
+        f.write(f"use_similarity_rerank: {use_similarity_rerank}\n")
+        f.write(f"rerank_multiplier: {rerank_multiplier}\n")
+        f.write(f"long_decode: {long_decode}\n")
+        f.write(f"long_decode_max_tokens: {long_decode_max_tokens}\n")
+        f.write("\n")
+
+        # 保存结果
+        f.write("=" * 80 + "\n")
+        f.write("RESULTS\n")
+        f.write("=" * 80 + "\n")
+        f.write(f"Main Questions Accuracy: {correct_main_questions}/{total_main_questions} ({main_q_acc:.4f})\n")
+        f.write(f"Sub Questions Accuracy: {correct_sub_questions}/{total_sub_questions} ({sub_q_acc:.4f})\n")
+        f.write(f"Average F1 Score: {avg_f1:.4f}\n")
+        f.write(f"Average EM Score: {avg_em:.4f}\n")
+
+        # long_decode 模式的 evidence 统计
+        if long_decode and total_evidence > 0:
+            evidence_acc = matched_evidence / total_evidence
+            f.write(f"Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.4f})\n")
+
+        # 保存 OracleDynamic/OracleAdaptive/DynamicDraftModel 统计到文件
+        if reprocess_method in ('OracleDynamic', 'OracleAdaptive', 'DynamicDraftModel') and len(dynamic_rate_stats) > 0:
+            rates = [s['dynamic_rate'] for s in dynamic_rate_stats]
+            entropies = [s['normalized_entropy'] for s in dynamic_rate_stats]
+            topk_coverages = [s['topk_coverage'] for s in dynamic_rate_stats]
+            f.write(f"\n--- {reprocess_method} 动态重算比例统计 ---\n")
+            f.write(f"子问题数量: {len(dynamic_rate_stats)}\n")
+            f.write(f"重算比例 - 平均: {np.mean(rates):.4f}, 最小: {np.min(rates):.4f}, 最大: {np.max(rates):.4f}, 标准差: {np.std(rates):.4f}\n")
+            f.write(f"归一化熵 - 平均: {np.mean(entropies):.4f}, 最小: {np.min(entropies):.4f}, 最大: {np.max(entropies):.4f}\n")
+            f.write(f"Top-k覆盖 - 平均: {np.mean(topk_coverages):.4f}, 最小: {np.min(topk_coverages):.4f}, 最大: {np.max(topk_coverages):.4f}\n")
+
+        # Add rate=1 comparison to file
+        if rate != 1 and len(rate1_results) > 0:
+            rate1_correct = sum(1 for v in rate1_results.values() if v['correct'].lower() == 'true')
+            rate1_total = len(rate1_results)
+            rate1_acc = rate1_correct / rate1_total if rate1_total > 0 else 0
+            rate1_avg_f1 = sum(float(v['f1']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+            rate1_avg_em = sum(float(v['em']) for v in rate1_results.values()) / rate1_total if rate1_total > 0 else 0
+
+            f.write(f"\n--- Comparison with Rate=1 Baseline ---\n")
+            f.write(f"Rate=1 Sub Questions Accuracy: {rate1_acc:.4f}\n")
+            f.write(f"Rate=1 Average F1 Score: {rate1_avg_f1:.4f}\n")
+            f.write(f"Rate=1 Average EM Score: {rate1_avg_em:.4f}\n")
+            f.write(f"Accuracy Delta: {sub_q_acc - rate1_acc:+.4f}\n")
+            f.write(f"F1 Delta: {avg_f1 - rate1_avg_f1:+.4f}\n")
+            f.write(f"EM Delta: {avg_em - rate1_avg_em:+.4f}\n")
+
+            # long_decode 模式：添加 evidence 对比到文件
+            if long_decode and total_evidence > 0:
+                rate1_evidence_matched = sum(1 for v in rate1_results.values() if str(v.get('evidence_matched', '')).lower() == 'true')
+                rate1_evidence_total = sum(1 for v in rate1_results.values() if v.get('evidence_matched', 'N/A') != 'N/A')
+                rate1_evidence_acc = rate1_evidence_matched / rate1_evidence_total if rate1_evidence_total > 0 else 0
+                evidence_acc = matched_evidence / total_evidence
+
+                f.write(f"\n--- Evidence Comparison ---\n")
+                f.write(f"Current Evidence Matched: {matched_evidence}/{total_evidence} ({evidence_acc:.4f})\n")
+                f.write(f"Rate=1 Evidence Matched: {rate1_evidence_matched}/{rate1_evidence_total} ({rate1_evidence_acc:.4f})\n")
+                f.write(f"Evidence Delta: {evidence_acc - rate1_evidence_acc:+.4f}\n")
+
+        # ========== 添加重算 token 统计 ==========
+        f.write(f"\n--- Recompute Tokens Statistics ---\n")
+        f.write(f"Total Recomputed Tokens: {total_recompute_tokens:,}\n")
+        f.write(f"Total Sub Questions: {total_sub_questions}\n")
+        if total_sub_questions > 0:
+            f.write(f"Average Recomputed Tokens per Question: {total_recompute_tokens / total_sub_questions:.2f}\n")
+
+    # 关闭线程池
+    judge_executor.shutdown(wait=True)
+
+    print(f"\nResults saved to {csv_path}")
+
+
+def collect_optimal_rate(
+    model_type='qwen',
+    model_path='/mnt/data/models/Qwen2.5-7B-Instruct',
+    draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+    data_path='/mnt/data/wjh/FusionRAG/data/result_reflect.json',
+    cache_path='/mnt/data/reflect/',
+    model_name='Qwen2.5-7B-Instruct',
+    dataset_name='musique',
+    max_cache_len=32768,
+    topk=10,
+    preprocess=True,
+    preprocess_scope=PreprocessScope.GLOBAL,
+    revert_rope=True,
+    bge_model_path='/mnt/data/models/bge-m3-FP16',
+    device="cuda:0",
+    use_multi_gpu=False,
+    openai_api_key="sk-519d391217894b6e91e7c2ebf2a9f4df",
+    openai_base_url="https://api.deepseek.com/v1",
+    openai_model="deepseek-chat",
+    max_samples=None,
+    output_dir="/mnt/data/wjh/FusionRAG/optimal_rate_search",
+):
+    """
+    收集每个问题在 DraftModel 方法下的最小正确重算比例和 attention 分布特征
+
+    使用早停策略：从低到高尝试 rates，一旦答对就停止搜索
+    """
+    import pickle
+    from ktransformers.util.utils import (
+        compute_draft_model_attention,
+        entropy_layer_selection,
+        prefill_and_generate,
+    )
+
+    # 打印配置
+    print("="*80)
+    print("Configuration - Collect Optimal Rate Data")
+    print("="*80)
+    print(f"Main Model: {model_path}")
+    print(f"Draft Model: {draft_model_path}")
+    print(f"Data Path: {data_path}")
+    print(f"Output Dir: {output_dir}")
+    print(f"Reprocess Method: DraftModel")
+    print(f"Draft Layer Selection: entropy")
+    print(f"Preprocess: {preprocess}")
+    print(f"Revert RoPE: {revert_rope}")
+    print(f"TopK: {topk}")
+    print(f"Judgment: DeepSeek API ({openai_model})")
+    print("="*80)
+    print()
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 要尝试的 rates: 0, 0.05, 0.10, ..., 1.0
+    rates_to_try = [round(r * 0.05, 2) for r in range(21)]
+    print(f"Rates to try: {rates_to_try}")
+
+    # 缓存路径
+    model_cache_root = os.path.join(cache_path, model_name, dataset_name)
+    save_path = os.path.join(model_cache_root, 'kv_cache')
+    preprocess_save_path = os.path.join(model_cache_root, 'preprocess_kv_cache_global')
+
+    # 加载模型
+    print("\n加载模型...")
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    config._attn_implementation = "sdpa"
+
+    model, device_map = load_model(model_type, model_path, config, device, use_multi_gpu)
+    model.eval()
+
+    print(f"加载 Draft 模型: {draft_model_path}")
+    draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
+    draft_config._attn_implementation = "sdpa"
+    draft_model, _ = load_model('qwen', draft_model_path, draft_config, device, use_multi_gpu=False)
+    draft_model.eval()
+
+    # 准备数据
+    print("\n准备数据...")
+    questions_data, system_tensor, context_rank, corpus_lens = prepare_reflect_data(
+        data_path, tokenizer, bge_model_path, model_type, topk, max_samples, preprocess, preprocess_scope, dataset_name
+    )
+    system_len = system_tensor.shape[0]
+
+    # 初始化 KV cache
+    past_key_values = StaticCache(
+        config=config, max_batch_size=1, max_cache_len=max_cache_len,
+        device=device, dtype=config.torch_dtype, passage_len=max_cache_len
+    )
+
+    # 初始化 OpenAI client
+    openai_client = OpenAI(api_key=openai_api_key, base_url=openai_base_url)
+
+    # 收集结果
+    all_results = []
+    total_questions = sum(len(q['sub_questions']) for q in questions_data)
+    processed = 0
+
+    input_device = device
+
+    print(f"\n开始处理 {total_questions} 个子问题...")
+    print("="*80)
+
+    for example_id, q_data in enumerate(questions_data):
+        doc_tensors = q_data['doc_tensors']
+
+        doc_ids = q_data['doc_ids']
+        doc_id_to_tensor_idx = q_data['doc_id_to_tensor_idx']
+
+        for sub_q_idx, sub_q_info in enumerate(q_data['sub_questions']):
+            processed += 1
+            ground_truth = sub_q_info['answer']
+            query = sub_q_info['query']
+            doc_ids_for_subq = sub_q_info['doc_ids']  # Global doc IDs
+
+            question_id = f"Q{example_id+1}_Sub{sub_q_idx+1}"
+
+            print(f"\n{'='*60}")
+            print(f"[{processed}/{total_questions}] {question_id}")
+            print(f"Query: {query}")
+            print(f"Ground Truth: {ground_truth}")
+            print(f"{'='*60}")
+
+            # 构建输入
+            sub_q_doc_tensors = [doc_tensors[doc_id_to_tensor_idx[doc_id]] for doc_id in doc_ids_for_subq]
+            question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
+            question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+
+            passages = [system_tensor] + sub_q_doc_tensors + [question_tensor]
+            passages_len = [p.shape[0] for p in passages]
+            kv_doc_ids = [SYSTEM_PROMPT_ID] + doc_ids_for_subq
+
+            # Step 0: 检查必要的缓存是否存在
+            cache_missing = False
+            # 检查预处理缓存
+            for doc_id in kv_doc_ids:
+                key_cache_path = f"{preprocess_save_path}/doc_{doc_id}_key.pt"
+                if not os.path.exists(key_cache_path):
+                    print(f"  跳过: 预处理缓存不存在 {key_cache_path}")
+                    cache_missing = True
+                    break
+            # 检查原始 KV cache (第一个文档用原始缓存)
+            if not cache_missing and len(doc_ids_for_subq) > 0:
+                orig_key_path = f"{save_path}/doc_{doc_ids_for_subq[0]}_key.pt"
+                if not os.path.exists(orig_key_path):
+                    print(f"  跳过: 原始KV缓存不存在 {orig_key_path}")
+                    cache_missing = True
+            if cache_missing:
+                continue
+
+            # Step 1: 计算 Draft Model Attention 并提取特征
+            query_start = sum(passages_len[:-1])
+            full_input = torch.cat(passages).unsqueeze(0).to(device)
+
+            try:
+                draft_attention = compute_draft_model_attention(draft_model, full_input, query_start, device)
+            except Exception as e:
+                print(f"  计算 attention 失败: {e}")
+                continue
+
+            # 提取 attention 特征
+            attention_features = extract_attention_features_for_rate(
+                draft_attention, query_start, system_len, passages_len, device
+            )
+            if attention_features is None:
+                print(f"  提取特征失败")
+                continue
+
+            # Step 2: 从低到高测试 rates，找到第一个正确的就停止
+            rate_results = []
+            min_correct_rate = None
+
+            for rate in rates_to_try:
+                # 重置 KV cache
+                for layer_idx in range(len(past_key_values.key_cache)):
+                    past_key_values.past_tokens[layer_idx] = 0
+
+                try:
+                    if rate == 1.0:
+                        inputs = torch.cat(passages).to(input_device).unsqueeze(0)
+                        generated_tokens, _, _ = prefill_and_generate(
+                            model, tokenizer, inputs, max_new_tokens=100,
+                            device=input_device, device_map=device_map
+                        )
+                    else:
+                        generated_tokens, _, _ = load_kv_and_generate(
+                            model, tokenizer, past_key_values, passages,
+                            preprocess_save_path,
+                            doc_ids=kv_doc_ids,  # Use global doc IDs
+                            max_new_tokens=100, revert_rope=revert_rope,
+                            reprocess_method='DraftModel', rate=max(rate, 0.001),
+                            draft_model=draft_model,
+                            draft_layer_selection='entropy',
+                            preprocess=preprocess,
+                            device=input_device, device_map=device_map,
+                            original_kv_path=save_path,
+                            repeat_k_times=repeat_k_times  # 消融实验
+                        )
+
+                    answer = tokenizer.decode(torch.tensor(generated_tokens[:-1]), skip_special_tokens=True).strip()
+                    if not answer:
+                        answer = "[EMPTY]"
+
+                    # 使用 DeepSeek API 判断答案正确性
+                    is_correct, reason = judge_answer_with_openai(
+                        openai_client, openai_model, query, answer, ground_truth
+                    )
+
+                    result = {
+                        'rate': rate,
+                        'answer': answer,
+                        'correct': is_correct,
+                        'reason': reason,
+                        'error': None
+                    }
+
+                except Exception as e:
+                    import traceback
+                    result = {
+                        'rate': rate,
+                        'answer': None,
+                        'correct': False,
+                        'reason': str(e),
+                        'error': traceback.format_exc()
+                    }
+                    is_correct = False
+                    answer = f"[ERROR: {str(e)[:50]}]"
+
+                rate_results.append(result)
+
+                # 打印结果（完整答案，不截断）
+                status = "✓ CORRECT" if is_correct else "✗ wrong"
+                print(f"  rate={rate:.2f}: {status}")
+                print(f"    Answer: {answer}")
+
+                # 早停：答对就停止
+                if is_correct:
+                    min_correct_rate = rate
+                    print(f"  >>> 找到 min_correct_rate = {rate:.2f}, 停止搜索")
+                    break
+
+            if min_correct_rate is None:
+                print(f"  >>> 所有 rate 都答错")
+
+            # 保存结果
+            question_result = {
+                'question_id': question_id,
+                'example_id': example_id,
+                'sub_q_idx': sub_q_idx,
+                'query': query,
+                'ground_truth': ground_truth,
+                'attention_features': attention_features,
+                'rate_results': rate_results,
+                'min_correct_rate': min_correct_rate,
+            }
+            all_results.append(question_result)
+
+            # 定期保存 checkpoint
+            if len(all_results) % 20 == 0:
+                checkpoint_path = os.path.join(output_dir, 'checkpoint.pkl')
+                with open(checkpoint_path, 'wb') as f:
+                    pickle.dump(all_results, f)
+                print(f"  [Checkpoint saved: {len(all_results)} questions]")
+
+            torch.cuda.empty_cache()
+
+    # 保存最终结果
+    print("\n" + "="*80)
+    print("保存结果")
+    print("="*80)
+
+    output_path = os.path.join(output_dir, 'full_results.pkl')
+    with open(output_path, 'wb') as f:
+        pickle.dump(all_results, f)
+    print(f"完整数据已保存到: {output_path}")
+
+    # 统计
+    min_rates = [r['min_correct_rate'] for r in all_results if r['min_correct_rate'] is not None]
+    failed = [r for r in all_results if r['min_correct_rate'] is None]
+
+    print(f"\n总问题数: {len(all_results)}")
+    print(f"有正确答案的问题数: {len(min_rates)}")
+    print(f"所有 rate 都答错的问题数: {len(failed)}")
+
+    if min_rates:
+        print(f"\n最小正确 rate 分布:")
+        print(f"  平均值: {np.mean(min_rates):.3f}")
+        print(f"  中位数: {np.median(min_rates):.3f}")
+        print(f"  最小值: {np.min(min_rates):.3f}")
+        print(f"  最大值: {np.max(min_rates):.3f}")
+
+    return all_results
+
+
+def extract_attention_features_for_rate(draft_attention, query_start, system_len, passages_len, device="cuda:0"):
+    """
+    从 draft model attention 中提取特征用于分析
+    """
+    from ktransformers.util.utils import entropy_layer_selection
+
+    text_block1_len = passages_len[1] if len(passages_len) > 1 else 0
+    selection_start = system_len + text_block1_len
+    doc_len = sum(passages_len[2:-1]) if len(passages_len) > 2 else 0
+
+    if doc_len == 0:
+        return None
+
+    # 收集各层的 query→doc attention
+    layer_attention_dict = {}
+    for layer_idx, layer_attn in draft_attention.items():
+        query_to_doc = layer_attn[:, :, selection_start:selection_start + doc_len]
+        doc_attention_avg = query_to_doc.mean(axis=(0, 1))
+        layer_attention_dict[layer_idx] = torch.tensor(doc_attention_avg, device=device)
+
+    # 熵选层
+    active_layers, layer_entropy = entropy_layer_selection(
+        layer_attention_dict, top_k=4, return_entropy=True
+    )
+    layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+    aggregated_attn = torch.stack(layer_attentions).mean(dim=0).cpu().numpy()
+
+    # 计算特征
+    features = {}
+
+    # 基本统计
+    features['peak_strength'] = float(aggregated_attn.max())
+    features['attention_mean'] = float(aggregated_attn.mean())
+    features['attention_std'] = float(aggregated_attn.std())
+
+    # Top-k concentration
+    sorted_attn = np.sort(aggregated_attn)[::-1]
+    total = sorted_attn.sum()
+
+    for k in [5, 10, 20, 50]:
+        features[f'top{k}_concentration'] = float(sorted_attn[:k].sum() / total) if total > 0 else 0
+
+    # Coverage ratios
+    cumsum = np.cumsum(sorted_attn)
+    for coverage in [0.5, 0.7, 0.8, 0.9, 0.95]:
+        coverage_idx = np.where(cumsum >= coverage * total)[0]
+        tokens_needed = coverage_idx[0] + 1 if len(coverage_idx) > 0 else len(aggregated_attn)
+        features[f'coverage_{int(coverage*100)}_ratio'] = float(tokens_needed / len(aggregated_attn))
+
+    # Normalized entropy
+    p = aggregated_attn / (aggregated_attn.sum() + 1e-10)
+    p = np.clip(p, 1e-10, 1.0)
+    entropy = -(p * np.log(p)).sum()
+    max_entropy = np.log(len(aggregated_attn))
+    features['normalized_entropy'] = float(entropy / max_entropy) if max_entropy > 0 else 0
+
+    # Gini coefficient
+    sorted_p = np.sort(p)
+    n = len(sorted_p)
+    gini = (2 * np.sum(np.arange(1, n+1) * sorted_p) / (n * sorted_p.sum()) - (n + 1) / n)
+    features['gini'] = float(gini)
+
+    # 文档长度
+    features['doc_len'] = doc_len
+    features['log_doc_len'] = float(np.log(doc_len + 1))
+    features['active_layers'] = active_layers
+
+    # 保存原始分布供后续分析
+    features['attention_distribution'] = aggregated_attn.tolist()
+
+    return features
 
 
 if __name__ == '__main__':

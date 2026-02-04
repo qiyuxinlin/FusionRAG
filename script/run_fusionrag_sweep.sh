@@ -6,11 +6,11 @@
 #####################################################################
 
 # 基础配置
-GPUS="7"
+GPUS="5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/bge_again"       # 结果保存目录（CSV等）
-CACHE_DIR="/mnt/data3/tmp/fusionrag"                        # KV cache 保存路径
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/no_preprocess"       # 结果保存目录（CSV等）
+CACHE_DIR="/mnt/data3/tmp/fusionrag_new"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
@@ -20,15 +20,15 @@ MODEL_NAME="Qwen2.5-7B-Instruct"
 BGE_MODEL_PATH="/mnt/data/models/bge-m3-FP16"
 
 # 数据配置
-DATA_PATH="./data/result_reflect.json" # result_reflect.json | 2wikimqa_reflect.json  result_reflect_merged.json 
+DATA_PATH="./data/result_musique_reflect_optimized.json" # result_musique_reflect_optimized.json (with global doc IDs) 
 DATASET_NAME="musique" # 2wikimqa| musique | musique_310
 
 # FusionRAG 方法配置
 REPROCESS_METHOD="DraftModel"  # 可修改: FusionRAG, Oracle, OracleAdaptive, etc.
 TOPK="10"
-PREPROCESS="true"
+PREPROCESS="false"
 USE_RANDOM_RECALL="false"     # [已废弃] 请使用 RECALL_METHOD
-RECALL_METHOD="bge"       # 召回方法: bge, random, repeat_self, fixed_doc, no_preprocess_with_bias
+RECALL_METHOD="repeat_self"       # 召回方法: bge, random, repeat_self, fixed_doc, no_preprocess_with_bias
 RANDOM_SEED="42"              # 随机种子 (当 RECALL_METHOD=random 时生效)
 FIXED_DOC_IDX="0"             # 固定文档索引 (当 RECALL_METHOD=fixed_doc 时生效)
 
@@ -51,7 +51,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表
-RATE_LIST=(0.0 0.1 0.15 0.3 0.5 0.8 0.9 1.0 ) 
+RATE_LIST=(0.0 0.1 0.15 0.3 0.5 0.8 0.9) 
 
 # 可选参数
 MAX_SAMPLES="" 

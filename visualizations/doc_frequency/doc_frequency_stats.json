@@ -1,0 +1,173 @@
+{
+  "unique_documents": 444,
+  "total_usages": 552,
+  "average_usage": 1.2432432432432432,
+  "max_frequency": 4,
+  "min_frequency": 1,
+  "median_frequency": 1.0,
+  "std_frequency": 0.5729049764174647,
+  "top_20_documents": [
+    {
+      "doc_id": 2137,
+      "frequency": 4
+    },
+    {
+      "doc_id": 2351,
+      "frequency": 4
+    },
+    {
+      "doc_id": 2352,
+      "frequency": 4
+    },
+    {
+      "doc_id": 76,
+      "frequency": 4
+    },
+    {
+      "doc_id": 77,
+      "frequency": 4
+    },
+    {
+      "doc_id": 445,
+      "frequency": 3
+    },
+    {
+      "doc_id": 2516,
+      "frequency": 3
+    },
+    {
+      "doc_id": 703,
+      "frequency": 3
+    },
+    {
+      "doc_id": 1403,
+      "frequency": 3
+    },
+    {
+      "doc_id": 660,
+      "frequency": 3
+    },
+    {
+      "doc_id": 2566,
+      "frequency": 3
+    },
+    {
+      "doc_id": 845,
+      "frequency": 3
+    },
+    {
+      "doc_id": 372,
+      "frequency": 3
+    },
+    {
+      "doc_id": 1263,
+      "frequency": 3
+    },
+    {
+      "doc_id": 2307,
+      "frequency": 3
+    },
+    {
+      "doc_id": 1591,
+      "frequency": 3
+    },
+    {
+      "doc_id": 1200,
+      "frequency": 3
+    },
+    {
+      "doc_id": 2316,
+      "frequency": 3
+    },
+    {
+      "doc_id": 1378,
+      "frequency": 3
+    },
+    {
+      "doc_id": 604,
+      "frequency": 3
+    }
+  ],
+  "bottom_20_documents": [
+    {
+      "doc_id": 994,
+      "frequency": 1
+    },
+    {
+      "doc_id": 2071,
+      "frequency": 1
+    },
+    {
+      "doc_id": 2068,
+      "frequency": 1
+    },
+    {
+      "doc_id": 945,
+      "frequency": 1
+    },
+    {
+      "doc_id": 336,
+      "frequency": 1
+    },
+    {
+      "doc_id": 1044,
+      "frequency": 1
+    },
+    {
+      "doc_id": 2186,
+      "frequency": 1
+    },
+    {
+      "doc_id": 862,
+      "frequency": 1
+    },
+    {
+      "doc_id": 1991,
+      "frequency": 1
+    },
+    {
+      "doc_id": 873,
+      "frequency": 1
+    },
+    {
+      "doc_id": 1672,
+      "frequency": 1
+    },
+    {
+      "doc_id": 1926,
+      "frequency": 1
+    },
+    {
+      "doc_id": 2502,
+      "frequency": 1
+    },
+    {
+      "doc_id": 202,
+      "frequency": 1
+    },
+    {
+      "doc_id": 1712,
+      "frequency": 1
+    },
+    {
+      "doc_id": 2320,
+      "frequency": 1
+    },
+    {
+      "doc_id": 561,
+      "frequency": 1
+    },
+    {
+      "doc_id": 56,
+      "frequency": 1
+    },
+    {
+      "doc_id": 1365,
+      "frequency": 1
+    },
+    {
+      "doc_id": 211,
+      "frequency": 1
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "config": {
+    "kv_cache_dir": "/mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/musique/kv_cache",
+    "doc_pool_path": "/home/shm/document/exp/FusionRAG/data/musique_input_rebuilt.json",
+    "num_tested": 10
+  },
+  "results": [
+    {
+      "exact_match": false,
+      "char_accuracy": 0.02032520325203252,
+      "word_accuracy": 0.0,
+      "repeated_text": "Please repeat the text from the previous conversation exactly as it is, word for word, maintaining the original order and format.",
+      "original_length": 246,
+      "generated_length": 129,
+      "doc_id": 1,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.019704433497536946,
+      "word_accuracy": 0.0,
+      "repeated_text": "Instruction: Please repeat the text from the previous conversation exactly as it is, word for word, maintaining the original order and format. Output the result in JSON format, with a key-value pair w",
+      "original_length": 609,
+      "generated_length": 295,
+      "doc_id": 3,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.07920792079207921,
+      "word_accuracy": 0.02631578947368421,
+      "repeated_text": "The output is in JSON format, with a key-value pair where the key is 'repeated_text' and the value is the repeated text from the prior conversation:",
+      "original_length": 202,
+      "generated_length": 148,
+      "doc_id": 7,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.0,
+      "word_accuracy": 0.0,
+      "repeated_text": "repeated_text",
+      "original_length": 521,
+      "generated_length": 13,
+      "doc_id": 11,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.07046070460704607,
+      "word_accuracy": 0.0,
+      "repeated_text": "My name is Mylène Farmer. This ballad was written by Farmer with music composed by Laurent Boutonnat. It was the second single from her ninth studio album \"Monkey Me\" (2012), and was first released di",
+      "original_length": 369,
+      "generated_length": 325,
+      "doc_id": 12,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.0,
+      "word_accuracy": 0.0,
+      "repeated_text": "repeated_text",
+      "original_length": 140,
+      "generated_length": 13,
+      "doc_id": 13,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.042435424354243544,
+      "word_accuracy": 0.013157894736842105,
+      "repeated_text": "The text from the previous conversation is not available as it was the initial request. Please provide the text you wish to repeat exactly as it is, word for word, maintaining the original order and f",
+      "original_length": 542,
+      "generated_length": 206,
+      "doc_id": 15,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.026687598116169546,
+      "word_accuracy": 0.9836065573770492,
+      "repeated_text": "Move Ya Body is a song recorded by American duo Nina Sky. It was released in April 2004 as the lead single from their debut album, \"Nina Sky\". The song features rapper Jabba. There is a remix to the s",
+      "original_length": 637,
+      "generated_length": 635,
+      "doc_id": 17,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.043137254901960784,
+      "word_accuracy": 0.0,
+      "repeated_text": "{\n  \"repeated_text\": \"Shrek premiered at the 2001 Cannes Film Festival, where it competed for the Palme d'Or, making it the first animated film since Disney's \"Peter Pan\" (1953) to receive that honor.",
+      "original_length": 1275,
+      "generated_length": 882,
+      "doc_id": 21,
+      "success": true,
+      "error": null
+    },
+    {
+      "exact_match": false,
+      "char_accuracy": 0.020460358056265986,
+      "word_accuracy": 0.9285714285714286,
+      "repeated_text": "Together Let's Find Love is a song written by J. W. Alexander and Willie Hutchingson and performed live by The 5th Dimension. It reached #8 on the U.S. adult contemporary chart, #12 on the Canadian ad",
+      "original_length": 391,
+      "generated_length": 389,
+      "doc_id": 26,
+      "success": true,
+      "error": null
+    }
+  ]
+}

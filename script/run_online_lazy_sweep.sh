@@ -2,12 +2,13 @@
 
 
 # 基础配置
-GPUS="4"
+GPUS="5"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/debug_v7_3"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
-CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/self_supervised_none"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
+CACHE_DIR='/mnt/data3/tmp/fusionrag_new/Qwen2.5-7B-Instruct/musique/kv_cache' # "/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
 cd /home/shm/document/exp/FusionRAG
+# /mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/musique-susvised/kv_cache
 
 # 模型配置
 MODEL_TYPE="qwen"
@@ -16,16 +17,16 @@ MODEL_NAME="Qwen2.5-7B-Instruct"
 
 # 数据集
 # musique路径
-# DATA_PATH="./data/result_musique_reflect_optimized.json" 
-# DATASET_NAME="musique" 
+DATA_PATH="./data/result_musique_reflect_optimized.json" 
+DATASET_NAME="musique-susvised" 
 
 # 2wikimqa路径
 # DATA_PATH="./data/2wikimqa_reflect_optimized.json" 
 # DATASET_NAME="2wikimqa" 
 
 # musique扩充路径
-DATA_PATH="/home/shm/document/exp/FusionRAG/data/musique_merge_reflect_optimized.json" 
-DATASET_NAME="musique_310" 
+# DATA_PATH="/home/shm/document/exp/FusionRAG/data/musique_merge_reflect_optimized.json" 
+# DATASET_NAME="musique_310" 
 
 
 # Online Lazy Loading 核心配置
@@ -40,7 +41,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表 - 测试不同的重算比例
-RATE_LIST=(0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)  # (0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)
+RATE_LIST=(0.0 0.1 0.15 0.3 0.50 0.8 0.9 0.99)  # (0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)
 
 # 可选参数
 MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
@@ -54,20 +55,7 @@ CLEAR_CACHE_BEFORE_START="true"
 
 # 消融实验：文档重复次数（默认1表示不重复）
 # 可以通过命令行参数传入：./run_online_lazy_sweep.sh 5  # repeat_k_times=5
-REPEAT_K_TIMES=${1:-1}  # 默认值1，第一个命令行参数覆盖
 
-echo "消融实验配置: repeat_k_times=${REPEAT_K_TIMES}"
-
-# 根据 repeat_k_times 自动调整结果目录和缓存目录
-if [ "${REPEAT_K_TIMES}" != "1" ]; then
-    RESULT_DIR="/home/shm/document/exp/FusionRAG/result/debug_v7_3_repeat_${REPEAT_K_TIMES}"
-    CACHE_DIR="/mnt/data3/tmp/fusionrag_online_lazy_repeat_${REPEAT_K_TIMES}"
-    echo "检测到消融实验模式，使用专用目录"
-fi
-
-#####################################################################
-# 开始遍历
-#####################################################################
 
 echo "=========================================="
 echo "Online Lazy Loading - Rate Sweep"
@@ -103,18 +91,18 @@ for RATE in "${RATE_LIST[@]}"; do
     echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "=========================================="
 
-    # ========== 每个rate开始前清空缓存 ==========
-    if [ "${CLEAR_CACHE_BEFORE_START}" == "true" ]; then
-        echo "⚠ 清除 KV cache (为 rate ${RATE} 准备干净环境)..."
-        rm -rf "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache"/*
-        if [ -d "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" ]; then
-            CACHE_COUNT=$(find "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" -name "*_key.pt" 2>/dev/null | wc -l)
-            echo "✓ KV cache 已清除 (剩余 ${CACHE_COUNT} 个文件)"
-        else
-            echo "✓ KV cache 目录已清空"
-        fi
-        echo ""
-    fi
+    # ========== 每个rate开始前清空缓存 【注意我们在自监督模式下不用清空】==========
+    # if [ "${CLEAR_CACHE_BEFORE_START}" == "true" ]; then
+    #     echo "⚠ 清除 KV cache (为 rate ${RATE} 准备干净环境)..."
+    #     rm -rf "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache"/*
+    #     if [ -d "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" ]; then
+    #         CACHE_COUNT=$(find "${CACHE_DIR}/${MODEL_NAME}/${DATASET_NAME}/kv_cache" -name "*_key.pt" 2>/dev/null | wc -l)
+    #         echo "✓ KV cache 已清除 (剩余 ${CACHE_COUNT} 个文件)"
+    #     else
+    #         echo "✓ KV cache 目录已清空"
+    #     fi
+    #     echo ""
+    # fi
 
     # 记录单次测试开始时间
     TEST_START_TIME=$(date +%s)
@@ -139,7 +127,6 @@ for RATE in "${RATE_LIST[@]}"; do
         "--use_entropy_selection" "${USE_ENTROPY_SELECTION}"
         "--entropy_top_k" "${ENTROPY_TOP_K}"
         "--draft_layer_selection" "${DRAFT_LAYER_SELECTION}"
-        "--repeat_k_times" "${REPEAT_K_TIMES}"
     )
 
     # 添加可选参数
