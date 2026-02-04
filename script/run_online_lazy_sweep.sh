@@ -2,12 +2,15 @@
 
 
 # 基础配置
-GPUS="5"
+GPUS="2"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/self_supervised_none"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
-CACHE_DIR='/mnt/data3/tmp/fusionrag_new/Qwen2.5-7B-Instruct/musique/kv_cache' # "/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/v3_self_supervised_online"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
+CACHE_DIR='/mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/musique/kv_cache' # "/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
 cd /home/shm/document/exp/FusionRAG
+# kv_cache 
+# preprocess_kv_cache_global_topk10_bge
+# /mnt/data3/tmp/fusionrag_new/Qwen2.5-7B-Instruct/musique/preprocess_kv_cache_global_topk10_repeat_self
 # /mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/musique-susvised/kv_cache
 
 # 模型配置
@@ -44,7 +47,7 @@ OPENAI_MODEL="deepseek-chat"
 RATE_LIST=(0.0 0.1 0.15 0.3 0.50 0.8 0.9 0.99)  # (0.001 0.1 0.15 0.3 0.5 0.8 0.9 0.99)
 
 # 可选参数
-MAX_SAMPLES=""  # 留空表示测试所有样本，或设置为数字（如"5"）
+MAX_SAMPLES="500"  # 留空表示测试所有样本，或设置为数字（如"5"）
 
 USE_ENTROPY_SELECTION="true"
 ENTROPY_TOP_K="4"

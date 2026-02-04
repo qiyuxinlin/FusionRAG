@@ -271,195 +271,6 @@ def scan_kv_cache_and_load_documents(
     return documents
 
 
-def load_kv_distribution_stats(stats_path: str, model_name: str = None, dataset_name: str = None) -> Dict:
-    """
-    Load pre-computed KV steering vectors for manifold steering
-
-    Args:
-        stats_path: Path to the steering vectors file (.pt)
-        model_name: Optional model name for verification
-        dataset_name: Optional dataset name for verification
-
-    Returns:
-        Dictionary containing layer-wise steering vectors with keys:
-        - 'key_steering': layer-wise key steering vectors
-        - 'value_steering': layer-wise value steering vectors
-        - 'metadata': metadata about the steering vectors
-    """
-    if not os.path.exists(stats_path):
-        raise FileNotFoundError(f"Steering vectors file not found: {stats_path}")
-
-    print(f"Loading KV steering vectors from: {stats_path}")
-    stats = torch.load(stats_path, map_location='cpu')
-
-    # Check if old format (key_stats/value_stats) or new format (key_steering/value_steering)
-    if 'key_stats' in stats:
-        print(f"  Loaded statistics for {len(stats['key_stats'])} layers (old BatchNorm format)")
-    elif 'key_steering' in stats:
-        print(f"  Loaded steering vectors for {len(stats['key_steering'])} layers (manifold steering format)")
-    else:
-        raise ValueError(f"Unknown format in stats file")
-
-    print(f"  Computed from {stats['metadata']['num_samples']} samples")
-
-    # Verify model and dataset match (if metadata contains these fields)
-    if 'model_name' in stats['metadata']:
-        stored_model = stats['metadata']['model_name']
-        print(f"  Model: {stored_model}")
-        if model_name and stored_model != model_name:
-            print(f"  ⚠️  WARNING: Steering vectors computed for '{stored_model}' but loading for '{model_name}'")
-            print(f"      This may cause dimension mismatches if models have different architectures!")
-
-    if 'dataset' in stats['metadata']:
-        stored_dataset = stats['metadata']['dataset']
-        print(f"  Dataset: {stored_dataset}")
-        if dataset_name and stored_dataset != dataset_name:
-            print(f"  ℹ️  INFO: Steering vectors computed on '{stored_dataset}' dataset, applying to '{dataset_name}'")
-
-    return stats
-
-
-def parse_layer_selection(layer_spec: str, max_layers: int = 28) -> set:
-    """
-    Parse layer selection specification into a set of layer indices.
-
-    Args:
-        layer_spec: Layer specification string. Formats:
-            - "all": All layers (0 to max_layers-1)
-            - "0-10": Range from layer 0 to 10 (inclusive)
-            - "0,5,10": Specific layers
-            - "0-10,15,20-25": Mixed format (ranges and specific layers)
-        max_layers: Maximum number of layers (default: 28 for Qwen2.5-7B)
-
-    Returns:
-        Set of layer indices to apply steering vector
-
-    Examples:
-        >>> parse_layer_selection("all", 28)
-        {0, 1, 2, ..., 27}
-        >>> parse_layer_selection("0-5", 28)
-        {0, 1, 2, 3, 4, 5}
-        >>> parse_layer_selection("0,5,10", 28)
-        {0, 5, 10}
-        >>> parse_layer_selection("0-5,10,15-20", 28)
-        {0, 1, 2, 3, 4, 5, 10, 15, 16, 17, 18, 19, 20}
-    """
-    if layer_spec.lower() == "all":
-        return set(range(max_layers))
-
-    layers = set()
-    parts = layer_spec.split(',')
-
-    for part in parts:
-        part = part.strip()
-        if '-' in part:
-            # Range format: "0-10"
-            start, end = part.split('-')
-            start_idx = int(start.strip())
-            end_idx = int(end.strip())
-            if start_idx < 0 or end_idx >= max_layers:
-                raise ValueError(
-                    f"Layer range {start_idx}-{end_idx} out of bounds [0, {max_layers-1}]"
-                )
-            layers.update(range(start_idx, end_idx + 1))
-        else:
-            # Single layer: "5"
-            layer_idx = int(part)
-            if layer_idx < 0 or layer_idx >= max_layers:
-                raise ValueError(
-                    f"Layer index {layer_idx} out of bounds [0, {max_layers-1}]"
-                )
-            layers.add(layer_idx)
-
-    return layers
-
-
-def apply_steering_vector(kv_cache: torch.Tensor, steering_vector: torch.Tensor,
-                         layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
-    """
-    Apply steering vector to KV cache (Manifold Steering from overthinking paper)
-
-    Following the paper's method:
-    h' = h + α * r_M
-
-    Where:
-    - h: original activation (no_preprocess KV cache)
-    - r_M: steering vector (projected onto manifold)
-    - α: steering strength (default: 1.0)
-
-    Args:
-        kv_cache: KV cache tensor [num_heads, seq_len, head_dim]
-        steering_vector: Steering vector [num_heads, head_dim]
-        layer_idx: Layer index (for debugging)
-        alpha: Steering strength (default: 1.0)
-
-    Returns:
-        Steered KV cache with same shape as input
-    """
-    # kv_cache: [num_heads, seq_len, head_dim]
-    # steering_vector: [num_heads, head_dim]
-
-    # Expand steering vector to match kv_cache shape
-    # steering_vector: [num_heads, head_dim] -> [num_heads, 1, head_dim]
-    steering_expanded = steering_vector.unsqueeze(1)  # [num_heads, 1, head_dim]
-
-    # Apply intervention: KV_aligned = KV_no_preprocess + α * r_M
-    kv_steered = kv_cache + alpha * steering_expanded
-
-    return kv_steered
-
-
-def apply_per_head_steering_vector(kv_cache: torch.Tensor, per_head_steering_dict: dict,
-                                    layer_idx: int, alpha: float = 1.0) -> torch.Tensor:
-    """
-    Apply per-head steering vectors to KV cache
-
-    Each attention head gets its own steering vector, allowing finer-grained control.
-
-    Args:
-        kv_cache: KV cache tensor [num_heads, seq_len, head_dim] or [num_groups, num_heads_per_group, seq_len, head_dim]
-        per_head_steering_dict: Dictionary with per-head steering vectors
-                               {'head_0': {'steering_vector': [head_dim]}, 'head_1': {...}, ...}
-        layer_idx: Layer index (for debugging)
-        alpha: Steering strength (default: 1.0)
-
-    Returns:
-        Steered KV cache with same shape as input
-    """
-    original_shape = kv_cache.shape
-    is_grouped = (kv_cache.dim() == 4)
-
-    # Handle grouped attention format
-    if is_grouped:
-        # [num_groups, num_heads_per_group, seq_len, head_dim]
-        num_groups, num_heads_per_group, seq_len, head_dim = kv_cache.shape
-        # Reshape to standard format: [num_heads, seq_len, head_dim]
-        kv_cache = kv_cache.reshape(num_groups * num_heads_per_group, seq_len, head_dim)
-
-    num_heads, seq_len, head_dim = kv_cache.shape
-    kv_steered = kv_cache.clone()
-
-    # Apply steering vector to each head individually
-    for head_idx in range(num_heads):
-        head_key = f'head_{head_idx}'
-        if head_key in per_head_steering_dict:
-            # Get steering vector for this specific head: [head_dim]
-            steering_vec = per_head_steering_dict[head_key]['steering_vector']
-
-            # Ensure correct device and dtype
-            steering_vec = steering_vec.to(kv_cache.device).to(kv_cache.dtype)
-
-            # Expand to match sequence length: [head_dim] -> [1, head_dim] -> broadcast to [seq_len, head_dim]
-            steering_expanded = steering_vec.unsqueeze(0)  # [1, head_dim]
-
-            # Apply intervention: h' = h + α * r_M
-            kv_steered[head_idx] = kv_cache[head_idx] + alpha * steering_expanded
-
-    # Reshape back to original format if needed
-    if is_grouped:
-        kv_steered = kv_steered.reshape(original_shape)
-
-    return kv_steered
 
 
 import json
@@ -563,32 +374,32 @@ def prepare_reflect_data(
     model_family = model_family_map.get(model_type, 'Qwen2.5')
 
     # Tokenize system prompt (shared across all questions)
-    system_prompt = """"<|im_start|>system\n "You are a deterministic text repeater.
+    # system_prompt = """"<|im_start|>system\n "You are a deterministic text repeater.
 
-Your task is to output EXACTLY and ONLY the text that appears between the tags <content> and </content>.
+    # Your task is to output EXACTLY and ONLY the text that appears between the tags <content> and </content>.
 
-Rules:
-- Repeat the text word-for-word, character-for-character.
-- Do NOT add, remove, reorder, or modify anything.
-- Do NOT add explanations, summaries, comments, or extra text.
-- Do NOT repeat the text more than once.
-- Stop immediately after the last character of the content.
+    # Rules:
+    # - Repeat the text word-for-word, character-for-character.
+    # - Do NOT add, remove, reorder, or modify anything.
+    # - Do NOT add explanations, summaries, comments, or extra text.
+    # - Do NOT repeat the text more than once.
+    # - Stop immediately after the last character of the content.
 
-Below are examples.
+    # Below are examples.
 
-Example 1:
-Input:
-<content>
-Hello world.
-</content>
-END
+    # Example 1:
+    # Input:
+    # <content>
+    # Hello world.
+    # </content>
+    # END
 
-Output:
-Hello world.
+    # Output:
+    # Hello world.
 
-The real input begins below and follows this exact format:
-<content>"""
-    # load_system_prompt(model_family, "2wikimqa")
+    # The real input begins below and follows this exact format:
+    # <content>"""
+    system_prompt=load_system_prompt(model_family, "2wikimqa")
     system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
     system_tensor = torch.tensor(system_tokens, dtype=torch.long)
 
@@ -1908,9 +1719,16 @@ def main(
         # Build tokens: system + docs + question
         # System prompt ends with <content>, so question text needs to close it
         # IMPORTANT: Must include 'Question: ' for load_kv_and_generate to work correctly
-        question_text = f"</content>\n\nEND<|im_end|>\n<|im_start|>user\nQuestion: Please repeat the content above exactly.<|im_end|>\n<|im_start|>assistant\nAnswer: "
+        if model_type == 'qwen3':
+            question_text = f"<|im_end|>\n<|im_start|>user\n/no_think\nQuestion: Please repeat the given document content below exactly, word for word, without any modification.<|im_end|>\n<|im_start|>assistant\nAnswer: "
+        else:
+            question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: Please repeat the given document content below exactly, word for word, without any modification.<|im_end|>\n<|im_start|>assistant\nAnswer: "
         question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
         question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+
+        # question_text = f"</content>\n\nEND<|im_end|>\n<|im_start|>user\nQuestion: Please repeat the content above exactly.<|im_end|>\n<|im_start|>assistant\nAnswer: "
+        # question_tokens = tokenizer.encode(question_text, add_special_tokens=False)
+        # question_tensor = torch.tensor(question_tokens, dtype=torch.long)
 
         # 构造文档 prompt: 使用和原来相同的格式
         doc_prompt = f"Document: {doc_text}\n"
