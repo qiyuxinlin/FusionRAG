@@ -399,7 +399,7 @@ def prepare_reflect_data(
 
     # The real input begins below and follows this exact format:
     # <content>"""
-    system_prompt=load_system_prompt(model_family, "2wikimqa")
+    system_prompt= "<|im_start|>system\nYou are a helpful assistant. Based on the provided conversation history, answer the question accurately and concisely.\n" # load_system_prompt(model_family, "2wikimqa")
     system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
     system_tensor = torch.tensor(system_tokens, dtype=torch.long)
 

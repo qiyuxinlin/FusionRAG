@@ -423,7 +423,7 @@ def prepare_reflect_data_ramdom(
     model_family = model_family_map.get(model_type, 'Qwen2.5')
 
     # Tokenize system prompt (shared across all questions)
-    system_prompt = load_system_prompt(model_family, "2wikimqa")
+    system_prompt = "<|im_start|>system\nYou are a helpful assistant. Based on the provided conversation history, answer the question accurately and concisely.\n" # load_system_prompt(model_family, "2wikimqa")
     system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
     system_tensor = torch.tensor(system_tokens, dtype=torch.long)
 
@@ -709,7 +709,7 @@ def prepare_reflect_data(
     model_family = model_family_map.get(model_type, 'Qwen2.5')
 
     # Tokenize system prompt (shared across all questions)
-    system_prompt = load_system_prompt(model_family, "2wikimqa")
+    system_prompt = "<|im_start|>system\nYou are a helpful assistant. Based on the provided conversation history, answer the question accurately and concisely.\n"
     system_tokens = tokenizer.encode(system_prompt, add_special_tokens=True)
     system_tensor = torch.tensor(system_tokens, dtype=torch.long)
 

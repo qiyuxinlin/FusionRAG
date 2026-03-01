@@ -6,11 +6,11 @@
 #####################################################################
 
 # 基础配置
-GPUS="5"
+GPUS="7"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/no_preprocess"       # 结果保存目录（CSV等）
-CACHE_DIR="/mnt/data3/tmp/fusionrag_new"                        # KV cache 保存路径
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/generate_short_prompt_kv/no_preprocess"       # 结果保存目录（CSV等）
+CACHE_DIR="/mnt/data3/tmp/fusionrag_new_prompt"                        # KV cache 保存路径
 cd /home/shm/document/exp/FusionRAG
 
 # 模型配置
@@ -51,7 +51,7 @@ OPENAI_API_KEY="sk-519d391217894b6e91e7c2ebf2a9f4df"
 OPENAI_MODEL="deepseek-chat"
 
 # Rate 列表
-RATE_LIST=(0.0 0.1 0.15 0.3 0.5 0.8 0.9) 
+RATE_LIST=(0.1) 
 
 # 可选参数
 MAX_SAMPLES="" 

@@ -5,8 +5,8 @@
 GPUS="2"
 PYTHON_PATH="/home/shm/anaconda3/envs/fusionrag/bin/python"
 SCRIPT_PATH="/home/shm/document/exp/FusionRAG/test_fusionrag_reflect_v2.py"
-RESULT_DIR="/home/shm/document/exp/FusionRAG/result/v3_self_supervised_online"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
-CACHE_DIR='/mnt/data3/tmp/fusionrag_online_lazy/Qwen2.5-7B-Instruct/musique/kv_cache' # "/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
+RESULT_DIR="/home/shm/document/exp/FusionRAG/result/v4_self_supervised_online"   # 结果保存目录（默认，会被 repeat_k_times 覆盖）
+CACHE_DIR='/mnt/data3/tmp/fusionrag_online_lazy_v2/Qwen2.5-7B-Instruct/musique/kv_cache' # "/mnt/data3/tmp/fusionrag_online_lazy"               # KV cache 保存路径（默认，会被 repeat_k_times 覆盖）
 cd /home/shm/document/exp/FusionRAG
 # kv_cache 
 # preprocess_kv_cache_global_topk10_bge
