@@ -17,7 +17,8 @@ from ktransformers.util.utils import (
     load_kv_and_generate,
     prefill_with_cache_and_save_preprocess,
     rotate_half,
-    find_group_and_index
+    find_group_and_index,
+    find_all_substr_needs_recompute
 )
 from ktransformers.util.run_ppr import OnlineEncoder, calculate_vector_set_similarity
 import hashlib
@@ -79,7 +80,7 @@ class FusionRAGModel:
             self,
             model_path: str,
             draft_model_path: str,
-            use_multi_gpu: bool,
+            use_multi_gpu=True,
             model_type='qwen',
             draft_model_type='qwen',
             device="cuda:0",
@@ -104,9 +105,10 @@ class FusionRAGModel:
         self.preprocess_method=preprocess_method
         self.encoder = OnlineEncoder(llm_api_key=apikey)
         self.file_input = file_input
-        os.makedirs(self.save_path, exist_ok=True)
-        os.makedirs(self.preprocess_save_path, exist_ok=True)
-        os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
+        if cache_path != "":
+            os.makedirs(self.save_path, exist_ok=True)
+            os.makedirs(self.preprocess_save_path, exist_ok=True)
+            os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
         self.preprocess=preprocess
         if preprocess and self.preprocess_method == "default":
             print(f"file_input={file_input}")
@@ -133,34 +135,38 @@ class FusionRAGModel:
                 np.save(self.similar_index_file_path, self.similar_idx)
                 rerank_model.clean_()
                 del rerank_model
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
-        config._attn_implementation = "sdpa"
-        print(f"Loading {model_type} model...")
-        if use_multi_gpu:
-            print("Using multi-GPU with device_map='auto'")
-        self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu, max_memory)
+        if model_path != "":
+            self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+            config._attn_implementation = "sdpa"
+            print(f"Loading {model_type} model...")
+            if use_multi_gpu:
+                print("Using multi-GPU with device_map='auto'")
+            self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu, max_memory)
         if draft_model_path != "":
-            print(f"Initialize draft model.")
+            print(f"Initialize draft model from {draft_model_path}...")
             draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
+            print(f"draft_config={draft_config}")
             draft_config._attn_implementation = "sdpa"
             self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False, use_origin_model=use_origin_draft_model)
             self.draft_model.eval()
             self.draft_model_device=draft_model_device
+            self.draft_model_tokenizer = AutoTokenizer.from_pretrained(draft_model_path, trust_remote_code=True)
         else:
             print(f"Skipping draft model.")
             self.draft_model = None
             self.draft_model_device = ""
 
-        cache_device = self.device_map if use_multi_gpu else device
-        self.past_key_values = StaticCache(
-            config=self.model.config,
-            max_batch_size=1,
-            max_cache_len=max_cache_len,
-            device=cache_device,
-            dtype=self.model.dtype,
-            passage_len=32768
-        )
+        if model_path != "":
+            cache_device = self.device_map if use_multi_gpu else device
+            self.past_key_values = StaticCache(
+                config=self.model.config,
+                max_batch_size=1,
+                max_cache_len=max_cache_len,
+                device=cache_device,
+                dtype=self.model.dtype,
+                passage_len=32768
+            )
         if use_multi_gpu:
             self.input_device = "cuda:0"  # First GPU for inputs
         else:
@@ -653,6 +659,22 @@ class FusionRAGModel:
         # 排序并返回
         return sorted(retrieved_docs, key=parse_conversation_time)
 
+    def draft_one_question(self,
+                           system_prompt: str,
+                           passages: list[str],
+                           query: str,
+                           rate: float,
+                           ):
+        return find_all_substr_needs_recompute(
+            draft_model=self.draft_model,
+            draft_model_device=self.draft_model_device,
+            tokenizer=self.draft_model_tokenizer,
+            system_prompt=system_prompt,
+            passages=passages,
+            query=query,
+            rate=rate,
+        )
+
     def run_one_question(
             self,
             query: str,
@@ -676,7 +698,7 @@ class FusionRAGModel:
             retrieved_docs = [f" {text}\n" for text in retrieved_docs if not text.startswith(" ")]
             if "highlight_time" in keyword:
                 must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.tokenizer)
-        print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
+        # print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
         sim = 0
         if len(retrieved_docs) > 0:
             embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)

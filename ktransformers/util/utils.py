@@ -483,9 +483,6 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
 
             if layer_idx % 4 == 0 or layer_idx == num_layers - 1:
                 print(f"  Layer {layer_idx} done")
-                print(f"stage_1={time_attn-time_start}")
-                print(f"stage_2={time_forward-time_attn}")
-                print(f"stage_3={time_output-time_forward}")
 
     print(f"Draft model attention computed")
     return layer_attention_scores
@@ -1635,6 +1632,39 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
 
     return tokens, past_key_values, prefill_time
+
+
+def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
+                                    passages: list[str], query: str, rate: float) -> list[str]:
+    system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
+    passages_full = "".join(passages)
+    passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
+    query_tokens = tokenizer.encode(query, add_special_tokens = False)
+    full_input = system_prompt_tokens + passages_tokens + query_tokens
+    full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
+    layer_attention_dict = compute_draft_model_attention(
+        draft_model=draft_model,
+        input_ids=full_input_tensor,
+        query_start = len(system_prompt_tokens) + len(passages_tokens),
+        total_len = len(full_input),
+        system_len = len(system_prompt_tokens),
+        doc_len = len(passages_tokens),
+    )
+    active_layers = [k for k, v in layer_attention_dict.items()]
+
+    # 聚合选中层的 attention
+    layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+    multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+    selected_indices = smart_query_selection(
+        attention_scores=multi_layer_attn,
+        doc_len=len(passages_tokens),
+        target_ratio=rate,
+        system_len=len(system_prompt_tokens),
+        device=draft_model_device
+    )
+    selected_indices = sorted(list(set(selected_indices)))
+    return highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer)
 
 
 

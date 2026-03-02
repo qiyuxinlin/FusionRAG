@@ -239,7 +239,7 @@ def highlight_tokens(k_need_index, passages, tokenizer):
     print("\n" + "=" * 50 + "\n")
 
 
-def highlight_tokens_compare(k_need_index, passages, tokenizer):
+def highlight_tokens_compare(k_need_index, passages, tokenizer) -> list[str]:
     """
     将passages中的token解码为字符串，并高亮显示k_need_index位置的token
 
@@ -249,7 +249,34 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer):
         tokenizer: transformers tokenizer - 用于解码token
     """
     # 将passages拼接成一个完整的token序列
-    full_passage = torch.cat(passages).squeeze()  # [seq_len] 或 [batch, seq_len] -> [seq_len]
+    print(f"[highlight_tokens_compare] k_need_index={k_need_index}")
+    if type(passages) == list:
+        full_passage = torch.cat(passages).squeeze()  # [seq_len] 或 [batch, seq_len] -> [seq_len]
+    else:
+        full_passage = passages
+
+    combine_tokens = []
+    combined_passages = []
+    last_chosen = False
+    last_tokens = []
+    for i, token in enumerate(full_passage):
+        if (i in k_need_index) == last_chosen:
+            last_tokens.append(int(token))
+        else:
+            last_chosen = i in k_need_index
+            combined_passages.append(last_tokens)
+            last_tokens = [int(token)]
+    ##mengyao_debug: append the last one
+    combined_passages.append(last_tokens)
+
+    for i, sub_tokens in enumerate(combined_passages):
+        previous_text_list = combined_passages[:i]
+        cur_text_list = combined_passages[:i+1]
+        previous_text_list_combine = sum(previous_text_list, [])
+        cur_text_list_combine = sum(cur_text_list, [])
+        previous_text = tokenizer.decode(previous_text_list_combine, skip_special_tokens=True)
+        cur_text = tokenizer.decode(cur_text_list_combine, skip_special_tokens=True)
+        combine_tokens.append(cur_text[len(previous_text):])
 
     # 解码完整的token序列
     decoded_text = tokenizer.decode(full_passage, skip_special_tokens=True)
@@ -257,7 +284,7 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer):
     # 如果需要高亮的位置为空，直接打印完整文本
     if not k_need_index:
         print(f"完整文本:\n{decoded_text}")
-        return
+        return combine_tokens
 
     print("-" * 50)
 
@@ -270,18 +297,30 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer):
 
     # 构建带高亮的文本（用空格连接）
     highlighted_tokens = []
+    # last_token_recompute = False
     for i, token in enumerate(tokens):
         if i in k_need_index:
             highlighted_tokens.append(f"\033[1;31m{token}\033[0m")  # 红色高亮
+            # if last_token_recompute:
+            #     combine_tokens[-1] += token
+            # else:
+            #     combine_tokens.append("")
+            #     last_token_recompute = True
         else:
             highlighted_tokens.append(token)
+            # if last_token_recompute:
+            #     combine_tokens.append("")
+            #     last_token_recompute = False
+            # else:
+            #     combine_tokens[-1] += token
 
     # 用空格连接所有token（这是带高亮但有空格的版本）
     highlighted_with_spaces = "".join(highlighted_tokens)
 
     print("步骤1: 带空格的原始高亮文本")
     print(highlighted_with_spaces)
-    return
+    print("".join(combine_tokens))
+    return combine_tokens
 
     # 现在我们需要从highlighted_with_spaces中删除不必要的空格
     # 策略：将decoded_text与不带高亮的版本对齐
