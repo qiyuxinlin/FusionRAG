@@ -481,8 +481,8 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
             hidden_states = residual + hidden_states
             time_output = time.time()
 
-            if layer_idx % 4 == 0 or layer_idx == num_layers - 1:
-                print(f"  Layer {layer_idx} done")
+            # if layer_idx % 4 == 0 or layer_idx == num_layers - 1:
+            #     print(f"  Layer {layer_idx} done")
 
     print(f"Draft model attention computed")
     return layer_attention_scores
@@ -1290,6 +1290,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     print(f"selected_indices sorted")
 
             elif reprocess_method == "DraftModel_smarter":
+                #fixme： DraftModel_smarter 的逻辑是要先选择文本，再在文本里选择token。不要用这个。
                 selected_indices, reserved_selected_indices = smart_query_selection(
                     attention_scores=multi_layer_attn,
                     input_tokens=passages[1:],
@@ -1302,17 +1303,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     eigenvalue=eigenvalue,
                     similarity=similarity
                 )
-                # selected_indices, reserved_selected_indices = smart_query_selection(
-                #     attention_scores=multi_layer_attn[first_doc_len:],
-                #     input_tokens=passages[2:],
-                #     doc_len=doc_len-first_doc_len,
-                #     target_ratio=rate,
-                #     system_len=system_len+first_doc_len,
-                #     device=draft_model_device,
-                #     smarter=True,
-                #     tokenizer=tokenizer,
-                #     eigenvalue=eigenvalue
-                # )
 
                 selected_indices = [x for x in selected_indices if x >= system_len+first_doc_len]
                 reserved_selected_indices = [x for x in reserved_selected_indices if x >= system_len + first_doc_len]
@@ -1635,12 +1625,13 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
-                                    passages: list[str], query: str, rate: float) -> list[str]:
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int]) -> list[str]:
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_full = "".join(passages)
     passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
     query_tokens = tokenizer.encode(query, add_special_tokens = False)
     full_input = system_prompt_tokens + passages_tokens + query_tokens
+    full_input_without_query = system_prompt_tokens + passages_tokens
     full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
     layer_attention_dict = compute_draft_model_attention(
         draft_model=draft_model,
@@ -1663,8 +1654,9 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         system_len=len(system_prompt_tokens),
         device=draft_model_device
     )
+    selected_indices.extend(must_choose_token_indices)
     selected_indices = sorted(list(set(selected_indices)))
-    return highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer)
+    return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer)
 
 
 

@@ -598,7 +598,7 @@ class FusionRAGModel:
 
         return model, device_map
 
-    def find_all_must_recompute(self, retrieved_docs: list[str], tokenizer):
+    def find_all_must_recompute(self, retrieved_docs: list[str], tokenizer) -> List[int]:
         must_choose = []
         for retrieved_doc in retrieved_docs:
             retrieved_doc_prefix = retrieved_doc[:retrieved_doc.index(".")+1]
@@ -606,6 +606,16 @@ class FusionRAGModel:
             must_choose.append(len(keyword_tokens))
         return must_choose
 
+    def find_all_must_recompute_indices(self, system_prompt: str, retrieved_docs: list[str], tokenizer) -> List[int]:
+        must_choose_token_indices = []
+        for idx, retrieved_doc in enumerate(retrieved_docs):
+            retrieved_doc_prefix = retrieved_doc[:retrieved_doc.index(".")+1]
+            previous_str = system_prompt + "".join(retrieved_docs[:idx])
+            previous_str_and_recompute = system_prompt + "".join(retrieved_docs[:idx]) + retrieved_doc_prefix
+            previous_token = tokenizer.encode(previous_str, add_special_tokens=False)
+            previous_token_and_recompute = tokenizer.encode(previous_str_and_recompute, add_special_tokens=False)
+            must_choose_token_indices.extend([i for i in range(len(previous_token), len(previous_token_and_recompute))])
+        return must_choose_token_indices
 
     def sort_docs(self, retrieved_docs: list[str]):
         """
@@ -664,8 +674,19 @@ class FusionRAGModel:
                            passages: list[str],
                            query: str,
                            rate: float,
+                           keyword: str="",
                            ):
-        return find_all_substr_needs_recompute(
+        must_choose_token_indices = []
+        if "sort" in keyword:
+            passages = self.sort_docs(passages)
+            print(f"sorting passages!")
+        if "highlight_time" in keyword:
+            must_choose_token_indices = self.find_all_must_recompute_indices(
+                retrieved_docs=passages,
+                system_prompt=system_prompt,
+                tokenizer=self.draft_model_tokenizer
+            )
+        recompute_tokens = find_all_substr_needs_recompute(
             draft_model=self.draft_model,
             draft_model_device=self.draft_model_device,
             tokenizer=self.draft_model_tokenizer,
@@ -673,7 +694,9 @@ class FusionRAGModel:
             passages=passages,
             query=query,
             rate=rate,
+            must_choose_token_indices=must_choose_token_indices
         )
+        return recompute_tokens, passages
 
     def run_one_question(
             self,
@@ -697,7 +720,7 @@ class FusionRAGModel:
                 retrieved_docs = self.sort_docs(retrieved_docs)
             retrieved_docs = [f" {text}\n" for text in retrieved_docs if not text.startswith(" ")]
             if "highlight_time" in keyword:
-                must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.tokenizer)
+                must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.draft_model_tokenizer)
         # print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
         sim = 0
         if len(retrieved_docs) > 0:

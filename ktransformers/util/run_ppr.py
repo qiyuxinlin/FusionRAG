@@ -249,7 +249,7 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer) -> list[str]:
         tokenizer: transformers tokenizer - 用于解码token
     """
     # 将passages拼接成一个完整的token序列
-    print(f"[highlight_tokens_compare] k_need_index={k_need_index}")
+    # print(f"[highlight_tokens_compare] k_need_index={k_need_index}")
     if type(passages) == list:
         full_passage = torch.cat(passages).squeeze()  # [seq_len] 或 [batch, seq_len] -> [seq_len]
     else:
@@ -263,6 +263,8 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer) -> list[str]:
         if (i in k_need_index) == last_chosen:
             last_tokens.append(int(token))
         else:
+            ## mengyao_debug: 状态转换了，从不需要重计算-》需要重计算 / 需要重计算-〉不需要
+            ## 这个情况下第一个字符串肯定是不需要重计算的，sglang里面对齐的也是这个逻辑。
             last_chosen = i in k_need_index
             combined_passages.append(last_tokens)
             last_tokens = [int(token)]
@@ -322,80 +324,6 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer) -> list[str]:
     print("".join(combine_tokens))
     return combine_tokens
 
-    # 现在我们需要从highlighted_with_spaces中删除不必要的空格
-    # 策略：将decoded_text与不带高亮的版本对齐
-
-    # 创建一个不带高亮的、用空格连接的版本
-    plain_with_spaces = "".join(tokens)
-
-    print("\n步骤2: 原始token连接（带空格）")
-    print(plain_with_spaces)
-
-    print("\n步骤3: 实际解码文本")
-    print(decoded_text)
-
-    # 找出需要删除的空格位置
-    # 通过对比decoded_text和plain_with_spaces来确定哪些空格应该保留
-
-    # 创建高亮版本的字符列表，便于操作
-    highlighted_chars = list(highlighted_with_spaces)
-
-    # 遍历两个字符串，找到对齐关系
-    i = 0  # plain_with_spaces的索引
-    j = 0  # decoded_text的索引
-    space_positions_to_remove = []
-
-    while i < len(plain_with_spaces) and j < len(decoded_text):
-        if plain_with_spaces[i] == decoded_text[j]:
-            # 字符匹配，都向前移动
-            i += 1
-            j += 1
-        elif plain_with_spaces[i] == ' ' and decoded_text[j] != ' ':
-            # plain_with_spaces中有空格，但decoded_text中没有
-            # 这是一个需要删除的空格
-            space_positions_to_remove.append(i)
-            i += 1  # 只移动plain_with_spaces的索引
-        elif plain_with_spaces[i] != ' ' and decoded_text[j] == ' ':
-            # decoded_text中有空格，但plain_with_spaces中没有
-            # 这不应该发生，因为我们的tokens包含解码后的字符串
-            # 跳过空格
-            j += 1
-        else:
-            # 其他不匹配情况，都向前移动
-            i += 1
-            j += 1
-
-    # 从后向前删除空格（避免索引变化）
-    for pos in sorted(space_positions_to_remove, reverse=True):
-        # 检查这个位置是否在高亮区域内
-        # 如果是，需要特殊处理，确保颜色代码不被破坏
-
-        # 找到这个位置对应的字符
-        if pos < len(highlighted_chars):
-            # 检查是否是颜色代码的一部分
-            if highlighted_chars[pos] == ' ':
-                # 直接删除空格
-                del highlighted_chars[pos]
-
-    # 构建最终的高亮文本
-    final_highlighted = "".join(highlighted_chars)
-
-    print("\n" + "=" * 50)
-    print("最终高亮文本：")
-    print(final_highlighted)
-
-    # 验证：移除所有颜色代码后应该等于decoded_text
-    # 移除ANSI颜色代码
-    import re
-    cleaned = re.sub(r'\033\[[0-9;]*m', '', final_highlighted)
-
-    if cleaned == decoded_text:
-        print("\n✓ 验证通过：移除颜色代码后与原始解码文本一致")
-    else:
-        print(f"\n⚠ 验证失败：文本不一致")
-        print(f"清理后文本长度: {len(cleaned)}")
-        print(f"原始文本长度: {len(decoded_text)}")
-        print(f"差异位置: {[i for i, (c1, c2) in enumerate(zip(cleaned, decoded_text)) if c1 != c2][:10]}")
 
 
 # 更简单直接的版本
