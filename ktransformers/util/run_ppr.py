@@ -239,7 +239,7 @@ def highlight_tokens(k_need_index, passages, tokenizer):
     print("\n" + "=" * 50 + "\n")
 
 
-def highlight_tokens_compare(k_need_index, passages, tokenizer) -> list[str]:
+def highlight_tokens_compare(k_need_index, passages, tokenizer, query="") -> list[str]:
     """
     将passages中的token解码为字符串，并高亮显示k_need_index位置的token
 
@@ -319,9 +319,9 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer) -> list[str]:
     # 用空格连接所有token（这是带高亮但有空格的版本）
     highlighted_with_spaces = "".join(highlighted_tokens)
 
-    print("步骤1: 带空格的原始高亮文本")
-    print(highlighted_with_spaces)
-    print("".join(combine_tokens))
+    print(f"步骤1: 带空格的原始高亮文本, query={query}\n")
+    print(f"highlighted_with_spaces={highlighted_with_spaces}")
+    # print("".join(combine_tokens))
     return combine_tokens
 
 

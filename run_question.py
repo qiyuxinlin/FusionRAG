@@ -25,7 +25,7 @@ import hashlib
 import faiss
 from FlagEmbedding import FlagModel
 
-DEFAULT_SYSTEM_PROMPT = "<|im_start|>system\nYou are a helpful assistant.\nWrite a high-quality answer for the given question using only the provided search results. The answer process requires reference to the material content and step-by-step thinking."
+DEFAULT_SYSTEM_PROMPT = "<|im_start|>system\nYou are a helpful assistant.\nWrite a brief and high-quality answer for the given question using only the provided search results.\n"
 
 question_test = {
     "question": """
@@ -110,10 +110,10 @@ class FusionRAGModel:
             os.makedirs(self.preprocess_save_path, exist_ok=True)
             os.makedirs(self.preprocess_empty_prefix_save_path, exist_ok=True)
         self.preprocess=preprocess
+        print(f"file_input={file_input}")
+        dataset_name = os.path.basename(file_input).split(".")[0]
+        self.dataset_name = dataset_name
         if preprocess and self.preprocess_method == "default":
-            print(f"file_input={file_input}")
-            dataset_name = os.path.basename(file_input).split(".")[0]
-            self.dataset_name = dataset_name
             similar_index_save_path = os.path.join(self.preprocess_save_path, "similar_index")
             self.similar_index_file_path = os.path.join(similar_index_save_path, f"{dataset_name}.npy")
             os.makedirs(similar_index_save_path, exist_ok=True)
@@ -606,7 +606,7 @@ class FusionRAGModel:
             must_choose.append(len(keyword_tokens))
         return must_choose
 
-    def find_all_must_recompute_indices(self, system_prompt: str, retrieved_docs: list[str], tokenizer) -> List[int]:
+    def find_all_must_recompute_indices_highlight_time(self, system_prompt: str, retrieved_docs: list[str], tokenizer) -> List[int]:
         must_choose_token_indices = []
         for idx, retrieved_doc in enumerate(retrieved_docs):
             retrieved_doc_prefix = retrieved_doc[:retrieved_doc.index(".")+1]
@@ -615,6 +615,14 @@ class FusionRAGModel:
             previous_token = tokenizer.encode(previous_str, add_special_tokens=False)
             previous_token_and_recompute = tokenizer.encode(previous_str_and_recompute, add_special_tokens=False)
             must_choose_token_indices.extend([i for i in range(len(previous_token), len(previous_token_and_recompute))])
+        return must_choose_token_indices
+
+    def find_all_must_recompute_indices_prefix(self, system_prompt: str, retrieved_docs: list[str], tokenizer) -> List[int]:
+        must_choose_token_indices = []
+        for idx, retrieved_doc in enumerate(retrieved_docs):
+            previous_str = system_prompt + "".join(retrieved_docs[:idx])
+            previous_token = tokenizer.encode(previous_str, add_special_tokens=False)
+            must_choose_token_indices.extend([i for i in range(len(previous_token), len(previous_token) + 10)])
         return must_choose_token_indices
 
     def sort_docs(self, retrieved_docs: list[str]):
@@ -681,7 +689,13 @@ class FusionRAGModel:
             passages = self.sort_docs(passages)
             print(f"sorting passages!")
         if "highlight_time" in keyword:
-            must_choose_token_indices = self.find_all_must_recompute_indices(
+            must_choose_token_indices = self.find_all_must_recompute_indices_highlight_time(
+                retrieved_docs=passages,
+                system_prompt=system_prompt,
+                tokenizer=self.draft_model_tokenizer
+            )
+        elif "highlight_prefix" in keyword:
+            must_choose_token_indices = self.find_all_must_recompute_indices_prefix(
                 retrieved_docs=passages,
                 system_prompt=system_prompt,
                 tokenizer=self.draft_model_tokenizer
@@ -723,12 +737,18 @@ class FusionRAGModel:
                 must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.draft_model_tokenizer)
         # print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
         sim = 0
-        if len(retrieved_docs) > 0:
-            embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
-            sim = calculate_vector_set_similarity(embeddings)
-        eigenvalue = {
-            "similarity": float(sim)
-        }
+        try:
+            if len(retrieved_docs) > 0:
+                embeddings = self.encoder.encode(text=retrieved_docs, normalize_embeddings=True)
+                sim = calculate_vector_set_similarity(embeddings)
+            eigenvalue = {
+                "similarity": float(sim)
+            }
+        except Exception as e:
+            embeddings = None
+            eigenvalue = {
+                "similarity": -1
+            }
         print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
@@ -828,7 +848,7 @@ class FusionRAGModel:
         if model_type == 'qwen3':
             question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         else:
-            question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
         question_prefix_tokens = self.tokenizer.encode(question_prefix, add_special_tokens=False)
         question_with_prefix_tokens = self.tokenizer.encode(question_prefix + question_text, add_special_tokens=False)
@@ -837,10 +857,7 @@ class FusionRAGModel:
         question_prefix_tensor = torch.tensor(question_prefix_tokens, dtype=torch.long)
         query_len = len(question_tensor)
 
-        if reprocess_method == "DraftModel_smarter":
-            iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
-        else:
-            iter_tokens = [system_tensor] + doc_tensors + [question_with_prefix_tensor]
+        iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
         iter_token_len = len(torch.cat(iter_tokens))
         if rate == 1:
             print(f"full recompute")

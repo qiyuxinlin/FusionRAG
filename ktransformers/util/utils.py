@@ -118,6 +118,7 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     threshold = mean_attn + 0.25 * std_attn ## 1/4 std
 
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
+    # print(f"high_attn_positions = {high_attn_positions}")
     if eigenvalue is not None:
         eigenvalue["attention_scores"] = [float(t.item()) for t in attention_scores]
 
@@ -397,7 +398,7 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
     print(f"  Layers: {num_layers}, Heads: {num_heads}, Seq len: {seq_len}")
 
     layer_attention_scores = {}
-
+    device = draft_model.device
     with torch.no_grad():
         inputs_embeds = draft_model.model.embed_tokens(input_ids.to(device))
         hidden_states = inputs_embeds
@@ -581,7 +582,7 @@ def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_v
                 past_key_values=past_key_values,
                 return_dict=False,
                  use_cache=True,
-                 rate=rate,
+                 # rate=rate,
                  )[0]
     if past_key_values != None:
         past_key_values.change_seq_length(1)
@@ -1626,6 +1627,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int]) -> list[str]:
+    print(f"query={query}")
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_full = "".join(passages)
     passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
@@ -1656,7 +1658,7 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     )
     selected_indices.extend(must_choose_token_indices)
     selected_indices = sorted(list(set(selected_indices)))
-    return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer)
+    return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query)
 
 
 
