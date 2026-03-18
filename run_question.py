@@ -114,15 +114,18 @@ class FusionRAGModel:
         dataset_name = os.path.basename(file_input).split(".")[0]
         self.dataset_name = dataset_name
         if preprocess and self.preprocess_method == "default":
-            similar_index_save_path = os.path.join(self.preprocess_save_path, "similar_index")
+            similar_index_save_path = os.path.join(self.model_cache_root, "similar_index")
             self.similar_index_file_path = os.path.join(similar_index_save_path, f"{dataset_name}.npy")
+            print(f"self.similar_index_file_path = {self.similar_index_file_path}")
             os.makedirs(similar_index_save_path, exist_ok=True)
             with open(file_input, "r") as f:
                 all_input = json.load(f)
                 self.all_texts = [input["text"] for input in all_input]
                 ## fixme: mengyao_debug locomo quick fix
                 if "locomo" in dataset_name :
-                    self.all_texts = [f" {text}\n" for text in self.all_texts if not text.startswith(" ")]
+                    self.all_texts = [f" {text}\n" if not text.startswith(" ") else text for text in self.all_texts]
+                ##add \n in the end.
+                self.all_texts = [f"{text}\n" if not text.endswith("\n") else text for text in self.all_texts]
             if os.path.exists(self.similar_index_file_path):
                 self.similar_idx = np.load(self.similar_index_file_path)
                 print(f"index load from {self.similar_index_file_path}")

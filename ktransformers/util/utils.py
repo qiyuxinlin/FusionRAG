@@ -652,7 +652,8 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     # mistral 限定
     cos = cos.unsqueeze(1).cpu()
     sin = sin.unsqueeze(1).cpu()
-    key_cache = (key_cache * cos) + (rotate_half(key_cache) * sin)
+    if revert_rope:
+        key_cache = (key_cache * cos) + (rotate_half(key_cache) * sin)
     if hash_key != "":
         torch.save(key_cache.clone(), f'{save_path}/{hash_key}_key.pt')
     else:
@@ -806,8 +807,8 @@ def load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, pa
         chunk_key_cache = key_cache[idx]
         chunk_value_cache = value_cache[idx].to(input_device)
         assert passage_len == chunk_key_cache.shape[3]
+        all_position_ids = []
         if revert_rope and chunk_id > 0:
-            all_position_ids = []
             # Get the device of the rotary embedding layer from inv_freq buffer
             rotary_emb = model.model.layers[0].self_attn.rotary_emb
             if hasattr(rotary_emb, 'inv_freq') and rotary_emb.inv_freq is not None:
