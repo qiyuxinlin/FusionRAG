@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from typing import Dict, Union, Tuple, List
 from sklearn.metrics.pairwise import cosine_similarity
+import copy
 
 LOQUACIOUS_TEXT = """
 # The Art of Effective Reading: A Comprehensive Guide to Extracting Information from English Articles
@@ -238,8 +239,45 @@ def highlight_tokens(k_need_index, passages, tokenizer):
 
     print("\n" + "=" * 50 + "\n")
 
+def get_str_list_len(passages: list[str]):
+    return sum(len(s) for s in passages)
 
-def highlight_tokens_compare(k_need_index, passages, tokenizer, query="") -> list[str]:
+def find_sub_strlist_overlap(start_len: int, finish_len: int, combine_tokens: list[str]):
+    start_idx = -1
+    start_cutoff = 0
+    end_idx = -1
+    end_keep = 0
+    for i in range(len(combine_tokens)):
+        if get_str_list_len(combine_tokens[:i]) <= start_len < get_str_list_len(combine_tokens[:i + 1]):
+            start_idx = i
+            start_cutoff = start_len - get_str_list_len(combine_tokens[:i])
+        if get_str_list_len(combine_tokens[:i]) < finish_len <= get_str_list_len(combine_tokens[:i + 1]):
+            end_idx = i
+            end_keep = finish_len - get_str_list_len(combine_tokens[:i])
+    combine_tokens_new = copy.deepcopy(combine_tokens[start_idx: end_idx+1])
+    if len(combine_tokens_new) == 1:
+        combine_tokens_new[0] = combine_tokens_new[0][start_cutoff: end_keep]
+    else:
+        combine_tokens_new[0] = combine_tokens_new[0][start_cutoff:]
+        combine_tokens_new[-1] = combine_tokens_new[-1][:end_keep]
+    ## 默认第一个都是不用算的
+    if start_idx % 2 == 1:
+        combine_tokens_new.insert(0, "")
+    return combine_tokens_new
+
+def find_recompute_tokens_within_passages(passages: list[str], combine_tokens: list[str]):
+    all_recompute_tokens = []
+    for p_idx, passage in enumerate(passages):
+        combine_tokens_new = find_sub_strlist_overlap(
+            start_len=get_str_list_len(passages[:p_idx]),
+            finish_len=get_str_list_len(passages[:p_idx+1]),
+            combine_tokens=combine_tokens
+        )
+        all_recompute_tokens.append(combine_tokens_new)
+    return all_recompute_tokens
+
+
+def highlight_tokens_compare(k_need_index, passages, tokenizer, query="", passages_str=None) -> Tuple[List[str], List[List[str]]]:
     """
     将passages中的token解码为字符串，并高亮显示k_need_index位置的token
 
@@ -276,20 +314,19 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer, query="") -> lis
         cur_text_list = combined_passages[:i+1]
         previous_text_list_combine = sum(previous_text_list, [])
         cur_text_list_combine = sum(cur_text_list, [])
-        previous_text = tokenizer.decode(previous_text_list_combine, skip_special_tokens=True)
-        cur_text = tokenizer.decode(cur_text_list_combine, skip_special_tokens=True)
+        previous_text = tokenizer.decode(previous_text_list_combine, skip_special_tokens=False)
+        cur_text = tokenizer.decode(cur_text_list_combine, skip_special_tokens=False)
         combine_tokens.append(cur_text[len(previous_text):])
 
-    # 解码完整的token序列
-    decoded_text = tokenizer.decode(full_passage, skip_special_tokens=True)
+    all_recompute_tokens = []
+    if passages_str is not None:
+        all_recompute_tokens = find_recompute_tokens_within_passages(
+            combine_tokens=combine_tokens,
+            passages=passages_str
+        )
 
-    # 如果需要高亮的位置为空，直接打印完整文本
-    if not k_need_index:
-        print(f"完整文本:\n{decoded_text}")
-        return combine_tokens
 
     print("-" * 50)
-
     # 获取所有token的字符串表示
     tokens = []
     for token_id in full_passage:
@@ -299,30 +336,17 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer, query="") -> lis
 
     # 构建带高亮的文本（用空格连接）
     highlighted_tokens = []
-    # last_token_recompute = False
     for i, token in enumerate(tokens):
         if i in k_need_index:
             highlighted_tokens.append(f"\033[1;31m{token}\033[0m")  # 红色高亮
-            # if last_token_recompute:
-            #     combine_tokens[-1] += token
-            # else:
-            #     combine_tokens.append("")
-            #     last_token_recompute = True
         else:
             highlighted_tokens.append(token)
-            # if last_token_recompute:
-            #     combine_tokens.append("")
-            #     last_token_recompute = False
-            # else:
-            #     combine_tokens[-1] += token
 
-    # 用空格连接所有token（这是带高亮但有空格的版本）
     highlighted_with_spaces = "".join(highlighted_tokens)
 
     print(f"步骤1: 带空格的原始高亮文本, query={query}\n")
     print(f"highlighted_with_spaces={highlighted_with_spaces}")
-    # print("".join(combine_tokens))
-    return combine_tokens
+    return combine_tokens, all_recompute_tokens
 
 
 

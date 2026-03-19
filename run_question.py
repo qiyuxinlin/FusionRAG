@@ -98,6 +98,8 @@ class FusionRAGModel:
     ):
         print(f"init FusionRAGModel")
         self.model_name=model_name
+        self.model_type = model_type
+        self.draft_model_type=draft_model_type
         self.model_cache_root = os.path.join(cache_path, model_name)
         self.save_path = os.path.join(self.model_cache_root, 'kv_cache')
         self.preprocess_save_path = os.path.join(self.model_cache_root, 'preprocess_kv_cache')
@@ -313,7 +315,7 @@ class FusionRAGModel:
         current_doc_tokens = self.tokenizer.encode(current_doc, add_special_tokens=False)
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
         current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
-        # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
+        print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
         if os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_value.pt') \
                 and os.path.exists(f'{self.preprocess_save_path}/{current_hash_key}_key.pt'):
             # print(f"preprocess_all_documents skipping doc {current_doc}.")
@@ -368,6 +370,16 @@ class FusionRAGModel:
             chunk_key_cache = torch.load(cache_key_path, weights_only=True)
             chunk_value_cache = torch.load(cache_value_path, weights_only=True)
             past_len = sum(all_doc_len[:doc_idx])
+
+            # import re
+            # dir_name = copy.deepcopy(current_doc[:60])
+            # dir_name = re.sub(r'[^a-zA-Z]', '', dir_name)
+            # save_path = f"/mnt/data/xmy/mengyao_debug/torch/{dir_name}"
+            # os.makedirs(save_path, exist_ok=True)
+            # key_cache_path = f"{save_path}/key_cache_{doc_idx}.pt"
+            # value_cache_path = f"{save_path}/value_cache_{doc_idx}.pt"
+            # torch.save(chunk_key_cache, key_cache_path)
+            # torch.save(chunk_value_cache, value_cache_path)
 
             ## load all kv caches
             for layer_idx in range(len(self.past_key_values.key_cache)):
@@ -703,7 +715,7 @@ class FusionRAGModel:
                 system_prompt=system_prompt,
                 tokenizer=self.draft_model_tokenizer
             )
-        recompute_tokens = find_all_substr_needs_recompute(
+        recompute_tokens, recompute_tokens_list = find_all_substr_needs_recompute(
             draft_model=self.draft_model,
             draft_model_device=self.draft_model_device,
             tokenizer=self.draft_model_tokenizer,
@@ -713,7 +725,7 @@ class FusionRAGModel:
             rate=rate,
             must_choose_token_indices=must_choose_token_indices
         )
-        return recompute_tokens, passages
+        return recompute_tokens, recompute_tokens_list, passages
 
     def run_one_question(
             self,
@@ -848,11 +860,13 @@ class FusionRAGModel:
                     exit(1)
 
 
-        if model_type == 'qwen3':
+        if self.model_type == 'qwen3':
             question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
         else:
-            question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
+            question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+            # question_text = f"<|im_end|>\n<|im_start|>user\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
         question_tokens = self.tokenizer.encode(question_text, add_special_tokens=False)
+        question_tokens_ = self.tokenizer.encode(question_text, add_special_tokens=True)
         question_prefix_tokens = self.tokenizer.encode(question_prefix, add_special_tokens=False)
         question_with_prefix_tokens = self.tokenizer.encode(question_prefix + question_text, add_special_tokens=False)
         question_with_prefix_tensor = torch.tensor(question_with_prefix_tokens, dtype=torch.long)
@@ -897,6 +911,7 @@ class FusionRAGModel:
                     load_path = self.save_path
                     break
             print(f"load_path={load_path}")
+            print(f"full prompt = {system_prompt}{''.join(retrieved_docs)}{question_text}")
             generated_tokens, _, eigenvalue_ = load_kv_and_generate(
                 self.model,
                 self.tokenizer,

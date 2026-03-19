@@ -7,7 +7,7 @@ Version      : 0.1.0
 Copyright (c) 2024 by KVCache.AI, All Rights Reserved.
 '''
 import copy
-
+from typing import Dict, Union, Tuple, List
 import torch
 from torch import nn
 import itertools
@@ -795,7 +795,7 @@ def get_multilayer_attn_sep(passages, draft_model, draft_model_device, entropy_t
         multi_layer_attns.append(multi_layer_attn)
     return multi_layer_attns
 
-def load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len):
+def load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len, query=""):
     past_len = 0
     start_time = time.time()
     for layer_idx in range(len(past_key_values.key_cache)):
@@ -826,6 +826,17 @@ def load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, pa
             chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
         elif chunk_id > 0:
             all_position_ids.append(torch.arange(system_len, system_len + passage_len).to(input_device).unsqueeze(0))
+
+        # ## mengyao_debug
+        # dir_name = copy.deepcopy(query[:60])
+        # dir_name = re.sub(r'[^a-zA-Z]', '', dir_name)
+        # save_path = f"/mnt/data/xmy/mengyao_debug/torch/{dir_name}"
+        # import os
+        # os.makedirs(save_path, exist_ok=True)
+        # key_cache_path =f"{save_path}/key_cache_{idx}.pt"
+        # value_cache_path =f"{save_path}/value_cache_{idx}.pt"
+        # torch.save(chunk_key_cache, key_cache_path)
+        # torch.save(chunk_value_cache, value_cache_path)
 
         for layer_idx in range(len(past_key_values.key_cache)):
             past_key_values.key_cache[layer_idx].narrow(2, past_len, passage_len).copy_(chunk_key_cache[layer_idx])
@@ -886,7 +897,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
     ## load kv cache
-    past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len)
+    past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len, query=query)
 
     if rate != 0:
         if reprocess_method == 'cacheBlend':
@@ -1461,7 +1472,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
-            next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs, rate=rate, path=query)
+            next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs, rate=rate)
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
             generated_ids[:, cache_position] = next_token.int()
             tokens.append(next_token.int())
@@ -1627,9 +1638,12 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
-                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int]) -> list[str]:
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int])\
+        -> Tuple[List[str], List[List[str]]]:
     print(f"query={query}")
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
+    passages_with_system_prompt_tokens = [system_prompt]
+    passages_with_system_prompt_tokens.extend(passages)
     passages_full = "".join(passages)
     passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
     query_tokens = tokenizer.encode(query, add_special_tokens = False)
@@ -1659,7 +1673,8 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     )
     selected_indices.extend(must_choose_token_indices)
     selected_indices = sorted(list(set(selected_indices)))
-    return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query)
+    return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
+                                    passages_str=passages_with_system_prompt_tokens)
 
 
 
