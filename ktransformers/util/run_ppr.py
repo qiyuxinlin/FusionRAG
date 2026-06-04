@@ -255,7 +255,9 @@ def find_sub_strlist_overlap(start_len: int, finish_len: int, combine_tokens: li
             end_idx = i
             end_keep = finish_len - get_str_list_len(combine_tokens[:i])
     combine_tokens_new = copy.deepcopy(combine_tokens[start_idx: end_idx+1])
-    if len(combine_tokens_new) == 1:
+    if len(combine_tokens_new) == 0:
+        ""
+    elif len(combine_tokens_new) == 1:
         combine_tokens_new[0] = combine_tokens_new[0][start_cutoff: end_keep]
     else:
         combine_tokens_new[0] = combine_tokens_new[0][start_cutoff:]

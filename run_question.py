@@ -534,8 +534,8 @@ class FusionRAGModel:
                     self.past_key_values.value_cache[layer_idx].narrow(2, past_len, all_doc_len[doc_idx]).copy_(
                         chunk_value_cache[layer_idx])
                     self.past_key_values.past_tokens[layer_idx] += all_doc_len[doc_idx]
-                    if layer_idx == 0:
-                        print(f"past_tokens += {all_doc_len[doc_idx]}, ={self.past_key_values.past_tokens[layer_idx]}")
+                    # if layer_idx == 0:
+                    #     print(f"past_tokens += {all_doc_len[doc_idx]}, ={self.past_key_values.past_tokens[layer_idx]}")
 
             all_doc_tensors.append(current_doc_tensor)
             prefill_with_cache_and_save_preprocess(
@@ -698,6 +698,7 @@ class FusionRAGModel:
                            query: str,
                            rate: float,
                            keyword: str="",
+                           reverse_attn=False,
                            ):
         must_choose_token_indices = []
         if "sort" in keyword:
@@ -723,7 +724,8 @@ class FusionRAGModel:
             passages=passages,
             query=query,
             rate=rate,
-            must_choose_token_indices=must_choose_token_indices
+            must_choose_token_indices=must_choose_token_indices,
+            reverse_attn=reverse_attn
         )
         return recompute_tokens, recompute_tokens_list, passages
 

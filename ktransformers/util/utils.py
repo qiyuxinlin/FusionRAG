@@ -239,93 +239,6 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
 
     return selected_global
 
-# def smarter_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu'):
-#     """
-#     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
-#
-#     Args:
-#         attention_scores: torch.Tensor, shape [doc_len], 每个位置的 attention 分数
-#         doc_len: 文档长度
-#         target_ratio: 目标选择比例
-#         system_len: system prompt 长度
-#         device: 计算设备
-#
-#     Returns:
-#         List of selected positions (global indices, including system_len offset)
-#     """
-#     if isinstance(attention_scores, torch.Tensor):
-#         attention_scores = attention_scores.float().cpu().numpy()
-#
-#     target_count = int(doc_len * target_ratio)
-#
-#     # Step 1: 找到高 attention 位置
-#     mean_attn = np.mean(attention_scores)
-#     std_attn = np.std(attention_scores)
-#     threshold = mean_attn + 0.5 * std_attn
-#
-#     high_attn_positions = list(np.where(attention_scores > threshold)[0])
-#
-#     # Step 2: 连通分量分析
-#     components = find_connected_components(high_attn_positions, max_gap=20)
-#     ## remove all short contexts.
-#     components = [component for component in components if len(component) > 1]
-#     #components = find_connected_components(high_attn_positions, max_gap=20)
-#
-#     # Step 3: 计算每个分量的总 attention
-#     component_scores = []
-#     for comp in components:
-#         total_score = sum(attention_scores[p] for p in comp if p in high_attn_positions)
-#         component_scores.append((comp, total_score))
-#
-#     # Step 4: 按总 attention 排序
-#     component_scores.sort(key=lambda x: x[1], reverse=True)
-#
-#     # Step 5: 贪心选择分量 + 上下文扩展 (±1)
-#     selected = set()
-#     total_pieces = 0
-#     # for comp, total_score in component_scores[:5]:
-#     for comp, total_score in component_scores:
-#         # 扩展分量边界 (±1)
-#         extended_comp = set()
-#         for p in comp:
-#             extended_comp.add(p)
-#
-#         new_positions = extended_comp - selected
-#         print(f"total_score={total_score}")
-#         # drop too short pieces of enough info acquired.
-#         if total_pieces>=2 and total_score/component_scores[0][1] < 0.5:
-#             break
-#         if len(selected) + len(new_positions) <= target_count * 4:
-#             selected.update(extended_comp)
-#             total_pieces += 1
-#         else:
-#             break
-#
-#
-#
-#     # # Step 6: 补充到目标数量
-#     # if len(selected) < target_count:
-#     #     sorted_indices = np.argsort(attention_scores)[::-1]
-#     #     for pos in sorted_indices:
-#     #         if pos not in selected:
-#     #             selected.add(int(pos))
-#     #             if len(selected) >= target_count:
-#     #                 break
-#
-#     # Step 7: 如果超过目标，移除最低分的位置
-#     # while len(selected) > target_count:
-#     #     min_pos = min(selected, key=lambda p: attention_scores[p])
-#     #     selected.remove(min_pos)
-#
-#     # outliers = find_outliers_zscore(list(selected))
-#     # outliers_idx = [o[1] for o in outliers]
-#     # selected = sorted(selected)
-#     # selected = [i for i in selected if i not in outliers_idx]
-#
-#     # 转换为全局索引 (加上 system_len 偏移)
-#     selected_global = [p + system_len for p in sorted(selected)]
-#
-#     return selected_global
 
 
 def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
@@ -372,7 +285,7 @@ def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
     return selected_layers
 
 
-def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug=False, query_start=0, total_len=0, system_len=0, doc_len=0):
+def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug=False, query_start=0, total_len=0, system_len=0, doc_len=0, reverse=False):
     """
     用 draft model 完整 prefill 获取 attention 分布
 
@@ -380,6 +293,8 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
         draft_model: 小模型
         input_ids: 输入 token ids [1, seq_len]
         device: 设备
+
+    if reverse, recompute question.
 
     Returns:
         layer_attention_scores: {layer_idx: attention_matrix [num_heads, seq_len, seq_len]}
@@ -458,7 +373,11 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
                 # 保存后半部分层的 attention
                 if layer_idx >= num_layers // 2:
                     ## make everything faster
-                    layer_attention_scores[layer_idx] = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len].mean(dim=0) ## attn_weights: 1,16,seq_len, seq_len
+                    attn_score = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len]
+                    if reverse:
+                        layer_attention_scores[layer_idx] = attn_score.mean(dim=1) ## attn_weights: 1,16,seq_len, seq_len
+                    else:
+                        layer_attention_scores[layer_idx] = attn_score.mean(dim=0) ## attn_weights: 1,16,seq_len, seq_len
 
                 time_forward = time.time()
                 # Continue forward
@@ -610,6 +529,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
 
     # prefill context
     inputs = passages[-1].unsqueeze(0).to(input_device)
+    print(f"[prefill_with_cache_and_save_preprocess] past_len: {past_len} inputs shape={inputs.shape}")
     passage_len = passages[-1].shape[0]
     passages_len = [passages[i].shape[0] for i in range(len(passages))]
     batch_size, seq_length = inputs.shape
@@ -1638,7 +1558,7 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
-                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int])\
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False)\
         -> Tuple[List[str], List[List[str]]]:
     print(f"query={query}")
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
@@ -1657,6 +1577,7 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         total_len = len(full_input),
         system_len = len(system_prompt_tokens),
         doc_len = len(passages_tokens),
+        reverse=reverse_attn
     )
     active_layers = [k for k, v in layer_attention_dict.items()]
 
@@ -1664,16 +1585,29 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
     multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
-    selected_indices = smart_query_selection(
-        attention_scores=multi_layer_attn,
-        doc_len=len(passages_tokens),
-        target_ratio=rate,
-        system_len=len(system_prompt_tokens),
-        device=draft_model_device
-    )
+    if reverse_attn:
+        selected_indices = smart_query_selection(
+            attention_scores=multi_layer_attn,
+            doc_len=len(query_tokens),
+            target_ratio=rate,
+            system_len=len(system_prompt_tokens + passages_tokens),
+            device=draft_model_device
+        )
+    else:
+        selected_indices = smart_query_selection(
+            attention_scores=multi_layer_attn,
+            doc_len=len(passages_tokens),
+            target_ratio=rate,
+            system_len=len(system_prompt_tokens),
+            device=draft_model_device
+        )
     selected_indices.extend(must_choose_token_indices)
     selected_indices = sorted(list(set(selected_indices)))
-    return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
+    if reverse_attn:
+        return highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer, query=query,
+                                    passages_str=passages_with_system_prompt_tokens)
+    else:
+        return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
                                     passages_str=passages_with_system_prompt_tokens)
 
 
