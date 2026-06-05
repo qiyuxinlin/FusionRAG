@@ -19,6 +19,7 @@ import string
 import json
 import collections
 import numpy as np
+import requests
 from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare, topk_position_dispersion, OnlineEncoder, calculate_vector_set_similarity
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
@@ -1558,7 +1559,8 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
 
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
-                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False)\
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
+                                    use_local_draft_model=True, draft_model_url="")\
         -> Tuple[List[str], List[List[str]]]:
     print(f"query={query}")
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
@@ -1570,20 +1572,32 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     full_input = system_prompt_tokens + passages_tokens + query_tokens
     full_input_without_query = system_prompt_tokens + passages_tokens
     full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
-    layer_attention_dict = compute_draft_model_attention(
-        draft_model=draft_model,
-        input_ids=full_input_tensor,
-        query_start = len(system_prompt_tokens) + len(passages_tokens),
-        total_len = len(full_input),
-        system_len = len(system_prompt_tokens),
-        doc_len = len(passages_tokens),
-        reverse=reverse_attn
-    )
-    active_layers = [k for k, v in layer_attention_dict.items()]
+    if use_local_draft_model:
+        layer_attention_dict = compute_draft_model_attention(
+            draft_model=draft_model,
+            input_ids=full_input_tensor,
+            query_start = len(system_prompt_tokens) + len(passages_tokens),
+            total_len = len(full_input),
+            system_len = len(system_prompt_tokens),
+            doc_len = len(passages_tokens),
+            reverse=reverse_attn
+        )
+        active_layers = [k for k, v in layer_attention_dict.items()]
 
-    # 聚合选中层的 attention
-    layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
-    multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+        # 聚合选中层的 attention
+        layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+        multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+    else:
+        result = call_remote_draft_model(
+            system_prompt=system_prompt,
+            docs=passages,
+            user_prompt=query,
+            draft_model_url=draft_model_url
+        )
+        attn_weights = result["choices"][0]["attention_weights"]
+        attn_weights = attn_weights[len(system_prompt_tokens):]
+        multi_layer_attn = torch.tensor(attn_weights)
+
 
     if reverse_attn:
         selected_indices = smart_query_selection(
@@ -1871,3 +1885,46 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
     return batch_data, batch_tokens,question_list, real_answer_list, stop_token_id, \
         reprocess_path, preprocess_path, csv_path,\
             data_name_prefix, rouge_metrics, context_rank, corpus_lens
+
+def run_draft(prompt: str, prompt_list: list[str], draft_model_url:str):
+    # API端点
+    # 请求头
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    # 请求数据
+    data = {
+        "prompt": prompt,
+        "max_tokens": 1,
+        "fusionrag_params": {
+            "prefix_prompt": "",
+            "prompt_list": prompt_list,
+        },
+        "temperature": 0.0
+    }
+
+    try:
+        # 发送POST请求
+        response = requests.post(draft_model_url, headers=headers, json=data)
+        result = response.json()
+        # 检查响应状态
+        if response.status_code == 200:
+            print(f"raw cache 生成 请求成功, prompt={prompt[:30]} result = {result}")
+        else:
+            print(f"请求失败，状态码: {response.status_code}")
+        return result
+    except Exception as e:
+        print(e)
+        return {}
+
+def call_remote_draft_model(system_prompt: str, docs: list[str], user_prompt: str, draft_model_url: str):
+    prompt_list = [system_prompt]
+    prompt_list.extend(docs)
+    prompt_list.append(user_prompt)
+
+    return run_draft(
+        prompt="".join(prompt_list),
+        prompt_list=prompt_list,
+        draft_model_url=draft_model_url
+    )

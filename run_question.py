@@ -94,6 +94,8 @@ class FusionRAGModel:
             preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
             max_memory=None,
             use_origin_draft_model=False,
+            use_local_draft_model=True,
+            draft_model_url="",
             apikey="",
     ):
         print(f"init FusionRAGModel")
@@ -149,13 +151,22 @@ class FusionRAGModel:
                 print("Using multi-GPU with device_map='auto'")
             self.model, self.device_map = self.load_model(model_type, model_path, config, device, use_multi_gpu, max_memory)
         if draft_model_path != "":
-            print(f"Initialize draft model from {draft_model_path}...")
-            draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
-            print(f"draft_config={draft_config}")
-            draft_config._attn_implementation = "sdpa"
-            self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False, use_origin_model=use_origin_draft_model)
-            self.draft_model.eval()
-            self.draft_model_device=draft_model_device
+            self.use_local_draft_model = use_local_draft_model
+            if use_local_draft_model:
+                print(f"Initialize draft model from {draft_model_path}...")
+                draft_config = AutoConfig.from_pretrained(draft_model_path, trust_remote_code=True)
+                print(f"draft_config={draft_config}")
+                draft_config._attn_implementation = "sdpa"
+                self.draft_model, _ = self.load_model(draft_model_type, draft_model_path, draft_config, draft_model_device, use_multi_gpu=False)
+                self.draft_model.eval()
+                self.draft_model_device=draft_model_device
+                self.draft_model_url = ""
+            else:
+                print(f"using remote draftmodel.")
+                assert draft_model_url != "" "draft_model_url must not be empty."
+                self.draft_model_url = draft_model_url
+                self.draft_model = None
+                self.draft_model_device = None
             self.draft_model_tokenizer = AutoTokenizer.from_pretrained(draft_model_path, trust_remote_code=True)
         else:
             print(f"Skipping draft model.")
@@ -547,7 +558,7 @@ class FusionRAGModel:
             )
 
 
-    def load_model(self, model_type, model_path, config, device="cuda:0", use_multi_gpu=False, max_memory=None, use_origin_model=False):
+    def load_model(self, model_type, model_path, config, device="cuda:0", use_multi_gpu=False, max_memory=None):
         """
         Load model based on model type (same as unified_process_cache.py)
 
@@ -725,7 +736,9 @@ class FusionRAGModel:
             query=query,
             rate=rate,
             must_choose_token_indices=must_choose_token_indices,
-            reverse_attn=reverse_attn
+            reverse_attn=reverse_attn,
+            use_local_draft_model=self.use_local_draft_model,
+            draft_model_url=self.draft_model_url
         )
         return recompute_tokens, recompute_tokens_list, passages
 
