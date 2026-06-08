@@ -372,7 +372,8 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
                 attn_weights = F.softmax(attn_weights, dim=-1)
 
                 # 保存后半部分层的 attention
-                if layer_idx >= num_layers // 2:
+                # if layer_idx >= num_layers // 2:
+                if layer_idx >= 0:
                     ## make everything faster
                     attn_score = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len]
                     if reverse:
@@ -1598,6 +1599,10 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         attn_weights = attn_weights[len(system_prompt_tokens):]
         multi_layer_attn = torch.tensor(attn_weights)
 
+    attn_avg = multi_layer_attn[10:].mean()
+    attn_var = multi_layer_attn[10:].var()
+    print(f"attn_avg={attn_avg}, attn_var={attn_var}")
+
 
     if reverse_attn:
         selected_indices = smart_query_selection(
@@ -1910,7 +1915,7 @@ def run_draft(prompt: str, prompt_list: list[str], draft_model_url:str):
         result = response.json()
         # 检查响应状态
         if response.status_code == 200:
-            print(f"raw cache 生成 请求成功, prompt={prompt[:30]} result = {result}")
+            print(f"draft请求成功")
         else:
             print(f"请求失败，状态码: {response.status_code}")
         return result

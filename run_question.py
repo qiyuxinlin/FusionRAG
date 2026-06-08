@@ -1001,6 +1001,235 @@ def test_question(fusion_rag_model):
     print(f"query_len={query_len}")
     print(f"decode_len={decode_len}")
 
+import os
+import requests
+from typing import List, Dict, Any, Optional
+
+def rerank(
+    query: str,
+    documents: List[str],
+    model: str = "qwen3-rerank",
+    top_n: Optional[int] = None,
+    instruct: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    调用阿里云 DashScope 的 rerank 接口，根据查询对文档进行相关性排序。
+
+    Args:
+        query: 查询文本
+        documents: 待排序的文档列表
+        model: 使用的模型名称，默认为 "qwen3-rerank"
+        top_n: 返回的 top N 个最相关文档，不指定则返回所有
+        instruct: 任务指令，用于指导模型如何排序（例如：Given a web search query, retrieve relevant passages...）
+        api_key: DashScope API Key，如果不提供则从环境变量 DASHSCOPE_API_KEY 读取
+
+    Returns:
+        API 响应的 JSON 数据（字典格式）
+
+    Raises:
+        ValueError: 当 API Key 未提供且环境变量中不存在时
+        requests.RequestException: 当请求失败时
+    """
+    if api_key is None:
+        api_key = os.environ.get("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise ValueError("API Key must be provided or set in environment variable DASHSCOPE_API_KEY")
+
+    url = "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload: Dict[str, Any] = {
+        "model": model,
+        "query": query,
+        "documents": documents,
+    }
+    if top_n is not None:
+        payload["top_n"] = top_n
+    if instruct is not None:
+        payload["instruct"] = instruct
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()  # 如果状态码不是 2xx 则抛出异常
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        # 可以在这里添加更详细的错误处理，例如打印响应内容
+        raise requests.RequestException(f"Rerank API request failed: {e}") from e
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def plot_distribution_comparison(list1, list2,
+                                 labels=('List 1', 'List 2'),
+                                 colors=('blue', 'orange'),
+                                 plot_type='hist',
+                                 bins=30,
+                                 alpha=0.5,
+                                 density=True,
+                                 figsize=(10, 5),
+                                 title=None,
+                                 save_path=None):
+    # 检查输入
+    if not isinstance(list1, (list, np.ndarray)) or not isinstance(list2, (list, np.ndarray)):
+        raise TypeError("list1 and list2 must be list-like objects")
+
+    # 转换为 numpy 数组以便处理
+    arr1 = np.asarray(list1)
+    arr2 = np.asarray(list2)
+
+    # 创建图形
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if plot_type == 'hist':
+        # 叠加直方图
+        ax.hist(arr1, bins=bins, alpha=alpha, label=labels[0],
+                color=colors[0], density=density)
+        ax.hist(arr2, bins=bins, alpha=alpha, label=labels[1],
+                color=colors[1], density=density)
+        ax.set_ylabel('Density' if density else 'Frequency')
+        if title is None:
+            title = 'Overlaid Histogram Comparison'
+
+    elif plot_type == 'kde':
+        # 核密度估计图
+        sns.kdeplot(arr1, label=labels[0], color=colors[0],
+                    shade=True, ax=ax)
+        sns.kdeplot(arr2, label=labels[1], color=colors[1],
+                    shade=True, ax=ax)
+        ax.set_ylabel('Density')
+        if title is None:
+            title = 'Kernel Density Estimation (KDE) Comparison'
+
+    elif plot_type == 'box':
+        # 并排箱线图
+        bp = ax.boxplot([arr1, arr2], labels=labels, patch_artist=True)
+        # 为箱体着色
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+        ax.set_ylabel('Value')
+        if title is None:
+            title = 'Boxplot Comparison'
+
+    else:
+        raise ValueError("plot_type must be 'hist', 'kde' or 'box'")
+
+    ax.set_xlabel('Value')
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(alpha=0.3)
+    plt.show()
+
+    # 可选保存
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+
+    return fig, ax
+
+def check_text_distribution():
+
+    def within_list(retrieve_doc: str, gold_docs: list[str]):
+        for gold_doc in gold_docs:
+            if gold_doc in retrieve_doc:
+                return True
+        return False
+
+    # with open("../../../data/example_data/musique_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_None_recompute_rate_0.3_kimi-k2.5_musique.json") as f:
+    relevant_scores = []
+    irrelevant_scores = []
+
+    result_files = [
+        "../../../data/example_data/locomo_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_highlight_time_None_recompute_rate_0.3_Kimi-K2.5_locomo_category_1_no_detail.json",
+        "../../../data/example_data/locomo_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_highlight_time_None_recompute_rate_0.3_Kimi-K2.5_locomo_category_2_no_detail.json",
+        "../../../data/example_data/locomo_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_highlight_time_None_recompute_rate_0.3_Kimi-K2.5_locomo_category_3_no_detail.json",
+        "../../../data/example_data/locomo_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_highlight_time_None_recompute_rate_0.3_Kimi-K2.5_locomo_category_4_no_detail.json",
+        "../../../data/example_data/musique_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_None_recompute_rate_1.0_Kimi-K2.5_musique_no_detail.json",
+        "../../../data/example_data/2wiki_pages/result_/result_fusion_rag_sglang_recompute_draft_qwen_None_recompute_rate_1.0_Kimi-K2.5_2wiki_no_detail.json"
+    ]
+
+    for result_file in result_files:
+        with open(result_file) as f:
+            result_json = json.load(f)
+            title = result_file.split("Kimi-K2.5_")[1]
+            for question in result_json[:50]:
+                query = question["question"]
+                gold_docs = question["gold_docs"]
+                gold_docs = [doc.split("】")[1] for doc in gold_docs]
+                for ic in question["intermediate_context"]:
+                    # query = ic['query']
+                    retrieve_docs_ = ic['retrieve docs']
+                    retrieve_docs = [doc for doc in retrieve_docs_ if within_list(doc, gold_docs)]
+                    irrelevant_retrieve_docs = [doc for doc in retrieve_docs_ if not within_list(doc, gold_docs)]
+
+                    if len(retrieve_docs) > 0:
+                        result = rerank(
+                            query=query,
+                            documents=retrieve_docs,
+                            api_key=api_key
+                        )
+                        relevant_scores.extend([result["results"][result_id]['relevance_score'] for result_id in range(len(result["results"]))])
+
+                    if len(irrelevant_retrieve_docs) > 0:
+                        result = rerank(
+                            query=query,
+                            documents=irrelevant_retrieve_docs,
+                            api_key=api_key
+                        )
+                        irrelevant_scores.extend(
+                            [result["results"][result_id]['relevance_score'] for result_id in range(len(result["results"]))])
+
+            print(relevant_scores)
+            print(irrelevant_scores)
+            plot_distribution_comparison(relevant_scores, irrelevant_scores, title=title, labels=("relevant", "irrelevant"))
+
+
+def check_code_distribution(path: str):
+    from pathlib import Path
+    folder = Path(path)
+    json_files = list(folder.glob('*.json'))
+    relevant_scores = []
+    irrelevant_scores = []
+
+    for json_file in json_files:
+        if "tmp.json" in str(json_file):
+            continue
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            try:
+                data["messages"] = data["messages"][2:]
+                for idx, message in enumerate(data["messages"]):
+                    if message.get("extra", {}).get("fusionrag_message", {}).get("is_read", False) is True:
+                        # print(f"message={message}\n")
+                        # print(f"message -1={data['messages'][idx - 1]}\n")
+                        content_result = message["content"]
+                        if idx>0:
+                            content = data["messages"][idx-1]["content"]
+                            arguments = data["messages"][idx-1]["tool_calls"][0]["function"]["arguments"]
+                            query = f"{content}\n{arguments}"
+                            result = rerank(
+                                query=query,
+                                documents=[content_result],
+                                api_key=api_key
+                            )
+                            relevant_scores.append(result["results"][0]['relevance_score'])
+                            if relevant_scores[-1]<0.5:
+                                # print(f"json_file={json_file}")
+                                print(f"query={query}")
+                                # print(f"content_result={content_result}")
+            except Exception as e:
+                print(e)
+        if len(relevant_scores) > 250:
+            break
+
+    plot_distribution_comparison(relevant_scores, irrelevant_scores)
+
+
+
+
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4,5,6,7"
     print(f"start testing run_question")
@@ -1008,22 +1237,25 @@ if __name__ == '__main__':
 
     # preprocess_all_docs(file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json")
 
+    # fusion_rag_model = FusionRAGModel(
+    #     # model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
+    #     model_path="",
+    #     use_multi_gpu=True,
+    #     model_type="qwen3",
+    #     model_name="Qwen3-32B",
+    #     device="cuda:0",
+    #     cache_path='/tmp/fusionrag/',
+    #     draft_model_device="cuda:0",
+    #     draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+    #     draft_model_type="qwen",
+    #     preprocess=False,
+    #     file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
+    #     preprocess_model_path="",
+    #     preprocess_method="space",
+    #     apikey="xxx"
+    # )
 
-    fusion_rag_model = FusionRAGModel(
-        model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
-        use_multi_gpu=True,
-        model_type="qwen3",
-        model_name="Qwen3-32B",
-        device="cuda:0",
-        cache_path='/data2/qy_tmp/xumengyao/fusionrag/',
-        draft_model_device="cuda:0",
-        draft_model_path='/data2/qy_tmp/xumengyao/Qwen2.5-3B-Instruct',
-        draft_model_type="qwen",
-        preprocess=True,
-        file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
-        preprocess_model_path="/data2/qy_tmp/xumengyao/bge-m3",
-        preprocess_method="space"
-    )
-    test_question(fusion_rag_model)
+    api_key = "sk-92fdf4b662d446078e9b4f71e0e4608f"
 
-
+    # check_text_distribution()
+    check_code_distribution("/Users/xumengyao/work/QIYUAN/tests/agent_runs_data/mengyao_debug_test_1.0")
