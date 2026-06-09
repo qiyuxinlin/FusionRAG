@@ -14,6 +14,7 @@ import itertools
 import time
 import enum
 import re
+import os
 import math
 import string
 import json
@@ -38,7 +39,8 @@ from transformers import (
 )
 from rouge import Rouge
 from filelock import FileLock
-
+from typing import List, Dict, Any, Optional
+from collections import Counter
 
 # ============================================================
 # Smart Query Selection 辅助函数
@@ -372,8 +374,8 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
                 attn_weights = F.softmax(attn_weights, dim=-1)
 
                 # 保存后半部分层的 attention
-                # if layer_idx >= num_layers // 2:
-                if layer_idx >= 0:
+                if layer_idx >= num_layers // 2:
+                # if layer_idx >= 0:
                     ## make everything faster
                     attn_score = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len]
                     if reverse:
@@ -1559,14 +1561,74 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
     return tokens, past_key_values, prefill_time
 
 
+def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tokenizer, system_prompt: str,
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
+                                    use_local_draft_model=True, draft_model_url="", use_entropy_and_relevance=False, api_key="")\
+        -> Tuple[List[str], List[List[str]], float]:
+    system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
+
+    results = rerank(
+                query=query,
+                documents=passages,
+                top_n=len(passages),
+                api_key=api_key
+            )["results"]
+
+    selected_indices = []
+    offset = len(system_prompt_tokens)
+    for idx, passage in enumerate(passages):
+        for res in results:
+            if res["index"] == idx:
+                relevance_score = res["relevance_score"]
+                entropy = calculate_entropy(passage)
+                recompute_rate = calc_ratio_aggressive_max(entropy=entropy, relevance=relevance_score)
+
+                result = call_remote_draft_model(
+                    system_prompt=system_prompt,
+                    docs=[passage],
+                    user_prompt=query,
+                    draft_model_url=draft_model_url
+                )
+                attn_weights = result["choices"][0]["attention_weights"]
+                attn_weights = attn_weights[len(system_prompt_tokens):]
+                multi_layer_attn = torch.tensor(attn_weights)
+                passage_tokens = tokenizer.encode(passage, add_special_tokens=False)
+                selected_indices_ = smart_query_selection(
+                    attention_scores=multi_layer_attn,
+                    doc_len=len(passage_tokens),
+                    target_ratio=recompute_rate,
+                    system_len=len(system_prompt_tokens),
+                    device=draft_model_device
+                )
+                selected_indices_ = [x-len(system_prompt_tokens)+offset for x in selected_indices_]
+                offset += len(passage_tokens)
+                selected_indices.extend(selected_indices_)
+                break
+
+    passages_with_system_prompt_str_list = [system_prompt]
+    passages_with_system_prompt_str_list.extend(passages)
+    passages_tokens = [tokenizer.encode(passage, add_special_tokens = False) for passage in passages]
+    passages_tokens = [token for passage_token in passages_tokens for token in passage_token]
+    full_input_without_query = system_prompt_tokens + passages_tokens
+
+    rate = len(selected_indices)/len(passages_tokens)
+    print(f"recompute_rate = {rate*100}%")
+    combine_tokens, all_recompute_tokens = highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
+                                    passages_str=passages_with_system_prompt_str_list)
+
+    return combine_tokens, all_recompute_tokens, rate
+
+
+
+
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
                                     use_local_draft_model=True, draft_model_url="")\
         -> Tuple[List[str], List[List[str]]]:
     print(f"query={query}")
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
-    passages_with_system_prompt_tokens = [system_prompt]
-    passages_with_system_prompt_tokens.extend(passages)
+    passages_with_system_prompt_str_list = [system_prompt]
+    passages_with_system_prompt_str_list.extend(passages)
     passages_full = "".join(passages)
     passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
     query_tokens = tokenizer.encode(query, add_special_tokens = False)
@@ -1620,14 +1682,15 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
             system_len=len(system_prompt_tokens),
             device=draft_model_device
         )
+
     selected_indices.extend(must_choose_token_indices)
     selected_indices = sorted(list(set(selected_indices)))
     if reverse_attn:
         return highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer, query=query,
-                                    passages_str=passages_with_system_prompt_tokens)
+                                    passages_str=passages_with_system_prompt_str_list)
     else:
         return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
-                                    passages_str=passages_with_system_prompt_tokens)
+                                    passages_str=passages_with_system_prompt_str_list)
 
 
 
@@ -1933,3 +1996,125 @@ def call_remote_draft_model(system_prompt: str, docs: list[str], user_prompt: st
         prompt_list=prompt_list,
         draft_model_url=draft_model_url
     )
+
+
+def clean_and_pad_text(text: str, target_length: int = 500) -> str:
+    """
+    清理文本中的连续空白字符为单一空格，并循环补齐/截断至指定长度。
+    """
+    if not text:
+        return " " * target_length
+
+    # 1. 使用正则将所有连续的空白字符（空格、\t、\n、\r 等）替换为单一空格
+    # .strip() 用于去掉首尾可能产生的多余空格，保证文本干净
+    cleaned_text = re.sub(r'\s+', ' ', text).strip()
+
+    # 极端情况：如果文本里只有空格，清理后变为空字符串
+    if not cleaned_text:
+        return " " * target_length
+
+    # 2. 循环补齐与截断
+    # 思路：通过计算目标长度与当前长度的商加1，得出需要重复的次数。
+    # 然后直接用切片 [:target_length] 精准截取。
+    # 无论是原本就超过 500 字符，还是不到 500 字符，这行代码都能完美兼容。
+    padded_text = (cleaned_text * (target_length // len(cleaned_text) + 1))[:target_length]
+
+    return padded_text
+
+def calculate_entropy(text):
+    """
+    计算给定字符串的字符级信息熵
+    """
+    if not text:
+        return 0.0
+
+    text = clean_and_pad_text(text)
+
+    # print(text)
+
+    # 获取文本总长度
+    text_length = len(text)
+
+    # 统计每个字符出现的次数
+    char_counts = Counter(text)
+
+    # 根据香农公式计算信息熵
+    entropy = 0.0
+    for count in char_counts.values():
+        # 计算该字符出现的概率 P(x)
+        probability = count / text_length
+        # 累加 -P(x) * log2(P(x))
+        entropy -= probability * math.log2(probability)
+
+    return entropy
+
+def rerank(
+    query: str,
+    documents: List[str],
+    model: str = "qwen3-rerank",
+    top_n: Optional[int] = None,
+    instruct: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    调用阿里云 DashScope 的 rerank 接口，根据查询对文档进行相关性排序。
+
+    Args:
+        query: 查询文本
+        documents: 待排序的文档列表
+        model: 使用的模型名称，默认为 "qwen3-rerank"
+        top_n: 返回的 top N 个最相关文档，不指定则返回所有
+        instruct: 任务指令，用于指导模型如何排序（例如：Given a web search query, retrieve relevant passages...）
+        api_key: DashScope API Key，如果不提供则从环境变量 DASHSCOPE_API_KEY 读取
+
+    Returns:
+        API 响应的 JSON 数据（字典格式）
+
+    Raises:
+        ValueError: 当 API Key 未提供且环境变量中不存在时
+        requests.RequestException: 当请求失败时
+    """
+    if api_key is None:
+        api_key = os.environ.get("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise ValueError("API Key must be provided or set in environment variable DASHSCOPE_API_KEY")
+
+    url = "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload: Dict[str, Any] = {
+        "model": model,
+        "query": query,
+        "documents": documents,
+    }
+    if top_n is not None:
+        payload["top_n"] = top_n
+    if instruct is not None:
+        payload["instruct"] = instruct
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()  # 如果状态码不是 2xx 则抛出异常
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        # 可以在这里添加更详细的错误处理，例如打印响应内容
+        raise requests.RequestException(f"Rerank API request failed: {e}") from e
+
+def calc_ratio_aggressive_max(entropy, relevance, w_base=0.4):
+    entropy = np.clip(entropy, 4.4, 5.0)
+    relevance = np.clip(relevance, 0.0, 1.0)
+
+    # 1. 计算 Sigmoid 激活值
+    s_e = 1 / (1 + np.exp(-12 * (entropy - 4.7)))
+    s_c = 1 / (1 + np.exp(-12 * (relevance - 0.75)))
+
+    # 2. 核心逻辑：相关性是守门员，熵是放大器
+    # 如果只有相关性高，拿到 w_base 的分数；如果两者都高，拿到 1.0 的满分
+    s_joint = s_c * (w_base + (1 - w_base) * s_e)
+
+    # 3. 映射到 10% - 50%
+    ratio = 0.10 + 0.40 * s_joint
+    return ratio

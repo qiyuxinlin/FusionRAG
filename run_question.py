@@ -8,7 +8,6 @@ import time
 import torch
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Tuple
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoConfig
 from ktransformers.models.custom_cache import StaticCache
@@ -18,12 +17,17 @@ from ktransformers.util.utils import (
     prefill_with_cache_and_save_preprocess,
     rotate_half,
     find_group_and_index,
-    find_all_substr_needs_recompute
+    find_all_substr_needs_recompute,
+    find_all_substr_needs_recompute_entropy,
+    rerank
 )
 from ktransformers.util.run_ppr import OnlineEncoder, calculate_vector_set_similarity
 import hashlib
 import faiss
 from FlagEmbedding import FlagModel
+import requests
+from typing import List, Dict, Any, Optional
+
 
 DEFAULT_SYSTEM_PROMPT = "<|im_start|>system\nYou are a helpful assistant.\nWrite a brief and high-quality answer for the given question using only the provided search results.\n"
 
@@ -107,6 +111,7 @@ class FusionRAGModel:
         self.preprocess_save_path = os.path.join(self.model_cache_root, 'preprocess_kv_cache')
         self.preprocess_empty_prefix_save_path = os.path.join(self.model_cache_root, 'empty_prefix_preprocess_kv_cache')
         self.preprocess_method=preprocess_method
+        self.api_key = apikey
         self.encoder = OnlineEncoder(llm_api_key=apikey)
         self.file_input = file_input
         if cache_path != "":
@@ -710,6 +715,7 @@ class FusionRAGModel:
                            rate: float,
                            keyword: str="",
                            reverse_attn=False,
+                           use_entropy_and_relevance=False,
                            ):
         must_choose_token_indices = []
         if "sort" in keyword:
@@ -727,20 +733,37 @@ class FusionRAGModel:
                 system_prompt=system_prompt,
                 tokenizer=self.draft_model_tokenizer
             )
-        recompute_tokens, recompute_tokens_list = find_all_substr_needs_recompute(
-            draft_model=self.draft_model,
-            draft_model_device=self.draft_model_device,
-            tokenizer=self.draft_model_tokenizer,
-            system_prompt=system_prompt,
-            passages=passages,
-            query=query,
-            rate=rate,
-            must_choose_token_indices=must_choose_token_indices,
-            reverse_attn=reverse_attn,
-            use_local_draft_model=self.use_local_draft_model,
-            draft_model_url=self.draft_model_url
-        )
-        return recompute_tokens, recompute_tokens_list, passages
+        if use_entropy_and_relevance:
+            recompute_tokens, recompute_tokens_list, rate = find_all_substr_needs_recompute_entropy(
+                draft_model=self.draft_model,
+                draft_model_device=self.draft_model_device,
+                tokenizer=self.draft_model_tokenizer,
+                system_prompt=system_prompt,
+                passages=passages,
+                query=query,
+                rate=rate,
+                must_choose_token_indices=must_choose_token_indices,
+                reverse_attn=reverse_attn,
+                use_local_draft_model=self.use_local_draft_model,
+                draft_model_url=self.draft_model_url,
+                use_entropy_and_relevance=use_entropy_and_relevance,
+                api_key=self.api_key
+            )
+        else:
+            recompute_tokens, recompute_tokens_list = find_all_substr_needs_recompute(
+                draft_model=self.draft_model,
+                draft_model_device=self.draft_model_device,
+                tokenizer=self.draft_model_tokenizer,
+                system_prompt=system_prompt,
+                passages=passages,
+                query=query,
+                rate=rate,
+                must_choose_token_indices=must_choose_token_indices,
+                reverse_attn=reverse_attn,
+                use_local_draft_model=self.use_local_draft_model,
+                draft_model_url=self.draft_model_url,
+            )
+        return recompute_tokens, recompute_tokens_list, passages, rate
 
     def run_one_question(
             self,
@@ -1001,64 +1024,6 @@ def test_question(fusion_rag_model):
     print(f"query_len={query_len}")
     print(f"decode_len={decode_len}")
 
-import os
-import requests
-from typing import List, Dict, Any, Optional
-
-def rerank(
-    query: str,
-    documents: List[str],
-    model: str = "qwen3-rerank",
-    top_n: Optional[int] = None,
-    instruct: Optional[str] = None,
-    api_key: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    调用阿里云 DashScope 的 rerank 接口，根据查询对文档进行相关性排序。
-
-    Args:
-        query: 查询文本
-        documents: 待排序的文档列表
-        model: 使用的模型名称，默认为 "qwen3-rerank"
-        top_n: 返回的 top N 个最相关文档，不指定则返回所有
-        instruct: 任务指令，用于指导模型如何排序（例如：Given a web search query, retrieve relevant passages...）
-        api_key: DashScope API Key，如果不提供则从环境变量 DASHSCOPE_API_KEY 读取
-
-    Returns:
-        API 响应的 JSON 数据（字典格式）
-
-    Raises:
-        ValueError: 当 API Key 未提供且环境变量中不存在时
-        requests.RequestException: 当请求失败时
-    """
-    if api_key is None:
-        api_key = os.environ.get("DASHSCOPE_API_KEY")
-    if not api_key:
-        raise ValueError("API Key must be provided or set in environment variable DASHSCOPE_API_KEY")
-
-    url = "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    payload: Dict[str, Any] = {
-        "model": model,
-        "query": query,
-        "documents": documents,
-    }
-    if top_n is not None:
-        payload["top_n"] = top_n
-    if instruct is not None:
-        payload["instruct"] = instruct
-
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()  # 如果状态码不是 2xx 则抛出异常
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        # 可以在这里添加更详细的错误处理，例如打印响应内容
-        raise requests.RequestException(f"Rerank API request failed: {e}") from e
 
 
 import matplotlib.pyplot as plt
