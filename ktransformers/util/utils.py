@@ -118,7 +118,8 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
     # Step 1: 找到高 attention 位置
     mean_attn = np.mean(attention_scores)
     std_attn = np.std(attention_scores)
-    threshold = mean_attn + 0.25 * std_attn ## 1/4 std
+    # threshold = mean_attn + 0.25 * std_attn ## 1/4 std
+    threshold = mean_attn
 
     high_attn_positions = list(np.where(attention_scores > threshold)[0])
     # print(f"high_attn_positions = {high_attn_positions}")
@@ -1580,8 +1581,9 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
         for res in results:
             if res["index"] == idx:
                 relevance_score = res["relevance_score"]
+                print(f"relevance_score={relevance_score}")
                 entropy = calculate_entropy(passage)
-                recompute_rate = calc_ratio_aggressive_max(entropy=entropy, relevance=relevance_score)
+                recompute_rate = calc_ratio_aggressive_max(entropy=entropy, relevance=relevance_score, total_doc = len(passages))
 
                 result = call_remote_draft_model(
                     system_prompt=system_prompt,
@@ -1602,8 +1604,12 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
                 )
                 selected_indices_ = [x-len(system_prompt_tokens)+offset for x in selected_indices_]
                 offset += len(passage_tokens)
-                selected_indices.extend(selected_indices_)
+                if idx > 0:
+                    selected_indices.extend(selected_indices_)
                 break
+
+    selected_indices.extend(must_choose_token_indices)
+    selected_indices = sorted(set(selected_indices))
 
     passages_with_system_prompt_str_list = [system_prompt]
     passages_with_system_prompt_str_list.extend(passages)
@@ -1661,9 +1667,6 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         attn_weights = attn_weights[len(system_prompt_tokens):]
         multi_layer_attn = torch.tensor(attn_weights)
 
-    attn_avg = multi_layer_attn[10:].mean()
-    attn_var = multi_layer_attn[10:].var()
-    print(f"attn_avg={attn_avg}, attn_var={attn_var}")
 
 
     if reverse_attn:
@@ -2103,18 +2106,26 @@ def rerank(
         # 可以在这里添加更详细的错误处理，例如打印响应内容
         raise requests.RequestException(f"Rerank API request failed: {e}") from e
 
-def calc_ratio_aggressive_max(entropy, relevance, w_base=0.4):
+def calc_ratio_aggressive_max(entropy, relevance, total_doc: int, w_base=0.4):
     entropy = np.clip(entropy, 4.4, 5.0)
     relevance = np.clip(relevance, 0.0, 1.0)
 
     # 1. 计算 Sigmoid 激活值
     s_e = 1 / (1 + np.exp(-12 * (entropy - 4.7)))
-    s_c = 1 / (1 + np.exp(-12 * (relevance - 0.75)))
+    # s_c = 1 / (1 + np.exp(-12 * (relevance - 0.75)))
+
+    s_c = 1 / (1 + np.exp(-7 * (relevance - 0.5)))
 
     # 2. 核心逻辑：相关性是守门员，熵是放大器
     # 如果只有相关性高，拿到 w_base 的分数；如果两者都高，拿到 1.0 的满分
     s_joint = s_c * (w_base + (1 - w_base) * s_e)
 
     # 3. 映射到 10% - 50%
-    ratio = 0.10 + 0.40 * s_joint
+    doc_offset = np.clip(total_doc - 5.0, 0.0, 5.0)
+    doc_multiplier = 1.0 + (doc_offset / 5.0)
+    ratio = 0.1 + 0.4 * s_joint
+    ratio *= doc_multiplier
+
+    # 5. 组合最终重算比并进行全局安全截断
+    ratio = np.clip(ratio, 0.10, 0.50)
     return ratio

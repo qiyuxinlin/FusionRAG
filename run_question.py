@@ -734,6 +734,7 @@ class FusionRAGModel:
                 tokenizer=self.draft_model_tokenizer
             )
         if use_entropy_and_relevance:
+            ## 对于use_entropy_and_relevance 只会使用 sglang draftmodel
             recompute_tokens, recompute_tokens_list, rate = find_all_substr_needs_recompute_entropy(
                 draft_model=self.draft_model,
                 draft_model_device=self.draft_model_device,
