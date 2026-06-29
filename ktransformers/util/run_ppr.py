@@ -332,7 +332,7 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer, query="", passag
     # 获取所有token的字符串表示
     tokens = []
     for token_id in full_passage:
-        token_str = tokenizer.decode(token_id, skip_special_tokens=True)
+        token_str = tokenizer.decode(token_id, skip_special_tokens=False)
         # 注意：这里不要strip()，保留原始解码结果
         tokens.append(token_str)
 
@@ -346,7 +346,7 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer, query="", passag
 
     highlighted_with_spaces = "".join(highlighted_tokens)
 
-    print(f"步骤1: 带空格的原始高亮文本, query={query}\n")
+    # print(f"步骤1: 带空格的原始高亮文本, query={query}\n")
     print(f"highlighted_with_spaces={highlighted_with_spaces}")
     return combine_tokens, all_recompute_tokens
 

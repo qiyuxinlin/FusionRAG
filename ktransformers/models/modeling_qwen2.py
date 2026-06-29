@@ -670,6 +670,8 @@ QWEN2_ATTENTION_CLASSES = {
 class Qwen2DecoderLayer(nn.Module):
     def __init__(self, config: Qwen2Config, layer_idx: int):
         super().__init__()
+        self.save_idx = 0
+        self.layer_idx = layer_idx
         self.hidden_size = config.hidden_size
 
         if config.sliding_window and config._attn_implementation != "flash_attention_2":
@@ -728,6 +730,12 @@ class Qwen2DecoderLayer(nn.Module):
             cache_position=cache_position,
             **kwargs,
         )
+
+        # save_path = f"/mnt/data/xmy/mengyao_debug/torch/qwen2/"
+        # if hidden_states.shape[1] > 1:
+        #     torch.save(hidden_states, f"{save_path}/{self.save_idx}_{self.layer_idx}_hidden_states.pt")
+        #     self.save_idx += 1
+
         hidden_states = residual + hidden_states
 
         # Fully Connected

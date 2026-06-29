@@ -1631,7 +1631,6 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
                                     use_local_draft_model=True, draft_model_url="")\
         -> Tuple[List[str], List[List[str]]]:
-    print(f"query={query}")
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_with_system_prompt_str_list = [system_prompt]
     passages_with_system_prompt_str_list.extend(passages)

@@ -1010,11 +1010,11 @@ def preprocess_all_docs(file_input: str):
 
 def test_question(fusion_rag_model):
 
-    system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens = fusion_rag_model.run_one_question(
+    system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
         query=question_test["question"],
         retrieved_docs=question_test["gold_docs"],
-        model_type='qwen3',
-        rate=0,
+        model_type='qwen',
+        rate=0.2,
         reprocess_method='DraftModel',
         revert_rope=True,
         max_new_tokens=250,
@@ -1024,6 +1024,23 @@ def test_question(fusion_rag_model):
     print(f"doc_tensors_total_length={doc_tensors_total_length}")
     print(f"query_len={query_len}")
     print(f"decode_len={decode_len}")
+
+def test_mutiple_questions(fusion_rag_model, question_to_run: list, filepath: str):
+    with open(filepath, "r") as f:
+        all_questions = json.load(f)
+        for question_test_ in all_questions:
+            for rate in [0.01]:
+                if question_test_["query"] in question_to_run:
+                    system_len, doc_tensors_total_length, query_len, decode_len, answer, docs_lens, eigenvalue = fusion_rag_model.run_one_question(
+                        query=question_test_["query"],
+                        retrieved_docs=question_test_["passages"],
+                        model_type='qwen',
+                        rate=rate,
+                        reprocess_method='DraftModel',
+                        revert_rope=False,
+                        max_new_tokens=250,
+                    )
+                    print(f"answer={answer}")
 
 
 
@@ -1203,25 +1220,29 @@ if __name__ == '__main__':
 
     # preprocess_all_docs(file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json")
 
-    # fusion_rag_model = FusionRAGModel(
-    #     # model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
-    #     model_path="",
-    #     use_multi_gpu=True,
-    #     model_type="qwen3",
-    #     model_name="Qwen3-32B",
-    #     device="cuda:0",
-    #     cache_path='/tmp/fusionrag/',
-    #     draft_model_device="cuda:0",
-    #     draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
-    #     draft_model_type="qwen",
-    #     preprocess=False,
-    #     file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
-    #     preprocess_model_path="",
-    #     preprocess_method="space",
-    #     apikey="xxx"
-    # )
+    fusion_rag_model = FusionRAGModel(
+        # model_path='/data2/qy_tmp/xumengyao/Qwen3-32B',
+        model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+        use_multi_gpu=True,
+        model_type="qwen",
+        model_name="Qwen2.5-3B-Instruct",
+        device="cuda:5",
+        cache_path='/mnt/data/xmy/fusionrag_torch',
+        draft_model_device="cuda:5",
+        draft_model_path='/mnt/data/models/Qwen2.5-3B-Instruct',
+        draft_model_type="qwen",
+        preprocess=False,
+        file_input="/home/qy_tmp/xumengyao/all_data/musique_input.json",
+        preprocess_model_path="",
+        preprocess_method="space",
+        apikey="xxx"
+    )
 
     api_key = "sk-92fdf4b662d446078e9b4f71e0e4608f"
 
+    # test_question(fusion_rag_model)
+    question_to_run = ["When did Melanie go to the museum?"]
+    test_mutiple_questions(fusion_rag_model,question_to_run, "../results/compare_results_rate_1.0_preprocess_False_locomo_qwen2.5-3B_simple_rag_category_2.json")
+
     # check_text_distribution()
-    check_code_distribution("/Users/xumengyao/work/QIYUAN/tests/agent_runs_data/mengyao_debug_test_1.0")
+    # check_code_distribution("/Users/xumengyao/work/QIYUAN/tests/agent_runs_data/mengyao_debug_test_1.0")
