@@ -21,7 +21,9 @@ import json
 import collections
 import numpy as np
 import requests
-from ktransformers.util.run_ppr import personalized_pagerank, get_top_tokens, highlight_tokens_compare, topk_position_dispersion, OnlineEncoder, calculate_vector_set_similarity
+from ktransformers.util.run_ppr import (personalized_pagerank, get_top_tokens, highlight_tokens_compare,
+                                        topk_position_dispersion, OnlineEncoder, calculate_vector_set_similarity,
+                                        power_iteration_ppr_tensor, save_distribution_plot, save_matrix_heatmap)
 from ktransformers.models.custom_cache import StaticCache
 from ktransformers.util.cuda_graph_runner import CUDAGraphRunner
 from ktransformers.util.textstream import TextStreamer
@@ -289,6 +291,230 @@ def entropy_layer_selection(layer_attentions, top_k=4, return_entropy=False):
     return selected_layers
 
 
+def compute_draft_model_decode_attention(draft_model, tokenizer, input_ids, token_max=30, device="cuda:0", system_len=0,
+                                         doc_len=0):
+    """
+    用 draft model 进行 prefill 并在随后的 decode 阶段生成 token_max 个 token，
+    计算这些新生成的 token 到 doc 部分的 attention 分布。
+    在控制台打印时，会利用 tokenizer 将新生成的 token 还原为真实的文字展示！
+
+    Args:
+        draft_model: 小模型
+        tokenizer: 对应模型的分词器 (用于将 Token ID 转换回文本)
+        input_ids: 输入 token ids [1, seq_len]
+        token_max: decode 生成的 token 数量
+        device: 设备
+        system_len: system prompt 的长度
+        doc_len: document 的长度
+    """
+    import torch
+    import torch.nn.functional as F
+    import time
+
+    device = draft_model.device
+    num_layers = draft_model.config.num_hidden_layers
+    num_heads = draft_model.config.num_attention_heads
+    num_kv_heads = draft_model.config.num_key_value_heads
+    head_dim = draft_model.config.hidden_size // num_heads
+    n_rep = num_heads // num_kv_heads
+
+    # 初始化存储结构
+    decode_attention_scores = {
+        layer_idx: torch.zeros(token_max, doc_len, device=device)
+        for layer_idx in range(num_layers // 2, num_layers)
+    }
+
+    kv_cache = {}
+
+    print(f"\n{'=' * 60}")
+    print(f"Prefilling and Decoding {token_max} tokens with Draft Model")
+    print(f"{'=' * 60}")
+
+    # ==========================================
+    # STEP 1: PREFILL PHASE
+    # ==========================================
+    current_input_ids = input_ids.to(device)
+    seq_len = current_input_ids.shape[1]
+
+    with torch.no_grad():
+        hidden_states = draft_model.model.embed_tokens(current_input_ids)
+        position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+
+        if hasattr(draft_model.model, 'rotary_emb'):
+            cos, sin = draft_model.model.rotary_emb(hidden_states, position_ids)
+            cos, sin = cos.unsqueeze(1), sin.unsqueeze(1)
+            use_global_rope = True
+        else:
+            use_global_rope = False
+
+        for layer_idx in range(num_layers):
+            layer = draft_model.model.layers[layer_idx]
+            residual = hidden_states
+            hidden_states = layer.input_layernorm(hidden_states)
+            bsz, q_len, _ = hidden_states.size()
+
+            query_states = layer.self_attn.q_proj(hidden_states).view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
+            key_states = layer.self_attn.k_proj(hidden_states).view(bsz, q_len, num_kv_heads, head_dim).transpose(1, 2)
+            value_states = layer.self_attn.v_proj(hidden_states).view(bsz, q_len, num_kv_heads, head_dim).transpose(1,
+                                                                                                                    2)
+
+            if not use_global_rope:
+                cos, sin = layer.self_attn.rotary_emb(value_states, position_ids)
+                cos, sin = cos.unsqueeze(1), sin.unsqueeze(1)
+            query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+            key_states = (key_states * cos) + (rotate_half(key_states) * sin)
+
+            kv_cache[layer_idx] = (key_states, value_states)
+
+            key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
+            value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
+
+            attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (
+                        head_dim ** 0.5)
+            causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
+            attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
+            attn_weights = F.softmax(attn_weights, dim=-1)
+
+            attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+            attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
+            attn_output = layer.self_attn.o_proj(attn_output)
+
+            hidden_states = residual + attn_output
+            residual = hidden_states
+            hidden_states = layer.post_attention_layernorm(hidden_states)
+            hidden_states = layer.mlp(hidden_states)
+            hidden_states = residual + hidden_states
+
+        logits = draft_model.lm_head(hidden_states[:, -1, :])
+        next_token = torch.argmax(logits, dim=-1, keepdim=True)
+
+        # 用来存储每一步 decode 出来的真实字符串 (文本)
+        generated_words = []
+
+        # ==========================================
+        # STEP 2: DECODE PHASE
+        # ==========================================
+        for t in range(token_max):
+            # 核心改动：利用分词器实时将当前要处理的 token 转换为真实文字
+            word_text = tokenizer.decode([next_token.item()])
+            generated_words.append(word_text)
+
+            current_input_ids = next_token
+            hidden_states = draft_model.model.embed_tokens(current_input_ids)
+
+            current_pos = seq_len + t
+            position_ids = torch.tensor([[current_pos]], device=device)
+
+            if use_global_rope:
+                cos, sin = draft_model.model.rotary_emb(hidden_states, position_ids)
+                cos, sin = cos.unsqueeze(1), sin.unsqueeze(1)
+
+            for layer_idx in range(num_layers):
+                layer = draft_model.model.layers[layer_idx]
+                residual = hidden_states
+                hidden_states = layer.input_layernorm(hidden_states)
+                bsz, q_len, _ = hidden_states.size()
+
+                query_states = layer.self_attn.q_proj(hidden_states).view(bsz, q_len, num_heads, head_dim).transpose(1,
+                                                                                                                     2)
+                key_states = layer.self_attn.k_proj(hidden_states).view(bsz, q_len, num_kv_heads, head_dim).transpose(1,
+                                                                                                                      2)
+                value_states = layer.self_attn.v_proj(hidden_states).view(bsz, q_len, num_kv_heads, head_dim).transpose(
+                    1, 2)
+
+                if not use_global_rope:
+                    cos, sin = layer.self_attn.rotary_emb(value_states, position_ids)
+                    cos, sin = cos.unsqueeze(1), sin.unsqueeze(1)
+                query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+                key_states = (key_states * cos) + (rotate_half(key_states) * sin)
+
+                past_key, past_value = kv_cache[layer_idx]
+                key_states = torch.cat([past_key, key_states], dim=2)
+                value_states = torch.cat([past_value, value_states], dim=2)
+                kv_cache[layer_idx] = (key_states, value_states)
+
+                key_states_expanded = key_states.repeat_interleave(n_rep, dim=1)
+                value_states_expanded = value_states.repeat_interleave(n_rep, dim=1)
+
+                attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (
+                            head_dim ** 0.5)
+                attn_weights = F.softmax(attn_weights, dim=-1)
+
+                if layer_idx >= num_layers // 2:
+                    doc_attn = attn_weights[0].mean(dim=0)[0, system_len: system_len + doc_len]
+                    decode_attention_scores[layer_idx][t] = doc_attn
+
+                attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+                attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
+                attn_output = layer.self_attn.o_proj(attn_output)
+
+                hidden_states = residual + attn_output
+                residual = hidden_states
+                hidden_states = layer.post_attention_layernorm(hidden_states)
+                hidden_states = layer.mlp(hidden_states)
+                hidden_states = residual + hidden_states
+
+            logits = draft_model.lm_head(hidden_states[:, -1, :])
+            next_token = torch.argmax(logits, dim=-1, keepdim=True)
+
+        # ==========================================
+        # STEP 3: 打印分析结果 (包含生成的文字)
+        # ==========================================
+        print(f"\n{'=' * 90}")
+        print("                    DECODE ATTENTION ANALYSIS REPORT (WITH TEXT)")
+        print(f"{'=' * 90}")
+        print(f"Context Config -> System Len: {system_len} | Doc Len: {doc_len} | Generated: {token_max} tokens\n")
+
+        # 灰度字符映射表，用来表现注意力热力图
+        CHARS = [" ", ".", "-", "+", "*", "#", "%", "█"]
+
+        for layer_idx in sorted(decode_attention_scores.keys()):
+            print(f"👉 [ LAYER {layer_idx} ]")
+            matrix = decode_attention_scores[layer_idx]  # [token_max, doc_len]
+
+            for t in range(token_max):
+                # 获取当前步生成的真实文字
+                token_word = generated_words[t]
+                # 为了防止换行或控制台错位，替换掉换行符，并规范化打印宽度
+                token_word_clean = token_word.replace('\n', '\\n')
+
+                token_attn = matrix[t]
+                mean_score = token_attn.mean().item()
+                max_score = token_attn.max().item()
+
+                # 抓取最受关注的 3 个文档位置
+                topk_values, topk_indices = torch.topk(token_attn, min(3, doc_len))
+                topk_info = ", ".join(
+                    [f"Pos {idx.item()}({val.item():.3f})" for val, idx in zip(topk_values, topk_indices)])
+
+                # 简易热力图字符处理
+                bins = 20
+                chunk_size = max(1, doc_len // bins)
+                heatmap_str = ""
+                for b in range(bins):
+                    chunk = token_attn[b * chunk_size: (b + 1) * chunk_size]
+                    if len(chunk) == 0: break
+                    val = chunk.max().item()
+                    idx = min(int(val * 10 * (len(CHARS) - 1)), len(CHARS) - 1)
+                    heatmap_str += CHARS[idx]
+
+                # 在打印时，把真实的文字以「Text: 'xxx'」的形式非常醒目地挂在前面！
+                print(f"  Token {t + 1:02d} | Text: {token_word_clean!r:<12} | Heatmap: [{heatmap_str}] | "
+                      f"Avg: {mean_score:.4f} | Max: {max_score:.4f} | Top-3 Doc: [{topk_info}]")
+            print("-" * 90)
+
+        print(f"{'=' * 90}\n")
+
+    all_tokens_mean_scores = {}
+    for layer_idx, matrix in decode_attention_scores.items():
+        # matrix 形状是 [token_max, doc_len]
+        # dim=0 代表对行（所有生成的token）求均值，得到 [doc_len]
+        all_tokens_mean_scores[layer_idx] = matrix.mean(dim=0)
+
+    print("Successfully averaged attention scores across all tokens.")
+
+    return all_tokens_mean_scores
+
 def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug=False, query_start=0, total_len=0, system_len=0, doc_len=0, reverse=False):
     """
     用 draft model 完整 prefill 获取 attention 分布
@@ -317,6 +543,7 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
     print(f"  Layers: {num_layers}, Heads: {num_heads}, Seq len: {seq_len}")
 
     layer_attention_scores = {}
+    layer_attention_scores_matrix = []
     device = draft_model.device
     with torch.no_grad():
         inputs_embeds = draft_model.model.embed_tokens(input_ids.to(device))
@@ -384,6 +611,8 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
                     else:
                         layer_attention_scores[layer_idx] = attn_score.mean(dim=0) ## attn_weights: 1,16,seq_len, seq_len
 
+                    layer_attention_scores_matrix.append(attn_weights[0].mean(dim=0))
+
                 time_forward = time.time()
                 # Continue forward
                 attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
@@ -409,8 +638,13 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
             # if layer_idx % 4 == 0 or layer_idx == num_layers - 1:
             #     print(f"  Layer {layer_idx} done")
 
+    layer_attention_scores_matrix_mean = torch.stack(layer_attention_scores_matrix).mean(dim=0)
+    layer_attention_scores_matrix_square = (
+            torch.tril(layer_attention_scores_matrix_mean) +
+            torch.triu(layer_attention_scores_matrix_mean.T, diagonal=1)
+    )
     print(f"Draft model attention computed")
-    return layer_attention_scores
+    return layer_attention_scores, layer_attention_scores_matrix_square
 
 
 def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
@@ -677,7 +911,7 @@ def get_multilayer_attn(passages, draft_model, draft_model_device, entropy_top_k
             raise ValueError("Either draft_model or draft_attention must be provided for DraftModel method")
         # 构建完整输入
         full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)
-        layer_attention_dict = compute_draft_model_attention(draft_model, full_input, draft_model_device, False, query_start, total_len, system_len, doc_len)
+        layer_attention_dict, _ = compute_draft_model_attention(draft_model, full_input, draft_model_device, False, query_start, total_len, system_len, doc_len)
     doc_to_doc_attns = []
     time_finish_draft_attention = time.time()
 
@@ -703,7 +937,7 @@ def get_multilayer_attn_sep(passages, draft_model, draft_model_device, entropy_t
     for doc_idx, doc_tensor in enumerate(doc_tensors):
         layer_attention_dict = {}
         full_input = torch.cat([system_tensor, doc_tensor, query_tensor]).unsqueeze(0).to(draft_model_device)
-        draft_attention = compute_draft_model_attention(draft_model, full_input, draft_model_device)
+        draft_attention, _ = compute_draft_model_attention(draft_model, full_input, draft_model_device)
         doc_len = len(doc_tensor)
         for layer_idx, layer_attn in draft_attention.items():
             query_to_doc = layer_attn[:, system_len + doc_len:system_len + doc_len + query_len,
@@ -1562,6 +1796,63 @@ def prefill_and_generate(model, tokenizer, inputs, max_new_tokens=10000, use_cud
     return tokens, past_key_values, prefill_time
 
 
+## 每个passage按照和问题相关性分配重算比权重。
+def find_all_substr_needs_recompute_relevance(draft_model, draft_model_device, tokenizer, system_prompt: str,
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
+                                    use_local_draft_model=True, draft_model_url="", use_entropy_and_relevance=False, api_key="")\
+        -> Tuple[List[str], List[List[str]], float]:
+    system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
+    passages_tokens = [tokenizer.encode(passage, add_special_tokens = False) for passage in passages]
+    passages_tokens = [token for passage_token in passages_tokens for token in passage_token]
+    full_input_without_query = system_prompt_tokens + passages_tokens
+
+    results = rerank(
+                query=query,
+                documents=passages,
+                top_n=len(passages),
+                api_key=api_key
+            )["results"]
+
+    attn_weights_list = [0 for _ in range(len(system_prompt_tokens))]
+    for idx, passage in enumerate(passages):
+        for res in results:
+            if res["index"] == idx:
+                relevance_score = res["relevance_score"]
+                print(f"relevance_score={relevance_score}")
+
+                result = call_remote_draft_model(
+                    system_prompt=system_prompt,
+                    docs=[passage],
+                    user_prompt=query,
+                    draft_model_url=draft_model_url
+                )
+                attn_weights = result["choices"][0]["attention_weights"]
+                attn_weights = attn_weights[len(system_prompt_tokens):]
+                attn_weights = [x*relevance_score for x in attn_weights]
+                attn_weights_list.extend(attn_weights)
+
+    attn_weights_tensor = torch.tensor(attn_weights_list)
+
+    selected_indices = smart_query_selection(
+        attention_scores=attn_weights_tensor,
+        doc_len=len(passages_tokens),
+        target_ratio=rate,
+        system_len=len(system_prompt_tokens),
+        device=draft_model_device
+    )
+
+    selected_indices.extend(must_choose_token_indices)
+    selected_indices = sorted(set(selected_indices))
+
+    passages_with_system_prompt_str_list = [system_prompt]
+    passages_with_system_prompt_str_list.extend(passages)
+
+    combine_tokens, all_recompute_tokens = highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
+                                    passages_str=passages_with_system_prompt_str_list)
+
+    return combine_tokens, all_recompute_tokens, rate
+
+
 def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
                                     use_local_draft_model=True, draft_model_url="", use_entropy_and_relevance=False, api_key="")\
@@ -1641,7 +1932,8 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     full_input_without_query = system_prompt_tokens + passages_tokens
     full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
     if use_local_draft_model:
-        layer_attention_dict = compute_draft_model_attention(
+        time_start = time.time()
+        layer_attention_dict, layer_attention_scores_matrix_square = compute_draft_model_attention(
             draft_model=draft_model,
             input_ids=full_input_tensor,
             query_start = len(system_prompt_tokens) + len(passages_tokens),
@@ -1650,11 +1942,44 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
             doc_len = len(passages_tokens),
             reverse=reverse_attn
         )
+
+        time_start_1 = time.time()
+        decode_attention_scores = compute_draft_model_decode_attention(
+            tokenizer=tokenizer,
+            draft_model=draft_model,
+            input_ids=full_input_tensor,
+            system_len = len(system_prompt_tokens),
+            doc_len = len(passages_tokens),
+            token_max = 20
+        )
+
+        ##debug
+        # layer_attention_dict = decode_attention_scores
+
+        print(f"prefill attention time1 = {time_start_1 - time_start}")
+        print(f"decode attention time1 = {time.time() - time_start_1}")
+
         active_layers = [k for k, v in layer_attention_dict.items()]
+
+        x = layer_attention_scores_matrix_square.size(0)
+        s = torch.zeros(x, 1, dtype=layer_attention_scores_matrix_square.dtype, device=layer_attention_scores_matrix_square.device)
+        # 2. 将最后 10 个元素赋值为 1/10 (即 0.1)
+        s[-len(query_tokens):] = 1/len(query_tokens)
+        matrix_square = power_iteration_ppr_tensor(layer_attention_scores_matrix_square, s)
+
+        matrix_square = matrix_square.squeeze(dim=1)
+        matrix_square = matrix_square[len(system_prompt_tokens) : len(system_prompt_tokens) + len(passages_tokens)]
 
         # 聚合选中层的 attention
         layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
         multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+        # save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
+        # save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
+        #                     "/tmp/ppr_distribution_2d.jpg")
+
+        ## use ppr
+        # multi_layer_attn = matrix_square
     else:
         result = call_remote_draft_model(
             system_prompt=system_prompt,
@@ -2120,7 +2445,7 @@ def calc_ratio_aggressive_max(entropy, relevance, total_doc: int, w_base=0.4):
     s_joint = s_c * (w_base + (1 - w_base) * s_e)
 
     # 3. 映射到 10% - 50%
-    doc_offset = np.clip(total_doc - 5.0, 0.0, 5.0)
+    doc_offset = np.clip(total_doc - 10.0, 0.0, 5.0)
     doc_multiplier = 1.0 + (doc_offset / 5.0)
     ratio = 0.1 + 0.4 * s_joint
     ratio *= doc_multiplier

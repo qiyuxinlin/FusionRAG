@@ -18,6 +18,7 @@ from ktransformers.util.utils import (
     rotate_half,
     find_group_and_index,
     find_all_substr_needs_recompute,
+    find_all_substr_needs_recompute_relevance,
     find_all_substr_needs_recompute_entropy,
     rerank
 )

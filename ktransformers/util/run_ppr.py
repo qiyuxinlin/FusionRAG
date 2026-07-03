@@ -120,6 +120,144 @@ Explain the article's content to a friend, colleague, or even an imaginary audie
 Ultimately, the "right way" to read is to be **proactive, not reactive**. You are not a vessel to be filled by the text; you are a miner, a detective, and a critic actively extracting, interrogating, and evaluating information. You enter the text with a plan, you engage with it using disciplined techniques, and you leave it with organized knowledge and sharper critical faculties. This transformative approach turns reading from a task into a powerful tool for learning, thinking, and growing in any language, but especially in the global lingua franca of English.
 """
 
+import torch
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
+
+def save_matrix_heatmap(v_2d, save_path="ppr_matrix_heatmap.png", cmap_name="viridis", vmin=0, vmax=0.01):
+    """
+        将二维的 (x, x) PPR 或 Attention 矩阵绘制为高清热力图，并保存到本地（支持手动控制颜色范围）。
+
+        参数:
+        v_2d (torch.Tensor 或 numpy.ndarray): 二维矩阵，形状为 (x, x)
+        save_path (str): 本地保存图片的路径
+        cmap_name (str): 颜色映射方案
+        vmin (float, 可选): 颜色条对应的最小值。如果不传，自动设为矩阵的最小值。
+        vmax (float, 可选): 颜色条对应的最大值。如果要放大细节，可以设为一个较小的值（如 0.05 或 0.1）。
+        """
+    if isinstance(v_2d, torch.Tensor):
+        v_np = v_2d.detach().cpu().numpy()
+    else:
+        v_np = v_2d
+
+    if len(v_np.shape) != 2:
+        raise ValueError(f"输入矩阵必须是二维的，当前维度形状为: {v_np.shape}")
+
+    x = v_np.shape[0]
+
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=300)
+
+    # 💡 核心改动：在 imshow 中显式传入 vmin 和 vmax
+    im = ax.imshow(v_np, cmap=cmap_name, aspect='equal', origin='upper',
+                   vmin=vmin, vmax=vmax)
+
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("PPR / Attention Score", fontsize=11)
+
+    ax.set_title(f"2D Attention Matrix Heatmap ({x}x{x})", fontsize=13, pad=15)
+    ax.set_xlabel("Key Token Index", fontsize=11)
+    ax.set_ylabel("Query Token Index", fontsize=11)
+
+    if x > 20:
+        ax.locator_params(nbins=10)
+
+    dir_name = os.path.dirname(save_path)
+    if dir_name and not os.path.exists(dir_name):
+        os.makedirs(dir_name, exist_ok=True)
+
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.close(fig)
+    print(
+        f"🎉 二维热力图（范围: [{vmin if vmin is not None else 'Auto'}, {vmax if vmax is not None else 'Auto'}]) 已成功保存至: {save_path}")
+
+def save_distribution_plot(v_1d, save_path="ppr_distribution.png", cmap_name="viridis"):
+    """
+    将一维 PPR Tensor 绘制为颜色随数值渐变的条形图，并保存到本地。
+
+    参数:
+    v_1d (torch.Tensor): 一维的 PyTorch Tensor, 形状为 (x,)
+    save_path (str): 本地保存图片的路径 (支持 .png, .jpg, .pdf 等)
+    cmap_name (str): 颜色映射方案, 常用有 'viridis', 'plasma', 'inferno', 'YlGnBu'
+    """
+    # 1. 确保安全转换到 CPU 上的 NumPy 数组
+    if isinstance(v_1d, torch.Tensor):
+        # 展平成真正的一维，脱离计算图，移至 CPU，转为 numpy
+        v_np = v_1d.view(-1).detach().cpu().numpy()
+    else:
+        v_np = v_1d
+
+    x = len(v_np)
+
+    # 2. 创建画布 (宽 15 保持长序列的稀疏可读性，高 5)
+    fig, ax = plt.subplots(figsize=(15, 5), dpi=300)  # 300 DPI 适合论文和报告
+
+    # 3. 设置数值到颜色的映射
+    norm = plt.Normalize(v_np.min(), v_np.max())
+    # 兼容新旧版本 Matplotlib 的 cmap 获取方式
+    try:
+        cmap = cm.get_cmap(cmap_name)
+    except AttributeError:
+        cmap = plt.colormaps[cmap_name]
+
+    colors = cmap(norm(v_np))
+
+    # 4. 绘制条形图 (width=1.0 且 edgecolor='none' 可以让柱子无缝拼接，呈连续颜色带)
+    bars = ax.bar(range(x), v_np, color=colors, width=1.0, edgecolor='none')
+
+    # 5. 右侧添加颜色渐变指示杆 (Colorbar)
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=ax, label="PPR Weight / Score")
+
+    # 6. 完善图表基础信息
+    ax.set_title("Personalized PageRank (PPR) Global Weight Distribution", fontsize=14, pad=15)
+    ax.set_xlabel("Token / Node Index", fontsize=12)
+    ax.set_ylabel("Attention Weight", fontsize=12)
+    ax.grid(axis='y', linestyle='--', alpha=0.3)  # 仅开启横向网格线，辅助观察高度
+
+    # 自动紧凑布局，防止标签切边
+    plt.tight_layout()
+
+    # 7. 创建本地目录并保存
+    dir_name = os.path.dirname(save_path)
+    if dir_name and not os.path.exists(dir_name):
+        os.makedirs(dir_name, exist_ok=True)
+
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.close(fig)  # 释放内存，防止在循环中绘图导致内存泄漏
+    print(f"🎉 PPR 权重分布图已成功保存至: {save_path}")
+
+
+def power_iteration_ppr_tensor(A, s, alpha=0.15, max_iter=100, tol=1e-6):
+    """
+    使用幂迭代法在 Tensor 上计算 PPR
+    A: 邻接矩阵 (NxN Tensor), 可以是稠密或稀疏 Tensor
+    s: 个性化向量 (Nx1 Tensor) 或 批量个性化矩阵 (NxB Tensor)
+    alpha: 跳转概率
+    """
+    num_nodes = A.size(0)
+
+    # 1. 计算出度并构建转移矩阵 P (P = A / out_degrees)
+    # 注意：处理孤立节点（出度为0），防止除以0
+    out_degrees = torch.sum(A, dim=0, keepdim=True)
+    out_degrees[out_degrees == 0] = 1.0
+    P = A / out_degrees
+
+    # 2. 初始化收敛向量 v
+    v = s.clone().float()
+
+    # 3. 迭代计算
+    for i in range(max_iter):
+        v_next = (1 - alpha) * torch.matmul(P, v) + alpha * s
+
+        # 检查是否收敛 (L1 范数)
+        if torch.norm(v_next - v, p=1) < tol:
+            return v_next
+        v = v_next
+
+    return v
+
 def personalized_pagerank(attention_matrix, initial_scores, alpha=0.85, max_iter=150, tol=1e-6):
     """
     基于个性化PageRank算法计算token最终分数
