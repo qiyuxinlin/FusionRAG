@@ -630,13 +630,13 @@ class FusionRAGModel:
 
         return model, device_map
 
-    def find_all_must_recompute(self, retrieved_docs: list[str], tokenizer) -> List[int]:
-        must_choose = []
-        for retrieved_doc in retrieved_docs:
-            retrieved_doc_prefix = retrieved_doc[:retrieved_doc.index(".")+1]
-            keyword_tokens = tokenizer.encode(retrieved_doc_prefix, add_special_tokens=False)
-            must_choose.append(len(keyword_tokens))
-        return must_choose
+    # def find_all_must_recompute(self, retrieved_docs: list[str], tokenizer) -> List[int]:
+    #     must_choose = []
+    #     for retrieved_doc in retrieved_docs:
+    #         retrieved_doc_prefix = retrieved_doc[:retrieved_doc.index(".")+1]
+    #         keyword_tokens = tokenizer.encode(retrieved_doc_prefix, add_special_tokens=False)
+    #         must_choose.append(len(keyword_tokens))
+    #     return must_choose
 
     def find_all_must_recompute_indices_highlight_time(self, system_prompt: str, retrieved_docs: list[str], tokenizer) -> List[int]:
         must_choose_token_indices = []
@@ -656,6 +656,31 @@ class FusionRAGModel:
             previous_token = tokenizer.encode(previous_str, add_special_tokens=False)
             must_choose_token_indices.extend([i for i in range(len(previous_token), len(previous_token) + 10)])
         return must_choose_token_indices
+
+
+    def find_all_must_recompute_docs_indices(self, system_prompt: str, retrieved_docs: list[str],
+                                                  must_recompute_docs: list[str], tokenizer) -> List[int]:
+        import difflib
+
+        def diff_str_ndiff(s1: str, s2: str) -> str:
+            """返回两字符串的逐行差异（带 +/- 标记）"""
+            lines1 = s1.splitlines(keepends=True)  # 保留换行符
+            lines2 = s2.splitlines(keepends=True)
+            diff = difflib.ndiff(lines1, lines2)
+            return ''.join(diff)
+
+        must_choose_token_indices = []
+        for idx, retrieved_doc in enumerate(retrieved_docs):
+            for must_recompute_doc in must_recompute_docs:
+                if retrieved_doc.strip() == must_recompute_doc.strip():
+                    previous_str = system_prompt + "".join(retrieved_docs[:idx])
+                    previous_token = tokenizer.encode(previous_str, add_special_tokens=False)
+                    cur_str = system_prompt + "".join(retrieved_docs[:idx+1])
+                    cur_token = tokenizer.encode(cur_str, add_special_tokens=False)
+                    must_choose_token_indices.extend([i for i in range(len(previous_token), len(cur_token))])
+        return must_choose_token_indices
+
+
 
     def sort_docs(self, retrieved_docs: list[str]):
         """
@@ -717,6 +742,7 @@ class FusionRAGModel:
                            keyword: str="",
                            reverse_attn=False,
                            use_entropy_and_relevance=False,
+                           must_choose_docs: list[str] = None,
                            ):
         must_choose_token_indices = []
         if "sort" in keyword:
@@ -732,6 +758,14 @@ class FusionRAGModel:
             must_choose_token_indices = self.find_all_must_recompute_indices_prefix(
                 retrieved_docs=passages,
                 system_prompt=system_prompt,
+                tokenizer=self.draft_model_tokenizer
+            )
+        # elif "highlight_docs" in keyword and must_choose_docs is not None:
+        elif must_choose_docs is not None:
+            must_choose_token_indices = self.find_all_must_recompute_docs_indices(
+                retrieved_docs=passages,
+                system_prompt=system_prompt,
+                must_recompute_docs=must_choose_docs,
                 tokenizer=self.draft_model_tokenizer
             )
         if use_entropy_and_relevance:
@@ -780,16 +814,26 @@ class FusionRAGModel:
             use_entropy_selection=False,
             entropy_top_k=4,
             question_prefix="",
-            keyword=""
+            keyword="",
+            must_choose_docs: list[str] = None,
     ) -> (int, int, int, int, str, list[int]):
-        must_choose = None
+        if system_prompt == "":
+            system_prompt=DEFAULT_SYSTEM_PROMPT
+        must_choose_indices = None
         ## fixme: mengyao_debug locomo quick fix
-        if "locomo" in self.dataset_name:
-            if "sort" in keyword:
-                retrieved_docs = self.sort_docs(retrieved_docs)
-            retrieved_docs = [f" {text}\n" for text in retrieved_docs if not text.startswith(" ")]
-            if "highlight_time" in keyword:
-                must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.draft_model_tokenizer)
+        # if "locomo" in self.dataset_name:
+        #     if "sort" in keyword:
+        #         retrieved_docs = self.sort_docs(retrieved_docs)
+        #     retrieved_docs = [f" {text}\n" for text in retrieved_docs if not text.startswith(" ")]
+        #     if "highlight_time" in keyword:
+        #         must_choose = self.find_all_must_recompute(retrieved_docs=retrieved_docs, tokenizer=self.draft_model_tokenizer)
+        if must_choose_docs is not None:
+            must_choose_indices = self.find_all_must_recompute_docs_indices(
+                retrieved_docs=retrieved_docs,
+                system_prompt=system_prompt,
+                must_recompute_docs=must_choose_docs,
+                tokenizer=self.tokenizer
+            )
         # print(f"run_one_question query={query}\n retrieved_docs={retrieved_docs}")
         sim = 0
         try:
@@ -805,8 +849,6 @@ class FusionRAGModel:
                 "similarity": -1
             }
         print(f"recomputing using recomputation_rate={rate}, doc_len={len(retrieved_docs)}, reprocess_method={reprocess_method}")
-        if system_prompt == "":
-            system_prompt=DEFAULT_SYSTEM_PROMPT
         empty_token = self.tokenizer.encode(" ", add_special_tokens=True)
         system_tokens = self.tokenizer.encode(system_prompt, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
@@ -950,8 +992,8 @@ class FusionRAGModel:
                         print(f"retrieved_docs {retrieved_docs[doc_index]} not preprocessed before. 字符串不存在")
                     load_path = self.save_path
                     break
-            print(f"load_path={load_path}")
-            print(f"full prompt = {system_prompt}{''.join(retrieved_docs)}{question_text}")
+            # print(f"load_path={load_path}")
+            # print(f"full prompt = {system_prompt}{''.join(retrieved_docs)}{question_text}")
             generated_tokens, _, eigenvalue_ = load_kv_and_generate(
                 self.model,
                 self.tokenizer,
@@ -975,7 +1017,7 @@ class FusionRAGModel:
                 embeddings=embeddings,
                 question_prefix_tensor=question_prefix_tensor,
                 similarity=sim,
-                must_choose=must_choose
+                must_choose_indices=must_choose_indices
             )
             eigenvalue.update(eigenvalue_)
 

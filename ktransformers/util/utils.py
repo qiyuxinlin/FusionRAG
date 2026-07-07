@@ -468,40 +468,40 @@ def compute_draft_model_decode_attention(draft_model, tokenizer, input_ids, toke
         # 灰度字符映射表，用来表现注意力热力图
         CHARS = [" ", ".", "-", "+", "*", "#", "%", "█"]
 
-        for layer_idx in sorted(decode_attention_scores.keys()):
-            print(f"👉 [ LAYER {layer_idx} ]")
-            matrix = decode_attention_scores[layer_idx]  # [token_max, doc_len]
-
-            for t in range(token_max):
-                # 获取当前步生成的真实文字
-                token_word = generated_words[t]
-                # 为了防止换行或控制台错位，替换掉换行符，并规范化打印宽度
-                token_word_clean = token_word.replace('\n', '\\n')
-
-                token_attn = matrix[t]
-                mean_score = token_attn.mean().item()
-                max_score = token_attn.max().item()
-
-                # 抓取最受关注的 3 个文档位置
-                topk_values, topk_indices = torch.topk(token_attn, min(3, doc_len))
-                topk_info = ", ".join(
-                    [f"Pos {idx.item()}({val.item():.3f})" for val, idx in zip(topk_values, topk_indices)])
-
-                # 简易热力图字符处理
-                bins = 20
-                chunk_size = max(1, doc_len // bins)
-                heatmap_str = ""
-                for b in range(bins):
-                    chunk = token_attn[b * chunk_size: (b + 1) * chunk_size]
-                    if len(chunk) == 0: break
-                    val = chunk.max().item()
-                    idx = min(int(val * 10 * (len(CHARS) - 1)), len(CHARS) - 1)
-                    heatmap_str += CHARS[idx]
-
-                # 在打印时，把真实的文字以「Text: 'xxx'」的形式非常醒目地挂在前面！
-                print(f"  Token {t + 1:02d} | Text: {token_word_clean!r:<12} | Heatmap: [{heatmap_str}] | "
-                      f"Avg: {mean_score:.4f} | Max: {max_score:.4f} | Top-3 Doc: [{topk_info}]")
-            print("-" * 90)
+        # for layer_idx in sorted(decode_attention_scores.keys()):
+        #     print(f"👉 [ LAYER {layer_idx} ]")
+        #     matrix = decode_attention_scores[layer_idx]  # [token_max, doc_len]
+        #
+        #     for t in range(token_max):
+        #         # 获取当前步生成的真实文字
+        #         token_word = generated_words[t]
+        #         # 为了防止换行或控制台错位，替换掉换行符，并规范化打印宽度
+        #         token_word_clean = token_word.replace('\n', '\\n')
+        #
+        #         token_attn = matrix[t]
+        #         mean_score = token_attn.mean().item()
+        #         max_score = token_attn.max().item()
+        #
+        #         # 抓取最受关注的 3 个文档位置
+        #         topk_values, topk_indices = torch.topk(token_attn, min(3, doc_len))
+        #         topk_info = ", ".join(
+        #             [f"Pos {idx.item()}({val.item():.3f})" for val, idx in zip(topk_values, topk_indices)])
+        #
+        #         # 简易热力图字符处理
+        #         bins = 20
+        #         chunk_size = max(1, doc_len // bins)
+        #         heatmap_str = ""
+        #         for b in range(bins):
+        #             chunk = token_attn[b * chunk_size: (b + 1) * chunk_size]
+        #             if len(chunk) == 0: break
+        #             val = chunk.max().item()
+        #             idx = min(int(val * 10 * (len(CHARS) - 1)), len(CHARS) - 1)
+        #             heatmap_str += CHARS[idx]
+        #
+        #         # 在打印时，把真实的文字以「Text: 'xxx'」的形式非常醒目地挂在前面！
+        #         print(f"  Token {t + 1:02d} | Text: {token_word_clean!r:<12} | Heatmap: [{heatmap_str}] | "
+        #               f"Avg: {mean_score:.4f} | Max: {max_score:.4f} | Top-3 Doc: [{topk_info}]")
+        #     print("-" * 90)
 
         print(f"{'=' * 90}\n")
 
@@ -748,6 +748,61 @@ def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_v
     next_token_scores = logits_warper(inputs, logits[:, -1, :])
     next_token = torch.argmax(next_token_scores, dim=-1)
     return next_token
+
+
+import torch
+import torch.nn.functional as F
+
+
+def decode_one_tokens_debug(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs, tokenizer,
+                      rate=0.0, path=""):
+    inputs_embeds = model.model.embed_tokens(cur_token)
+
+    logits = model(
+        inputs_embeds=inputs_embeds,
+        position_ids=position_ids,
+        cache_position=cache_position,
+        past_key_values=past_key_values,
+        return_dict=False,
+        use_cache=True,
+    )[0]
+
+    if past_key_values != None:
+        past_key_values.change_seq_length(1)
+
+    next_token_logits = logits[:, -1, :]  # 形状: [1, 152064]
+
+    # 1. 核心修改：直接用原始的 next_token_logits 计算概率和 Top 5
+    probs = F.softmax(next_token_logits, dim=-1)
+    topk = 10
+    topk_logits, topk_tokens = torch.topk(next_token_logits[0], k=topk, dim=-1)  # 取原始 logit 最大的前5个
+    topk_probs = probs[0][topk_tokens]
+
+    # 2. 拼接备选 token 字符串
+    candidates_list = []
+    for i in range(topk):
+        t_id = topk_tokens[i].item()
+        l_val = topk_logits[i].item()
+        prob = topk_probs[i].item()
+        t_text = tokenizer.decode([t_id]).replace("\n", "\\n").replace(" ", " ")
+        candidates_list.append(f'"{t_text}" ({prob * 100:.1f}%)')
+
+    candidates_str = " ".join(candidates_list)
+
+    # 3. 决定最终输出的 token 依然经过 warper（保持你原有的采样策略不变）
+    next_token_scores = logits_warper(inputs, next_token_logits)
+    next_token = torch.argmax(next_token_scores, dim=-1)
+
+    chosen_id = next_token[0].item()
+    chosen_text = tokenizer.decode([chosen_id]).replace("\n", "\\n").replace(" ", " ")
+
+    # 4. 单行打印
+    print(f'Chosen: "{chosen_text}" (ID: {chosen_id:<5}) | Top 10: {candidates_str}')
+
+    return next_token
+
+
+
 # mistral 是这个函数，其他函数得考虑把这个函数换掉
 def rotate_half(x):
     """Rotates half the hidden dims of the input."""
@@ -1011,14 +1066,12 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="",
-                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0, must_choose=None):
+                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0, must_choose_indices=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
     passages_len = [passage.shape[0] for passage in passages]
     passages_start = [sum(passages_len[:i]) for i in range(1,len(passages_len))]
-    if must_choose is not None:
-        must_choose = [range(passages_start[i], passages_start[i]+length) for i, length in enumerate(must_choose)]
     query_prefix_len = len(tokenizer.encode(tokenizer.decode(passages[-1]).split('Question: ')[0]))
     inputs = passages[-1][query_prefix_len:].unsqueeze(0).to(input_device)
     seq_length = passages[-1][query_prefix_len:].shape[0]
@@ -1455,11 +1508,6 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                     system_len=system_len,
                     device=draft_model_device
                 )
-                if must_choose is not None:
-                    for must_choose_indices in must_choose:
-                        selected_indices.extend(must_choose_indices)
-                    selected_indices = sorted(list(set(selected_indices)))
-                    print(f"selected_indices sorted")
 
             elif reprocess_method == "DraftModel_smarter":
                 #fixme： DraftModel_smarter 的逻辑是要先选择文本，再在文本里选择token。不要用这个。
@@ -1572,9 +1620,15 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         k_need_index = torch.sort(k_need_index)[0].tolist()
 
         ## add query itself
-        k_need_index.extend(range(sum(passages_len[:-1]),sum(passages_len)))
+        k_need_index.extend(list(range(sum(passages_len[:-1]),sum(passages_len))))
     else:
-        k_need_index = range(sum(passages_len[:-1]),sum(passages_len))
+        k_need_index = list(range(sum(passages_len[:-1]),sum(passages_len)))
+
+    if must_choose_indices is not None:
+        k_need_index.extend(must_choose_indices)
+        k_need_index = sorted(list(set(k_need_index)))
+        print(f"selected_indices sorted")
+
     past_len = sum(passages_len)
 
     batch_size, seq_length = 1, len(k_need_index)
@@ -1591,7 +1645,7 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
         use_sparse_attention = False
     reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
     cache_position = torch.tensor(k_need_index, device=input_device)
-    if rate > 0.0:
+    if rate >= 0.0:
         k_need_index_ = copy.deepcopy(k_need_index)
         ## first is prefix cache
         if reprocess_method == "DraftModel_smarter":
@@ -1631,7 +1685,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
 
         decode_time = time.time()
         for _ in range(1, max_new_tokens):
-            next_token = decode_one_tokens(model, next_token.unsqueeze(0), position_ids, cache_position, past_key_values, logits_warper, inputs, rate=rate)
+            next_token = decode_one_tokens_debug(model, next_token.unsqueeze(0), position_ids, cache_position,
+                                                 past_key_values, logits_warper, inputs, tokenizer, rate=rate)
             inputs = torch.cat((inputs, next_token.unsqueeze(0)), dim=-1)
             generated_ids[:, cache_position] = next_token.int()
             tokens.append(next_token.int())
@@ -1920,7 +1975,7 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
-                                    use_local_draft_model=True, draft_model_url="")\
+                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False)\
         -> Tuple[List[str], List[List[str]]]:
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_with_system_prompt_str_list = [system_prompt]
@@ -1974,9 +2029,10 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
         multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
-        # save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
-        # save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
-        #                     "/tmp/ppr_distribution_2d.jpg")
+        if save_attention_heatmap:
+            save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
+            save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
+                                "/tmp/ppr_distribution_2d.jpg")
 
         ## use ppr
         # multi_layer_attn = matrix_square
