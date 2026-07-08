@@ -22,6 +22,7 @@ from ktransformers.util.utils import (
     find_all_substr_needs_recompute_entropy,
     rerank
 )
+from ktransformers.util.utils_draft import load_kv_and_generate_draft_model
 from ktransformers.util.run_ppr import OnlineEncoder, calculate_vector_set_similarity
 import hashlib
 import faiss
@@ -93,6 +94,7 @@ class FusionRAGModel:
             max_cache_len=32768,
             cache_path='/mnt/data3/reflect/',
             model_name='Qwen2.5-7B-Instruct',
+            draft_model_name='',
             preprocess=False,
             preprocess_method="default",
             file_input="",
@@ -103,12 +105,18 @@ class FusionRAGModel:
             draft_model_url="",
             apikey="",
     ):
+        if draft_model_name == '':
+            print(f"draft_model_name must be specified")
+            exit(1)
+
         print(f"init FusionRAGModel")
         self.model_name=model_name
         self.model_type = model_type
         self.draft_model_type=draft_model_type
         self.model_cache_root = os.path.join(cache_path, model_name)
+        self.draft_model_cache_root = os.path.join(cache_path, draft_model_name)
         self.save_path = os.path.join(self.model_cache_root, 'kv_cache')
+        self.draft_model_save_path = os.path.join(self.draft_model_cache_root, 'kv_cache')
         self.preprocess_save_path = os.path.join(self.model_cache_root, 'preprocess_kv_cache')
         self.preprocess_empty_prefix_save_path = os.path.join(self.model_cache_root, 'empty_prefix_preprocess_kv_cache')
         self.preprocess_method=preprocess_method
@@ -175,6 +183,7 @@ class FusionRAGModel:
                 self.draft_model_device = None
             self.draft_model_tokenizer = AutoTokenizer.from_pretrained(draft_model_path, trust_remote_code=True)
         else:
+            self.use_local_draft_model = True
             print(f"Skipping draft model.")
             self.draft_model = None
             self.draft_model_device = ""
@@ -187,7 +196,25 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=cache_device,
                 dtype=self.model.dtype,
-                passage_len=32768
+                passage_len=16384
+            )
+
+        if draft_model_path != "":
+            self.draft_past_key_values = StaticCache(
+                config=self.draft_model.config,
+                max_batch_size=1,
+                max_cache_len=max_cache_len,
+                device=draft_model_device,
+                dtype=self.draft_model.dtype,
+                passage_len=8092
+            )
+            self.draft_past_key_values_back = StaticCache(
+                config=self.draft_model.config,
+                max_batch_size=1,
+                max_cache_len=max_cache_len,
+                device=draft_model_device,
+                dtype=self.draft_model.dtype,
+                passage_len=8092
             )
         if use_multi_gpu:
             self.input_device = "cuda:0"  # First GPU for inputs
@@ -743,6 +770,7 @@ class FusionRAGModel:
                            reverse_attn=False,
                            use_entropy_and_relevance=False,
                            must_choose_docs: list[str] = None,
+                           use_compare_sim=False,
                            ):
         must_choose_token_indices = []
         if "sort" in keyword:
@@ -768,6 +796,15 @@ class FusionRAGModel:
                 must_recompute_docs=must_choose_docs,
                 tokenizer=self.draft_model_tokenizer
             )
+
+        compare_sim = None
+        if use_compare_sim:
+            compare_sim = self.compare_one_question(
+                query=query,
+                retrieved_docs=passages,
+                system_prompt=system_prompt
+            )
+
         if use_entropy_and_relevance:
             ## 对于use_entropy_and_relevance 只会使用 sglang draftmodel
             recompute_tokens, recompute_tokens_list, rate = find_all_substr_needs_recompute_entropy(
@@ -798,8 +835,116 @@ class FusionRAGModel:
                 reverse_attn=reverse_attn,
                 use_local_draft_model=self.use_local_draft_model,
                 draft_model_url=self.draft_model_url,
+                compare_sim=compare_sim
             )
         return recompute_tokens, recompute_tokens_list, passages, rate
+
+
+    def compare_one_question(
+            self,
+            query: str,
+            retrieved_docs: list[str],
+            system_prompt="",
+    ):
+        if system_prompt == "":
+            system_prompt=DEFAULT_SYSTEM_PROMPT
+        system_tokens = self.draft_model_tokenizer.encode(system_prompt, add_special_tokens=True)
+        system_tensor = torch.tensor(system_tokens, dtype=torch.long)
+        system_len = system_tensor.shape[0]
+        doc_tensors = []
+        doc_tensors_total_length = 0
+        doc_tensors_len = []
+        hash_keys = [hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()]
+        for doc_text in retrieved_docs:
+            doc_tokens = self.draft_model_tokenizer.encode(doc_text, add_special_tokens=False)
+            doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
+            doc_tensors_total_length += len(doc_tensor)
+            doc_tensors.append(doc_tensor)
+            doc_tensors_len.append(len(doc_tensor))
+            hash_keys.append(hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest())
+
+        hash_key = hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()
+        system_cache_path = f'{self.draft_model_save_path}/{hash_key}_key.pt'
+        # fixme: mengyao_debug
+        if not os.path.exists(system_cache_path):
+            print(f"Generating system KV cache...")
+            input_tensor = system_tensor.unsqueeze(0)
+            prefill_and_save_kv_cache(
+                model=self.draft_model,
+                tokenizer=self.draft_model_tokenizer,
+                past_key_values=self.draft_past_key_values,
+                inputs=input_tensor.to(self.draft_model_device),
+                save_path=self.draft_model_save_path,
+                chunk_id=0,  ## for the system tensor
+                hash_key=hash_key,
+                system_len=system_len,
+                passage_len=system_len,
+                reprocess_method="",
+                device=self.draft_model_device,
+                device_map=None
+            )
+
+            for layer_idx in range(len(self.draft_past_key_values.key_cache)):
+                self.draft_past_key_values.past_tokens[layer_idx] = 0
+                self.draft_past_key_values.key_cache[layer_idx].zero_()
+                self.draft_past_key_values.value_cache[layer_idx].zero_()
+
+        # Generate KV cache for each document in THIS main question
+        for doc_idx, doc_tensor in enumerate(doc_tensors):
+            doc_text = retrieved_docs[doc_idx]
+            hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
+            chunk_id = doc_idx + 1
+            cache_key_path = f'{self.draft_model_save_path}/{hash_key}_key.pt'
+            cache_value_path = f'{self.draft_model_save_path}/{hash_key}_value.pt'
+
+            if not os.path.exists(cache_value_path):
+                passage_len = doc_tensor.shape[0]
+                ## system_prompt + document_text
+                input_tensor = torch.cat((system_tensor, doc_tensor)).unsqueeze(0)
+
+                prefill_and_save_kv_cache(
+                    model=self.draft_model,
+                    tokenizer=self.draft_model_tokenizer,
+                    past_key_values=self.draft_past_key_values,
+                    inputs=input_tensor.to(self.draft_model_device),
+                    hash_key=hash_key,
+                    save_path=self.draft_model_save_path,
+                    chunk_id=chunk_id,  ## chunk_id is bigger then 0 is fine.
+                    system_len=system_len,
+                    passage_len=passage_len,
+                    reprocess_method="",
+                    device=self.draft_model_device,
+                    device_map=None
+                )
+                for layer_idx in range(len(self.draft_past_key_values.key_cache)):
+                    self.draft_past_key_values.past_tokens[layer_idx] = 0
+                    self.draft_past_key_values.key_cache[layer_idx].zero_()
+                    self.draft_past_key_values.value_cache[layer_idx].zero_()
+                print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensor)}")
+
+        if self.model_type == 'qwen3':
+            question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+        else:
+            question_text = f"<|im_end|>\n<|im_start|>user\n\nQuestion: /no_think {query}<|im_end|>\n<|im_start|>assistant\nAnswer: "
+        question_tokens = self.draft_model_tokenizer.encode(question_text, add_special_tokens=False)
+        question_tensor = torch.tensor(question_tokens, dtype=torch.long)
+
+        iter_tokens = [system_tensor] + doc_tensors + [question_tensor]
+
+        return load_kv_and_generate_draft_model(
+            model=self.draft_model,
+            tokenizer=self.draft_model_tokenizer,
+            past_key_values=self.draft_past_key_values,
+            past_key_values_compare=self.draft_past_key_values_back,
+            passages=iter_tokens,
+            load_path=self.draft_model_save_path,
+            revert_rope=True,
+            device=self.draft_model_device,
+            device_map=None,
+            hash_keys=hash_keys,
+            prefix_cache_path=self.draft_model_save_path,
+            query=query
+        )
 
     def run_one_question(
             self,
@@ -816,10 +961,20 @@ class FusionRAGModel:
             question_prefix="",
             keyword="",
             must_choose_docs: list[str] = None,
+            use_compare_sim = False
     ) -> (int, int, int, int, str, list[int]):
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
         must_choose_indices = None
+
+        compare_sim = None
+        if use_compare_sim:
+            compare_sim = self.compare_one_question(
+                query=query,
+                retrieved_docs=retrieved_docs,
+                system_prompt=system_prompt
+            )
+
         ## fixme: mengyao_debug locomo quick fix
         # if "locomo" in self.dataset_name:
         #     if "sort" in keyword:
@@ -1017,7 +1172,8 @@ class FusionRAGModel:
                 embeddings=embeddings,
                 question_prefix_tensor=question_prefix_tensor,
                 similarity=sim,
-                must_choose_indices=must_choose_indices
+                must_choose_indices=must_choose_indices,
+                compare_sim=compare_sim
             )
             eigenvalue.update(eigenvalue_)
 

@@ -797,7 +797,7 @@ def decode_one_tokens_debug(model, cur_token, position_ids, cache_position, past
     chosen_text = tokenizer.decode([chosen_id]).replace("\n", "\\n").replace(" ", " ")
 
     # 4. 单行打印
-    print(f'Chosen: "{chosen_text}" (ID: {chosen_id:<5}) | Top 10: {candidates_str}')
+    # print(f'Chosen: "{chosen_text}" (ID: {chosen_id:<5}) | Top 10: {candidates_str}')
 
     return next_token
 
@@ -1066,7 +1066,8 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
                           reprocess_method='normal', rate=0, preprocess=False, draft_model=None,
                           draft_attention=None, use_entropy_selection=False, entropy_top_k=4,
                           group=False, device="cuda", chunk_ids=None, device_map=None, draft_model_device="",
-                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0, must_choose_indices=None):
+                         hash_keys=None, prefix_cache_path="", query="", embeddings=None, question_prefix_tensor=None, similarity=0.0, must_choose_indices=None,
+                         compare_sim=None):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
 
@@ -1497,9 +1498,19 @@ def load_kv_and_generate(model, tokenizer, past_key_values, passages,
             multi_layer_attn, doc_to_doc_attns = get_multilayer_attn(passages, draft_model, draft_model_device,
                                                                      entropy_top_k, draft_attention, query_start,
                                                                      system_len, doc_len, total_len,smarter=smarter)
+            first_doc_start = 0
+            first_doc_end = passages_len[1]
+            multi_layer_attn[first_doc_start: first_doc_end] = 0 ## 这里的multi_layer_attn 不包含system prompt
+
             eigenvalue["coefficient"] = concentration_coefficient_v1(tensor=multi_layer_attn)
             eigenvalue["dispersion"] = topk_position_dispersion(multi_layer_attn, top_percent=0.1)
             # 使用 smart_query_selection 进行选择
+            if compare_sim is not None:
+                multi_layer_attn = multiply_tensor_by_sim_map(
+                    multi_layer_attn,
+                    compare_sim["value_min_sim_map"],
+                )
+
             if reprocess_method == "DraftModel":
                 selected_indices = smart_query_selection(
                     attention_scores=multi_layer_attn,
@@ -1975,12 +1986,13 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
-                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False)\
+                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None)\
         -> Tuple[List[str], List[List[str]]]:
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_with_system_prompt_str_list = [system_prompt]
     passages_with_system_prompt_str_list.extend(passages)
     passages_full = "".join(passages)
+    first_passage_token = tokenizer.encode(passages[0], add_special_tokens=False)
     passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
     query_tokens = tokenizer.encode(query, add_special_tokens = False)
     full_input = system_prompt_tokens + passages_tokens + query_tokens
@@ -1999,14 +2011,14 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         )
 
         time_start_1 = time.time()
-        decode_attention_scores = compute_draft_model_decode_attention(
-            tokenizer=tokenizer,
-            draft_model=draft_model,
-            input_ids=full_input_tensor,
-            system_len = len(system_prompt_tokens),
-            doc_len = len(passages_tokens),
-            token_max = 20
-        )
+        # decode_attention_scores = compute_draft_model_decode_attention(
+        #     tokenizer=tokenizer,
+        #     draft_model=draft_model,
+        #     input_ids=full_input_tensor,
+        #     system_len = len(system_prompt_tokens),
+        #     doc_len = len(passages_tokens),
+        #     token_max = 20
+        # )
 
         ##debug
         # layer_attention_dict = decode_attention_scores
@@ -2015,16 +2027,6 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         print(f"decode attention time1 = {time.time() - time_start_1}")
 
         active_layers = [k for k, v in layer_attention_dict.items()]
-
-        x = layer_attention_scores_matrix_square.size(0)
-        s = torch.zeros(x, 1, dtype=layer_attention_scores_matrix_square.dtype, device=layer_attention_scores_matrix_square.device)
-        # 2. 将最后 10 个元素赋值为 1/10 (即 0.1)
-        s[-len(query_tokens):] = 1/len(query_tokens)
-        matrix_square = power_iteration_ppr_tensor(layer_attention_scores_matrix_square, s)
-
-        matrix_square = matrix_square.squeeze(dim=1)
-        matrix_square = matrix_square[len(system_prompt_tokens) : len(system_prompt_tokens) + len(passages_tokens)]
-
         # 聚合选中层的 attention
         layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
         multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
@@ -2035,6 +2037,14 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                                 "/tmp/ppr_distribution_2d.jpg")
 
         ## use ppr
+        # x = layer_attention_scores_matrix_square.size(0)
+        # s = torch.zeros(x, 1, dtype=layer_attention_scores_matrix_square.dtype, device=layer_attention_scores_matrix_square.device)
+        # # 2. 将最后 10 个元素赋值为 1/10 (即 0.1)
+        # s[-len(query_tokens):] = 1/len(query_tokens)
+        # matrix_square = power_iteration_ppr_tensor(layer_attention_scores_matrix_square, s)
+        #
+        # matrix_square = matrix_square.squeeze(dim=1)
+        # matrix_square = matrix_square[len(system_prompt_tokens) : len(system_prompt_tokens) + len(passages_tokens)]
         # multi_layer_attn = matrix_square
     else:
         result = call_remote_draft_model(
@@ -2047,7 +2057,14 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         attn_weights = attn_weights[len(system_prompt_tokens):]
         multi_layer_attn = torch.tensor(attn_weights)
 
-
+    if compare_sim is not None:
+        # multi_layer_attn.fill_(1) ## 开启这个话就是不用attention分数了
+        multi_layer_attn = multiply_tensor_by_sim_map(
+            multi_layer_attn,
+            compare_sim["key_min_sim_map"], ## value_min_sim_map
+        )
+    else:
+        multi_layer_attn[0:len(first_passage_token)] = 0
 
     if reverse_attn:
         selected_indices = smart_query_selection(
@@ -2509,3 +2526,56 @@ def calc_ratio_aggressive_max(entropy, relevance, total_doc: int, w_base=0.4):
     # 5. 组合最终重算比并进行全局安全截断
     ratio = np.clip(ratio, 0.10, 0.50)
     return ratio
+
+
+def multiply_tensor_by_sim_map(
+        src_tensor: torch.Tensor,
+        sim_map: Dict[int, float],
+        default_value: float = 1.0
+) -> torch.Tensor:
+    """
+    让一维 Tensor 的指定位置乘以 sim_map 中对应的权重值，其余位置赋予 default_value 系数。
+
+    参数:
+        src_tensor: 输入的一维 Tensor (例如形状为 [x])，支持已经在 GPU 上的 Tensor
+        sim_map: 包含 {位置索引: 相似度权重} 的 Python 字典
+        default_value: 未在 map 中出现的索引对应的默认系数。
+                       1.0 表示保持原值，0.0 表示不包含的位置归零。
+
+    返回:
+        torch.Tensor: 计算后的新一维 Tensor，设备和类型与输入完全一致
+    """
+    # 1. 鲁棒性检查：确保输入是一维的
+    assert src_tensor.dim() == 1, f"输入 Tensor 必须是一维的，当前维度为 {src_tensor.dim()}"
+
+    # 如果 map 为空，直接根据默认策略处理
+    if not sim_map:
+        return src_tensor * default_value
+
+    seq_len = src_tensor.size(0)
+
+    # 2. 在相同设备上创建一个形状一致的乘数掩码（Multiplier Mask）
+    # 初始化为默认值（如全 1.0 或全 0.0）
+    multiplier = torch.full(
+        (seq_len,),
+        fill_value=default_value,
+        device=src_tensor.device,
+        dtype=src_tensor.dtype
+    )
+
+    # 3. 提取 Map 的 key 和 value
+    indices = list(sim_map.keys())
+    values = list(sim_map.values())
+
+    values = [1-v for v in values]
+
+    # 安全拦截：防止 map 里的 index 越界
+    if max(indices) >= seq_len or min(indices) < 0:
+        raise IndexError("sim_map 中的部分 Token 索引超出了输入 Tensor 的长度范围！")
+
+    # 4. 【核心高效步】利用 PyTorch 高级索引，在 GPU 内部批量改写对应位置的系数
+    # 这里完全没有 Python 循环，直接一步到位
+    multiplier[indices] = torch.tensor(values, device=src_tensor.device, dtype=src_tensor.dtype)
+
+    # 5. 逐元素相乘并返回
+    return src_tensor * multiplier
