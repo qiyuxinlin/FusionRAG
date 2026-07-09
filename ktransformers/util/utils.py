@@ -2567,7 +2567,7 @@ def multiply_tensor_by_sim_map(
     indices = list(sim_map.keys())
     values = list(sim_map.values())
 
-    values = [1-v for v in values]
+    # values = [1-v for v in values]
 
     # 安全拦截：防止 map 里的 index 越界
     if max(indices) >= seq_len or min(indices) < 0:

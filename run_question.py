@@ -206,7 +206,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=draft_model_device,
                 dtype=self.draft_model.dtype,
-                passage_len=8092
+                passage_len=16384
             )
             self.draft_past_key_values_back = StaticCache(
                 config=self.draft_model.config,
@@ -214,7 +214,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=draft_model_device,
                 dtype=self.draft_model.dtype,
-                passage_len=8092
+                passage_len=16384
             )
         if use_multi_gpu:
             self.input_device = "cuda:0"  # First GPU for inputs
@@ -802,7 +802,8 @@ class FusionRAGModel:
             compare_sim = self.compare_one_question(
                 query=query,
                 retrieved_docs=passages,
-                system_prompt=system_prompt
+                system_prompt=system_prompt,
+                keyword=keyword,
             )
 
         if use_entropy_and_relevance:
@@ -837,6 +838,7 @@ class FusionRAGModel:
                 draft_model_url=self.draft_model_url,
                 compare_sim=compare_sim
             )
+        torch.cuda.empty_cache()
         return recompute_tokens, recompute_tokens_list, passages, rate
 
 
@@ -845,6 +847,7 @@ class FusionRAGModel:
             query: str,
             retrieved_docs: list[str],
             system_prompt="",
+            keyword="",
     ):
         if system_prompt == "":
             system_prompt=DEFAULT_SYSTEM_PROMPT
@@ -943,7 +946,8 @@ class FusionRAGModel:
             device_map=None,
             hash_keys=hash_keys,
             prefix_cache_path=self.draft_model_save_path,
-            query=query
+            query=query,
+            keyword=keyword,
         )
 
     def run_one_question(
@@ -972,7 +976,8 @@ class FusionRAGModel:
             compare_sim = self.compare_one_question(
                 query=query,
                 retrieved_docs=retrieved_docs,
-                system_prompt=system_prompt
+                system_prompt=system_prompt,
+                keyword=keyword,
             )
 
         ## fixme: mengyao_debug locomo quick fix

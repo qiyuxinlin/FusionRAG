@@ -75,7 +75,8 @@ def load_kv_and_generate_draft_model(
         device_map=None,
         hash_keys=None,
         prefix_cache_path="",
-        query=""
+        query="",
+        keyword=""
 ):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
@@ -134,13 +135,25 @@ def load_kv_and_generate_draft_model(
         mean_value_after = torch.stack(past_key_values.value_cache).mean(dim=0)[:, :, system_len:passages_len_sum_without_query, :]
         mean_key_before = torch.stack(past_key_values_compare.key_cache).mean(dim=0)[:, :, system_len:passages_len_sum_without_query, :]
         mean_value_before = torch.stack(past_key_values_compare.value_cache).mean(dim=0)[:, :, system_len:passages_len_sum_without_query, :]
-        result = analyze_print_and_return_min_sim_map(
-            mean_key_before,
-            mean_value_before,
-            mean_key_after,
-            mean_value_after,
-            top_n=50
-        )
+
+        if "mse" in keyword:
+            ## mse，越小越相似
+            result = analyze_print_and_return_max_mse_map(
+                mean_key_before,
+                mean_value_before,
+                mean_key_after,
+                mean_value_after,
+                top_n=50
+            )
+        else:
+            ## 余弦相似度，越大越相似
+            result = analyze_print_and_return_min_sim_map(
+                mean_key_before,
+                mean_value_before,
+                mean_key_after,
+                mean_value_after,
+                top_n=50
+            )
 
 
         return result
@@ -198,8 +211,10 @@ def analyze_print_and_return_min_sim_map(
 
     # 5. 【核心改进】构建以位置(Index)为 key, 相似度为 value 的 Map
     # 转为标准 Python 类型（int 和 float），方便后续序列化或直接读取
-    key_min_sim_map = {int(idx): float(val) for idx, val in zip(k_min_indices_np, k_min_values_np)}
-    value_min_sim_map = {int(idx): float(val) for idx, val in zip(v_min_indices_np, v_min_values_np)}
+
+    ##fixme: 这里是1-float(val)，这样余弦相似度越大的，weight越小
+    key_min_sim_map = {int(idx): 1-float(val) for idx, val in zip(k_min_indices_np, k_min_values_np)}
+    value_min_sim_map = {int(idx): 1-float(val) for idx, val in zip(v_min_indices_np, v_min_values_np)}
 
     # 6. 保持原有的格式化打印逻辑
     print("=" * 70)
@@ -228,4 +243,91 @@ def analyze_print_and_return_min_sim_map(
     return {
         "key_min_sim_map": key_min_sim_map,
         "value_min_sim_map": value_min_sim_map
+    }
+
+
+def analyze_print_and_return_max_mse_map(
+        mean_key_before: torch.Tensor,
+        mean_value_before: torch.Tensor,
+        mean_key_after: torch.Tensor,
+        mean_value_after: torch.Tensor,
+        top_n: int = 10
+) -> dict:
+    """
+    找出 KV Cache 均方误差(MSE)最大的 Top-N 个 Token，打印排查结果，
+    并返回以原位置(Index)为 key，MSE 值为 value 的字典(Map)。
+
+    参数:
+        mean_key_before, mean_value_before: 优化前/对比组的 K, V Tensor [1, 2, x, 128]
+        mean_key_after, mean_value_after:   优化后/实验组的 K, V Tensor [1, 2, x, 128]
+        top_n: 需要排查的异常 Token 数量
+
+    返回:
+        dict: {
+            "key_max_mse_map": {int_idx: float_mse, ...},
+            "value_max_mse_map": {int_idx: float_mse, ...}
+        }
+    """
+    assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
+
+    # 1. 提取并压缩特征向量维度 -> [x, 128]
+    k_before = mean_key_before[0, 0, :, :].float()
+    v_before = mean_value_before[0, 0, :, :].float()
+    k_after = mean_key_after[0, 0, :, :].float()
+    v_after = mean_value_after[0, 0, :, :].float()
+
+    seq_len = k_before.shape[0]
+    # 保持原逻辑：强制将 top_n 设为 seq_len 全量排序
+    top_n = seq_len
+
+    # 2. 【核心改动】计算各位置 Token 的 MSE (Mean Squared Error)
+    # 计算 (Before - After)^2 并在最后一个特征维度 (128) 上求平均
+    k_mse = torch.mean((k_before - k_after) ** 2, dim=-1)
+    v_mse = torch.mean((v_before - v_after) ** 2, dim=-1)
+
+    # 3. 【核心改动】抓取 MSE 最大（差异最大）的 Top-N 个元素
+    # 注意：MSE 越大表示误差和差异越大，因此排序开关改为 largest=True
+    k_max_values, k_max_indices = torch.topk(k_mse, k=top_n, largest=True)
+    v_max_values, v_max_indices = torch.topk(v_mse, k=top_n, largest=True)
+
+    # 4. 转换为 CPU NumPy 以进行打印和构建 Map
+    k_max_values_np = k_max_values.cpu().numpy()
+    k_max_indices_np = k_max_indices.cpu().numpy()
+    v_max_values_np = v_max_values.cpu().numpy()
+    v_max_indices_np = v_max_indices.cpu().numpy()
+
+    # 5. 构建以位置(Index)为 key, MSE 值为 value 的 Map
+    key_max_mse_map = {int(idx): float(val) for idx, val in zip(k_max_indices_np, k_max_values_np)}
+    value_max_mse_map = {int(idx): float(val) for idx, val in zip(v_max_indices_np, v_max_values_np)}
+
+    # 6. 格式化打印排查报告（限制展示前 30 行，防止长序列爆终端）
+    print("=" * 70)
+    print(f"🚨 [异常排查] 均方误差（MSE差异最大）的 Top-{top_n} 个 Token 倒序列表")
+    print("=" * 70)
+
+    # 如果序列总长不足 30，自适应调整打印行数
+    print_range = min(30, seq_len)
+
+    print(f" 📂 分支 1: Key Cache 差异最大 Top-{print_range} (总样本: {top_n})")
+    print("-" * 55)
+    print(f"{'Rank':^6} | {'Token Index (原位置)':^22} | {'Key MSE':^18}")
+    print("-" * 55)
+    for r in range(print_range):
+        print(f"{r + 1:^6} | {k_max_indices_np[r]:^22} | {k_max_values_np[r]:^18.6f}")
+
+    print("\n" + "-" * 70 + "\n")
+
+    print(f" 📂 分支 2: Value Cache 差异最大 Top-{print_range} (总样本: {top_n})")
+    print("-" * 55)
+    print(f"{'Rank':^6} | {'Token Index (原位置)':^22} | {'Value MSE':^18}")
+    print("-" * 55)
+    for r in range(print_range):
+        print(f"{r + 1:^6} | {v_max_indices_np[r]:^22} | {v_max_values_np[r]:^18.6f}")
+
+    print("=" * 70)
+
+    # 7. 返回组装好的 map 结构
+    return {
+        "key_min_sim_map": key_max_mse_map,
+        "value_min_sim_map": value_max_mse_map
     }
