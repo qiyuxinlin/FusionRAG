@@ -46,7 +46,6 @@ from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_u
 from transformers.modeling_utils import PreTrainedModel, ALL_ATTENTION_FUNCTIONS
 from transformers.processing_utils import Unpack
 from transformers.utils import (
-    LossKwargs,
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
     is_flash_attn_2_available,
@@ -60,6 +59,10 @@ from .configuration_qwen3 import Qwen3Config
 if is_flash_attn_2_available():
     from transformers.modeling_flash_attention_utils import _flash_attention_forward
 
+try:
+    from transformers.utils import LossKwargs
+except ImportError:
+    from transformers.utils import TransformersKwargs as LossKwargs
 
 logger = logging.get_logger(__name__)
 

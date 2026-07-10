@@ -98,7 +98,8 @@ def find_outliers_zscore(data, threshold=2):
 
     return outliers
 
-def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False, eigenvalue=None, tokenizer=None, input_tokens=None, similarity=0.0):
+def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, device='cpu', smarter=False,
+                          eigenvalue=None, tokenizer=None, input_tokens=None, similarity=0.0, keyword=""):
     """
     Smart Query Selection: 使用连通性分析确保相关 token 群组被完整选中
 
@@ -147,6 +148,8 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
         components, connect_positions = find_connected_components(high_attn_positions, max_gap=max_gap, within=True)
     else:
         max_gap = 5 ## mengyao_debug I changed this.
+        if "no_smart_connect" in keyword: ## 不用连通性分析
+            max_gap = 0
         components, _ = find_connected_components(high_attn_positions, max_gap=max_gap, within=False)
 
 
@@ -202,10 +205,13 @@ def smart_query_selection(attention_scores, doc_len, target_ratio, system_len, d
         # 扩展分量边界 (±1)
         extended_comp = set()
         for p in comp:
-            for offset in range(-1, 2):
-                new_p = p + offset
-                if 0 <= new_p < doc_len:
-                    extended_comp.add(new_p)
+            if "no_smart_connect" in keyword:
+                extended_comp.add(p)
+            else:
+                for offset in range(-1, 2):
+                    new_p = p + offset
+                    if 0 <= new_p < doc_len:
+                        extended_comp.add(new_p)
 
         # 检查是否会超过目标 (允许 10% 余量)
         new_positions = extended_comp - selected
@@ -535,7 +541,14 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
     num_layers = draft_model.config.num_hidden_layers
     num_heads = draft_model.config.num_attention_heads
     num_kv_heads = draft_model.config.num_key_value_heads
-    head_dim = draft_model.config.hidden_size // num_heads
+    # head_dim = draft_model.config.hidden_size // num_heads ## qwen2
+    # head_dim = draft_model.config.head_dim ## fixme: qwen3
+
+    if hasattr(draft_model.config, 'head_dim'):
+        head_dim = draft_model.config.head_dim
+    else:
+        # 找不到时的兜底逻辑，比如从 hidden_size // num_attention_heads 计算
+        head_dim = draft_model.config.hidden_size // num_heads
 
     print(f"\n{'='*60}")
     print("Computing Draft Model Attention")
@@ -1986,7 +1999,7 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
-                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None)\
+                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None, keyword="")\
         -> Tuple[List[str], List[List[str]]]:
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_with_system_prompt_str_list = [system_prompt]
@@ -2057,12 +2070,30 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         attn_weights = attn_weights[len(system_prompt_tokens):]
         multi_layer_attn = torch.tensor(attn_weights)
 
+    match = re.search(r'(?<=attention_weight_adjust_)([-+]?\d*\.\d+|\d+)', keyword)
+    weight = float(match.group(1)) if match else 1.0
+    print(f"attention weight={weight}")
+
     if compare_sim is not None:
         # multi_layer_attn.fill_(1) ## 开启这个话就是不用attention分数了
-        multi_layer_attn = multiply_tensor_by_sim_map(
-            multi_layer_attn,
-            compare_sim["key_min_sim_map"], ## value_min_sim_map
-        )
+        if "use_value" in keyword:
+            multi_layer_attn = multiply_tensor_by_sim_map(
+                multi_layer_attn,
+                compare_sim["value_min_sim_map"],
+                attn_weight_adjust=weight
+            )
+        elif "use_kv" in keyword:
+            multi_layer_attn = multiply_tensor_by_sim_map(
+                multi_layer_attn,
+                compare_sim["kv_combined_weight_map"],
+                attn_weight_adjust=weight
+            )
+        else:
+            multi_layer_attn = multiply_tensor_by_sim_map(
+                multi_layer_attn,
+                compare_sim["key_min_sim_map"], ## value_min_sim_map,
+                attn_weight_adjust=weight
+            )
     else:
         multi_layer_attn[0:len(first_passage_token)] = 0
 
@@ -2072,7 +2103,8 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
             doc_len=len(query_tokens),
             target_ratio=rate,
             system_len=len(system_prompt_tokens + passages_tokens),
-            device=draft_model_device
+            device=draft_model_device,
+            keyword=keyword
         )
     else:
         selected_indices = smart_query_selection(
@@ -2080,7 +2112,8 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
             doc_len=len(passages_tokens),
             target_ratio=rate,
             system_len=len(system_prompt_tokens),
-            device=draft_model_device
+            device=draft_model_device,
+            keyword=keyword
         )
 
     selected_indices.extend(must_choose_token_indices)
@@ -2529,15 +2562,16 @@ def calc_ratio_aggressive_max(entropy, relevance, total_doc: int, w_base=0.4):
 
 
 def multiply_tensor_by_sim_map(
-        src_tensor: torch.Tensor,
+        multi_layer_attn: torch.Tensor,
         sim_map: Dict[int, float],
-        default_value: float = 1.0
+        default_value: float = 1.0,
+        attn_weight_adjust: float = 1.0,
 ) -> torch.Tensor:
     """
     让一维 Tensor 的指定位置乘以 sim_map 中对应的权重值，其余位置赋予 default_value 系数。
 
     参数:
-        src_tensor: 输入的一维 Tensor (例如形状为 [x])，支持已经在 GPU 上的 Tensor
+        multi_layer_attn: 输入的一维 Tensor (例如形状为 [x])，支持已经在 GPU 上的 Tensor
         sim_map: 包含 {位置索引: 相似度权重} 的 Python 字典
         default_value: 未在 map 中出现的索引对应的默认系数。
                        1.0 表示保持原值，0.0 表示不包含的位置归零。
@@ -2546,21 +2580,21 @@ def multiply_tensor_by_sim_map(
         torch.Tensor: 计算后的新一维 Tensor，设备和类型与输入完全一致
     """
     # 1. 鲁棒性检查：确保输入是一维的
-    assert src_tensor.dim() == 1, f"输入 Tensor 必须是一维的，当前维度为 {src_tensor.dim()}"
+    assert multi_layer_attn.dim() == 1, f"输入 Tensor 必须是一维的，当前维度为 {multi_layer_attn.dim()}"
 
     # 如果 map 为空，直接根据默认策略处理
     if not sim_map:
-        return src_tensor * default_value
+        return multi_layer_attn * default_value
 
-    seq_len = src_tensor.size(0)
+    seq_len = multi_layer_attn.size(0)
 
     # 2. 在相同设备上创建一个形状一致的乘数掩码（Multiplier Mask）
     # 初始化为默认值（如全 1.0 或全 0.0）
     multiplier = torch.full(
         (seq_len,),
         fill_value=default_value,
-        device=src_tensor.device,
-        dtype=src_tensor.dtype
+        device=multi_layer_attn.device,
+        dtype=multi_layer_attn.dtype
     )
 
     # 3. 提取 Map 的 key 和 value
@@ -2575,7 +2609,11 @@ def multiply_tensor_by_sim_map(
 
     # 4. 【核心高效步】利用 PyTorch 高级索引，在 GPU 内部批量改写对应位置的系数
     # 这里完全没有 Python 循环，直接一步到位
-    multiplier[indices] = torch.tensor(values, device=src_tensor.device, dtype=src_tensor.dtype)
+    multiplier[indices] = torch.tensor(values, device=multi_layer_attn.device, dtype=multi_layer_attn.dtype)
+
+    multi_layer_attn *= 1000 ## 不要溢出了
+    if attn_weight_adjust != 1.0:
+        multi_layer_attn = multi_layer_attn ** attn_weight_adjust
 
     # 5. 逐元素相乘并返回
-    return src_tensor * multiplier
+    return multi_layer_attn * multiplier

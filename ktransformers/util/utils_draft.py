@@ -64,19 +64,18 @@ def compare_kv_cache_tokens(kv_tensor: torch.Tensor) -> dict:
 
 def load_kv_and_generate_draft_model(
         model,
-        tokenizer,
         past_key_values,
         past_key_values_compare,
         passages,
         load_path='',
-        example_id = 0,
+        preprocess_load_path='',
         revert_rope=False,
         device="cuda",
         device_map=None,
         hash_keys=None,
-        prefix_cache_path="",
         query="",
-        keyword=""
+        keyword="",
+        preprocess=False
 ):
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
@@ -96,18 +95,13 @@ def load_kv_and_generate_draft_model(
     chunk_ids = list(range(len(passages) - 1))
 
     for idx, passage in enumerate(passages[:-1]):
-        chunk_id = chunk_ids[idx]
-
-        if isinstance(hash_keys, list):
-            if idx == 1 and prefix_cache_path!="":
-                chunk_key_cache = torch.load(f'{prefix_cache_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
-                chunk_value_cache = torch.load(f'{prefix_cache_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
-            else:
-                chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
-                chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
+        if idx >=2 and preprocess:
+            chunk_key_cache = torch.load(f'{preprocess_load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
+            chunk_value_cache = torch.load(f'{preprocess_load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
         else:
-            chunk_key_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_key.pt',weights_only=True).to('cpu')
-            chunk_value_cache = torch.load(f'{load_path}/{example_id}_{chunk_id}_value.pt',weights_only=True).to('cpu')
+            chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
+            print(load_path)
+            chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
     ## load kv cache
@@ -159,9 +153,6 @@ def load_kv_and_generate_draft_model(
         return result
 
 
-import torch
-
-
 def analyze_print_and_return_min_sim_map(
         mean_key_before: torch.Tensor,
         mean_value_before: torch.Tensor,
@@ -170,81 +161,38 @@ def analyze_print_and_return_min_sim_map(
         top_n: int = 10
 ) -> dict:
     """
-    找出 KV Cache 相似度最小的 Top-N 个 Token，打印排查结果，
-    并返回以原位置(Index)为 key，余弦相似度为 value 的字典(Map)。
-
-    参数:
-        mean_key_before, mean_value_before: 优化前/对比组的 K, V Tensor [1, 2, x, 128]
-        mean_key_after, mean_value_after:   优化后/实验组的 K, V Tensor [1, 2, x, 128]
-        top_n: 需要排查的异常 Token 数量
-
-    返回:
-        dict: {
-            "key_min_sim_map": {int_idx: float_sim, ...},
-            "value_min_sim_map": {int_idx: float_sim, ...}
-        }
+    全量计算每个位置(Index)的 KV 拯救权重。
+    kv_combined_weight_map 采用先相乘相似度、再用 1 减的逻辑。
     """
     assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
 
-    # 1. 提取并压缩特征向量维度 -> [x, 128]
+    # 1. 提取特征向量维度 -> [seq_len, 128]
     k_before = mean_key_before[0, 0, :, :].float()
     v_before = mean_value_before[0, 0, :, :].float()
     k_after = mean_key_after[0, 0, :, :].float()
     v_after = mean_value_after[0, 0, :, :].float()
 
+    # 2. 计算原始的 Cosine Similarity 向量
+    time_start = time.time()
+    k_cos = torch.cosine_similarity(k_before, k_after, dim=-1).cpu().numpy()
+    v_cos = torch.cosine_similarity(v_before, v_after, dim=-1).cpu().numpy()
+    print(f"time to compute similarity: {time.time() - time_start}")
+
+    # 3. 🚀【核心修改】：先让 cos_sim 相乘，再用 1 减
+    kv_combined_cos = k_cos * v_cos
+    kv_combined_weight = 1.0 - kv_combined_cos
+
+    # 4. 分别转换成 1 - cos 权重用于满足原输出格式
+    k_weights = 1.0 - k_cos
+    v_weights = 1.0 - v_cos
+
+    # 5. 保持原格式顺序返回
     seq_len = k_before.shape[0]
-    top_n = seq_len
-
-    # 2. 计算各位置 Token 的余弦相似度
-    k_cos = torch.cosine_similarity(k_before, k_after, dim=-1)
-    v_cos = torch.cosine_similarity(v_before, v_after, dim=-1)
-
-    # 3. 抓取相似度最小（差异最大）的 Top-N 个元素
-    k_min_values, k_min_indices = torch.topk(k_cos, k=top_n, largest=False)
-    v_min_values, v_min_indices = torch.topk(v_cos, k=top_n, largest=False)
-
-    # 4. 转换为 CPU NumPy 以进行打印和构建 Map
-    k_min_values_np = k_min_values.cpu().numpy()
-    k_min_indices_np = k_min_indices.cpu().numpy()
-    v_min_values_np = v_min_values.cpu().numpy()
-    v_min_indices_np = v_min_indices.cpu().numpy()
-
-    # 5. 【核心改进】构建以位置(Index)为 key, 相似度为 value 的 Map
-    # 转为标准 Python 类型（int 和 float），方便后续序列化或直接读取
-
-    ##fixme: 这里是1-float(val)，这样余弦相似度越大的，weight越小
-    key_min_sim_map = {int(idx): 1-float(val) for idx, val in zip(k_min_indices_np, k_min_values_np)}
-    value_min_sim_map = {int(idx): 1-float(val) for idx, val in zip(v_min_indices_np, v_min_values_np)}
-
-    # 6. 保持原有的格式化打印逻辑
-    print("=" * 70)
-    print(f"🚨 [异常排查] 相似度最小（差异最大）的 Top-{top_n} 个 Token 倒序列表")
-    print("=" * 70)
-
-    print(f" 📂 分支 1: Key Cache 差异最大 Top-{top_n}")
-    print("-" * 33)
-    print(f"{'Rank':^6} | {'Token Index (原位置)':^22} | {'Key Cos-Sim':^18}")
-    print("-" * 33)
-    for r in range(30):
-        print(f"{r + 1:^6} | {k_min_indices_np[r]:^22} | {k_min_values_np[r]:^18.6f}")
-
-    print("\n" + "-" * 70 + "\n")
-
-    print(f" 📂 分支 2: Value Cache 差异最大 Top-{top_n}")
-    print("-" * 33)
-    print(f"{'Rank':^6} | {'Token Index (原位置)':^22} | {'Value Cos-Sim':^18}")
-    print("-" * 33)
-    for r in range(30):
-        print(f"{r + 1:^6} | {v_min_indices_np[r]:^22} | {v_min_values_np[r]:^18.6f}")
-
-    print("=" * 70)
-
-    # 7. 返回组装好的 map 结构
     return {
-        "key_min_sim_map": key_min_sim_map,
-        "value_min_sim_map": value_min_sim_map
+        "key_min_sim_map": {i: float(k_weights[i]) for i in range(seq_len)},
+        "value_min_sim_map": {i: float(v_weights[i]) for i in range(seq_len)},
+        "kv_combined_weight_map": {i: float(kv_combined_weight[i]) for i in range(seq_len)}
     }
-
 
 def analyze_print_and_return_max_mse_map(
         mean_key_before: torch.Tensor,
