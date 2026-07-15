@@ -824,8 +824,12 @@ class FusionRAGModel:
                            must_choose_docs: list[str] = None,
                            use_compare_sim=False,
                            preprocess=False,
+                           gold_docs=None,
+                           resort_passages=False
                            ):
         must_choose_token_indices = []
+        sorted_index = []
+        sorted_index_before_resort = []
         if "sort" in keyword:
             passages = self.sort_docs(passages)
             print(f"sorting passages!")
@@ -851,8 +855,10 @@ class FusionRAGModel:
             )
 
         compare_sim = None
+        query_states = None
+        mean_attn_weights = None
         if use_compare_sim:
-            compare_sim = self.compare_one_question(
+            compare_sim, mean_attn_weights = self.compare_one_question(
                 query=query,
                 retrieved_docs=passages,
                 system_prompt=system_prompt,
@@ -878,7 +884,7 @@ class FusionRAGModel:
                 api_key=self.api_key
             )
         else:
-            recompute_tokens, recompute_tokens_list = find_all_substr_needs_recompute(
+            recompute_tokens, recompute_tokens_list, sorted_index, sorted_index_before_resort, passages = find_all_substr_needs_recompute(
                 draft_model=self.draft_model,
                 draft_model_device=self.draft_model_device,
                 tokenizer=self.draft_model_tokenizer,
@@ -891,10 +897,13 @@ class FusionRAGModel:
                 use_local_draft_model=self.use_local_draft_model,
                 draft_model_url=self.draft_model_url,
                 compare_sim=compare_sim,
-                keyword=keyword
+                keyword=keyword,
+                gold_docs=gold_docs,
+                resort_passages=resort_passages,
+                mean_attn_weights=mean_attn_weights
             )
         torch.cuda.empty_cache()
-        return recompute_tokens, recompute_tokens_list, passages, rate
+        return recompute_tokens, recompute_tokens_list, passages, rate, sorted_index, sorted_index_before_resort
 
 
     def compare_one_question(
@@ -910,21 +919,22 @@ class FusionRAGModel:
         system_tokens = self.draft_model_tokenizer.encode(system_prompt, add_special_tokens=True)
         system_tensor = torch.tensor(system_tokens, dtype=torch.long)
         system_len = system_tensor.shape[0]
+        query_tokens = self.draft_model_tokenizer.encode(query, add_special_tokens=True)
+        query_tensor = torch.tensor(query_tokens, dtype=torch.long)
+        query_len = query_tensor.shape[0]
         doc_tensors = []
-        doc_tensors_total_length = 0
         doc_tensors_len = []
         hash_keys = [hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()]
         for doc_text in retrieved_docs:
             doc_tokens = self.draft_model_tokenizer.encode(doc_text, add_special_tokens=False)
             doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
-            doc_tensors_total_length += len(doc_tensor)
             doc_tensors.append(doc_tensor)
             doc_tensors_len.append(len(doc_tensor))
             hash_keys.append(hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest())
 
+        # 1. generate system prompt kv cache.
         hash_key = hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()
         system_cache_path = f'{self.draft_model_save_path}/{hash_key}_key.pt'
-        # 1. generate system prompt kv cache.
         if not os.path.exists(system_cache_path):
             print(f"Generating system KV cache...")
             input_tensor = system_tensor.unsqueeze(0)
@@ -943,6 +953,31 @@ class FusionRAGModel:
                 device_map=None
             )
             self.clean_draft_model_kv_cache()
+
+        # 2. generate query kv cache.
+        query_hash_key = hashlib.md5(query_tensor.cpu().numpy().tobytes()).hexdigest()
+        query_cache_path = f'{self.draft_model_save_path}/{query_hash_key}_key.pt'
+        query_states = []
+        if not os.path.exists(query_cache_path):
+            print(f"Generating system KV cache...")
+            input_tensor = query_tensor.unsqueeze(0)
+            prefill_and_save_kv_cache(
+                model=self.draft_model,
+                tokenizer=self.draft_model_tokenizer,
+                past_key_values=self.draft_past_key_values,
+                inputs=input_tensor.to(self.draft_model_device),
+                save_path=self.draft_model_save_path,
+                chunk_id=1,  ## for the query tensor
+                hash_key=query_hash_key,
+                system_len=system_len,
+                passage_len=query_len,
+                reprocess_method="",
+                device=self.draft_model_device,
+                device_map=None,
+                query_states=query_states
+            )
+            self.clean_draft_model_kv_cache()
+
 
         # 2. Generate KV cache for each document in THIS main question
         for doc_idx, doc_tensor in enumerate(doc_tensors):
@@ -1005,6 +1040,7 @@ class FusionRAGModel:
             device=self.draft_model_device,
             device_map=None,
             hash_keys=hash_keys,
+            query_states=query_states,
             query=query,
             keyword=keyword,
             preprocess=preprocess
@@ -1033,7 +1069,7 @@ class FusionRAGModel:
 
         compare_sim = None
         if use_compare_sim:
-            compare_sim = self.compare_one_question(
+            compare_sim, _ = self.compare_one_question(
                 query=query,
                 retrieved_docs=retrieved_docs,
                 system_prompt=system_prompt,

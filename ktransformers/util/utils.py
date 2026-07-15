@@ -661,7 +661,16 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
 
 
 def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
-                          save_path='', example_id = 0, chunk_id = 0, system_len = 0, passage_len = 0, reprocess_method=None, device="cuda", device_map=None, hash_key="",
+                              save_path='',
+                              example_id = 0,
+                              chunk_id = 0,
+                              system_len = 0,
+                              passage_len = 0,
+                              reprocess_method=None,
+                              device="cuda",
+                              device_map=None,
+                              hash_key="",
+                              query_states=None,
                           ):
 
     import os
@@ -691,7 +700,8 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
         if reprocess_method == "Cache-Craft" and chunk_id != 0:
             passages_len = [system_len, passage_len]
             logits = model(
-                inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True, reprocess_method=reprocess_method, passages_len=passages_len
+                inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True,
+                reprocess_method=reprocess_method, passages_len=passages_len, query_states=query_states
             )[0][:,-1,:].unsqueeze(0).clone().to(input_device)
             cachecraft_score = past_key_values.importance_cache[-1] # [num_head, passage_len]
             cachecraft_score = torch.sum(cachecraft_score, dim=0)
@@ -701,7 +711,7 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
                 torch.save(cachecraft_score, f'{save_path}/cachecraftattn_{example_id}_{chunk_id}.pt')
         else:
             logits = model(
-                inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True
+                inputs_embeds = inputs_embeds, cache_position=cache_position, past_key_values=past_key_values, return_dict=False, use_cache=True, query_states=query_states
             )[0][:,-1,:].unsqueeze(0).clone().to(input_device)
         past_len = past_key_values.past_tokens[0]
         key_cache = []
@@ -729,15 +739,16 @@ def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
             lock_path = f'{save_path}/{example_id}_{chunk_id}.lock'
         # print(f'hashkey: {hash_key}, chunk_id: {chunk_id}')
 
-        with FileLock(lock_path, timeout=60):
-            # Double-check if file exists (another process might have created it)
-            if not os.path.exists(key_path):
-                torch.save(key_cache.clone(), key_path)
-                torch.save(value_cache.clone(), value_path)
-                # print(f'example_id: {example_id}, chunk_id: {chunk_id} (saved by current process)')
-            else:
-                ""
-                # print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
+        if query_states is None: ## fixme：如果是none的话，则不需要返回querystates，就保存数据
+            with FileLock(lock_path, timeout=60):
+                # Double-check if file exists (another process might have created it)
+                if not os.path.exists(key_path):
+                    torch.save(key_cache.clone(), key_path)
+                    torch.save(value_cache.clone(), value_path)
+                    # print(f'example_id: {example_id}, chunk_id: {chunk_id} (saved by current process)')
+                else:
+                    ""
+                    # print(f'example_id: {example_id}, chunk_id: {chunk_id} (already exists, skipped)')
         return key_cache, value_cache
 
 def decode_one_tokens(model, cur_token, position_ids, cache_position, past_key_values, logits_warper, inputs, rate=0.0, path=""):
@@ -1999,14 +2010,24 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
                                     passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
-                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None, keyword="")\
-        -> Tuple[List[str], List[List[str]]]:
+                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None, keyword="",
+                                    gold_docs=None, resort_passages=False, mean_attn_weights=None)\
+        -> Tuple[List[str], List[List[str]], List[int], List[int], List[str]]:
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_with_system_prompt_str_list = [system_prompt]
     passages_with_system_prompt_str_list.extend(passages)
-    passages_full = "".join(passages)
+    # passages_full = "".join(passages)
+    # passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
     first_passage_token = tokenizer.encode(passages[0], add_special_tokens=False)
-    passages_tokens = tokenizer.encode(passages_full, add_special_tokens=False)
+    each_passages_tokens = []
+    passages_tokens = []
+    sorted_index = []
+    sorted_index_before_resort = []
+    new_passages = copy.deepcopy(passages)
+    for passage in passages:
+        each_passages_tokens.append(tokenizer.encode(passage, add_special_tokens = False))
+        passages_tokens.extend(each_passages_tokens[-1])
+
     query_tokens = tokenizer.encode(query, add_special_tokens = False)
     full_input = system_prompt_tokens + passages_tokens + query_tokens
     full_input_without_query = system_prompt_tokens + passages_tokens
@@ -2036,6 +2057,7 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         ##debug
         # layer_attention_dict = decode_attention_scores
 
+        print(f"query={query}")
         print(f"prefill attention time1 = {time_start_1 - time_start}")
         print(f"decode attention time1 = {time.time() - time_start_1}")
 
@@ -2043,6 +2065,44 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         # 聚合选中层的 attention
         layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
         multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+        ##fixme: mengyao_debug，用指定的方法进行冲排序，
+        if gold_docs is not None and resort_passages:
+            new_passages = []
+            gold_set = set(gold_docs)  # 转为集合，提升查询效率
+
+            for idx, passage in enumerate(passages):
+                if passage.strip("\n") in gold_set:
+                    sorted_index_before_resort.append(idx)
+
+            passage_scores = {}
+
+            ##fixme: 使用draftmodel去计算。
+            for idx, _ in enumerate(each_passages_tokens):
+                prev_len = sum(len(sublist) for sublist in each_passages_tokens[:idx])
+                cur_len = sum(len(sublist) for sublist in each_passages_tokens[:idx+1])
+                passage_scores[passages[idx]] = torch.sum(multi_layer_attn[prev_len:cur_len]) / len(each_passages_tokens[idx])
+
+            ##fixme: 使用最后一层去计算。
+            # for idx, passage in enumerate(passages):
+            #     passage_scores[passage] = mean_attn_weights[idx]
+
+            sorted_scores = sorted(passage_scores.items(),
+                                   key=lambda item: item[1].item(),  # 张量转标量
+                                   reverse=True)
+
+            for idx, (doc, score_tensor) in enumerate(sorted_scores):
+                # 将张量转为 Python 数值
+                score = score_tensor.cpu().item() if score_tensor.is_cuda else score_tensor.item()
+                new_passages.append(doc)
+
+                # 判断文档是否在 gold_set 中
+                if doc.strip("\n") in gold_set:
+                    # 使用 ANSI 黄色码（\033[93m）标黄文档内容，\033[0m 重置颜色
+                    print(f"分数: {score:.4f} \033[93m文档: {doc}\033[0m")
+                    sorted_index.append(idx)
+                else:
+                    print(f"分数: {score:.4f} 文档: {doc}")
 
         if save_attention_heatmap:
             save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
@@ -2074,6 +2134,7 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     weight = float(match.group(1)) if match else 1.0
     print(f"attention weight={weight}")
 
+    ## fixme： mengyao_debug 用compare_sim来加权
     if compare_sim is not None:
         # multi_layer_attn.fill_(1) ## 开启这个话就是不用attention分数了
         if "use_value" in keyword:
@@ -2119,11 +2180,13 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     selected_indices.extend(must_choose_token_indices)
     selected_indices = sorted(list(set(selected_indices)))
     if reverse_attn:
-        return highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer, query=query,
+        combine_tokens, all_recompute_tokens = highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer, query=query,
                                     passages_str=passages_with_system_prompt_str_list)
     else:
-        return highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
+        combine_tokens, all_recompute_tokens = highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
                                     passages_str=passages_with_system_prompt_str_list)
+
+    return combine_tokens, all_recompute_tokens, sorted_index, sorted_index_before_resort, new_passages
 
 
 

@@ -1,10 +1,10 @@
-import copy
-from typing import Dict, Union, Tuple, List
 import torch
-from torch import nn
-import itertools
 import time
 from ktransformers.util.utils import load_kv
+import os
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
 
 def compare_kv_cache_tokens(kv_tensor: torch.Tensor) -> dict:
@@ -61,6 +61,43 @@ def compare_kv_cache_tokens(kv_tensor: torch.Tensor) -> dict:
         "v_relative_difference": v_diff_matrix  # 值域 [0, 1]，越接近 0 越相似
     }
 
+def rotate_half(x):
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+def compute_gqa_attention_inplace(query: torch.Tensor, kv_tensor: torch.Tensor, model):
+    # rotary_emb = model.model.layers[0].self_attn.rotary_emb
+    # if hasattr(rotary_emb, 'inv_freq') and rotary_emb.inv_freq is not None:
+    #     rotary_device = rotary_emb.inv_freq.device
+    # else:
+    #     # Fallback: use the device of the first layer
+    #     rotary_device = next(model.model.layers[0].parameters()).device
+    #
+    # query = query.to(rotary_device)
+    # kv_tensor = kv_tensor.to(rotary_device)
+    #
+    # position_ids = torch.full((1, kv_tensor.shape[2]), kv_tensor.shape[2], device=rotary_device)
+    # chunk_key_for_rope = kv_tensor.to(rotary_device)
+    # cos, sin = rotary_emb(chunk_key_for_rope, position_ids)
+    # # mistral 限定
+    # cos = cos.unsqueeze(1).to(rotary_device)
+    # sin = sin.unsqueeze(1).to(rotary_device)
+    # kv_tensor = (kv_tensor * cos) + (rotate_half(kv_tensor) * sin)
+
+    # 1. 自动推导相关的维度
+    batch_size, q_head, q_len, head_dim = query.shape
+    _, kv_head, kv_len, _ = kv_tensor.shape
+
+    # 计算分组比例 (16 / 2 = 8)
+    num_queries_per_kv = q_head // kv_head
+    k_v_shuffled = kv_tensor.repeat_interleave(num_queries_per_kv, dim=1)
+    scale = 1.0 / (head_dim ** 0.5)
+    attn_weights = torch.matmul(query, k_v_shuffled.transpose(-2, -1)) * scale
+    output = torch.mean(attn_weights)
+    return output
+
 
 def load_kv_and_generate_draft_model(
         model,
@@ -73,6 +110,7 @@ def load_kv_and_generate_draft_model(
         device="cuda",
         device_map=None,
         hash_keys=None,
+        query_states:list=None,
         query="",
         keyword="",
         preprocess=False
@@ -93,8 +131,10 @@ def load_kv_and_generate_draft_model(
     value_cache = []
 
     chunk_ids = list(range(len(passages) - 1))
+    mean_attn_weights = []
 
     for idx, passage in enumerate(passages[:-1]):
+        ##fixme： mengyao_debug，第一个(system prompt)和第二个（首个文档）都是不需要preprocess的
         if idx >=2 and preprocess:
             chunk_key_cache = torch.load(f'{preprocess_load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to('cpu')
             chunk_value_cache = torch.load(f'{preprocess_load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
@@ -104,6 +144,13 @@ def load_kv_and_generate_draft_model(
             chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to('cpu')
         key_cache.append(chunk_key_cache)
         value_cache.append(chunk_value_cache)
+        if idx>=1:
+            mean_attn_weight = compute_gqa_attention_inplace(
+                query=query_states[0].to('cpu'),
+                kv_tensor=chunk_key_cache[0],
+                model=model
+            )
+            mean_attn_weights.append(mean_attn_weight)
     ## load kv cache
     past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len, query=query)
     past_len = load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values_compare, revert_rope, system_len, query=query)
@@ -150,7 +197,7 @@ def load_kv_and_generate_draft_model(
             )
 
 
-        return result
+        return result, mean_attn_weights
 
 
 def analyze_print_and_return_min_sim_map(
@@ -162,7 +209,7 @@ def analyze_print_and_return_min_sim_map(
 ) -> dict:
     """
     全量计算每个位置(Index)的 KV 拯救权重。
-    kv_combined_weight_map 采用先相乘相似度、再用 1 减的逻辑。
+    kv_combined_weight_map 直接计算 KV 拼接矩阵 [seq_len, 256] 的 Cos-Sim 差异。
     """
     assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
 
@@ -172,27 +219,38 @@ def analyze_print_and_return_min_sim_map(
     k_after = mean_key_after[0, 0, :, :].float()
     v_after = mean_value_after[0, 0, :, :].float()
 
-    # 2. 计算原始的 Cosine Similarity 向量
+    seq_len = k_before.shape[0]
+
+    # 2. 🚀【核心修改】：在 dim=-1 (128维度) 上将 K 和 V 拼接成 [seq_len, 256] 的联合向量
+    kv_before_cat = torch.cat([k_before, v_before], dim=-1)
+    kv_after_cat = torch.cat([k_after, v_after], dim=-1)
+
+    # 3. 向量化并行计算各部分的余弦相似度
     time_start = time.time()
+
+    # 分别算 K 和 V 用于满足原输出格式的分支
     k_cos = torch.cosine_similarity(k_before, k_after, dim=-1).cpu().numpy()
     v_cos = torch.cosine_similarity(v_before, v_after, dim=-1).cpu().numpy()
-    print(f"time to compute similarity: {time.time() - time_start}")
 
-    # 3. 🚀【核心修改】：先让 cos_sim 相乘，再用 1 减
-    kv_combined_cos = k_cos * v_cos
-    kv_combined_weight = 1.0 - kv_combined_cos
+    # 直接计算拼接后 256 维联合特征的相似度
+    kv_combined_cos = torch.cosine_similarity(kv_before_cat, kv_after_cat, dim=-1).cpu().numpy()
 
-    # 4. 分别转换成 1 - cos 权重用于满足原输出格式
+    print(f"time to compute similarity: {time.time() - time_start:.6f} s")
+
+    # 4. 统一转换成 1 - cos 的失真权重
     k_weights = 1.0 - k_cos
     v_weights = 1.0 - v_cos
+    kv_combined_weight = 1.0 - kv_combined_cos  # 联合整体差异
 
     # 5. 保持原格式顺序返回
-    seq_len = k_before.shape[0]
-    return {
+    result = {
         "key_min_sim_map": {i: float(k_weights[i]) for i in range(seq_len)},
         "value_min_sim_map": {i: float(v_weights[i]) for i in range(seq_len)},
         "kv_combined_weight_map": {i: float(kv_combined_weight[i]) for i in range(seq_len)}
     }
+    # plot_and_save_weight_distribution(result)
+    return result
+
 
 def analyze_print_and_return_max_mse_map(
         mean_key_before: torch.Tensor,
@@ -202,80 +260,118 @@ def analyze_print_and_return_max_mse_map(
         top_n: int = 10
 ) -> dict:
     """
-    找出 KV Cache 均方误差(MSE)最大的 Top-N 个 Token，打印排查结果，
-    并返回以原位置(Index)为 key，MSE 值为 value 的字典(Map)。
-
-    参数:
-        mean_key_before, mean_value_before: 优化前/对比组的 K, V Tensor [1, 2, x, 128]
-        mean_key_after, mean_value_after:   优化后/实验组的 K, V Tensor [1, 2, x, 128]
-        top_n: 需要排查的异常 Token 数量
-
-    返回:
-        dict: {
-            "key_max_mse_map": {int_idx: float_mse, ...},
-            "value_max_mse_map": {int_idx: float_mse, ...}
-        }
+    全量计算每个位置(Index)的 KV 均方误差(MSE)及联合拼接后的整体 MSE。
+    不进行任何排序与打印，保持高性能。
     """
     assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
 
-    # 1. 提取并压缩特征向量维度 -> [x, 128]
+    # 1. 提取特征向量维度 -> [seq_len, 128]
     k_before = mean_key_before[0, 0, :, :].float()
     v_before = mean_value_before[0, 0, :, :].float()
     k_after = mean_key_after[0, 0, :, :].float()
     v_after = mean_value_after[0, 0, :, :].float()
 
     seq_len = k_before.shape[0]
-    # 保持原逻辑：强制将 top_n 设为 seq_len 全量排序
-    top_n = seq_len
 
-    # 2. 【核心改动】计算各位置 Token 的 MSE (Mean Squared Error)
-    # 计算 (Before - After)^2 并在最后一个特征维度 (128) 上求平均
-    k_mse = torch.mean((k_before - k_after) ** 2, dim=-1)
-    v_mse = torch.mean((v_before - v_after) ** 2, dim=-1)
+    # 2. 🚀【核心修改】：在 dim=-1 上将 K 和 V 拼接成 [seq_len, 256] 的联合向量
+    kv_before_cat = torch.cat([k_before, v_before], dim=-1)
+    kv_after_cat = torch.cat([k_after, v_after], dim=-1)
 
-    # 3. 【核心改动】抓取 MSE 最大（差异最大）的 Top-N 个元素
-    # 注意：MSE 越大表示误差和差异越大，因此排序开关改为 largest=True
-    k_max_values, k_max_indices = torch.topk(k_mse, k=top_n, largest=True)
-    v_max_values, v_max_indices = torch.topk(v_mse, k=top_n, largest=True)
+    # 3. 向量化并行计算各部分的 MSE (Mean Squared Error)
+    k_mse = torch.mean((k_before - k_after) ** 2, dim=-1).cpu().numpy()
+    v_mse = torch.mean((v_before - v_after) ** 2, dim=-1).cpu().numpy()
 
-    # 4. 转换为 CPU NumPy 以进行打印和构建 Map
-    k_max_values_np = k_max_values.cpu().numpy()
-    k_max_indices_np = k_max_indices.cpu().numpy()
-    v_max_values_np = v_max_values.cpu().numpy()
-    v_max_indices_np = v_max_indices.cpu().numpy()
+    # 计算拼接后 256 维联合特征在每个位置的总平均 MSE
+    kv_combined_mse = torch.mean((kv_before_cat - kv_after_cat) ** 2, dim=-1).cpu().numpy()
 
-    # 5. 构建以位置(Index)为 key, MSE 值为 value 的 Map
-    key_max_mse_map = {int(idx): float(val) for idx, val in zip(k_max_indices_np, k_max_values_np)}
-    value_max_mse_map = {int(idx): float(val) for idx, val in zip(v_max_indices_np, v_max_values_np)}
-
-    # 6. 格式化打印排查报告（限制展示前 30 行，防止长序列爆终端）
-    print("=" * 70)
-    print(f"🚨 [异常排查] 均方误差（MSE差异最大）的 Top-{top_n} 个 Token 倒序列表")
-    print("=" * 70)
-
-    # 如果序列总长不足 30，自适应调整打印行数
-    print_range = min(30, seq_len)
-
-    print(f" 📂 分支 1: Key Cache 差异最大 Top-{print_range} (总样本: {top_n})")
-    print("-" * 55)
-    print(f"{'Rank':^6} | {'Token Index (原位置)':^22} | {'Key MSE':^18}")
-    print("-" * 55)
-    for r in range(print_range):
-        print(f"{r + 1:^6} | {k_max_indices_np[r]:^22} | {k_max_values_np[r]:^18.6f}")
-
-    print("\n" + "-" * 70 + "\n")
-
-    print(f" 📂 分支 2: Value Cache 差异最大 Top-{print_range} (总样本: {top_n})")
-    print("-" * 55)
-    print(f"{'Rank':^6} | {'Token Index (原位置)':^22} | {'Value MSE':^18}")
-    print("-" * 55)
-    for r in range(print_range):
-        print(f"{r + 1:^6} | {v_max_indices_np[r]:^22} | {v_max_values_np[r]:^18.6f}")
-
-    print("=" * 70)
-
-    # 7. 返回组装好的 map 结构
+    # 4. 保持原格式顺序返回（以自然位置 0, 1, 2... 为 key 的字典）
+    # 注：为了兼顾你外层脚本的 Key 命名，接口返回的 dict 键名维持原样，并新增第三个值
     return {
-        "key_min_sim_map": key_max_mse_map,
-        "value_min_sim_map": value_max_mse_map
+        "key_min_sim_map": {i: float(k_mse[i]) for i in range(seq_len)},
+        "value_min_sim_map": {i: float(v_mse[i]) for i in range(seq_len)},
+        "kv_combined_weight_map": {i: float(kv_combined_mse[i]) for i in range(seq_len)}
     }
+
+
+
+def plot_and_save_weight_distribution(sim_maps: dict, save_path: str = "weight_distribution.png"):
+    """
+    接收分析函数的返回字典，绘制 K、V 及 KV 拼接联合权重的全量分布图，并保存到本地。
+
+    参数:
+        sim_maps: 包含 "key_min_sim_map", "value_min_sim_map", "kv_combined_weight_map" 的字典
+        save_path: 本地图片保存路径
+    """
+    # 1. 提取数据并按 Index 排序（确保 X 轴顺序正确）
+    k_dict = sim_maps["key_min_sim_map"]
+    v_dict = sim_maps["value_min_sim_map"]
+    kv_dict = sim_maps["kv_combined_weight_map"]
+
+    indices = sorted(k_dict.keys())
+    seq_len = len(indices)
+
+    k_vals = [k_dict[i] for i in indices]
+    v_vals = [v_dict[i] for i in indices]
+    kv_vals = [kv_dict[i] for i in indices]
+
+    # 2. 设置学术图表风格
+    plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
+    fig, (ax_main, ax_top) = plt.subplots(2, 1, figsize=(15, 10), gridspec_kw={'height_ratios': [3, 2]})
+
+    # =========================================================================
+    # 子图 1: 全量 Token 权重分布走势图（折线 + 面积）
+    # =========================================================================
+    ax_main.plot(indices, k_vals, color='#1f77b4', alpha=0.8, linewidth=1.5, label='Key Weight (1-Cos)')
+    ax_main.fill_between(indices, k_vals, color='#1f77b4', alpha=0.1)
+
+    ax_main.plot(indices, v_vals, color='#2ca02c', alpha=0.8, linewidth=1.5, label='Value Weight (1-Cos)')
+    ax_main.fill_between(indices, v_vals, color='#2ca02c', alpha=0.1)
+
+    # 联合拼接特征由于是 256 维夹角，用醒目的紫色粗实线绘制
+    ax_main.plot(indices, kv_vals, color='#9467bd', alpha=0.9, linewidth=2.5, label='KV Combined Weight (1-Cat_Cos)')
+    ax_main.fill_between(indices, kv_vals, color='#9467bd', alpha=0.15)
+
+    ax_main.set_title(f"KV Cache Distortion Weight Distribution Across Sequence (Seq_Len: {seq_len})",
+                      fontsize=14, fontweight='bold', pad=15)
+    ax_main.set_ylabel("Distortion Weight (Higher = More Drift)", fontsize=12, fontweight='bold')
+    ax_main.set_xlabel("Token Sequence Index", fontsize=12, fontweight='bold')
+    ax_main.set_xlim(0, seq_len - 1)
+    ax_main.set_ylim(-0.02, max(max(k_vals), max(v_vals), max(kv_vals)) * 1.1)
+    ax_main.legend(loc='upper right', frameon=True, fontsize=11)
+
+    # =========================================================================
+    # 子图 2: Top-15 异常（失真最严重）Token 的横向对比柱状图
+    # =========================================================================
+    # 找出联合失真权重最大的 Top-15 个位置
+    top_n = min(15, seq_len)
+    top_indices = sorted(indices, key=lambda i: kv_dict[i], reverse=True)[:top_n]
+
+    x_labels = [f"Idx {i}" for i in top_indices]
+    top_k = [k_dict[i] for i in top_indices]
+    top_v = [v_dict[i] for i in top_indices]
+    top_kv = [kv_dict[i] for i in top_indices]
+
+    x = np.arange(top_n)
+    width = 0.25
+
+    ax_top.bar(x - width, top_k, width, label='Key Weight', color='#1f77b4', alpha=0.7)
+    ax_top.bar(x, top_v, width, label='Value Weight', color='#2ca02c', alpha=0.7)
+    ax_top.bar(x + width, top_kv, width, label='KV Combined', color='#9467bd', alpha=0.9)
+
+    ax_top.set_title(f"Top-{top_n} Most Distorted Tokens Analysis", fontsize=13, fontweight='bold', pad=10)
+    ax_top.set_xticks(x)
+    ax_top.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=10)
+    ax_top.set_ylabel("Weight Value", fontsize=12, fontweight='bold')
+    ax_top.legend(loc='upper right', frameon=True)
+
+    # 3. 规整布局并保存
+    plt.tight_layout()
+
+    # 自动创建不存在的父级目录
+    dir_name = os.path.dirname(save_path)
+    if dir_name and not os.path.exists(dir_name):
+        os.makedirs(dir_name, exist_ok=True)
+
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"📊 [📊 可视化成功] 权重分布图已成功保存至本地: {os.path.abspath(save_path)}")

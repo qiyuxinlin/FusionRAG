@@ -473,7 +473,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]] | Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]], Optional[torch.Tensor]]:
         if output_attentions:
             # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
             logger.warning_once(
@@ -657,7 +657,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
 
         attn_output = self.o_proj(attn_output)
 
-        return attn_output, None, past_key_value
+        return attn_output, None, past_key_value, query_states
 
 
 QWEN2_ATTENTION_CLASSES = {
@@ -718,18 +718,32 @@ class Qwen2DecoderLayer(nn.Module):
         residual = hidden_states
 
         hidden_states = self.input_layernorm(hidden_states)
+        query_states = None
 
         # Self Attention
-        hidden_states, self_attn_weights, present_key_value = self.self_attn(
-            hidden_states=hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_value=past_key_value,
-            output_attentions=output_attentions,
-            use_cache=use_cache,
-            cache_position=cache_position,
-            **kwargs,
-        )
+        if output_attentions:
+            hidden_states, self_attn_weights, present_key_value = self.self_attn(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_value=past_key_value,
+                output_attentions=output_attentions,
+                use_cache=use_cache,
+                cache_position=cache_position,
+                **kwargs,
+            )
+        else:
+            hidden_states, self_attn_weights, present_key_value, query_states = self.self_attn(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_value=past_key_value,
+                output_attentions=output_attentions,
+                use_cache=use_cache,
+                cache_position=cache_position,
+                **kwargs,
+            )
+
 
         # save_path = f"/mnt/data/xmy/mengyao_debug/torch/qwen2/"
         # if hidden_states.shape[1] > 1:
@@ -744,7 +758,7 @@ class Qwen2DecoderLayer(nn.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
-        outputs = (hidden_states,)
+        outputs = (hidden_states, query_states)
 
         if output_attentions:
             outputs += (self_attn_weights,)
@@ -926,6 +940,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         use_sparse_attention: bool = False,
         history_key_cache: list = [],
         early_exit_layer: Optional[int] = None,
+        query_states: Optional[List[torch.Tensor]] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -986,17 +1001,17 @@ class Qwen2Model(Qwen2PreTrainedModel):
             for lengths in range(chunk_size, q_len, chunk_size):
                 chunk_hidden_states[:, last_length:lengths], all_self_attns = self.forward_chunk(hidden_states[:, last_length:lengths], causal_mask[:,:,last_length:lengths],
                                    position_ids[:, last_length:lengths], past_key_values, output_attentions, use_cache,
-                                   cache_position[last_length:lengths], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
+                                   cache_position[last_length:lengths], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer, query_states)
                 last_length = lengths
             if lengths < q_len:
                 chunk_hidden_states[:, lengths:q_len], all_self_attns = self.forward_chunk(hidden_states[:, lengths:q_len], causal_mask[:,:,lengths:q_len],
                                    position_ids[:, lengths:q_len], past_key_values, output_attentions, use_cache,
-                                   cache_position[lengths:q_len], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
+                                   cache_position[lengths:q_len], reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer, query_states)
             hidden_states = self.norm(chunk_hidden_states)
         else:
             hidden_states, all_self_attns = self.forward_chunk(hidden_states, causal_mask,
                                    position_ids, past_key_values, output_attentions, use_cache,
-                                   cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer)
+                                   cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer, query_states)
             hidden_states = self.norm(hidden_states)
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -1015,7 +1030,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
             attentions=all_self_attns,
         )
 
-    def forward_chunk(self, hidden_states, causal_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer=None):
+    def forward_chunk(self, hidden_states, causal_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position,
+                      reprocess_method, passages_len, load_path, example_id, use_sparse_attention, history_key_cache, early_exit_layer=None,
+                      query_states: Optional[List[torch.Tensor]] = None):
         attentions = ()
         for layer_idx, decoder_layer in enumerate(self.layers):
 
@@ -1036,8 +1053,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
             )
 
             hidden_states = layer_outputs[0]
+            if query_states is not None:
+                query_states.append(layer_outputs[1])
             if output_attentions:
-                attentions += (layer_outputs[1],)
+                attentions += (layer_outputs[2],)
 
             # Early exit if specified (for CacheBlend)
             if early_exit_layer is not None and layer_idx + 1 >= early_exit_layer:
@@ -1178,6 +1197,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         use_sparse_attention: bool = False,
         history_key_cache: list = [],
         early_exit_layer: Optional[int] = None,
+        query_states: Optional[List[torch.Tensor]] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1230,6 +1250,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             use_sparse_attention=use_sparse_attention,
             history_key_cache=history_key_cache,
             early_exit_layer=early_exit_layer,
+            query_states=query_states
         )
 
         hidden_states = outputs[0]
