@@ -2156,7 +2156,10 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                 attn_weight_adjust=weight
             )
     else:
-        multi_layer_attn[0:len(first_passage_token)] = 0
+        if "recalc_first_doc" in keyword:
+            ""
+        else:
+            multi_layer_attn[0:len(first_passage_token)] = 0
 
     if reverse_attn:
         selected_indices = smart_query_selection(

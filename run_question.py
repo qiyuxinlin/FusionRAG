@@ -827,6 +827,7 @@ class FusionRAGModel:
                            gold_docs=None,
                            resort_passages=False
                            ):
+        print(f"draft_one_question query={query}")
         must_choose_token_indices = []
         sorted_index = []
         sorted_index_before_resort = []

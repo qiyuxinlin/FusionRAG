@@ -186,6 +186,14 @@ def load_kv_and_generate_draft_model(
                 mean_value_after,
                 top_n=50
             )
+        # elif "attention_times_value" in keyword:
+        #     result = analyze_print_and_return_value_distribution(
+        #         mean_key_before,
+        #         mean_value_before,
+        #         mean_key_after,
+        #         mean_value_after,
+        #         top_n=50
+        #     )
         else:
             ## 余弦相似度，越大越相似
             result = analyze_print_and_return_min_sim_map(
@@ -214,10 +222,10 @@ def analyze_print_and_return_min_sim_map(
     assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
 
     # 1. 提取特征向量维度 -> [seq_len, 128]
-    k_before = mean_key_before[0, 0, :, :].float()
-    v_before = mean_value_before[0, 0, :, :].float()
-    k_after = mean_key_after[0, 0, :, :].float()
-    v_after = mean_value_after[0, 0, :, :].float()
+    k_before = mean_key_before[0].transpose(0, 1).flatten(1).float()
+    v_before = mean_value_before[0].transpose(0, 1).flatten(1).float()
+    k_after = mean_key_after[0].transpose(0, 1).flatten(1).float()
+    v_after = mean_value_after[0].transpose(0, 1).flatten(1).float()
 
     seq_len = k_before.shape[0]
 
@@ -266,10 +274,10 @@ def analyze_print_and_return_max_mse_map(
     assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
 
     # 1. 提取特征向量维度 -> [seq_len, 128]
-    k_before = mean_key_before[0, 0, :, :].float()
-    v_before = mean_value_before[0, 0, :, :].float()
-    k_after = mean_key_after[0, 0, :, :].float()
-    v_after = mean_value_after[0, 0, :, :].float()
+    k_before = mean_key_before[0].transpose(0, 1).flatten(1).float()
+    v_before = mean_value_before[0].transpose(0, 1).flatten(1).float()
+    k_after = mean_key_after[0].transpose(0, 1).flatten(1).float()
+    v_after = mean_value_after[0].transpose(0, 1).flatten(1).float()
 
     seq_len = k_before.shape[0]
 
