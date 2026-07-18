@@ -908,6 +908,42 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     else:
         torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
+def prefill_straight_and_save_preprocess(
+        model,
+        past_key_values,
+        passages,
+        last_passage_len: int,
+        save_path='',
+        device="cuda",
+        device_map=None,
+        hash_key_="",
+        preprocess_hash_key=""
+    ):
+
+    # Determine input device: use first GPU if device_map provided, otherwise use device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
+    inputs = passages.unsqueeze(0).to(input_device)
+    passage_len = passages.shape[0]
+    cache_position = torch.arange(0, passage_len, device=input_device)
+    time_start = time.time()
+    with torch.no_grad():
+        inputs_embeds = model.model.embed_tokens(inputs).to(input_device)
+        logits = model(
+            inputs_embeds=inputs_embeds, cache_position=cache_position,
+            past_key_values=past_key_values, return_dict=False, use_cache=True
+        )[0][:, -1, :].unsqueeze(0).clone().to(input_device)
+    print(f"preprocess time={time.time() - time_start}")
+    # Move to CPU to handle multi-GPU scenarios where different layers are on different devices
+    key_cache = torch.stack([cache.cpu() for cache in past_key_values.key_cache])[:,:,:, passage_len - last_passage_len: passage_len,:]
+    value_cache = torch.stack([cache.cpu() for cache in past_key_values.value_cache])[:,:,:, passage_len - last_passage_len: passage_len,:]
+    if preprocess_hash_key != "":
+        hash_key = f"{preprocess_hash_key}_{hash_key_}"
+    else:
+        hash_key = hash_key_
+    torch.save(key_cache.clone(), f'{save_path}/{hash_key}_key.pt')
+    torch.save(value_cache.clone(), f'{save_path}/{hash_key}_value.pt')
+
+    torch.cuda.empty_cache()
 
 def get_multilayer_attn_with_answer(passages, draft_model, draft_model_device, tokenizer, entropy_top_k=4):
     full_input = torch.cat(passages).unsqueeze(0).to(draft_model_device)

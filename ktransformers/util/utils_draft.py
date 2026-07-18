@@ -1,5 +1,8 @@
 import torch
 import time
+
+from numpy import ndarray
+
 from ktransformers.util.utils import load_kv
 import os
 import matplotlib.pyplot as plt
@@ -99,7 +102,138 @@ def compute_gqa_attention_inplace(query: torch.Tensor, kv_tensor: torch.Tensor, 
     return output
 
 
-def load_kv_and_generate_draft_model(
+def find_closest_tensor_idx(query_tensor: torch.Tensor, tensor_list: list[torch.Tensor]) -> int:
+    if not tensor_list:
+        raise ValueError("输入的 tensor_list 不能为空！")
+
+    best_idx = -1
+    min_mse = float('inf')  # 初始化为一个无穷大的数
+
+    for idx, t in enumerate(tensor_list):
+        # 计算均方误差：(t1 - t2) 平方后的平均值
+        # 使用 .item() 将单元素 Tensor 转换为 Python 的 float 类型，方便比较与提升性能
+        mse = torch.mean((query_tensor - t) ** 2).item()
+
+        if mse < min_mse:
+            min_mse = mse
+            best_idx = idx
+
+    return best_idx
+
+
+def calculate_mse(tensor_a: torch.Tensor, tensor_b: torch.Tensor) -> float:
+    """
+    计算两个 Tensor 之间的均方误差 (MSE)，并返回一个 float。
+    """
+    if tensor_a.shape != tensor_b.shape:
+        raise ValueError(f"Tensor 形状不匹配: {tensor_a.shape} vs {tensor_b.shape}")
+    mse_tensor = torch.nn.functional.mse_loss(tensor_a.float(), tensor_b.float()).cpu()
+    return mse_tensor.item()
+
+def draft_model_find_most_similar_copy(
+        model,
+        passages: list[torch.Tensor],
+        past_key_values,
+        raw_load_path: str,
+        preprocess_load_path: str,
+        device: str,
+        is_preprocess_list: list[bool],
+        preprocess_cache_keys: list[list[str]],
+        hash_keys: list[str],
+        device_map=None,
+):
+    system_len = passages[0].shape[0]
+    passages_len_wo_query = [passage.shape[0] for passage in passages[:-1]] ##不算query
+    total_len_wo_query = sum(passages_len_wo_query)
+    # Determine input device: use first GPU if device_map provided, otherwise use device
+    input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
+    all_key_cache = []
+    all_value_cache = []
+    for idx, passage in enumerate(passages[:-1]):
+        key_cache = []
+        value_cache = []
+        if is_preprocess_list[idx]:
+            load_path = preprocess_load_path
+            for preprocess_cache_key_ in preprocess_cache_keys[idx]:
+                if preprocess_cache_key_ != "":
+                    preprocess_cache_key = preprocess_cache_key_ + "_"
+                else:
+                    preprocess_cache_key = ""
+                chunk_key_cache = torch.load(f'{load_path}/{preprocess_cache_key}{hash_keys[idx]}_key.pt', weights_only=True).to(device)
+                chunk_value_cache = torch.load(f'{load_path}/{preprocess_cache_key}{hash_keys[idx]}_value.pt', weights_only=True).to(device)
+                key_cache.append(chunk_key_cache)
+                value_cache.append(chunk_value_cache)
+        else:
+            load_path = raw_load_path
+            chunk_key_cache = torch.load(f'{load_path}/{hash_keys[idx]}_key.pt', weights_only=True).to(device)
+            chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to(device)
+            key_cache.append(chunk_key_cache)
+            value_cache.append(chunk_value_cache)
+        all_key_cache.append(key_cache)
+        all_value_cache.append(value_cache)
+
+    with torch.no_grad():
+        passages_len = [passage.shape[0] for passage in passages]
+        passages_len_sum = sum(passages_len)
+        k_need_index = [i for i in range(passages_len_sum)]
+        cache_position = torch.tensor(k_need_index, device=input_device)
+        reprocess_inputs = torch.cat(passages)[k_need_index].unsqueeze(0).to(input_device)
+        inputs_embeds = model.model.embed_tokens(reprocess_inputs).to(input_device)
+        model_output = model(
+            inputs_embeds=inputs_embeds, cache_position=cache_position,
+            past_key_values=past_key_values, return_dict=False, use_cache=True,
+            use_sparse_attention=False,
+        )[0]
+
+        key_after = torch.stack(past_key_values.key_cache)[:, :, :, :total_len_wo_query, :]
+        value_after = torch.stack(past_key_values.value_cache)[:, :, :, :total_len_wo_query, :]
+        chosen_md5 = []
+        chosen_md5_idx = []
+        mean_key_before_list = [None for i in range(len(passages)-2)]
+        mean_value_before_list = [None for i in range(len(passages)-2)]
+        for psg_idx in range(len(passages_len_wo_query)):
+            if not is_preprocess_list[psg_idx]:
+                chosen_md5.append("")
+                chosen_md5_idx.append(-1) ## no preprocess
+                if psg_idx > 0:
+                    mean_key_before_list[psg_idx - 1] = all_key_cache[psg_idx][0]
+                    mean_value_before_list[psg_idx - 1] = all_value_cache[psg_idx][0]
+            else:
+                start_idx = sum(passages_len_wo_query[:psg_idx])
+                end_idx = sum(passages_len_wo_query[:psg_idx+1])
+                passage_key = key_after[:, :, :, start_idx:end_idx, :]
+                passage_value = value_after[:, :, :, start_idx:end_idx, :]
+                key_cache_list = all_key_cache[psg_idx]
+                value_cache_list = all_value_cache[psg_idx]
+                mse_min = 10e10
+                min_hash_idx = -1
+                for idx in range(len(key_cache_list)):
+                    k_mse = calculate_mse(passage_key, key_cache_list[idx])
+                    v_mse = calculate_mse(passage_value, value_cache_list[idx])
+                    if k_mse + v_mse < mse_min:
+                        min_hash_idx = idx
+                        mean_key_before_list[psg_idx-1] = key_cache_list[idx] ## -1是为了减去system prompt
+                        mean_value_before_list[psg_idx-1] = value_cache_list[idx]
+                chosen_md5.append(preprocess_cache_keys[psg_idx][min_hash_idx])
+                chosen_md5_idx.append(min_hash_idx)
+
+        mean_key_after = torch.stack(past_key_values.key_cache).mean(dim=0)[:, :, system_len:total_len_wo_query, :]
+        mean_value_after = torch.stack(past_key_values.value_cache).mean(dim=0)[:, :, system_len:total_len_wo_query, :]
+        mean_key_before = torch.cat(mean_key_before_list, dim=3).mean(dim=0)
+        mean_value_before = torch.cat(mean_value_before_list, dim=3).mean(dim=0)
+
+        compare_sim = analyze_print_and_return_max_mse_map(
+            mean_key_before,
+            mean_value_before,
+            mean_key_after,
+            mean_value_after,
+            top_n=50
+        )
+        return chosen_md5, chosen_md5_idx, compare_sim
+
+
+
+def draft_model_compare_kv_similarity(
         model,
         past_key_values,
         past_key_values_compare,
@@ -186,14 +320,6 @@ def load_kv_and_generate_draft_model(
                 mean_value_after,
                 top_n=50
             )
-        # elif "attention_times_value" in keyword:
-        #     result = analyze_print_and_return_value_distribution(
-        #         mean_key_before,
-        #         mean_value_before,
-        #         mean_key_after,
-        #         mean_value_after,
-        #         top_n=50
-        #     )
         else:
             ## 余弦相似度，越大越相似
             result = analyze_print_and_return_min_sim_map(
