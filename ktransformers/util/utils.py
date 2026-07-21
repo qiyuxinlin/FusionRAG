@@ -1069,6 +1069,21 @@ def get_multilayer_attn_sep(passages, draft_model, draft_model_device, entropy_t
         multi_layer_attns.append(multi_layer_attn)
     return multi_layer_attns
 
+
+def revert_key_cache(model, chunk_key_cache, cache_save_idx: int, cache_use_idx: int):
+    rotary_emb = model.model.layers[0].self_attn.rotary_emb
+    if hasattr(rotary_emb, 'inv_freq') and rotary_emb.inv_freq is not None:
+        rotary_device = rotary_emb.inv_freq.device
+    else:
+        # Fallback: use the device of the first layer
+        rotary_device = next(model.model.layers[0].parameters()).device
+
+    position_ids = torch.full((1, chunk_key_cache[0].shape[2]), cache_use_idx - cache_save_idx, device=rotary_device)
+    chunk_key_for_rope = chunk_key_cache[0].to(rotary_device)
+    cos, sin = rotary_emb(chunk_key_for_rope, position_ids)
+    chunk_key_cache = (chunk_key_cache * cos) + (rotate_half(chunk_key_cache) * sin)
+    return chunk_key_cache
+
 def load_kv(model, passages, chunk_ids, key_cache, value_cache, input_device, past_key_values, revert_rope, system_len, query=""):
     past_len = 0
     start_time = time.time()
@@ -2079,82 +2094,21 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
             doc_len = len(passages_tokens),
             reverse=reverse_attn
         )
-
         time_start_1 = time.time()
-        # decode_attention_scores = compute_draft_model_decode_attention(
-        #     tokenizer=tokenizer,
-        #     draft_model=draft_model,
-        #     input_ids=full_input_tensor,
-        #     system_len = len(system_prompt_tokens),
-        #     doc_len = len(passages_tokens),
-        #     token_max = 20
-        # )
-
-        ##debug
-        # layer_attention_dict = decode_attention_scores
 
         print(f"query={query}")
         print(f"prefill attention time1 = {time_start_1 - time_start}")
-        print(f"decode attention time1 = {time.time() - time_start_1}")
 
         active_layers = [k for k, v in layer_attention_dict.items()]
         # 聚合选中层的 attention
         layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
         multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
-        ##fixme: mengyao_debug，用指定的方法进行冲排序，
-        if gold_docs is not None and resort_passages:
-            new_passages = []
-            gold_set = set(gold_docs)  # 转为集合，提升查询效率
-
-            for idx, passage in enumerate(passages):
-                if passage.strip("\n") in gold_set:
-                    sorted_index_before_resort.append(idx)
-
-            passage_scores = {}
-
-            ##fixme: 使用draftmodel去计算。
-            for idx, _ in enumerate(each_passages_tokens):
-                prev_len = sum(len(sublist) for sublist in each_passages_tokens[:idx])
-                cur_len = sum(len(sublist) for sublist in each_passages_tokens[:idx+1])
-                passage_scores[passages[idx]] = torch.sum(multi_layer_attn[prev_len:cur_len]) / len(each_passages_tokens[idx])
-
-            ##fixme: 使用最后一层去计算。
-            # for idx, passage in enumerate(passages):
-            #     passage_scores[passage] = mean_attn_weights[idx]
-
-            sorted_scores = sorted(passage_scores.items(),
-                                   key=lambda item: item[1].item(),  # 张量转标量
-                                   reverse=True)
-
-            for idx, (doc, score_tensor) in enumerate(sorted_scores):
-                # 将张量转为 Python 数值
-                score = score_tensor.cpu().item() if score_tensor.is_cuda else score_tensor.item()
-                new_passages.append(doc)
-
-                # 判断文档是否在 gold_set 中
-                if doc.strip("\n") in gold_set:
-                    # 使用 ANSI 黄色码（\033[93m）标黄文档内容，\033[0m 重置颜色
-                    print(f"分数: {score:.4f} \033[93m文档: {doc}\033[0m")
-                    sorted_index.append(idx)
-                else:
-                    print(f"分数: {score:.4f} 文档: {doc}")
-
         if save_attention_heatmap:
             save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
             save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
                                 "/tmp/ppr_distribution_2d.jpg")
 
-        ## use ppr
-        # x = layer_attention_scores_matrix_square.size(0)
-        # s = torch.zeros(x, 1, dtype=layer_attention_scores_matrix_square.dtype, device=layer_attention_scores_matrix_square.device)
-        # # 2. 将最后 10 个元素赋值为 1/10 (即 0.1)
-        # s[-len(query_tokens):] = 1/len(query_tokens)
-        # matrix_square = power_iteration_ppr_tensor(layer_attention_scores_matrix_square, s)
-        #
-        # matrix_square = matrix_square.squeeze(dim=1)
-        # matrix_square = matrix_square[len(system_prompt_tokens) : len(system_prompt_tokens) + len(passages_tokens)]
-        # multi_layer_attn = matrix_square
     else:
         result = call_remote_draft_model(
             system_prompt=system_prompt,
@@ -2192,10 +2146,11 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                 attn_weight_adjust=weight
             )
     else:
-        if "recalc_first_doc" in keyword:
-            ""
-        else:
-            multi_layer_attn[0:len(first_passage_token)] = 0
+        ""
+        # if "recalc_first_doc" in keyword:
+        #     ""
+        # else:
+        #     multi_layer_attn[0:len(first_passage_token)] = 0
 
     if reverse_attn:
         selected_indices = smart_query_selection(

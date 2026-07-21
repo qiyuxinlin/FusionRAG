@@ -3,7 +3,7 @@ import time
 
 from numpy import ndarray
 
-from ktransformers.util.utils import load_kv
+from ktransformers.util.utils import load_kv, revert_key_cache
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -139,6 +139,7 @@ def draft_model_find_most_similar_copy(
         device: str,
         is_preprocess_list: list[bool],
         preprocess_cache_keys: list[list[str]],
+        all_preprocess_doc_prefix_lens: list[list[int]],
         hash_keys: list[str],
         device_map=None,
 ):
@@ -154,12 +155,18 @@ def draft_model_find_most_similar_copy(
         value_cache = []
         if is_preprocess_list[idx]:
             load_path = preprocess_load_path
-            for preprocess_cache_key_ in preprocess_cache_keys[idx]:
+            for cache_copy_idx, preprocess_cache_key_ in enumerate(preprocess_cache_keys[idx]):
                 if preprocess_cache_key_ != "":
                     preprocess_cache_key = preprocess_cache_key_ + "_"
                 else:
                     preprocess_cache_key = ""
+                cache_copy_prefix_len = all_preprocess_doc_prefix_lens[idx][cache_copy_idx]
+                cache_copy_use_len = sum([x.shape[0] for x in passages[:idx]])
                 chunk_key_cache = torch.load(f'{load_path}/{preprocess_cache_key}{hash_keys[idx]}_key.pt', weights_only=True).to(device)
+                ## rope
+                chunk_key_cache = revert_key_cache(model, chunk_key_cache,
+                                                   cache_save_idx=cache_copy_prefix_len,
+                                                   cache_use_idx=cache_copy_use_len)
                 chunk_value_cache = torch.load(f'{load_path}/{preprocess_cache_key}{hash_keys[idx]}_value.pt', weights_only=True).to(device)
                 key_cache.append(chunk_key_cache)
                 value_cache.append(chunk_value_cache)
@@ -211,6 +218,7 @@ def draft_model_find_most_similar_copy(
                     k_mse = calculate_mse(passage_key, key_cache_list[idx])
                     v_mse = calculate_mse(passage_value, value_cache_list[idx])
                     if k_mse + v_mse < mse_min:
+                        mse_min = k_mse + v_mse
                         min_hash_idx = idx
                         mean_key_before_list[psg_idx-1] = key_cache_list[idx] ## -1是为了减去system prompt
                         mean_value_before_list[psg_idx-1] = value_cache_list[idx]

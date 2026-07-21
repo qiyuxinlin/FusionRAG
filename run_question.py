@@ -211,7 +211,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=draft_model_device,
                 dtype=self.draft_model.dtype,
-                passage_len=8192
+                passage_len=16384
             )
             self.draft_past_key_values_back = StaticCache(
                 config=self.draft_model.config,
@@ -219,7 +219,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=draft_model_device,
                 dtype=self.draft_model.dtype,
-                passage_len=8192
+                passage_len=16384
             )
         if use_multi_gpu:
             self.input_device = "cuda:0"  # First GPU for inputs
@@ -380,7 +380,7 @@ class FusionRAGModel:
 
     def preprocess_one_document_multicopy(self, system_prompt: str, document: str,
                                           all_kinds_preprocess_similar_docs: dict[str, list[list[str]]],
-                                          is_draft_model=False,) -> list[str]:
+                                          is_draft_model=False) -> (list[str], list[int]):
         if not is_draft_model:
             tokenizer = self.tokenizer
             save_path = self.save_path
@@ -405,21 +405,26 @@ class FusionRAGModel:
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
         current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
         all_preprocess_hash_keys = []
+        all_preprocess_prefix_len = []
 
         for similar_docs in all_kinds_preprocess_similar_docs[document]:
-            preprocess_hash_key = hashlib.md5("".join(similar_docs).encode('utf-8')).hexdigest()
-            all_preprocess_hash_keys.append(preprocess_hash_key)
-            print(f"for doc={current_doc}\n current_hash_key={current_hash_key} preprocess_hash_key={preprocess_hash_key}")
-            if os.path.exists(f'{preprocess_save_path}/{preprocess_hash_key}_{current_hash_key}_value.pt') \
-                    and os.path.exists(f'{preprocess_save_path}/{preprocess_hash_key}_{current_hash_key}_key.pt'):
-                continue
-            all_doc_tensors = [system_tensor]
-
             # 1. 得到token tensor
+            time_start = time.time()
+            all_doc_tensors = [system_tensor]
             for similar_doc_text in similar_docs:
                 doc_tokens = tokenizer.encode(similar_doc_text, add_special_tokens=False)
                 doc_tensor = torch.tensor(doc_tokens, dtype=torch.long)
                 all_doc_tensors.append(doc_tensor)
+            # print(f"time encode={time.time() - time_start}")
+
+            preprocess_hash_key = hashlib.md5("".join(similar_docs).encode('utf-8')).hexdigest()
+            all_preprocess_prefix_len.append(sum([len(x) for x in all_doc_tensors]))
+            all_preprocess_hash_keys.append(preprocess_hash_key)
+            # print(f"for doc={current_doc}\n current_hash_key={current_hash_key} preprocess_hash_key={preprocess_hash_key}")
+            if os.path.exists(f'{preprocess_save_path}/{preprocess_hash_key}_{current_hash_key}_value.pt') \
+                    and os.path.exists(f'{preprocess_save_path}/{preprocess_hash_key}_{current_hash_key}_key.pt'):
+                continue
+
 
             all_doc_tensors.append(current_doc_tensor)
             passages = torch.cat(all_doc_tensors)
@@ -440,7 +445,7 @@ class FusionRAGModel:
             else:
                 self.clean_draft_model_kv_cache()
             print(f"[preprocess_all_documents] takes {time.time()-time_start} seconds")
-        return all_preprocess_hash_keys
+        return all_preprocess_hash_keys, all_preprocess_prefix_len
 
     def preprocess_one_document(self, system_prompt: str, document: str, reprocess_method: str, revert_rope: bool, is_draft_model=False):
         if not is_draft_model:
@@ -472,7 +477,7 @@ class FusionRAGModel:
         current_doc_tokens = tokenizer.encode(current_doc, add_special_tokens=False)
         current_doc_tensor = torch.tensor(current_doc_tokens, dtype=torch.long)
         current_hash_key = hashlib.md5(current_doc_tensor.cpu().numpy().tobytes()).hexdigest()
-        print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
+        # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
         if os.path.exists(f'{preprocess_save_path}/{current_hash_key}_value.pt') \
                 and os.path.exists(f'{preprocess_save_path}/{current_hash_key}_key.pt'):
             # print(f"preprocess_all_documents skipping doc {current_doc}.")
@@ -986,14 +991,16 @@ class FusionRAGModel:
 
         ##todo 1. 生成所有的preprocess cache
         all_preprocess_hash_keys = [[""]] ## the first is system cache
+        all_preprocess_doc_prefix_lens = [[0]]
         for passage in passages:
-            preprocess_hash_keys = self.preprocess_one_document_multicopy(
+            preprocess_hash_keys, preprocess_prefix_lens = self.preprocess_one_document_multicopy(
                 system_prompt=system_prompt,
                 document=passage,
                 all_kinds_preprocess_similar_docs=all_kinds_preprocess_similar_docs,
                 is_draft_model=True
             )
             all_preprocess_hash_keys.append(preprocess_hash_keys)
+            all_preprocess_doc_prefix_lens.append(preprocess_prefix_lens)
 
         ##todo 2. 在所有preprocess里面找到最好的版本
         hash_keys = []
@@ -1024,10 +1031,12 @@ class FusionRAGModel:
             device_map=None,
             hash_keys=hash_keys,
             preprocess_cache_keys=all_preprocess_hash_keys,
+            all_preprocess_doc_prefix_lens=all_preprocess_doc_prefix_lens,
             is_preprocess_list=is_preprocess_list
         )
 
         chosen_preprocess_similar_docs = []
+        print(f"chosen_md5_idx = {chosen_md5_idx}")
         for idx, md5_idx in enumerate(chosen_md5_idx[1:]): ## 第一个是system prompt
             passage = passages[idx]
             if md5_idx == -1:
@@ -1163,7 +1172,6 @@ class FusionRAGModel:
                     device_map=None
                 )
                 self.clean_draft_model_kv_cache()
-                print(f"  Generated KV cache for document {chunk_id}/{len(doc_tensor)}")
 
         # 3.
         if preprocess:
