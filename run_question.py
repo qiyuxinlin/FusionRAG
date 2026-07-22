@@ -19,6 +19,7 @@ from ktransformers.util.utils import (
     rotate_half,
     find_group_and_index,
     find_all_substr_needs_recompute,
+    find_all_substr_needs_recompute_and_choose_from_copies,
     find_all_substr_needs_recompute_relevance,
     find_all_substr_needs_recompute_entropy,
     rerank
@@ -444,7 +445,6 @@ class FusionRAGModel:
                 self.clean_kv_cache()
             else:
                 self.clean_draft_model_kv_cache()
-            print(f"[preprocess_all_documents] takes {time.time()-time_start} seconds")
         return all_preprocess_hash_keys, all_preprocess_prefix_len
 
     def preprocess_one_document(self, system_prompt: str, document: str, reprocess_method: str, revert_rope: bool, is_draft_model=False):
@@ -977,6 +977,7 @@ class FusionRAGModel:
             all_kinds_preprocess_similar_docs: dict[str, list[list[str]]],
             keyword: str,
             rate: float,
+            use_weighted_diff_attention: bool
     ):
         print(f"draft_one_question query={query}")
         ##1. 只是为了生成所有raw cache，所以既不需要preprocess，也不需要do_compare
@@ -992,6 +993,7 @@ class FusionRAGModel:
         ##todo 1. 生成所有的preprocess cache
         all_preprocess_hash_keys = [[""]] ## the first is system cache
         all_preprocess_doc_prefix_lens = [[0]]
+        time_start = time.time()
         for passage in passages:
             preprocess_hash_keys, preprocess_prefix_lens = self.preprocess_one_document_multicopy(
                 system_prompt=system_prompt,
@@ -1001,6 +1003,7 @@ class FusionRAGModel:
             )
             all_preprocess_hash_keys.append(preprocess_hash_keys)
             all_preprocess_doc_prefix_lens.append(preprocess_prefix_lens)
+        print(f"[preprocess_all_documents] takes {time.time()-time_start} seconds")
 
         ##todo 2. 在所有preprocess里面找到最好的版本
         hash_keys = []
@@ -1021,7 +1024,8 @@ class FusionRAGModel:
         is_preprocess_list = [True for i in range(len(passages)+1)]
         is_preprocess_list[0] = False
         is_preprocess_list[1] = False
-        chosen_md5, chosen_md5_idx, compare_sim = draft_model_find_most_similar_copy(
+        # chosen_md5, chosen_md5_idx, compare_sim = draft_model_find_most_similar_copy(
+        key_cache_copies_list, value_cache_copies_list, draft_model_prefilled_key_cache, draft_model_prefilled_value_cache = draft_model_find_most_similar_copy(
             model=self.draft_model,
             passages=iter_tokens,
             past_key_values=self.draft_past_key_values,
@@ -1035,17 +1039,26 @@ class FusionRAGModel:
             is_preprocess_list=is_preprocess_list
         )
 
-        chosen_preprocess_similar_docs = []
-        print(f"chosen_md5_idx = {chosen_md5_idx}")
-        for idx, md5_idx in enumerate(chosen_md5_idx[1:]): ## 第一个是system prompt
-            passage = passages[idx]
-            if md5_idx == -1:
-                chosen_preprocess_similar_docs.append([])
-            else:
-                chosen_prefix_list = all_kinds_preprocess_similar_docs[passage]
-                chosen_preprocess_similar_docs.append(chosen_prefix_list[md5_idx])
+        # recompute_tokens, recompute_tokens_list, sorted_index, sorted_index_before_resort, passages = find_all_substr_needs_recompute(
+        #     draft_model=self.draft_model,
+        #     draft_model_device=self.draft_model_device,
+        #     tokenizer=self.draft_model_tokenizer,
+        #     system_prompt=system_prompt,
+        #     passages=passages,
+        #     query=query,
+        #     rate=rate,
+        #     must_choose_token_indices=[],
+        #     reverse_attn=False,
+        #     use_local_draft_model=self.use_local_draft_model,
+        #     draft_model_url=self.draft_model_url,
+        #     compare_sim=compare_sim,
+        #     keyword=keyword,
+        #     gold_docs=[],
+        #     resort_passages=False,
+        #     mean_attn_weights=None
+        # )
 
-        recompute_tokens, recompute_tokens_list, sorted_index, sorted_index_before_resort, passages = find_all_substr_needs_recompute(
+        chosen_md5, chosen_md5_idx, recompute_tokens, recompute_tokens_list, sorted_index, sorted_index_before_resort, passages = find_all_substr_needs_recompute_and_choose_from_copies(
             draft_model=self.draft_model,
             draft_model_device=self.draft_model_device,
             tokenizer=self.draft_model_tokenizer,
@@ -1057,12 +1070,27 @@ class FusionRAGModel:
             reverse_attn=False,
             use_local_draft_model=self.use_local_draft_model,
             draft_model_url=self.draft_model_url,
-            compare_sim=compare_sim,
             keyword=keyword,
-            gold_docs=[],
-            resort_passages=False,
-            mean_attn_weights=None
+            key_cache_copies_list=key_cache_copies_list,
+            value_cache_copies_list=value_cache_copies_list,
+            draft_model_prefilled_key_cache=draft_model_prefilled_key_cache,
+            draft_model_prefilled_value_cache=draft_model_prefilled_value_cache,
+            is_preprocess_list=is_preprocess_list,
+            preprocess_cache_keys=all_preprocess_hash_keys,
+            past_key_values=self.draft_past_key_values,
+            use_weighted_diff_attention=use_weighted_diff_attention
         )
+
+        chosen_preprocess_similar_docs = []
+        print(f"chosen_md5_idx = {chosen_md5_idx}")
+        for idx, md5_idx in enumerate(chosen_md5_idx[1:]): ## 第一个是system prompt
+            passage = passages[idx]
+            if md5_idx == -1:
+                chosen_preprocess_similar_docs.append([])
+            else:
+                chosen_prefix_list = all_kinds_preprocess_similar_docs[passage]
+                chosen_preprocess_similar_docs.append(chosen_prefix_list[md5_idx])
+
         return recompute_tokens, recompute_tokens_list, rate, chosen_preprocess_similar_docs, chosen_md5, is_preprocess_list
 
 

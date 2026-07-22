@@ -932,7 +932,7 @@ def prefill_straight_and_save_preprocess(
             inputs_embeds=inputs_embeds, cache_position=cache_position,
             past_key_values=past_key_values, return_dict=False, use_cache=True
         )[0][:, -1, :].unsqueeze(0).clone().to(input_device)
-    print(f"preprocess time={time.time() - time_start}")
+    # print(f"preprocess time={time.time() - time_start}")
     # Move to CPU to handle multi-GPU scenarios where different layers are on different devices
     key_cache = torch.stack([cache.cpu() for cache in past_key_values.key_cache])[:,:,:, passage_len - last_passage_len: passage_len,:]
     value_cache = torch.stack([cache.cpu() for cache in past_key_values.value_cache])[:,:,:, passage_len - last_passage_len: passage_len,:]
@@ -2104,6 +2104,9 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
         layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
         multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
 
+        ##fixme: debug:
+        # multi_layer_attn[0:len(each_passages_tokens[0])] = 0.0
+
         if save_attention_heatmap:
             save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
             save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
@@ -2145,12 +2148,6 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                 compare_sim["key_min_sim_map"], ## value_min_sim_map,
                 attn_weight_adjust=weight
             )
-    else:
-        ""
-        # if "recalc_first_doc" in keyword:
-        #     ""
-        # else:
-        #     multi_layer_attn[0:len(first_passage_token)] = 0
 
     if reverse_attn:
         selected_indices = smart_query_selection(
@@ -2181,6 +2178,200 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                                     passages_str=passages_with_system_prompt_str_list)
 
     return combine_tokens, all_recompute_tokens, sorted_index, sorted_index_before_resort, new_passages
+
+
+def find_all_substr_needs_recompute_and_choose_from_copies(draft_model, draft_model_device, tokenizer, system_prompt: str, past_key_values,
+                                    key_cache_copies_list: list[list[torch.Tensor]], value_cache_copies_list: list[list[torch.Tensor]],
+                                    draft_model_prefilled_key_cache: torch.Tensor, draft_model_prefilled_value_cache: torch.Tensor,
+                                    is_preprocess_list: list[bool], preprocess_cache_keys: list[list[str]], use_weighted_diff_attention: bool,
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
+                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, keyword="",
+                                    )\
+        -> Tuple[List, List, List[str], List[List[str]], List[int], List[int], List[str]]:
+    system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
+    passages_with_system_prompt_str_list = [system_prompt]
+    passages_with_system_prompt_str_list.extend(passages)
+    each_passages_tokens = []
+    passages_tokens = []
+    sorted_index = []
+    sorted_index_before_resort = []
+    new_passages = copy.deepcopy(passages)
+    passages_len_wo_query = [len(system_prompt_tokens)]
+    for passage in passages:
+        each_passages_tokens.append(tokenizer.encode(passage, add_special_tokens = False))
+        passages_len_wo_query.append(len(each_passages_tokens[-1]))
+        passages_tokens.extend(each_passages_tokens[-1])
+
+    query_tokens = tokenizer.encode(query, add_special_tokens = False)
+    full_input = system_prompt_tokens + passages_tokens + query_tokens
+    full_input_without_query = system_prompt_tokens + passages_tokens
+    full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
+    if use_local_draft_model:
+        time_start = time.time()
+        layer_attention_dict, layer_attention_scores_matrix_square = compute_draft_model_attention(
+            draft_model=draft_model,
+            input_ids=full_input_tensor,
+            query_start = len(system_prompt_tokens) + len(passages_tokens),
+            total_len = len(full_input),
+            system_len = len(system_prompt_tokens),
+            doc_len = len(passages_tokens),
+            reverse=reverse_attn
+        )
+        time_start_1 = time.time()
+
+        print(f"query={query}")
+        print(f"prefill attention time1 = {time_start_1 - time_start}")
+
+        active_layers = [k for k, v in layer_attention_dict.items()]
+        # 聚合选中层的 attention
+        layer_attentions = [layer_attention_dict[idx] for idx in active_layers]
+        multi_layer_attn = torch.stack(layer_attentions).mean(dim=0)  # [doc_len]
+
+        if save_attention_heatmap:
+            save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
+            save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
+                                "/tmp/ppr_distribution_2d.jpg")
+
+    else:
+        result = call_remote_draft_model(
+            system_prompt=system_prompt,
+            docs=passages,
+            user_prompt=query,
+            draft_model_url=draft_model_url
+        )
+        attn_weights = result["choices"][0]["attention_weights"]
+        attn_weights = attn_weights[len(system_prompt_tokens):]
+        multi_layer_attn = torch.tensor(attn_weights)
+
+    match = re.search(r'(?<=attention_weight_adjust_)([-+]?\d*\.\d+|\d+)', keyword)
+    weight = float(match.group(1)) if match else 1.0
+    print(f"attention weight={weight}")
+
+    ## 先选token.
+    # multi_layer_attn_ = copy.deepcopy(multi_layer_attn)
+    # multi_layer_attn_[0:passages_len_wo_query[0]+passages_len_wo_query[1]] = 0.0
+    multi_layer_attn_ = multi_layer_attn
+    selected_indices_ = smart_query_selection(
+        attention_scores=multi_layer_attn_,
+        doc_len=len(passages_tokens),
+        target_ratio=rate+0.5, ##fixme: debug 0.3/rate
+        system_len=len(system_prompt_tokens),
+        device=draft_model_device,
+        keyword=keyword
+    )
+
+    selected_indices_list = []
+    reverse_selected_indices_list = []
+    for i in range(len(passages_len_wo_query)):
+        start_idx = sum(passages_len_wo_query[:i])
+        end_idx = sum(passages_len_wo_query[:i+1])
+        passage_select_indices = []
+        for id in selected_indices_:
+            if id>=start_idx and id<end_idx:
+                passage_select_indices.append(id-start_idx)
+        passage_select_indices_reverse = [i for i in range(0, end_idx-start_idx) if i not in passage_select_indices]
+        selected_indices_list.append(passage_select_indices)
+        reverse_selected_indices_list.append(passage_select_indices_reverse)
+
+
+
+    chosen_md5 = []
+    chosen_md5_idx = []
+    mean_key_before_list = [None for i in range(len(passages))]
+    mean_value_before_list = [None for i in range(len(passages))]
+
+    for psg_idx in range(len(passages_len_wo_query)):
+        if not is_preprocess_list[psg_idx]:
+            chosen_md5.append("")
+            chosen_md5_idx.append(-1)  ## no preprocess
+            if psg_idx > 0:
+                mean_key_before_list[psg_idx - 1] = key_cache_copies_list[psg_idx][0]
+                mean_value_before_list[psg_idx - 1] = value_cache_copies_list[psg_idx][0]
+        else:
+            start_idx = sum(passages_len_wo_query[:psg_idx])
+            end_idx = sum(passages_len_wo_query[:psg_idx + 1])
+            passage_key = draft_model_prefilled_key_cache[:, :, :, start_idx:end_idx, :]
+            passage_value = draft_model_prefilled_value_cache[:, :, :, start_idx:end_idx, :]
+            key_cache_list = key_cache_copies_list[psg_idx]
+            value_cache_list = value_cache_copies_list[psg_idx]
+            mse_min = 10e10
+            min_hash_idx = -1
+            if len(selected_indices_list[psg_idx]) > 0:
+                for idx in range(len(key_cache_list)):
+                    # k_mse = calculate_mse(passage_key, key_cache_list[idx])
+                    # v_mse = calculate_mse(passage_value, value_cache_list[idx])
+                    ## fixme: debug: selected_indices_list / reverse_selected_indices_list
+                    k_mse = calculate_mse(passage_key[:, :, :, selected_indices_list[psg_idx], :], key_cache_list[idx][:, :, :, selected_indices_list[psg_idx], :])
+                    v_mse = calculate_mse(passage_value[:, :, :, selected_indices_list[psg_idx], :], value_cache_list[idx][:, :, :, selected_indices_list[psg_idx], :])
+                    v_mse = 0 ##fixme: debug
+                    if k_mse + v_mse < mse_min:
+                        mse_min = k_mse + v_mse
+                        min_hash_idx = idx
+                        mean_key_before_list[psg_idx - 1] = key_cache_list[idx]  ## -1是为了减去system prompt
+                        mean_value_before_list[psg_idx - 1] = value_cache_list[idx]
+                print(f"for psg_idx={psg_idx}, min_hash_idx={min_hash_idx}, mse_min={mse_min}")
+            else:
+                min_hash_idx = 0
+                mean_key_before_list[psg_idx - 1] = key_cache_list[0]  ## 设置默认的就可以
+                mean_value_before_list[psg_idx - 1] = value_cache_list[0]
+
+            chosen_md5.append(preprocess_cache_keys[psg_idx][min_hash_idx])
+            chosen_md5_idx.append(min_hash_idx)
+    print(f"chosen_md5_idx={chosen_md5_idx}")
+
+    mean_key_after = torch.stack(past_key_values.key_cache).mean(dim=0)[:, :, passages_len_wo_query[0]:sum(passages_len_wo_query), :]
+    mean_value_after = torch.stack(past_key_values.value_cache).mean(dim=0)[:, :, passages_len_wo_query[0]:sum(passages_len_wo_query), :]
+    mean_key_before = torch.cat(mean_key_before_list, dim=3).mean(dim=0)
+    mean_value_before = torch.cat(mean_value_before_list, dim=3).mean(dim=0)
+
+    compare_sim = analyze_print_and_return_max_mse_map(
+        mean_key_before,
+        mean_value_before,
+        mean_key_after,
+        mean_value_after,
+        top_n=50
+    )
+
+    if use_weighted_diff_attention:
+        if "use_value" in keyword:
+            multi_layer_attn = multiply_tensor_by_sim_map(
+                multi_layer_attn,
+                compare_sim["value_min_sim_map"],
+                attn_weight_adjust=weight
+            )
+        elif "use_kv" in keyword:
+            multi_layer_attn = multiply_tensor_by_sim_map(
+                multi_layer_attn,
+                compare_sim["kv_combined_weight_map"],
+                attn_weight_adjust=weight
+            )
+        else:
+            multi_layer_attn = multiply_tensor_by_sim_map(
+                multi_layer_attn,
+                compare_sim["key_min_sim_map"], ## value_min_sim_map,
+                attn_weight_adjust=weight
+            )
+
+
+    selected_indices = smart_query_selection(
+        attention_scores=multi_layer_attn,
+        doc_len=len(passages_tokens),
+        target_ratio=rate,
+        system_len=len(system_prompt_tokens),
+        device=draft_model_device,
+        keyword=keyword
+    )
+
+    selected_indices.extend(must_choose_token_indices)
+    selected_indices = sorted(list(set(selected_indices)))
+    if reverse_attn:
+        combine_tokens, all_recompute_tokens = highlight_tokens_compare(selected_indices, torch.tensor(full_input), tokenizer, query=query,
+                                    passages_str=passages_with_system_prompt_str_list)
+    else:
+        combine_tokens, all_recompute_tokens = highlight_tokens_compare(selected_indices, torch.tensor(full_input_without_query), tokenizer, query=query,
+                                    passages_str=passages_with_system_prompt_str_list)
+
+    return chosen_md5, chosen_md5_idx, combine_tokens, all_recompute_tokens, sorted_index, sorted_index_before_resort, new_passages
 
 
 
@@ -2674,3 +2865,54 @@ def multiply_tensor_by_sim_map(
 
     # 5. 逐元素相乘并返回
     return multi_layer_attn * multiplier
+
+
+def calculate_mse(tensor_a: torch.Tensor, tensor_b: torch.Tensor) -> float:
+    """
+    计算两个 Tensor 之间的均方误差 (MSE)，并返回一个 float。
+    """
+    if tensor_a.shape != tensor_b.shape:
+        raise ValueError(f"Tensor 形状不匹配: {tensor_a.shape} vs {tensor_b.shape}")
+    mse_tensor = torch.nn.functional.mse_loss(tensor_a.float(), tensor_b.float()).cpu()
+    return mse_tensor.item()
+
+
+def analyze_print_and_return_max_mse_map(
+        mean_key_before: torch.Tensor,
+        mean_value_before: torch.Tensor,
+        mean_key_after: torch.Tensor,
+        mean_value_after: torch.Tensor,
+        top_n: int = 10
+) -> dict:
+    """
+    全量计算每个位置(Index)的 KV 均方误差(MSE)及联合拼接后的整体 MSE。
+    不进行任何排序与打印，保持高性能。
+    """
+    assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
+
+    # 1. 提取特征向量维度 -> [seq_len, 128]
+    k_before = mean_key_before[0].transpose(0, 1).flatten(1).float()
+    v_before = mean_value_before[0].transpose(0, 1).flatten(1).float()
+    k_after = mean_key_after[0].transpose(0, 1).flatten(1).float()
+    v_after = mean_value_after[0].transpose(0, 1).flatten(1).float()
+
+    seq_len = k_before.shape[0]
+
+    # 2. 🚀【核心修改】：在 dim=-1 上将 K 和 V 拼接成 [seq_len, 256] 的联合向量
+    kv_before_cat = torch.cat([k_before, v_before], dim=-1)
+    kv_after_cat = torch.cat([k_after, v_after], dim=-1)
+
+    # 3. 向量化并行计算各部分的 MSE (Mean Squared Error)
+    k_mse = torch.mean((k_before - k_after) ** 2, dim=-1).cpu().numpy()
+    v_mse = torch.mean((v_before - v_after) ** 2, dim=-1).cpu().numpy()
+
+    # 计算拼接后 256 维联合特征在每个位置的总平均 MSE
+    kv_combined_mse = torch.mean((kv_before_cat - kv_after_cat) ** 2, dim=-1).cpu().numpy()
+
+    # 4. 保持原格式顺序返回（以自然位置 0, 1, 2... 为 key 的字典）
+    # 注：为了兼顾你外层脚本的 Key 命名，接口返回的 dict 键名维持原样，并新增第三个值
+    return {
+        "key_min_sim_map": {i: float(k_mse[i]) for i in range(seq_len)},
+        "value_min_sim_map": {i: float(v_mse[i]) for i in range(seq_len)},
+        "kv_combined_weight_map": {i: float(kv_combined_mse[i]) for i in range(seq_len)}
+    }

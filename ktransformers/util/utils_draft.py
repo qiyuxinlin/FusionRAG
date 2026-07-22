@@ -3,7 +3,7 @@ import time
 
 from numpy import ndarray
 
-from ktransformers.util.utils import load_kv, revert_key_cache
+from ktransformers.util.utils import load_kv, revert_key_cache, analyze_print_and_return_max_mse_map
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -148,8 +148,8 @@ def draft_model_find_most_similar_copy(
     total_len_wo_query = sum(passages_len_wo_query)
     # Determine input device: use first GPU if device_map provided, otherwise use device
     input_device = f"cuda:{device_map['model.embed_tokens']}" if device_map is not None else device
-    all_key_cache = []
-    all_value_cache = []
+    key_cache_copies_list = []
+    value_cache_copies_list = []
     for idx, passage in enumerate(passages[:-1]):
         key_cache = []
         value_cache = []
@@ -176,8 +176,8 @@ def draft_model_find_most_similar_copy(
             chunk_value_cache = torch.load(f'{load_path}/{hash_keys[idx]}_value.pt', weights_only=True).to(device)
             key_cache.append(chunk_key_cache)
             value_cache.append(chunk_value_cache)
-        all_key_cache.append(key_cache)
-        all_value_cache.append(value_cache)
+        key_cache_copies_list.append(key_cache)
+        value_cache_copies_list.append(value_cache)
 
     with torch.no_grad():
         passages_len = [passage.shape[0] for passage in passages]
@@ -192,26 +192,30 @@ def draft_model_find_most_similar_copy(
             use_sparse_attention=False,
         )[0]
 
-        key_after = torch.stack(past_key_values.key_cache)[:, :, :, :total_len_wo_query, :]
-        value_after = torch.stack(past_key_values.value_cache)[:, :, :, :total_len_wo_query, :]
+        draft_model_prefilled_key_cache = torch.stack(past_key_values.key_cache)[:, :, :, :total_len_wo_query, :]
+        draft_model_prefilled_value_cache = torch.stack(past_key_values.value_cache)[:, :, :, :total_len_wo_query, :]
+
+        return key_cache_copies_list, value_cache_copies_list, draft_model_prefilled_key_cache, draft_model_prefilled_value_cache
+
         chosen_md5 = []
         chosen_md5_idx = []
         mean_key_before_list = [None for i in range(len(passages)-2)]
         mean_value_before_list = [None for i in range(len(passages)-2)]
+
         for psg_idx in range(len(passages_len_wo_query)):
             if not is_preprocess_list[psg_idx]:
                 chosen_md5.append("")
                 chosen_md5_idx.append(-1) ## no preprocess
                 if psg_idx > 0:
-                    mean_key_before_list[psg_idx - 1] = all_key_cache[psg_idx][0]
-                    mean_value_before_list[psg_idx - 1] = all_value_cache[psg_idx][0]
+                    mean_key_before_list[psg_idx - 1] = key_cache_copies_list[psg_idx][0]
+                    mean_value_before_list[psg_idx - 1] = value_cache_copies_list[psg_idx][0]
             else:
                 start_idx = sum(passages_len_wo_query[:psg_idx])
                 end_idx = sum(passages_len_wo_query[:psg_idx+1])
-                passage_key = key_after[:, :, :, start_idx:end_idx, :]
-                passage_value = value_after[:, :, :, start_idx:end_idx, :]
-                key_cache_list = all_key_cache[psg_idx]
-                value_cache_list = all_value_cache[psg_idx]
+                passage_key = draft_model_prefilled_key_cache[:, :, :, start_idx:end_idx, :]
+                passage_value = draft_model_prefilled_value_cache[:, :, :, start_idx:end_idx, :]
+                key_cache_list = key_cache_copies_list[psg_idx]
+                value_cache_list = value_cache_copies_list[psg_idx]
                 mse_min = 10e10
                 min_hash_idx = -1
                 for idx in range(len(key_cache_list)):
@@ -392,47 +396,6 @@ def analyze_print_and_return_min_sim_map(
     }
     # plot_and_save_weight_distribution(result)
     return result
-
-
-def analyze_print_and_return_max_mse_map(
-        mean_key_before: torch.Tensor,
-        mean_value_before: torch.Tensor,
-        mean_key_after: torch.Tensor,
-        mean_value_after: torch.Tensor,
-        top_n: int = 10
-) -> dict:
-    """
-    全量计算每个位置(Index)的 KV 均方误差(MSE)及联合拼接后的整体 MSE。
-    不进行任何排序与打印，保持高性能。
-    """
-    assert mean_key_before.shape == mean_key_after.shape, "Before 和 After 的 Shape 必须一致"
-
-    # 1. 提取特征向量维度 -> [seq_len, 128]
-    k_before = mean_key_before[0].transpose(0, 1).flatten(1).float()
-    v_before = mean_value_before[0].transpose(0, 1).flatten(1).float()
-    k_after = mean_key_after[0].transpose(0, 1).flatten(1).float()
-    v_after = mean_value_after[0].transpose(0, 1).flatten(1).float()
-
-    seq_len = k_before.shape[0]
-
-    # 2. 🚀【核心修改】：在 dim=-1 上将 K 和 V 拼接成 [seq_len, 256] 的联合向量
-    kv_before_cat = torch.cat([k_before, v_before], dim=-1)
-    kv_after_cat = torch.cat([k_after, v_after], dim=-1)
-
-    # 3. 向量化并行计算各部分的 MSE (Mean Squared Error)
-    k_mse = torch.mean((k_before - k_after) ** 2, dim=-1).cpu().numpy()
-    v_mse = torch.mean((v_before - v_after) ** 2, dim=-1).cpu().numpy()
-
-    # 计算拼接后 256 维联合特征在每个位置的总平均 MSE
-    kv_combined_mse = torch.mean((kv_before_cat - kv_after_cat) ** 2, dim=-1).cpu().numpy()
-
-    # 4. 保持原格式顺序返回（以自然位置 0, 1, 2... 为 key 的字典）
-    # 注：为了兼顾你外层脚本的 Key 命名，接口返回的 dict 键名维持原样，并新增第三个值
-    return {
-        "key_min_sim_map": {i: float(k_mse[i]) for i in range(seq_len)},
-        "value_min_sim_map": {i: float(v_mse[i]) for i in range(seq_len)},
-        "kv_combined_weight_map": {i: float(kv_combined_mse[i]) for i in range(seq_len)}
-    }
 
 
 
