@@ -834,6 +834,7 @@ def rotate_half(x):
     x2 = x[..., x.shape[-1] // 2 :]
     return torch.cat((-x2, x1), dim=-1)
 
+## mengyao_debug 不带完全重算的preprocess，这里提前做了 revert_key_cache
 def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, passages,
                                            save_path='', example_id = 0, chunk_id=0, system_len=0,
                                            revert_rope=False, reprocess_method=None, device="cuda",
@@ -908,6 +909,7 @@ def prefill_with_cache_and_save_preprocess(model, tokenizer, past_key_values, pa
     else:
         torch.save(value_cache.clone(), f'{save_path}/{example_id}_{chunk_id}_value.pt')
 
+## mengyao_debug 完全重算的preprocess，但是没有做 revert_key_cache，在用的时候才做的，这里写的有点乱
 def prefill_straight_and_save_preprocess(
         model,
         past_key_values,
@@ -2060,9 +2062,9 @@ def find_all_substr_needs_recompute_entropy(draft_model, draft_model_device, tok
 
 
 def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, system_prompt: str,
-                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int], reverse_attn=False,
-                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None, keyword="",
-                                    gold_docs=None, resort_passages=False, mean_attn_weights=None)\
+                                    passages: list[str], query: str, rate: float, must_choose_token_indices: list[int],
+                                    weighted_use_value: bool, weighted_use_kv:bool, reverse_attn=False,
+                                    use_local_draft_model=True, draft_model_url="", save_attention_heatmap=False, compare_sim=None, keyword="")\
         -> Tuple[List[str], List[List[str]], List[int], List[int], List[str]]:
     system_prompt_tokens = tokenizer.encode(system_prompt, add_special_tokens = False)
     passages_with_system_prompt_str_list = [system_prompt]
@@ -2130,13 +2132,13 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     ## fixme： mengyao_debug 用compare_sim来加权
     if compare_sim is not None:
         # multi_layer_attn.fill_(1) ## 开启这个话就是不用attention分数了
-        if "use_value" in keyword:
+        if weighted_use_value:
             multi_layer_attn = multiply_tensor_by_sim_map(
                 multi_layer_attn,
                 compare_sim["value_min_sim_map"],
                 attn_weight_adjust=weight
             )
-        elif "use_kv" in keyword:
+        elif weighted_use_kv:
             multi_layer_attn = multiply_tensor_by_sim_map(
                 multi_layer_attn,
                 compare_sim["kv_combined_weight_map"],
@@ -2148,6 +2150,9 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
                 compare_sim["key_min_sim_map"], ## value_min_sim_map,
                 attn_weight_adjust=weight
             )
+
+    ## fixme: debug!!!!!
+    # multi_layer_attn[0:len(each_passages_tokens[0])] = 0.0
 
     if reverse_attn:
         selected_indices = smart_query_selection(

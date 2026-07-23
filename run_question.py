@@ -379,7 +379,7 @@ class FusionRAGModel:
             )
             self.clean_kv_cache()
 
-    def preprocess_one_document_multicopy(self, system_prompt: str, document: str,
+    def preprocess_one_document_full_recomputation(self, system_prompt: str, document: str,
                                           all_kinds_preprocess_similar_docs: dict[str, list[list[str]]],
                                           is_draft_model=False) -> (list[str], list[int]):
         if not is_draft_model:
@@ -425,7 +425,6 @@ class FusionRAGModel:
             if os.path.exists(f'{preprocess_save_path}/{preprocess_hash_key}_{current_hash_key}_value.pt') \
                     and os.path.exists(f'{preprocess_save_path}/{preprocess_hash_key}_{current_hash_key}_key.pt'):
                 continue
-
 
             all_doc_tensors.append(current_doc_tensor)
             passages = torch.cat(all_doc_tensors)
@@ -480,7 +479,7 @@ class FusionRAGModel:
         # print(f"for doc={current_doc}\n current_hash_key={current_hash_key}")
         if os.path.exists(f'{preprocess_save_path}/{current_hash_key}_value.pt') \
                 and os.path.exists(f'{preprocess_save_path}/{current_hash_key}_key.pt'):
-            # print(f"preprocess_all_documents skipping doc {current_doc}.")
+            print(f"preprocess_all_documents skipping doc {current_doc}.")
             return
 
         similar_doc_indeces = self.similar_idx[current_doc_index]
@@ -488,7 +487,7 @@ class FusionRAGModel:
         all_doc_len = [len(system_tensor)]
 
 
-        # 1. compute all kv.
+        # 1. compute all raw kv.
         for similar_doc_index in similar_doc_indeces:
             if similar_doc_index < 0:
                 continue
@@ -531,7 +530,6 @@ class FusionRAGModel:
             hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
             cache_key_path = f'{save_path}/{hash_key}_key.pt'
             cache_value_path = f'{save_path}/{hash_key}_value.pt'
-            print(f"cache_key_path = {cache_key_path}")
             chunk_key_cache = torch.load(cache_key_path, weights_only=True)
             chunk_value_cache = torch.load(cache_value_path, weights_only=True)
             past_len = sum(all_doc_len[:doc_idx])
@@ -884,10 +882,10 @@ class FusionRAGModel:
                            reverse_attn=False,
                            use_entropy_and_relevance=False,
                            must_choose_docs: list[str] = None,
-                           use_compare_sim=False,
+                           use_weighted_diff_attention=False,
                            preprocess=False,
-                           gold_docs=None,
-                           resort_passages=False
+                           weighted_use_value=False,
+                           weighted_use_kv=False,
                            ):
         print(f"draft_one_question query={query}")
         must_choose_token_indices = []
@@ -920,8 +918,8 @@ class FusionRAGModel:
         compare_sim = None
         query_states = None
         mean_attn_weights = None
-        if use_compare_sim:
-            compare_sim, mean_attn_weights = self.compare_raw_kv_similarity_with_prefill(
+        if use_weighted_diff_attention:
+            compare_sim, mean_attn_weights = self.compare_chunk_kvcache_similarity_with_prefilled_kv_cache(
                 query=query,
                 retrieved_docs=passages,
                 system_prompt=system_prompt,
@@ -961,14 +959,14 @@ class FusionRAGModel:
                 draft_model_url=self.draft_model_url,
                 compare_sim=compare_sim,
                 keyword=keyword,
-                gold_docs=gold_docs,
-                resort_passages=resort_passages,
-                mean_attn_weights=mean_attn_weights
+                weighted_use_value=weighted_use_value,
+                weighted_use_kv=weighted_use_kv
             )
         torch.cuda.empty_cache()
         return recompute_tokens, recompute_tokens_list, passages, rate, sorted_index, sorted_index_before_resort
 
 
+    ## mengyao_debug 默认在preprocess的时候 full recomputation
     def draft_one_question_preprocess_multicopy(
             self,
             system_prompt: str,
@@ -980,8 +978,8 @@ class FusionRAGModel:
             use_weighted_diff_attention: bool
     ):
         print(f"draft_one_question query={query}")
-        ##1. 只是为了生成所有raw cache，所以既不需要preprocess，也不需要do_compare
-        self.compare_raw_kv_similarity_with_prefill(
+        ##mengyao_debug 只是为了生成所有raw cache，所以不需要preprocess，也不需要do_compare。因为我们需要后面根据kvcache的相似度在多副本里面选择要用的kv副本，之后才能计算相似度
+        self.compare_chunk_kvcache_similarity_with_prefilled_kv_cache(
             query=query,
             retrieved_docs=passages,
             system_prompt=system_prompt,
@@ -995,7 +993,7 @@ class FusionRAGModel:
         all_preprocess_doc_prefix_lens = [[0]]
         time_start = time.time()
         for passage in passages:
-            preprocess_hash_keys, preprocess_prefix_lens = self.preprocess_one_document_multicopy(
+            preprocess_hash_keys, preprocess_prefix_lens = self.preprocess_one_document_full_recomputation(
                 system_prompt=system_prompt,
                 document=passage,
                 all_kinds_preprocess_similar_docs=all_kinds_preprocess_similar_docs,
@@ -1039,25 +1037,7 @@ class FusionRAGModel:
             is_preprocess_list=is_preprocess_list
         )
 
-        # recompute_tokens, recompute_tokens_list, sorted_index, sorted_index_before_resort, passages = find_all_substr_needs_recompute(
-        #     draft_model=self.draft_model,
-        #     draft_model_device=self.draft_model_device,
-        #     tokenizer=self.draft_model_tokenizer,
-        #     system_prompt=system_prompt,
-        #     passages=passages,
-        #     query=query,
-        #     rate=rate,
-        #     must_choose_token_indices=[],
-        #     reverse_attn=False,
-        #     use_local_draft_model=self.use_local_draft_model,
-        #     draft_model_url=self.draft_model_url,
-        #     compare_sim=compare_sim,
-        #     keyword=keyword,
-        #     gold_docs=[],
-        #     resort_passages=False,
-        #     mean_attn_weights=None
-        # )
-
+        ## mengyao_debug: 目前从多副本选择的时候默认是用key cache+mse来选择的
         chosen_md5, chosen_md5_idx, recompute_tokens, recompute_tokens_list, sorted_index, sorted_index_before_resort, passages = find_all_substr_needs_recompute_and_choose_from_copies(
             draft_model=self.draft_model,
             draft_model_device=self.draft_model_device,
@@ -1095,7 +1075,7 @@ class FusionRAGModel:
 
 
 
-    def compare_raw_kv_similarity_with_prefill(
+    def compare_chunk_kvcache_similarity_with_prefilled_kv_cache(
             self,
             query: str,
             retrieved_docs: list[str],
@@ -1125,7 +1105,7 @@ class FusionRAGModel:
             doc_tensors_len.append(len(doc_tensor))
             hash_keys.append(hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest())
 
-        # 1. generate system prompt kv cache.
+        # mengyao_debug 生成system prompt的kvcache
         hash_key = hashlib.md5(system_tensor.cpu().numpy().tobytes()).hexdigest()
         system_cache_path = f'{self.draft_model_save_path}/{hash_key}_key.pt'
         if not os.path.exists(system_cache_path):
@@ -1147,7 +1127,7 @@ class FusionRAGModel:
             )
             self.clean_draft_model_kv_cache()
 
-        # 2. generate query kv cache.
+        # mengyao_debug 生成query的kvcache，这是为了根据query->chunk的分数来对chunk进行排序的，暂时没有用（排序效果不好）；
         query_hash_key = hashlib.md5(query_tensor.cpu().numpy().tobytes()).hexdigest()
         query_cache_path = f'{self.draft_model_save_path}/{query_hash_key}_key.pt'
         query_states = []
@@ -1172,7 +1152,7 @@ class FusionRAGModel:
             self.clean_draft_model_kv_cache()
 
 
-        # 2. Generate KV cache for each document in THIS main question
+        # 2. mengyao_debug 生成chunk的raw kvcache
         for doc_idx, doc_tensor in enumerate(doc_tensors):
             doc_text = retrieved_docs[doc_idx]
             hash_key = hashlib.md5(doc_tensor.cpu().numpy().tobytes()).hexdigest()
@@ -1201,7 +1181,7 @@ class FusionRAGModel:
                 )
                 self.clean_draft_model_kv_cache()
 
-        # 3.
+        # 3. 如果有preprocess的话，要比较preprocess的
         if preprocess:
             for doc_text in retrieved_docs:
                 self.preprocess_one_document(
@@ -1264,7 +1244,7 @@ class FusionRAGModel:
 
         compare_sim = None
         if use_compare_sim:
-            compare_sim, _ = self.compare_raw_kv_similarity_with_prefill(
+            compare_sim, _ = self.compare_chunk_kvcache_similarity_with_prefilled_kv_cache(
                 query=query,
                 retrieved_docs=retrieved_docs,
                 system_prompt=system_prompt,
