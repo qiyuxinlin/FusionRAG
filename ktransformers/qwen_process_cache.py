@@ -216,9 +216,6 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
         batch_data.append(passage)
 
     if preprocess == True:
-        bgem3 = FlagModel('/mnt/data/models/bge-m3-FP16',
-                      query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
-                      use_fp16=True)
         corpus = []
         corpus_lens = []
         for batch in batch_data:
@@ -226,6 +223,9 @@ def prepare_data(model_name, data_path, data_name, cache_path, tokenizer: AutoTo
             corpus_lens.append(len(batch[1:-1]))
         path = f"{cache_path}data/{data_name.split('.')[0]}.bin"
         start_time = time.time()
+        bgem3 = FlagModel('/mnt/data/models/bge-m3-FP16',
+                      query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
+                      use_fp16=True)
         if os.path.exists(path):
             index = faiss.read_index(path)
         else:
@@ -471,13 +471,13 @@ if __name__ == '__main__':
     #             # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
     #             main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
     #             main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
-    for data_name in ['triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', "musique-200.jsonl", "2wikimqa-200.jsonl"]:
+    for data_name in ["musique-200.jsonl", 'triviaqa-270-100-10-doc.jsonl', 'hotpotqa-260-100-10-doc.jsonl', "2wikimqa-200.jsonl"]:
         for topk in [10]:
             for rate in [0, 1, 0.15, 0.05, 0.1]:
                 # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
                 # main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='Cache-Craft', data_name=data_name, topk=topk)
                 # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='cacheBlend', data_name=data_name, topk=topk)
-                main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
+                main(rate = rate, preprocess=True, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
                 # main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=topk)
         # for rate in[0,0.05,0.1,0.15]:
         #     main(rate = rate, preprocess=False, revert_rope=True, reprocess_method='processCache', data_name=data_name, topk=10)

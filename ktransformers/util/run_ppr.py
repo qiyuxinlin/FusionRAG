@@ -484,8 +484,9 @@ def highlight_tokens_compare(k_need_index, passages, tokenizer, query="", passag
 
     highlighted_with_spaces = "".join(highlighted_tokens)
 
-    # print(f"步骤1: 带空格的原始高亮文本, query={query}\n")
-    print(f"highlighted_with_spaces={highlighted_with_spaces}")
+    if len(k_need_index) > 0:
+        print(f"query={query}\n")
+        print(f"highlighted_with_spaces={highlighted_with_spaces}")
     return combine_tokens, all_recompute_tokens
 
 

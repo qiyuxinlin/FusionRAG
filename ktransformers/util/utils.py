@@ -17,9 +17,11 @@ import re
 import os
 import math
 import string
+import gc
 import json
 import collections
 import numpy as np
+import gc
 import requests
 from ktransformers.util.run_ppr import (personalized_pagerank, get_top_tokens, highlight_tokens_compare,
                                         topk_position_dispersion, OnlineEncoder, calculate_vector_set_similarity,
@@ -573,8 +575,11 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
         else:
             use_global_rope = False
             cos, sin = None, None
+        bsz, q_len, _ = hidden_states.size()
+        causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
 
         for layer_idx in range(num_layers):
+            # torch.cuda.empty_cache() ##mengyao_debug slow
             time_start=time.time()
             layer = draft_model.model.layers[layer_idx]
 
@@ -609,26 +614,31 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
             time_attn = time.time()
             # Compute attention
             if not debug:
-                attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (head_dim ** 0.5)
-                causal_mask = torch.triu(torch.ones(q_len, q_len, device=device), diagonal=1).bool()
-                attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
+                # attn_weights = torch.matmul(query_states.float(), key_states_expanded.float().transpose(2, 3)) / (head_dim ** 0.5)
+                attn_weights = torch.matmul(query_states, key_states_expanded.transpose(2, 3))
+                inv_scale = 1.0 / (head_dim ** 0.5)
+                attn_weights.mul_(inv_scale)
+                attn_weights = attn_weights.masked_fill_(causal_mask, float('-inf'))
                 attn_weights = F.softmax(attn_weights, dim=-1)
 
                 # 保存后半部分层的 attention
                 if layer_idx >= num_layers // 2:
                 # if layer_idx >= 0:
                     ## make everything faster
-                    attn_score = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len]
+                    attn_score = attn_weights[0].mean(dim=0)[query_start:total_len, system_len:system_len + doc_len].detach().cpu()
                     if reverse:
                         layer_attention_scores[layer_idx] = attn_score.mean(dim=1) ## attn_weights: 1,16,seq_len, seq_len
                     else:
                         layer_attention_scores[layer_idx] = attn_score.mean(dim=0) ## attn_weights: 1,16,seq_len, seq_len
 
-                    layer_attention_scores_matrix.append(attn_weights[0].mean(dim=0))
+                    # layer_attention_scores_matrix.append(attn_weights[0].mean(dim=0))
 
                 time_forward = time.time()
                 # Continue forward
                 attn_output = torch.matmul(attn_weights.to(value_states_expanded.dtype), value_states_expanded)
+                del attn_weights
+                # gc.collect()
+                # torch.cuda.empty_cache() ## mengyao_debug slow
             else:
                 attn_output = F.scaled_dot_product_attention(
                     query_states, key_states_expanded, value_states_expanded,
@@ -651,13 +661,13 @@ def compute_draft_model_attention(draft_model, input_ids, device="cuda:0", debug
             # if layer_idx % 4 == 0 or layer_idx == num_layers - 1:
             #     print(f"  Layer {layer_idx} done")
 
-    layer_attention_scores_matrix_mean = torch.stack(layer_attention_scores_matrix).mean(dim=0)
-    layer_attention_scores_matrix_square = (
-            torch.tril(layer_attention_scores_matrix_mean) +
-            torch.triu(layer_attention_scores_matrix_mean.T, diagonal=1)
-    )
+    # layer_attention_scores_matrix_mean = torch.stack(layer_attention_scores_matrix).mean(dim=0)
+    # layer_attention_scores_matrix_square = (
+    #         torch.tril(layer_attention_scores_matrix_mean) +
+    #         torch.triu(layer_attention_scores_matrix_mean.T, diagonal=1)
+    # )
     print(f"Draft model attention computed")
-    return layer_attention_scores, layer_attention_scores_matrix_square
+    return layer_attention_scores, None
 
 
 def prefill_and_save_kv_cache(model, tokenizer, past_key_values, inputs,
@@ -2085,9 +2095,11 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
     full_input = system_prompt_tokens + passages_tokens + query_tokens
     full_input_without_query = system_prompt_tokens + passages_tokens
     full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
-    if use_local_draft_model:
+    if rate == 0.0 or rate == 1.0:
+        multi_layer_attn = torch.randn(len(passages_tokens)).cpu()
+    elif use_local_draft_model:
         time_start = time.time()
-        layer_attention_dict, layer_attention_scores_matrix_square = compute_draft_model_attention(
+        layer_attention_dict, _ = compute_draft_model_attention(
             draft_model=draft_model,
             input_ids=full_input_tensor,
             query_start = len(system_prompt_tokens) + len(passages_tokens),
@@ -2111,8 +2123,8 @@ def find_all_substr_needs_recompute(draft_model, draft_model_device, tokenizer, 
 
         if save_attention_heatmap:
             save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
-            save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
-                                "/tmp/ppr_distribution_2d.jpg")
+            # save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
+            #                     "/tmp/ppr_distribution_2d.jpg")
 
     else:
         result = call_remote_draft_model(
@@ -2213,7 +2225,7 @@ def find_all_substr_needs_recompute_and_choose_from_copies(draft_model, draft_mo
     full_input_tensor = torch.tensor(full_input).unsqueeze(0).to(draft_model_device)
     if use_local_draft_model:
         time_start = time.time()
-        layer_attention_dict, layer_attention_scores_matrix_square = compute_draft_model_attention(
+        layer_attention_dict, _ = compute_draft_model_attention(
             draft_model=draft_model,
             input_ids=full_input_tensor,
             query_start = len(system_prompt_tokens) + len(passages_tokens),
@@ -2234,8 +2246,8 @@ def find_all_substr_needs_recompute_and_choose_from_copies(draft_model, draft_mo
 
         if save_attention_heatmap:
             save_distribution_plot(multi_layer_attn, "/tmp/ppr_distribution.jpg")
-            save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
-                                "/tmp/ppr_distribution_2d.jpg")
+            # save_matrix_heatmap(layer_attention_scores_matrix_square[len(system_prompt_tokens) + len(passages_tokens):, len(system_prompt_tokens): len(system_prompt_tokens) + len(passages_tokens)],
+            #                     "/tmp/ppr_distribution_2d.jpg")
 
     else:
         result = call_remote_draft_model(

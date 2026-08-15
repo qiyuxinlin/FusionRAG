@@ -202,7 +202,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=cache_device,
                 dtype=self.model.dtype,
-                passage_len=16384
+                passage_len=32768
             )
 
         if draft_model_path != "":
@@ -212,7 +212,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=draft_model_device,
                 dtype=self.draft_model.dtype,
-                passage_len=16384
+                passage_len=32768
             )
             self.draft_past_key_values_back = StaticCache(
                 config=self.draft_model.config,
@@ -220,7 +220,7 @@ class FusionRAGModel:
                 max_cache_len=max_cache_len,
                 device=draft_model_device,
                 dtype=self.draft_model.dtype,
-                passage_len=16384
+                passage_len=32768
             )
         if use_multi_gpu:
             self.input_device = "cuda:0"  # First GPU for inputs
