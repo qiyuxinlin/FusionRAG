@@ -205,7 +205,7 @@ class FusionRAGModel:
                 passage_len=32768
             )
 
-        if draft_model_path != "":
+        if draft_model_path != "" and use_local_draft_model:
             self.draft_past_key_values = StaticCache(
                 config=self.draft_model.config,
                 max_batch_size=1,
